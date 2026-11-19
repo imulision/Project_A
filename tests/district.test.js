@@ -626,3 +626,10 @@ test('the flows of a district read as one chain: made, in the cellar, sold, earn
   assert.ok(['stills', 'seats', 'drinkers'].includes(f.limit));
   assert.equal(D.flows(D.createDistrict({ capo: 'mae' })).sold, 0);
 });
+
+test('a capo with a grudge keeps more of the boss\'s cut for himself', () => {
+  const fair = D.createDistrict({ capo: 'sal' }), sore = D.createDistrict({ capo: 'sal', grudge: 2 });
+  D.stepMonth(fair); D.stepMonth(sore);
+  assert.ok(sore.last.skim > fair.last.skim * 1.3);
+  assert.ok(sore.boss.dirty + sore.boss.clean < fair.boss.dirty + fair.boss.clean);
+});
