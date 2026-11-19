@@ -175,6 +175,11 @@
     var x = g.world && W.district(g.world, districtId);
     return x && x.state ? D.flows(x.state) : null;
   }
+  // Where the money of a district sits, place by place (see district.js). Empty where the family is not.
+  function cash(g, districtId) {
+    var x = g.world && W.district(g.world, districtId);
+    return x && x.state ? D.cash(x.state) : [];
+  }
   // What the capos ask the boss's leave for, with the words the screen needs.
   function proposals(g) {
     if (!g.world) return [];
@@ -262,7 +267,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, research: research, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, cash: cash, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, research: research, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);

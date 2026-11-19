@@ -607,6 +607,24 @@
     return list;
   }
 
+  // Where the money of the district sits, place by place, for the money view
+  // of the map: what the capo holds at the hideout, what each place took last
+  // month, and what each laundry washed.
+  function cash(d) {
+    var m = d.last, slug = slugOf(d), list = [];
+    list.push({ at: 'hideout', kind: 'dirty', amount: d.dirty });
+    list.push({ at: 'hideout', kind: 'clean', amount: d.clean });
+    if (!m) return list;
+    trips(d).forEach(function (t) { if (t.kind === 'takings') list.push({ at: t.from, kind: 'takings', amount: t.amount }); });
+    var power = d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash;
+    ['rented', 'front'].forEach(function (k) {
+      for (var n = 1; n <= d.sites[k]; n++) {
+        list.push({ at: slug + '-' + k + '-' + n, kind: 'washing', amount: power ? m.washed * SITES[k].wash / power : 0 });
+      }
+    });
+    return list;
+  }
+
   // What the map needs to draw the district: one entry per building.
   function buildings(d) {
     var list = [], slug = slugOf(d);
@@ -619,7 +637,7 @@
   }
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
-              chooseProject: chooseProject, plan: plan, addCapo: addCapo, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
+              chooseProject: chooseProject, plan: plan, addCapo: addCapo, stepMonth: stepMonth, buildings: buildings, cash: cash, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
               goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS,
               defence: defence, SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
