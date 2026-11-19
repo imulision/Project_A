@@ -309,9 +309,8 @@
   }
   function takeover(w, id, way, capo) {
     var x = district(w, id), t = wayOf(way), underboss = w.underbosses[x.city], by = 'boss';
-    w.takeovers = w.takeovers || [];
     if (x.owner === 'family') throw new Error(id + ' is already the family\'s');
-    if (w.takeovers.some(function (o) { return o.district === id; })) throw new Error('a takeover of ' + id + ' is already under way');
+    if ((w.takeovers || []).some(function (o) { return o.district === id; })) throw new Error('a takeover of ' + id + ' is already under way');
     if (!reachable(w, id)) throw new Error(id + ' is out of reach: the family holds nothing next to it');
     if (capo) mustBeFree(w, capo, id);
     else if (!underboss) throw new Error('name a capo for ' + id + ': the family has no underboss in that city');
@@ -320,7 +319,7 @@
     if (!canPay(w, t.cur, cost)) throw new Error('the boss cannot afford to ' + way + ' his way into ' + id);
     pay(w, t.cur, cost);
     var op = { district: id, city: x.city, way: way, capo: capo, by: by, month: w.month, months: t.months, cost: cost };
-    w.takeovers.push(op);
+    (w.takeovers = w.takeovers || []).push(op);
     return { district: id, way: way, capo: capo, months: t.months, cost: cost };
   }
   function takeovers(w) {
