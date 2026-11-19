@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ashport</title>
+<!-- The screen the app shows at launch while it looks for a newer game.
+     The app drives it through window.ashportShell (see MainActivity.java).
+     It never decides anything: the app moves on by itself after a fixed time. -->
+<style>
+  html, body { height: 100%; margin: 0; background: #0c1612; color: #d9c9a3; overflow: hidden;
+               font-family: Georgia, 'Times New Roman', serif; -webkit-user-select: none; user-select: none; }
+  .night { position: fixed; inset: 0; background:
+             radial-gradient(120% 70% at 50% 108%, #3a2417 0%, #1a1a17 38%, #0c1612 72%); }
+  /* a lighthouse beam that turns slowly over the harbour */
+  .beam { position: fixed; left: 50%; bottom: 34%; width: 220vmax; height: 220vmax; margin: -110vmax;
+          background: conic-gradient(from 0deg, transparent 0deg, rgba(232, 180, 96, .13) 10deg, transparent 24deg, transparent 360deg);
+          animation: turn 9s linear infinite; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  /* the city, as lit windows only */
+  .city { position: fixed; left: 0; right: 0; bottom: 0; height: 34%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
+  .tower { flex: 0 0 auto; background: #070d0b; display: grid; grid-auto-rows: 9px; gap: 5px 4px; padding: 7px 5px 0; box-sizing: border-box; }
+  .tower i { width: 4px; height: 6px; background: #e8b460; opacity: 0; animation: lit 6s ease-in-out infinite; }
+  @keyframes lit { 0%, 18% { opacity: 0; } 30%, 78% { opacity: .85; } 92%, 100% { opacity: 0; } }
+  .front { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 22%; }
+  h1 { margin: 0; font-size: 13vw; letter-spacing: .22em; padding-left: .22em; font-weight: 400; color: #ecd9a8;
+       text-shadow: 0 0 28px rgba(232, 180, 96, .35); animation: rise 1.2s ease-out both; }
+  .year { margin-top: .5em; font-size: 3.6vw; letter-spacing: .5em; padding-left: .5em; color: #9c8a63; animation: rise 1.2s .2s ease-out both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .bar { margin-top: 3.2em; width: 62vw; max-width: 420px; height: 3px; background: rgba(217, 201, 163, .16); overflow: hidden; border-radius: 2px; }
+  .fill { height: 100%; width: 0; background: #e8b460; box-shadow: 0 0 10px rgba(232, 180, 96, .8); transition: width .25s ease-out; }
+  .bar.looking .fill { width: 28%; animation: seek 1.3s ease-in-out infinite; transition: none; }
+  @keyframes seek { from { transform: translateX(-110%); } to { transform: translateX(370%); } }
+  .stage { margin-top: 1.1em; min-height: 1.4em; font-size: 3.6vw; letter-spacing: .08em; color: #b8a67c; font-style: italic; }
+  .detail { margin-top: .5em; min-height: 1.4em; font-size: 3.1vw; letter-spacing: .12em; color: #7f7254; font-variant-numeric: tabular-nums; }
+  @media (min-width: 700px) { h1 { font-size: 86px; } .year, .stage { font-size: 20px; } .detail { font-size: 17px; } }
+</style>
+</head>
+<body>
+<div class="night"></div>
+<div class="beam"></div>
+<div class="city" id="city"></div>
+<div class="front">
+  <h1>ASHPORT</h1>
+  <div class="year">1926</div>
+  <div class="bar looking" id="bar"><div class="fill" id="fill"></div></div>
+  <div class="stage" id="stage">Looking for a new version</div>
+  <div class="detail" id="detail"></div>
+</div>
+<script>
+(function () {
+  // A skyline of dark towers whose windows come on and go off, each in its own time.
+  var city = document.getElementById('city'), seed = 7;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  for (var t = 0; t < 26; t++) {
+    var tower = document.createElement('div'), cols = 2 + Math.floor(rnd() * 3), rows = 3 + Math.floor(rnd() * 12);
+    tower.className = 'tower';
+    tower.style.gridTemplateColumns = 'repeat(' + cols + ', 4px)';
+    tower.style.height = (rows * 14 + 7) + 'px';
+    for (var w = 0; w < cols * rows; w++) {
+      var win = document.createElement('i');
+      if (rnd() < 0.45) win.style.animation = 'none';
+      else { win.style.animationDelay = (-rnd() * 6).toFixed(2) + 's'; win.style.animationDuration = (4 + rnd() * 6).toFixed(2) + 's'; }
+      tower.appendChild(win);
+    }
+    city.appendChild(tower);
+  }
+  var bar = document.getElementById('bar'), fill = document.getElementById('fill');
+  var stage = document.getElementById('stage'), detail = document.getElementById('detail');
+  // One call per step: what is happening, a line of figures, and how full the bar is (0 to 1).
+  window.ashportShell = {
+    show: function (what, figures, fraction) {
+      stage.textContent = what;
+      detail.textContent = figures;
+      bar.className = 'bar';
+      fill.style.width = Math.max(0, Math.min(1, fraction)) * 100 + '%';
+    }
+  };
+})();
+</script>
+</body>
+</html>

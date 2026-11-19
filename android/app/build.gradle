@@ -40,7 +40,8 @@ android {
 
     sourceSets {
         main {
-            assets.srcDirs = ['../../web']
+            // The game, and the app's own launch screen (shell/), which is not part of the game.
+            assets.srcDirs = ['../../web', 'src/main/assets']
         }
     }
 

@@ -101,11 +101,20 @@ final class GameBundle {
      * changes nothing, if the download is broken or is not a game.
      */
     static void install(InputStream zip, File root, String version) throws IOException {
+        install(zip, root, version, done -> { });
+    }
+
+    /** Told after each file of the game is written: how many so far. */
+    interface FileStep {
+        void unpacked(int done);
+    }
+
+    static void install(InputStream zip, File root, String version, FileStep step) throws IOException {
         if (numbers(version) == null) throw new IOException("unreadable version: " + version);
         File incoming = new File(root, version + ".incoming");
         delete(incoming);
         try {
-            unpack(zip, incoming);
+            unpack(zip, incoming, step);
             if (!new File(incoming, PAGE).isFile()) throw new IOException("no " + PAGE + " in the download");
             File target = new File(root, version);
             delete(target);
@@ -120,12 +129,12 @@ final class GameBundle {
         File[] others = root.listFiles();
         if (others != null) {
             for (File f : others) {
-                if (f.isDirectory() && !f.getName().equals(version)) delete(f);
+                if (!f.getName().equals(version) && !f.getName().equals(CURRENT)) delete(f);
             }
         }
     }
 
-    private static void unpack(InputStream zip, File folder) throws IOException {
+    private static void unpack(InputStream zip, File folder, FileStep step) throws IOException {
         if (!folder.mkdirs()) throw new IOException("could not create " + folder);
         String inside = folder.getCanonicalPath() + File.separator;
         int files = 0;
@@ -143,6 +152,7 @@ final class GameBundle {
                     for (int n = in.read(buffer); n > 0; n = in.read(buffer)) to.write(buffer, 0, n);
                 }
                 files++;
+                step.unpacked(files);
             }
         }
         if (files == 0) throw new IOException("the download is empty or is not a zip");

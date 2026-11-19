@@ -12,7 +12,7 @@ lieutenants run which districts, and they act their own way.
 - `render/` is the 3D map itself (Three.js): `scene.js` draws the plan made by `mapview.js`, `era.js` builds the 1920s buildings by code, `models.js` holds the few free models still in use (KayKit City Builder Bits, CC0). `npm run build` bundles it into `web/render.js`, which is committed so that the page still opens straight from the file and the Android app needs no build. Run it after any change in `render/`; the tests fail if the bundle is stale.
 - `tests/playthrough.mjs` is the integration test: in a real browser it names the first capo, plays two years, moves into a second district by touching the map, and reloads the saved game. `node tests/playthrough.mjs some/folder` also keeps a screenshot of each step.
 - `.github/workflows/test.yml` runs both on every push to `main` and on every pull request.
-- `android/` is the Android app: one screen that shows `web/`. It holds no game code.
+- `android/` is the Android app: one screen that shows `web/`. It holds no game code. At launch it shows its own screen (`android/app/src/main/assets/shell/updating.html`) while it looks for a newer release and downloads it, with a bar, the size left and the count of files; the check is given 20 seconds and the game starts after 25 whatever happened. Coming back to the app after five minutes looks again in the background.
 - `.github/workflows/apk.yml` builds the APK on every pull request, and publishes it as a release on every push to `main`.
 
 ## Working on the game
