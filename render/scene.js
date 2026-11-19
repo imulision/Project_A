@@ -184,14 +184,16 @@ function eraMat(lit) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0 });
   m.onBeforeCompile = sh => {
     sh.uniforms.uLit = { value: lit };
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWin; varying float vWin; varying float vSeed;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aWin; varying float vWin; varying float vSeed; varying float vFoot;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-        vWin = aWin; vSeed = 0.;
+        vWin = aWin; vSeed = 0.; vFoot = transformed.y;
         #ifdef USE_INSTANCING
           vSeed = fract(sin(dot(instanceMatrix[3].xz, vec2(12.9898, 78.233))) * 43758.5453);
+          vFoot = transformed.y * length(instanceMatrix[1].xyz);     // height above the pavement, in the units of the map
         #endif`);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vWin; varying float vSeed; uniform float uLit;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vWin; varying float vSeed; varying float vFoot; uniform float uLit;')
       .replace('#include <emissivemap_fragment>', `
+        diffuseColor.rgb *= 0.5 + 0.5 * smoothstep(0., 0.7, vFoot);     // contact shading written into the wall: darker where it meets the street, at no extra draw
         float isWin = step(0.5, vWin), shopW = step(1.5, vWin);
         float rr = fract(sin(fract(vWin) * 91.7 + vSeed * 37.3) * 43758.5453);
         float on = step(rr, uLit + shopW * 0.4);
@@ -687,7 +689,7 @@ function frame(now) {
     // adaptive quality: below 40 images a second for two seconds, lower the resolution one step
     slow = fps < 40 ? slow + 1 : 0;
     if (slow >= 2 && pr > 1 && !Q.has('fixed')) { setPr(Math.max(1, pr - 0.25)); slow = 0; }
-    const el = document.getElementById('fps'); if (el) el.textContent = fps + ' fps';
+    const el = document.getElementById('fps'); if (el && !el.classList.contains('on')) el.textContent = fps + ' fps';     // the page writes the full reading itself when the meter is open
   }
   if (frames === 3) window.__ready = true;
   window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };

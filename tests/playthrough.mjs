@@ -92,6 +92,12 @@ await page.waitForTimeout(600);
 const near = await page.evaluate(() => window.__ashport.map().stats());
 assert.ok(near.calls <= 220, 'the street view is drawn in at most 220 draw calls (' + near.calls + ')');
 assert.ok(await page.locator('.lab').count() <= 90, 'and carries at most 90 labels');
+// the meter: touching the images-per-second figure opens the full reading, to be read aloud from a phone
+await page.click('#fps');
+await page.waitForFunction(() => /\d+ fps · \d+ draws · [\d.]+k tris · x[\d.]+ · \d+ cars · \d+ labels/.test(document.getElementById('fps').textContent), null, { timeout: 60000 });
+await shot('13-meter');
+await page.click('#fps');
+await page.waitForFunction(() => /^\d+ fps$/.test(document.getElementById('fps').textContent), null, { timeout: 60000 });
 // the money view: the map goes grey and every place says what it took in, the laundries what they washed
 await page.click('#money');
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.pin b')].some((b) => /^\$/.test(b.textContent)));
