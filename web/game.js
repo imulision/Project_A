@@ -108,7 +108,8 @@
     else { world = W.createWorld({ capo: Object.keys(D.CAPOS)[0] }); districtId = districtId || W.HOME; }
     return Object.keys(D.CAPOS).filter(function (id) { return !taken[id]; }).map(function (id) {
       var c = D.CAPOS[id];
-      return { id: id, name: c.name, specialty: c.specialty,
+      var who = W.person(world, id);
+      return { id: id, name: c.name, specialty: c.specialty, rank: who.rank, rankName: who.rankName,
                stats: { muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma, loyalty: c.loyalty, ambition: c.ambition },
                likes: words(c.likes), refuses: words(c.refuses),
                firstMove: districtId ? firstMove(world, districtId, id) : '' };
@@ -165,6 +166,20 @@
                monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
     });
   }
+  // The family's wheel of abilities (see world.js). Dark before the game starts.
+  function wheel(g) { return W.wheel(g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] })); }
+  // One man's card as he is now: rank, what he has practised, what he has unlocked.
+  function person(g, id) {
+    var who = W.person(g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] }), id), c = D.CAPOS[id];
+    who.name = c.name;
+    who.specialty = c.specialty;
+    who.nextRankAt = who.rank < W.RANKS.length - 1 ? W.RANKS[who.rank + 1].xp : null;
+    who.abilities = who.abilities.map(function (a) {
+      var x = D.ABILITIES[a];
+      return { id: a, sector: x.sector, name: x.ability.name, text: x.ability.text };
+    });
+    return who;
+  }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
     var g = JSON.parse(text);
@@ -173,7 +188,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);

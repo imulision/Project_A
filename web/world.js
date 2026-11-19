@@ -216,6 +216,67 @@
     return RULES.rivalStrength + RULES.rivalGrowth * w.month / 12 - ((w.weakened || {})[cityId] > 0 ? RULES.jobs.hit.weakens : 0);
   }
 
+  // --- capos who grow: what they practise, their rank, what they unlock ---
+  var RANKS = [{ name: 'Soldier', xp: 0 }, { name: 'Capo', xp: 60 }, { name: 'Veteran', xp: 220 }, { name: 'Legend', xp: 600 }];
+
+  function record(w, id) {
+    if (!D.CAPOS[id]) throw new Error('unknown capo: ' + id);
+    w.people = w.people || {};
+    if (!w.people[id]) {
+      w.people[id] = { xp: {}, rank: 0, abilities: [] };
+      D.SECTORS.forEach(function (k) { w.people[id].xp[k] = 0; });
+    }
+    return w.people[id];
+  }
+  // What a man has learned so far. Reading it changes nothing.
+  function person(w, id) {
+    var r = (w.people || {})[id] || { xp: {}, rank: 0, abilities: [] }, xp = {}, total = 0;
+    if (!D.CAPOS[id]) throw new Error('unknown capo: ' + id);
+    D.SECTORS.forEach(function (k) { xp[k] = r.xp[k] || 0; total += xp[k]; });
+    return { id: id, xp: xp, total: total, rank: r.rank, rankName: RANKS[r.rank].name, abilities: r.abilities.slice() };
+  }
+  // His district works with what he knows, and with the pride of his rank.
+  function brief(w, x) {
+    var r = record(w, x.state.capo);
+    x.state.skills = r.abilities.slice();
+    x.state.rank = r.rank;
+  }
+  // A month in post: he learns what his district did, and may rise.
+  function learn(w, x, events) {
+    var r = record(w, x.state.capo), did = D.practice(x.state), total = 0;
+    D.SECTORS.forEach(function (k) { r.xp[k] += did[k]; total += r.xp[k]; });
+    if (r.rank >= RANKS.length - 1 || total < RANKS[r.rank + 1].xp) return;
+    r.rank += 1;
+    // the next ability of the sector he has practised most, among those he has not finished
+    var open = D.SECTORS.filter(function (k) { return nextRing(r, k) < D.WHEEL[k].length; });
+    var best = open.reduce(function (a, b) { return r.xp[b] > r.xp[a] ? b : a; });
+    var ability = D.WHEEL[best][nextRing(r, best)], c = D.CAPOS[x.state.capo];
+    r.abilities.push(ability.id);
+    brief(w, x);
+    events.push({ type: 'promotion', capo: x.state.capo, rank: r.rank, rankName: RANKS[r.rank].name, ability: ability.id, sector: best,
+                  district: x.id, city: x.city,
+                  label: c.name + ' is now a ' + RANKS[r.rank].name + ': ' + ability.name + ' (' + ability.text.toLowerCase() + ')' });
+  }
+  function nextRing(r, sector) {
+    return r.abilities.filter(function (id) { return D.ABILITIES[id].sector === sector; }).length;
+  }
+
+  // The family's wheel: every ability, lit when a man in post holds it.
+  function wheel(w) {
+    var holders = {}, lit = 0;
+    posts(w).forEach(function (n) {
+      person(w, n.capo).abilities.forEach(function (id) { (holders[id] = holders[id] || []).push(n.capo); });
+    });
+    var sectors = D.SECTORS.map(function (k) {
+      return { id: k, name: k.charAt(0).toUpperCase() + k.slice(1), rings: D.WHEEL[k].map(function (a) {
+        var by = holders[a.id] || [];
+        if (by.length) lit += 1;
+        return { id: a.id, name: a.name, text: a.text, lit: by.length > 0, by: by };
+      }) };
+    });
+    return { sectors: sectors, lit: lit, of: D.SECTORS.length * 3 };
+  }
+
   // --- the violent jobs: a capo proposes, the boss rules ---
   function proposals(w) { return (w.proposals || []).filter(function (p) { return !p.approved; }); }
 
@@ -307,7 +368,9 @@
         if (e) { events.push(e); w.jobs.push({ kind: e.kind, outcome: e.outcome, district: e.district, city: e.city }); }
         return false;
       }
-      return w.month - p.month < RULES.jobs.expires; // left unanswered, it drops
+      if (w.month - p.month < RULES.jobs.expires) return true;
+      w.districts[p.district].quietUntil = w.month + RULES.jobs.every; // left unanswered, it drops
+      return false;
     });
     propose(w, events);
   }
@@ -364,6 +427,7 @@
     var events = [];
     familyDistricts(w).forEach(function (x) {
       var before = { dirty: x.state.boss.dirty, clean: x.state.boss.clean };
+      brief(w, x);
       D.stepMonth(x.state).forEach(function (e) {
         e.district = x.id;
         e.city = x.city;
@@ -371,6 +435,7 @@
       });
       w.treasury.dirty += x.state.boss.dirty - before.dirty;
       w.treasury.clean += x.state.boss.clean - before.clean;
+      learn(w, x, events);
     });
     w.month += 1;
     runJobs(w, events);
@@ -453,7 +518,8 @@
   var api = { HOME: HOME, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
-              cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule };
+              cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,
+              RANKS: RANKS, person: person, wheel: wheel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportWorld = api;
 })(typeof self !== 'undefined' ? self : this);

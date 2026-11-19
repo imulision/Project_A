@@ -41,8 +41,11 @@
     pullBack: 6,            // months a capo waits before sending out men he has just called back
     crewReach: 0.2,         // streets gained per street crew per point of Muscle
     crewMuscle: 4,          // a crew's own worth, under a capo with less Muscle than that
-    idleMen: 3,             // more idle men than this are sent home when the district barely pays
+    idleMen: 1,             // more idle men than this are sent home when the district barely pays
     grudge: 15,             // points of Loyalty a capo forgets for every time the boss told him no
+    rankPride: 3,           // points of Loyalty a capo forgets for every rank he has risen
+    hated: 15,              // below this Goodwill, a capo eases off the shops
+    shopsWorth: 30,         // below this share, there are too few shops to make collectors pay
     hireFee: 60,
     likes: 1.5,             // a project the capo likes counts this much more
     minNeed: 3,             // below this, a project is not worth a month
@@ -95,6 +98,40 @@
              likes: ['gambling', 'push', 'loft', 'brothel'], refuses: [] }
   };
 
+  // The wheel of what a family can learn: six sectors of three abilities.
+  // A capo unlocks them as he rises in rank (see world.js); `effect` is what
+  // an ability changes in the district of the man who holds it.
+  var SECTORS = ['liquor', 'vice', 'money', 'law', 'muscle', 'routes'];
+  var WHEEL = {
+    liquor: [{ id: 'bonded-trucks',   name: 'Bonded trucks',    text: 'Liquor sells 10% dearer',                  effect: { crate: 0.1 } },
+             { id: 'distillery',      name: 'Distillery',       text: 'Stills make 40% more',                     effect: { stills: 0.4 } },
+             { id: 'import-whisky',   name: 'Imported whisky',  text: 'Liquor sells 25% dearer',                  effect: { crate: 0.25 } }],
+    vice:   [{ id: 'house-odds',      name: 'House odds',       text: 'Gambling, cannabis and brothels pay 20% more', effect: { vice: 0.2 } },
+             { id: 'high-rollers',    name: 'High rollers',     text: 'Vice pays 30% more',                       effect: { vice: 0.3 } },
+             { id: 'private-clubs',   name: 'Private clubs',    text: 'Vice pays 40% more',                       effect: { vice: 0.4 } }],
+    money:  [{ id: 'double-books',    name: 'Double books',     text: 'Laundries wash 30% more',                  effect: { wash: 0.3 } },
+             { id: 'shell-companies', name: 'Shell companies',  text: 'Laundering loses 5 points less',           effect: { washLoss: -0.05 } },
+             { id: 'friendly-bank',   name: 'A friendly bank',  text: 'Laundries wash 60% more',                  effect: { wash: 0.6 } }],
+    law:    [{ id: 'beat-cops',       name: 'Beat cops paid',   text: 'Heat falls 1 point faster every month',    effect: { cooling: 1 } },
+             { id: 'bought-judge',    name: 'A bought judge',   text: 'Raids seize half as much',                 effect: { seizure: -0.5 } },
+             { id: 'city-hall',       name: 'City Hall',        text: 'Heat falls 2 points faster every month',   effect: { cooling: 2 } }],
+    muscle: [{ id: 'armed-crews',     name: 'Armed crews',      text: 'Street crews take 25% more streets',       effect: { reach: 0.25 } },
+             { id: 'hired-guns',      name: 'Hired guns',       text: 'Guards hold 50% more streets',             effect: { hold: 0.5 } },
+             { id: 'death-squad',     name: 'Death squad',      text: 'Street crews take 50% more streets',       effect: { reach: 0.5 } }],
+    routes: [{ id: 'night-convoys',   name: 'Night convoys',    text: 'Chop shops and fences pay 30% more',       effect: { exports: 0.3 } },
+             { id: 'armoured-trucks', name: 'Armoured trucks',  text: 'The stash holds 50% more dirty money',     effect: { stash: 0.5 } },
+             { id: 'rail-contacts',   name: 'Rail contacts',    text: 'Chop shops and fences pay 50% more',       effect: { exports: 0.5 } }]
+  };
+  var ABILITIES = {};
+  SECTORS.forEach(function (sector) { WHEEL[sector].forEach(function (a, ring) { ABILITIES[a.id] = { sector: sector, ring: ring, ability: a }; }); });
+  var VICE = ['gambling', 'loft', 'brothel'];
+
+  // The sum of what the capo's abilities add to one thing (0 if none).
+  function gain(d, key) {
+    return (d.skills || []).reduce(function (n, id) { return n + (ABILITIES[id].ability.effect[key] || 0); }, 0);
+  }
+  function price(d) { return RULES.crate * (1 + gain(d, 'crate')); }
+
   function capoOf(d) { return CAPOS[d.capo]; }
   // The Heat at which a capo stops making noise. The ambitious go past the raid line.
   function nerve(c) { return 30 + c.ambition / 2; }
@@ -102,12 +139,12 @@
   function trade(c) { return 0.8 + 0.04 * c.business; }
   function craft(c) { return 0.6 + 0.05 * c.cunning; }
   function payroll(d) { return d.men * RULES.wage; }
-  function stashRoom(d) { return RULES.stash + RULES.stashPerWarehouse * d.sites.warehouse; }
-  function made(d) { return d.sites.still * SITES.still.crates * trade(capoOf(d)); }
+  function stashRoom(d) { return (RULES.stash + RULES.stashPerWarehouse * d.sites.warehouse) * (1 + gain(d, 'stash')); }
+  function made(d) { return d.sites.still * SITES.still.crates * trade(capoOf(d)) * (1 + gain(d, 'stills')); }
   function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats; }
   function thirst(d) { return RULES.demand * d.share / 100; }
   function washing(d) {
-    return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d))
+    return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d)) * (1 + gain(d, 'wash'))
       + (d.support.bookkeeper ? RULES.familyWash : 0);
   }
   function skillOf(c, site) { return site.skill ? 0.8 + 0.04 * c[site.skill] : 1; }
@@ -125,11 +162,12 @@
   function placeIncome(d, k) {
     var s = SITES[k];
     if (!s.income) return 0;
-    return s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
+    return s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1)
+      * (1 + (VICE.indexOf(k) >= 0 ? gain(d, 'vice') : 0) + (s.exports ? gain(d, 'exports') : 0));
   }
   // What the district would bring in this month, liquor included, without changing it.
   function income(d) {
-    return Math.min(d.stock + made(d), seats(d), thirst(d)) * RULES.crate + sideIncome(d);
+    return Math.min(d.stock + made(d), seats(d), thirst(d)) * price(d) + sideIncome(d);
   }
   // The rivals do not bother with a family that holds only a few streets.
   function rivalPush(d) {
@@ -175,7 +213,7 @@
       },
       apply: function (d) { d.crews += 1; d.heat += RULES.pushHeat; } },
     { kind: 'protection', label: 'Puts 2 men on protection', why: 'the shops on his streets pay nothing yet', cost: 0, cur: 'dirty', men: CREW.protection.men, hot: true,
-      need: function (d) { return d.collectors < Math.min(3, d.crews + 1) ? 5 : 0; },
+      need: function (d) { return d.share >= RULES.shopsWorth && d.collectors < Math.min(3, d.crews + 1) ? 5 : 0; },
       apply: function (d) { d.collectors += 1; } },
     build('still', 'Sets up a cellar still', 'the speakeasies run dry',
       function (d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8 ? 6 : 0; }),
@@ -214,6 +252,12 @@
     { kind: 'recall', label: 'Calls a street crew back', why: 'the district does not pay for conquest', cost: 0, cur: 'dirty', men: 0,
       need: function (d) { return d.crews === 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit ? 4 : 0; },
       apply: function (d) { d.crews -= 1; d.pulledBack = RULES.pullBack; } },
+    { kind: 'standdown', label: 'Sends 2 guards home', why: 'the district cannot pay for men who stand at doors', cost: 0, cur: 'dirty', men: 0,
+      need: function (d) { return d.profit < 0 && d.guards > 2 && d.attacked === 0 ? 7 : 0; },
+      apply: function (d) { d.guards -= 2; } },
+    { kind: 'ease', label: 'Takes a collector off the shops', why: 'the street has turned against him', cost: 0, cur: 'dirty', men: 0,
+      need: function (d) { return d.goodwill < RULES.hated && d.collectors > 0 ? 5 : 0; },
+      apply: function (d) { d.collectors -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'trim', label: 'Lets idle men go', why: 'the district loses money', cost: 0, cur: 'dirty', men: 0,
       need: function (d) {
         var idle = d.men - busyMen(d);
@@ -273,14 +317,14 @@
     d.stock += made(d);
     var sold = Math.min(d.stock, seats(d), thirst(d));
     d.stock = Math.min(d.stock - sold, RULES.cellar + RULES.cellarPerWarehouse * d.sites.warehouse);
-    var income = sold * RULES.crate + sideIncome(d);
+    var income = sold * price(d) + sideIncome(d);
     var costs = payroll(d) + siteCount(d) * RULES.upkeep + d.sites.rented * RULES.rent + (d.bribing ? RULES.bribe : 0);
     return { sold: sold, income: income, costs: costs, profit: income - costs };
   }
 
   function launder(d, c) {
     var washed = Math.max(0, Math.min(washing(d), d.dirty - payroll(d) - RULES.washReserve));
-    var loss = d.sites.front > 0 || d.support.bookkeeper ? SITES.front.loss : SITES.rented.loss;
+    var loss = Math.max(0, (d.sites.front > 0 || d.support.bookkeeper ? SITES.front.loss : SITES.rented.loss) + gain(d, 'washLoss'));
     d.dirty -= washed;
     d.clean += washed * (1 - loss);
     return { washed: washed, washLoss: washed * loss, cleaned: washed * (1 - loss) };
@@ -292,7 +336,7 @@
       var k = RAID_ORDER[i];
       if (d.sites[k] > (k === 'speakeasy' ? 1 : 0)) site = k;
     }
-    var seized = Math.min(d.dirty, RULES.raidSeizure);
+    var seized = Math.min(d.dirty, RULES.raidSeizure * (1 + gain(d, 'seizure')));
     if (site) d.sites[site] -= 1;
     d.dirty -= seized;
     d.lost += seized;
@@ -316,8 +360,8 @@
   // Streets gained or lost this month, in points of the district.
   function streetsChange(d) {
     var c = capoOf(d);
-    return d.crews * Math.max(c.muscle, RULES.crewMuscle) * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
-      + d.guards * RULES.guardHold * (0.5 + c.muscle / 10);
+    return d.crews * Math.max(c.muscle, RULES.crewMuscle) * RULES.crewReach * (1 + gain(d, 'reach')) + (d.goodwill - 50) / 30 - rivalPush(d)
+      + d.guards * RULES.guardHold * (1 + gain(d, 'hold')) * (0.5 + c.muscle / 10);
   }
 
   // One month of the district. Changes `d` and returns what happened.
@@ -328,7 +372,7 @@
 
     // the boss's cut, less what the capo keeps for himself
     var owed = Math.max(0, m.profit) * RULES.tribute;
-    var skim = owed * Math.min(100, 100 - c.loyalty + RULES.grudge * d.grudge) / 250;
+    var skim = owed * Math.min(100, 100 - c.loyalty + RULES.grudge * d.grudge + RULES.rankPride * d.rank) / 250;
     d.dirty += m.profit - owed;
     var w = launder(d, c);
     var paid = owed - skim;
@@ -354,7 +398,7 @@
     }
 
     // the police
-    var heat = -RULES.cooling - (d.support.fixer ? RULES.fixerCooling : 0) + overflow / RULES.spillHeat + d.crews * CREW.street.heat + d.collectors * CREW.protection.heat;
+    var heat = -RULES.cooling - gain(d, 'cooling') - (d.support.fixer ? RULES.fixerCooling : 0) + overflow / RULES.spillHeat + d.crews * CREW.street.heat + d.collectors * CREW.protection.heat;
     SITE_KEYS.forEach(function (k) { heat += d.sites[k] * SITES[k].heat; });
     if (d.bribing) heat -= 2 + c.cunning / 2;
     d.heat = clamp(d.heat + heat);
@@ -389,14 +433,16 @@
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
-      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, grudge: 0, last: null
+      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, grudge: 0, rank: 0, skills: [], last: null
     };
     SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
     d.sites.still = 2; d.sites.speakeasy = 2;
     Object.keys(o).forEach(function (k) {
       if (k === 'sites' || k === 'traits' || k === 'support') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
+      else if (k === 'skills') d.skills = o.skills.slice();
       else if (k in d) d[k] = o[k];
     });
+    d.skills.forEach(function (id) { if (!ABILITIES[id]) throw new Error('unknown ability: ' + id); });
     return d;
   }
 
@@ -412,6 +458,20 @@
     var limit = thirst(d) <= seats(d) && thirst(d) <= d.stock + made(d) ? 'drinkers' : seats(d) <= d.stock + made(d) ? 'seats' : 'stills';
     return { made: d.last ? made(d) : 0, stock: d.stock, sold: m.sold, seats: seats(d), drinkers: thirst(d), limit: limit,
              income: m.income, costs: m.costs, profit: m.profit, washed: m.washed, tribute: m.owed - m.skim, kept: m.skim, spilled: m.spilled };
+  }
+
+  // What the capo practised last month, sector by sector: he learns what his district does.
+  function practice(d) {
+    var m = d.last, p = {};
+    SECTORS.forEach(function (k) { p[k] = 0; });
+    if (!m) return p;
+    p.liquor = m.sold / 25;
+    VICE.forEach(function (k) { p.vice += d.sites[k]; });
+    p.money = m.washed / 150 + d.sites.loans * 0.5;
+    p.law = (d.bribing ? 1.5 : 0) + d.sites.union;
+    p.muscle = d.crews + d.collectors;
+    p.routes = d.sites.chopshop + d.sites.fence + d.sites.warehouse * 0.5;
+    return p;
   }
 
   function slugOf(d) { return d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
@@ -437,7 +497,7 @@
     }
     SITE_KEYS.forEach(function (k) {
       if (k !== 'speakeasy' && !SITES[k].income) return;
-      var amount = k === 'speakeasy' ? m.sold * RULES.crate / bars : placeIncome(d, k);
+      var amount = k === 'speakeasy' ? m.sold * price(d) / bars : placeIncome(d, k);
       for (var n = 1; n <= d.sites[k]; n++) add('takings', id(k, n), 'hideout', 'car', { amount: amount });
     });
     if (m.washed > 0) {
@@ -468,7 +528,8 @@
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
               chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
-              goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS };
+              goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS,
+              SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
 })(typeof self !== 'undefined' ? self : this);

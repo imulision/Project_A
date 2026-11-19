@@ -193,3 +193,16 @@ test('the boss reads what his capos ask leave for, and answers yes or no', () =>
   month(g);
   assert.ok(g.journal.some((e) => e.type === 'job' && e.outcome === 'done'));
 });
+
+test('the screen reads the wheel and each man\'s rank, and the journal tells of promotions', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  assert.equal(G.wheel(g).sectors.length, 6);
+  assert.equal(G.candidates(g, 'ashport-market')[0].rankName, 'Soldier');
+  for (let i = 0; i < 36; i++) month(g);
+  assert.ok(g.journal.some((e) => e.type === 'promotion'));
+  const dutch = G.person(g, 'dutch');
+  assert.ok(dutch.rank >= 1 && dutch.abilities[0].name && dutch.abilities[0].text && dutch.name);
+  assert.ok(G.wheel(g).lit >= 1);
+  assert.equal(G.wheel(G.createGame()).lit, 0);
+  assert.deepEqual(G.person(G.load(G.save(g)), 'dutch'), dutch);
+});
