@@ -44,6 +44,8 @@
     if (e.kind) entry.kind = e.kind;
     if (e.outcome) entry.outcome = e.outcome;
     if (e.effects) entry.effects = e.effects;
+    if (e.building) { entry.building = e.building; entry.tier = e.tier; }
+    if (e.ability) entry.ability = e.ability;
     g.journal.unshift(entry);
     if (g.journal.length > JOURNAL_SIZE) g.journal.length = JOURNAL_SIZE;
   }
@@ -77,7 +79,7 @@
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
     underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); },
     takeover: function (g, c) { W.takeover(g.world, c.district, c.way, c.capo); },
-    research: function (g, c) { W.research(g.world, c.ability); },
+    research: function (g, c) { W.research(g.world, c.building || c.ability); },
     promote: function (g, c) { record(g, W.promote(g.world, c.capo, c.ability), g.world.month); },
     approve: function (g, c) { W.rule(g.world, c.id, true); },
     refuse: function (g, c) { W.rule(g.world, c.id, false); }
@@ -194,8 +196,8 @@
   function research(g) {
     var r = g.world && W.researching(g.world);
     if (!r) return null;
-    var a = D.ABILITIES[r.id];
-    r.sector = a.sector; r.name = a.ability.name; r.text = a.ability.text;
+    if (r.building) { r.name = D.SITES[r.id].name; r.text = r.tier === 1 ? 'A new trade for the capos' : 'Bigger places of this kind'; }
+    else { var a = D.ABILITIES[r.id]; r.sector = a.sector; r.name = a.ability.name; r.text = a.ability.text; }
     r.progress = Math.min(1, (r.months - r.monthsLeft + g.ticks / TICKS_PER_MONTH) / r.months);
     return r;
   }
@@ -243,7 +245,20 @@
     p.capo = x.state.capo;
     p.capoName = D.CAPOS[x.state.capo].name;
     p.did = x.state.last ? x.state.last.decision : null;
+    p.wish = D.wish(x.state); // the closed trade he would open if the family knew how
     return p;
+  }
+  // The building tree: each trade, its tier, what the next one costs and who asks for it.
+  function tree(g) {
+    var w = g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] }), now = research(g);
+    var who = function (id) { return { id: id, name: D.CAPOS[id].name }; };
+    return W.tree(w).map(function (b) {
+      if (b.next) b.next.affordable = !!g.world && !W.researching(w) && w.treasury.clean >= b.next.cost;
+      b.likedBy = g.world ? b.likedBy.map(who) : [];
+      b.wantedBy = g.world ? b.wantedBy.map(who) : [];
+      b.progress = now && now.id === b.id ? now.progress : null;
+      return b;
+    });
   }
   // The family's wheel of abilities (see world.js). Dark before the game starts.
   function wheel(g) { return W.wheel(g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] })); }
@@ -267,7 +282,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, cash: cash, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, research: research, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, cash: cash, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, research: research, tree: tree, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);
