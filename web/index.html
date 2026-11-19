@@ -89,13 +89,13 @@ button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:poin
 </div>
 <div id="veil"><div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh"></div></div>
 
+<script src="sim.js"></script>
 <script>
 (function(){
 'use strict';
 var INK='#1F1A15',GOLD='#F2C14E',PAPER='#F7EFD9';
 var ROOF={you:['#5E8F6E','#6F9A7F'],cal:['#B5604F','#C97464'],north:['#6A8DB3','#7C9FC2'],free:['#CDBF9C','#D8CBA9']};
 var WL=['#7A6C55','#8E7F63','#A39270'],WR=['#95866C','#B3A282','#D2C19A'];
-var MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 var SHORE=46,SHY=-40+SHORE*10;
 function $(id){return document.getElementById(id)}
 function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
@@ -126,43 +126,34 @@ var TILES=[];
   TILES.sort(function(a,b){return a.k-b.k||a.i-b.i});
 })();
 
-var LTS={
- sal:{name:'Sal',quality:'Iron fist',flaw:'Hot-headed',plan:'Give me the street. I take every block by spring, and everyone will know it.',exp:9,build:.04,earn:1,heat:5,skim:0,cost:0,loy:65},
- rosa:{name:'Rosa',quality:'Charmer',flaw:'Big spender',plan:'I open clubs. People come to us and nobody gets hurt. It costs money.',exp:4,build:.11,earn:1.1,heat:0,skim:0,cost:180,loy:70},
- frankie:{name:'Frankie',quality:'Smuggler',flaw:'Skims the take',plan:'More boats, more whisky. Do not count the crates too closely.',exp:2,build:.05,earn:1.5,heat:1,skim:.25,cost:0,loy:55},
- vito:{name:'Vito',quality:'Loyal',flaw:'Slow',plan:'I hold what we have. No surprises, boss.',exp:3,build:.04,earn:1,heat:0,skim:0,cost:0,loy:90},
- mae:{name:'Mae',quality:'Bookkeeper',flaw:'Timid',plan:'I make it pay and I keep it quiet. I do not pick fights.',exp:0,build:.06,earn:1.4,heat:-2,skim:0,cost:0,loy:70},
- dutch:{name:'Dutch',quality:'Enforcer',flaw:'Ambitious',plan:'Point me at Callahan. Then we talk about my cut.',exp:12,build:.03,earn:1,heat:6,skim:0,cost:0,loy:45,amb:true},
- nora:{name:'Nora',quality:'Fixer',flaw:'Greedy',plan:'I pay the right people. The law looks elsewhere.',exp:2,build:.05,earn:1,heat:-5,skim:0,cost:250,loy:60}
+var Sim=window.AshportSim;
+// Where each district label sits on the map. Rival districts are not played.
+var PLACES={
+ uptown:{name:'Uptown',pos:[272,92],base:'north',rivalName:'Northside'},
+ hillside:{pos:[150,168]},
+ market:{pos:[64,268]},
+ stock:{name:'Stockyards',pos:[342,236],base:'cal',rivalName:'Callahan'},
+ union:{pos:[258,300]},
+ docks:{pos:[186,396]},
+ canal:{pos:[336,392]}
 };
-var S;
+// G is the game itself and belongs to sim.js. UI is only what the page needs.
+var G,UI;
 function init(){
-  S={m:0,tick:0,speed:1,paused:false,over:false,cash:1500,men:34,idle:6,heat:40,respect:30,
-     d:{cash:0,heat:0,respect:0},log:[],done:{},bench:['sal','vito','mae'],
-     D:{
-      uptown:{name:'Uptown',base:'north',pos:[272,92],rivalName:'Northside'},
-      hillside:{name:'Hillside',base:'free',play:true,share:35,level:1,lt:null,inc:170,rival:0,pos:[150,168],boost:0,last:0},
-      market:{name:'Market Street',base:'free',play:true,share:60,level:1.6,lt:'rosa',inc:280,rival:0,pos:[64,268],boost:0,last:0},
-      stock:{name:'Stockyards',base:'cal',pos:[342,236],rivalName:'Callahan'},
-      union:{name:'Union Station',base:'free',play:true,share:8,level:1,lt:null,inc:250,rival:.25,pos:[258,300],boost:0,last:0},
-      docks:{name:'The Docks',base:'free',play:true,share:85,level:2,lt:'frankie',inc:330,rival:0,pos:[186,396],boost:0,last:0},
-      canal:{name:'Canal Street',base:'free',play:true,share:0,level:1,lt:null,inc:220,rival:.3,pos:[336,392],boost:0,last:0}
-     },
-     L:JSON.parse(JSON.stringify(LTS))};
-  S.prevBlocks=blocks().you;
+  G=Sim.createGame();
+  UI={speed:UI?UI.speed:1,paused:true,log:[]};
   say('The family holds the Docks and most of Market Street.');
   drawStatic();render();hud();
   $('veil').className='';
-  setTimeout(function(){askAssign('hillside','Hillside has no lieutenant','Three people want the job. Whoever you pick will run the district their own way.',false)},700);
+  setTimeout(showPending,700);
 }
 function owner(t){
-  var d=S.D[t.d];
-  if(!d.play)return d.base;
+  var d=G.districts[t.d];
+  if(!d)return PLACES[t.d].base;
   if(t.thr<d.share/100)return 'you';
   if(d.rival&&t.thr>1-d.rival)return 'cal';
   return 'free';
 }
-function blocks(){var c={you:0,cal:0,north:0,free:0};TILES.forEach(function(t){c[owner(t)]++});return c}
 function f(n){return (Math.round(n*10)/10)}
 function drawStatic(){
   var s='',k,teeth='M0 '+SHY;
@@ -183,7 +174,7 @@ function drawStatic(){
 function render(){
   var s='',i,t,o,lvl,h,a,b,cx,cy,li,d,y,k,lit,wd;
   for(i=0;i<TILES.length;i++){
-    t=TILES[i];o=owner(t);d=S.D[t.d];cx=t.cx;cy=t.cy;
+    t=TILES[i];o=owner(t);d=G.districts[t.d]||{level:2};cx=t.cx;cy=t.cy;
     s+='<polygon stroke="none" fill="#EFE4C8" points="'+cx+','+(cy-9)+' '+(cx+18)+','+cy+' '+cx+','+(cy+9)+' '+(cx-18)+','+cy+'"/>';
     if(o==='free'&&t.hf<.12)continue;
     lvl=o==='you'?d.level:(o==='free'?1:2);
@@ -202,185 +193,117 @@ function render(){
   }
   $('bld').innerHTML=s;
   var h2='';
-  Object.keys(S.D).forEach(function(id){
-    var d=S.D[id],who;
-    if(!d.play)who='<span class="who riv">'+d.rivalName+'</span>';
-    else if(d.lt)who='<span class="who">'+S.L[d.lt].name+'</span>';
+  Object.keys(PLACES).forEach(function(id){
+    var pl=PLACES[id],d=G.districts[id]||pl,who;
+    if(!G.districts[id])who='<span class="who riv">'+pl.rivalName+'</span>';
+    else if(d.lieutenant)who='<span class="who">'+G.lieutenants[d.lieutenant].name+'</span>';
     else who='<span class="who vac">Vacant</span>';
-    var st='left:'+(d.pos[0]/390*100)+'%;top:'+(d.pos[1]/470*100)+'%';
-    if(d.play)h2+='<button type="button" class="tag" style="'+st+'" data-dist="'+id+'"><span class="n">'+d.name+'</span>'+who+'</button>';
+    var st='left:'+(pl.pos[0]/390*100)+'%;top:'+(pl.pos[1]/470*100)+'%';
+    if(G.districts[id])h2+='<button type="button" class="tag" style="'+st+'" data-dist="'+id+'"><span class="n">'+d.name+'</span>'+who+'</button>';
     else h2+='<div class="tag" style="'+st+'"><span class="n">'+d.name+'</span>'+who+'</div>';
   });
   $('tags').innerHTML=h2;
 }
-function money(n){return (n<0?'-':'')+'$'+Math.abs(Math.round(n)).toLocaleString('en-US')}
+var money=Sim.money;
 function trend(v,unit,goodUp){
   if(!v)return '<span class="t flat">steady</span>';
   var good=goodUp?v>0:v<0;
   return '<span class="t '+(good?'up':'down')+'">'+(v>0?'+':'-')+(unit==='$'?'$'+Math.abs(Math.round(v)).toLocaleString('en-US'):Math.abs(Math.round(v)))+'/mo</span>';
 }
 function hud(){
-  $('date').textContent=MONTHS[S.m%12]+' '+(1926+Math.floor(S.m/12));
+  $('date').textContent=Sim.MONTHS[G.month%12]+' '+(1926+Math.floor(G.month/12));
   $('res').innerHTML=
-   '<div><span class="l">Cash</span><span class="v">'+money(S.cash)+'</span>'+trend(S.d.cash,'$',true)+'</div>'+
-   '<div><span class="l">Men</span><span class="v">'+S.men+'</span><span class="t flat">'+S.idle+' idle</span></div>'+
-   '<div><span class="l">Heat</span><span class="v" style="color:'+(S.heat>=70?'#FF9C8A':'inherit')+'">'+Math.round(S.heat)+'</span>'+trend(S.d.heat,'',false)+'</div>'+
-   '<div><span class="l">Respect</span><span class="v">'+Math.round(S.respect)+'</span>'+trend(S.d.respect,'',true)+'</div>';
-  var c=blocks(),n=c.you+c.cal+c.north+c.free,p=function(k){return Math.round(c[k]/n*100)};
-  $('bar').innerHTML='<i style="width:'+p('you')+'%;background:#6F9A7F"></i><i style="width:'+p('cal')+'%;background:#C97464"></i><i style="width:'+p('north')+'%;background:#7C9FC2"></i><i style="flex-grow:1;background:#DCCFAE"></i>';
-  $('legend').innerHTML='<span style="color:#A9D0B6">You '+p('you')+'%</span><span style="color:#FF9C8A">Callahan '+p('cal')+'%</span><span style="color:#A9C6E3">Northside '+p('north')+'%</span><span>Free '+(100-p('you')-p('cal')-p('north'))+'%</span>';
-  $('prog').style.width=(S.tick/4*100)+'%';
-  $('log').innerHTML=S.log.slice(0,3).map(function(l){return '<div><span class="m">'+l[0]+'</span><span>'+l[1]+'</span></div>'}).join('');
+   '<div><span class="l">Cash</span><span class="v">'+money(G.cash)+'</span>'+trend(G.delta.cash,'$',true)+'</div>'+
+   '<div><span class="l">Men</span><span class="v">'+G.men+'</span><span class="t flat">'+G.idle+' idle</span></div>'+
+   '<div><span class="l">Heat</span><span class="v" style="color:'+(G.heat>=70?'#FF9C8A':'inherit')+'">'+Math.round(G.heat)+'</span>'+trend(G.delta.heat,'',false)+'</div>'+
+   '<div><span class="l">Respect</span><span class="v">'+Math.round(G.respect)+'</span>'+trend(G.delta.respect,'',true)+'</div>';
+  var c=Sim.control(G),p=function(k){return Math.round(c[k]*100)};
+  $('bar').innerHTML='<i style="width:'+p('you')+'%;background:#6F9A7F"></i><i style="width:'+p('callahan')+'%;background:#C97464"></i><i style="width:'+p('northside')+'%;background:#7C9FC2"></i><i style="flex-grow:1;background:#DCCFAE"></i>';
+  $('legend').innerHTML='<span style="color:#A9D0B6">You '+p('you')+'%</span><span style="color:#FF9C8A">Callahan '+p('callahan')+'%</span><span style="color:#A9C6E3">Northside '+p('northside')+'%</span><span>Free '+(100-p('you')-p('callahan')-p('northside'))+'%</span>';
+  $('prog').style.width=(G.tick/Sim.TICKS_PER_MONTH*100)+'%';
+  $('log').innerHTML=UI.log.slice(0,3).map(function(l){return '<div><span class="m">'+l[0]+'</span><span>'+l[1]+'</span></div>'}).join('');
   var bs=document.querySelectorAll('[data-speed]'),i;
-  for(i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(Number(bs[i].getAttribute('data-speed'))===S.speed));
+  for(i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(Number(bs[i].getAttribute('data-speed'))===UI.speed));
 }
-function say(t){S.log.unshift([MONTHS[S.m%12].slice(0,3),t])}
+function say(t){UI.log.unshift([Sim.MONTHS[G.month%12].slice(0,3),t])}
 var toastT;
 function toast(html){var e=$('toast');e.innerHTML=html;e.className='toast on';clearTimeout(toastT);toastT=setTimeout(function(){e.className='toast'},3200)}
-function playable(){return Object.keys(S.D).filter(function(k){return S.D[k].play})}
-
+// ---- Time: the page only asks the rules to advance, then shows what happened ----
 function step(){
-  if(S.paused||S.over||S.speed===0)return;
-  playable().forEach(function(id){
-    var d=S.D[id],l=d.lt&&S.L[d.lt],before=Math.floor(d.level+1e-6);
-    if(l){
-      var e=l.exp*(d.boost>0?1.6:1)/4;
-      d.share=Math.min(100,d.share+e);
-      d.level=Math.min(3,d.level+l.build/4*(.4+.6*d.share/100)*2.2);
-      if(d.rival)d.rival=Math.max(0,Math.min(d.rival,1-d.share/100)-(l.exp>=9?.012:0));
-    }else{
-      d.share=Math.max(0,d.share-.5);
-      if(id==='union'||id==='canal')d.rival=Math.min(.85,(d.rival||0)+.012);
-      d.rival=Math.min(d.rival,1-d.share/100);
-    }
-    if(Math.floor(d.level+1e-6)>before){S.respect+=3;say(d.name+' reached level '+['I','II','III'][Math.floor(d.level+1e-6)-1]+'. The street looks different now.');toast('<b>'+d.name+'</b> is now a level '+['I','II','III'][Math.floor(d.level+1e-6)-1]+' district.')}
-  });
-  S.tick++;
-  if(S.tick>=4){S.tick=0;monthEnd()}
+  if(UI.paused||G.over||UI.speed===0)return;
+  show(Sim.tick(G));
   render();hud();
+  if(G.over)showEnd();else if(G.pending)showPending();
 }
-function incomeOf(d){var l=d.lt&&S.L[d.lt];return d.inc*d.share/100*(.6+.4*d.level)*(l?l.earn:.5)}
-function monthEnd(){
-  var gross=0,skim=0,cost=0,heat=-2,parts=[],c0={cash:S.cash,heat:S.heat,respect:S.respect};
-  playable().forEach(function(id){
-    var d=S.D[id],l=d.lt&&S.L[d.lt],g=incomeOf(d),sk=l?g*l.skim:0;
-    d.last=g-sk;gross+=g;skim+=sk;
-    if(d.boost>0)d.boost--;
-    if(l){cost+=l.cost;heat+=l.heat;l.loy=Math.min(100,l.loy+1);if(l.amb)l.loy-=3}
-    if(g-sk>40)parts.push(d.name+' '+money(g-sk));
+function show(events){
+  events.forEach(function(e){
+    var d=e.district&&G.districts[e.district];
+    if(e.type==='news')say(e.text);
+    if(e.type==='level'){say(d.name+' reached level '+Sim.LEVEL_NAMES[e.level-1]+'. The street looks different now.');toast('<b>'+d.name+'</b> is now a level '+Sim.LEVEL_NAMES[e.level-1]+' district.')}
+    if(e.type==='envelope')toast('<b>The envelope</b> '+money(e.gross-e.skim)+' came up. Wages and costs '+money(e.wages+e.costs)+'. Net '+(e.net>=0?'+':'')+money(e.net)+'.<br>'+e.parts.filter(function(p){return p.amount>40}).map(function(p){return G.districts[p.district].name+' '+money(p.amount)}).join(', '));
   });
-  S.bench.forEach(function(k){S.L[k].loy=Math.max(0,S.L[k].loy-1)});
-  var wages=S.men*15,net=gross-skim-cost-wages;
-  S.cash+=net;S.heat=Math.max(0,Math.min(100,S.heat+heat));
-  var b=blocks().you;if(b>S.prevBlocks+2)S.respect+=1;else if(b<S.prevBlocks-2)S.respect-=2;S.prevBlocks=b;
-  S.respect=Math.max(0,Math.min(100,S.respect));
-  S.d={cash:S.cash-c0.cash,heat:S.heat-c0.heat,respect:S.respect-c0.respect};
-  toast('<b>The envelope</b> '+money(gross-skim)+' came up. Wages and costs '+money(wages+cost)+'. Net '+(net>=0?'+':'')+money(net)+'.<br>'+parts.join(', '));
-  S.m++;
-  if(S.heat>=100)return end('Federal raid','Heat reached 100. Agents hit every address in one night, and one of your men talked.',false);
-  if(S.cash<-1500)return end('Broke','The men have not been paid in weeks. They walk away, and the Callahans hire them.',false);
-  events();
 }
-function lowest(){var w=null;playable().forEach(function(id){var k=S.D[id].lt;if(k&&(!w||S.L[k].loy<S.L[w].loy))w=k});return w}
-function distOf(k){var r=null;playable().forEach(function(id){if(S.D[id].lt===k)r=id});return r}
-function events(){
-  var m=S.m,d,k;
-  if(m===2&&S.D.hillside.lt){k=S.D.hillside.lt;
-    return ask(S.L[k].name+' asks for five men','"Hillside is slow going. Give me five of the idle men and I double the pace for three months."',[
-      ['Give five men','Men idle -5. Faster in Hillside for 3 months. '+S.L[k].name+' is grateful.',function(){S.idle=Math.max(0,S.idle-5);S.D.hillside.boost=3;S.L[k].loy+=10;say(S.L[k].name+' got his five men for Hillside.')}],
-      ['Refuse','Nothing changes on the map. '+S.L[k].name+' takes it personally.',function(){S.L[k].loy-=15;say('You refused '+S.L[k].name+' the men he asked for.')}]]);
-  }
-  if(m===3){S.bench.push('dutch','nora');say('Two new faces in town: Dutch and Nora want in.');
-    return askAssign('union','Union Station is up for grabs','The rail yard moves everything in this city. The Callahans are already circling it.',true);}
-  if(m===5&&!S.D.canal.lt&&S.bench.length){
-    return askAssign('canal','Callahan men are moving into Canal Street','Red roofs are spreading along the canal. Send someone, or let them have it.',true,function(){S.respect-=4;say('You let Canal Street go. People noticed.')});}
-  if(m===6&&distOf('frankie')){
-    return ask("Frankie's envelope is thin",'Your bookkeeping says a quarter of the Docks money never reaches you. Frankie smiles and says the lake was rough.',[
-      ['Make an example','Frankie stops skimming. His loyalty drops hard. Respect +3.',function(){S.L.frankie.skim=0;S.L.frankie.loy-=25;S.respect+=3;say('Frankie was reminded whose money it is.')}],
-      ['Look away','He keeps skimming. He likes you for it. Respect -3.',function(){S.L.frankie.loy+=8;S.respect-=3;say('You let Frankie keep his cut.')}]]);
-  }
-  if(m===8&&S.heat>=55){
-    return ask('The police captain names his price','"Eight hundred dollars and my boys find other streets to walk." Heat is at '+Math.round(S.heat)+'.',[
-      ['Pay $800','Cash -$800. Heat -25.',function(){S.cash-=800;S.heat=Math.max(0,S.heat-25);say('The captain was paid. The patrols thinned out.')}],
-      ['Refuse','Heat +8. He will remember.',function(){S.heat=Math.min(100,S.heat+8);say('You sent the captain away empty-handed.')}]]);
-  }
-  if(m===10){k=lowest();
-    if(k&&S.L[k].loy<45){d=S.D[distOf(k)];
-      var nm=S.L[k].name;d.lt=null;d.share=Math.min(d.share,12);d.rival=.7;d.level=Math.max(1,d.level-.8);S.respect-=6;
-      say(nm+' went over to the Callahans and took '+d.name+' with him.');
-      return ask(nm+' has betrayed you',nm+"'s loyalty had been falling for months. Last night his men opened "+d.name+' to the Callahans. The roofs are turning red.',[
-        ['Understood','You can send someone to take it back.',function(){}]]);
-    }
-    say('Your lieutenants are holding the line. Nobody is for sale this month.');
-  }
-  if(m>=12){var c=blocks(),p=Math.round(c.you/(c.you+c.cal+c.north+c.free)*100);
-    return end(p>=55?'Ashport answers to you':p>=38?'A family to reckon with':'Still a small-time outfit','End of 1926. You hold '+p+'% of the city, with '+money(S.cash)+' in the safe, heat at '+Math.round(S.heat)+' and respect at '+Math.round(S.respect)+'.',true);}
+
+// ---- Sheets ----
+function open(html){UI.paused=true;$('sheet').innerHTML=html;$('veil').className='on';$('sheet').scrollTop=0;var b=$('sheet').querySelector('button');if(b)b.focus()}
+function close(){$('veil').className='';UI.paused=false;render();hud()}
+function answer(a){
+  show(Sim.resolve(G,a));
+  if(G.pending)showPending();else close();
 }
-function open(html){S.paused=true;$('sheet').innerHTML=html;$('veil').className='on';$('sheet').scrollTop=0;var b=$('sheet').querySelector('button');if(b)b.focus()}
-function close(){$('veil').className='';S.paused=false;render();hud()}
-var handlers=[];
-function ask(title,text,opts){
-  handlers=opts.map(function(o){return o[2]});
-  open('<h2 id="sh">'+title+'</h2><p>'+text+'</p>'+opts.map(function(o,i){return '<button type="button" class="card" data-opt="'+i+'"><span class="nm">'+o[0]+'</span><div class="fx">'+o[1]+'</div></button>'}).join(''));
+function showPending(){
+  var p=G.pending;if(!p)return;
+  var h='<h2 id="sh">'+p.title+'</h2><p>'+p.text+'</p>';
+  if(p.kind==='assign'){
+    if(!G.bench.length)h+='<p>Nobody is free. Move someone from another district first.</p>';
+    h+=G.bench.map(function(k){return ltCard(k,true)}).join('');
+    if(p.canSkip||!G.bench.length)h+='<button type="button" class="alt" data-skip="1">Leave it for now</button>';
+  }else{
+    h+=p.options.map(function(o,i){return '<button type="button" class="card" data-opt="'+i+'"><span class="nm">'+o.label+'</span><div class="fx">'+o.effect+'</div></button>'}).join('');
+  }
+  open(h);
 }
 function fx(l){
   var a=[];
-  a.push(l.exp>=8?'Takes blocks fast':l.exp>=4?'Takes blocks steadily':l.exp>0?'Takes blocks slowly':'Does not expand');
+  a.push(l.expand>=8?'Takes blocks fast':l.expand>=4?'Takes blocks steadily':l.expand>0?'Takes blocks slowly':'Does not expand');
   a.push(l.build>=.09?'builds fast':l.build>=.05?'builds steadily':'builds slowly');
   if(l.earn!==1)a.push('income x'+l.earn);
   if(l.heat)a.push((l.heat>0?'+':'')+l.heat+' heat/mo');
   if(l.cost)a.push('costs $'+l.cost+'/mo');
-  if(l.skim)a.push('keeps '+Math.round(l.skim*100)+'% for himself');
+  if(l.skim)a.push('keeps '+Math.round(l.skim*100)+'% of the take');
   return a.join(' · ');
 }
 function ltCard(k,pick){
-  var l=S.L[k];
-  return '<div class="card"><div class="nm">'+l.name+'</div><div class="tags"><span class="q">'+l.quality+'</span><span class="f">'+l.flaw+'</span></div><div class="plan">"'+l.plan+'"</div><div class="fx">'+fx(l)+'</div><div class="fx">Loyalty '+Math.round(l.loy)+'<div class="meter"><i style="width:'+Math.max(0,Math.min(100,l.loy))+'%"></i></div></div>'+(pick?'<button type="button" class="pick" data-pick="'+k+'">Appoint '+l.name+'</button>':'')+'</div>';
-}
-var assignCtx=null;
-function askAssign(id,title,text,canSkip,onSkip){
-  assignCtx={id:id,onSkip:onSkip};
-  var h='<h2 id="sh">'+title+'</h2><p>'+text+'</p>';
-  if(!S.bench.length)h+='<p>Nobody is free. Move someone from another district first.</p>';
-  h+=S.bench.map(function(k){return ltCard(k,true)}).join('');
-  if(canSkip||!S.bench.length)h+='<button type="button" class="alt" data-skip="1">Leave it for now</button>';
-  open(h);
-}
-function assign(id,k){
-  var d=S.D[id],old=d.lt;
-  S.bench=S.bench.filter(function(x){return x!==k});
-  if(old){S.bench.push(old);S.L[old].loy-=15;say(S.L[old].name+' was pulled out of '+d.name+' and is not happy.')}
-  d.lt=k;S.L[k].loy+=5;
-  say(S.L[k].name+' now runs '+d.name+'.');
+  var l=G.lieutenants[k];
+  return '<div class="card"><div class="nm">'+l.name+'</div><div class="tags"><span class="q">'+l.quality+'</span><span class="f">'+l.flaw+'</span></div><div class="plan">"'+l.plan+'"</div><div class="fx">'+fx(l)+'</div><div class="fx">Loyalty '+Math.round(l.loyalty)+'<div class="meter"><i style="width:'+Math.max(0,Math.min(100,l.loyalty))+'%"></i></div></div>'+(pick?'<button type="button" class="pick" data-pick="'+k+'">Appoint '+l.name+'</button>':'')+'</div>';
 }
 function showDistrict(id){
-  var d=S.D[id],lv=['I','II','III'][Math.max(0,Math.min(2,Math.floor(d.level+1e-6)-1))];
-  var h='<h2 id="sh">'+d.name+'</h2><div class="stat"><div>Your influence<b>'+Math.round(d.share)+'%</b></div><div>District level<b>'+lv+'</b></div><div>Last envelope<b>'+money(d.last)+'</b></div><div>Callahan presence<b>'+Math.round((d.rival||0)*100)+'%</b></div></div>';
-  h+=d.lt?ltCard(d.lt,false):'<p>Nobody runs this district. Your influence fades a little every month.</p>';
-  h+='<button type="button" class="go" data-change="'+id+'">'+(d.lt?'Change lieutenant':'Appoint a lieutenant')+'</button><button type="button" class="alt" data-close="1">Back to the map</button>';
+  var d=G.districts[id],lv=Sim.LEVEL_NAMES[Math.max(0,Math.min(2,Math.floor(d.level+1e-6)-1))];
+  var h='<h2 id="sh">'+d.name+'</h2><div class="stat"><div>Your influence<b>'+Math.round(d.share)+'%</b></div><div>District level<b>'+lv+'</b></div><div>Last envelope<b>'+money(d.last)+'</b></div><div>Callahan presence<b>'+Math.round(d.rival*100)+'%</b></div></div>';
+  h+=d.lieutenant?ltCard(d.lieutenant,false):'<p>Nobody runs this district. Your influence fades a little every month.</p>';
+  h+='<button type="button" class="go" data-change="'+id+'">'+(d.lieutenant?'Change lieutenant':'Appoint a lieutenant')+'</button><button type="button" class="alt" data-close="1">Back to the map</button>';
   open(h);
 }
-function end(title,text,won){
-  S.over=true;render();hud();
-  open('<h2 id="sh">'+title+'</h2><p>'+text+'</p><p>This prototype stops after one year. The full game runs to the end of Prohibition in 1933.</p><button type="button" class="go" data-again="1">Play again</button>');
-  S.paused=true;
+function showEnd(){
+  render();hud();
+  open('<h2 id="sh">'+G.over.title+'</h2><p>'+G.over.text+'</p><p>This prototype stops after one year. The full game runs to the end of Prohibition in 1933.</p><button type="button" class="go" data-again="1">Play again</button>');
 }
 document.addEventListener('click',function(ev){
   var t=ev.target.closest?ev.target.closest('button'):null;if(!t)return;
   var a;
-  if((a=t.getAttribute('data-speed'))!==null){S.speed=Number(a);hud();restart();return}
-  if((a=t.getAttribute('data-dist'))){if(!S.over)showDistrict(a);return}
-  if((a=t.getAttribute('data-opt'))!==null){var fn=handlers[Number(a)];handlers=[];if(fn)fn();close();return}
-  if((a=t.getAttribute('data-pick'))){assign(assignCtx.id,a);assignCtx=null;close();return}
-  if(t.getAttribute('data-skip')){var c=assignCtx;assignCtx=null;if(c&&c.onSkip)c.onSkip();close();return}
-  if((a=t.getAttribute('data-change'))){askAssign(a,'Who runs '+S.D[a].name+'?','The one you replace goes back to the bench, and will remember it.',true);return}
+  if((a=t.getAttribute('data-speed'))!==null){UI.speed=Number(a);hud();restart();return}
+  if((a=t.getAttribute('data-dist'))){if(!G.over&&!G.pending)showDistrict(a);return}
+  if((a=t.getAttribute('data-opt'))!==null){answer({option:Number(a)});return}
+  if((a=t.getAttribute('data-pick'))){answer({pick:a});return}
+  if(t.getAttribute('data-skip')){answer({skip:true});return}
+  if((a=t.getAttribute('data-change'))){Sim.requestAssign(G,a);showPending();return}
   if(t.getAttribute('data-close')){close();return}
   if(t.getAttribute('data-again')){init();return}
 });
 var timer=null;
-function restart(){clearInterval(timer);if(S.speed>0)timer=setInterval(step,S.speed===3?300:900)}
+function restart(){clearInterval(timer);if(UI.speed>0)timer=setInterval(step,UI.speed===3?300:900)}
 init();restart();
-window.__ashport={state:function(){return S},step:step};
+window.__ashport={state:function(){return G},ui:function(){return UI},step:step};
 })();
 </script>
 </body>
