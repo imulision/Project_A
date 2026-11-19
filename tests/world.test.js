@@ -511,3 +511,46 @@ test('a capo whose question was left to drop does not ask again the month after'
   }
   assert.equal(asked, 1);
 });
+
+// --- rivals who are not a clock ---
+test('the rivals grow bolder with the years, but only up to a point', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  w.month = 12 * 40;
+  assert.ok(W.rivalStrength(w, 'calder') <= W.RULES.rivalCap);
+  w.month = 12 * 2;
+  assert.ok(W.rivalStrength(w, 'calder') > W.RULES.rivalStrength);
+});
+
+test('rivals who were thrown back come weaker the next time, and take a year to try again', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const s = W.district(w, W.HOME).state;
+  s.guards = 8; s.men = 30;
+  const first = play(w, W.RULES.attackEvery).find((e) => e.type === 'attack');
+  assert.equal(first.outcome, 'repelled');
+  const before = W.RULES.rivalStrength + W.RULES.rivalGrowth * w.month / 12;
+  assert.ok(W.rivalStrength(w, 'ashport') < before);
+  assert.equal(play(w, W.RULES.attackAfterDefeat - 1).filter((e) => e.type === 'attack').length, 0);
+  assert.equal(play(w, 1).filter((e) => e.type === 'attack').length, 1);
+});
+
+test('rivals who drew blood come back sooner and bolder', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  const s = W.district(w, W.HOME).state;
+  s.guards = 0;
+  const first = play(w, W.RULES.attackEvery).find((e) => e.type === 'attack');
+  assert.equal(first.outcome, 'hit');
+  const plain = W.RULES.rivalStrength + W.RULES.rivalGrowth * w.month / 12;
+  assert.ok(W.rivalStrength(w, 'ashport') > plain);
+  s.guards = 0; s.attacked = 0;
+  assert.equal(play(w, W.RULES.attackEvery).filter((e) => e.type === 'attack').length, 1);
+});
+
+test('left alone for ten years, every capo still holds a real part of Hillside', () => {
+  for (const capo of Object.keys(D.CAPOS)) {
+    const w = W.createWorld({ capo });
+    play(w, 120);
+    const s = W.district(w, W.HOME).state;
+    assert.ok(s.share >= 15, `${capo}: ${Math.round(s.share)}% of the streets after ten years`);
+    assert.ok(s.men >= 8, `${capo}: ${s.men} men left`);
+  }
+});
