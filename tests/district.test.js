@@ -868,3 +868,18 @@ test('the map is told which places launder and what every vehicle carries', () =
   assert.equal(cargo.tribute, 'cash');
   assert.ok(D.trips(d).every((t) => t.cargo));
 });
+
+test('the map is told where the money of a district sits, place by place', () => {
+  const d = D.createDistrict({ capo: 'dutch' });
+  for (let i = 0; i < 24; i++) D.stepMonth(d);
+  const cash = D.cash(d);
+  const ids = D.buildings(d).map((b) => b.id);
+  const at = (kind) => cash.filter((c) => c.kind === kind);
+  assert.deepEqual(at('dirty').map((c) => [c.at, c.amount]), [['hideout', d.dirty]]);
+  assert.deepEqual(at('clean').map((c) => [c.at, c.amount]), [['hideout', d.clean]]);
+  assert.ok(at('takings').length >= 1 && at('takings').every((c) => ids.includes(c.at) && c.amount > 0));
+  assert.ok(at('washing').length >= 1 && at('washing').every((c) => ids.includes(c.at)));
+  const washed = at('washing').reduce((n, c) => n + c.amount, 0);
+  assert.ok(Math.abs(washed - d.last.washed) < 0.01, 'the laundries share what was washed last month');
+  assert.deepEqual(D.cash(D.createDistrict({ capo: 'sal' })).filter((c) => c.kind === 'takings'), []);
+});
