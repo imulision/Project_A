@@ -1,310 +1,82 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ashport 1926: gameplay prototype</title>
-<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Special+Elite&display=swap" rel="stylesheet">
+<html lang="en"><head><meta charset="utf-8">
+<title>Ashport</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#14241E;--ink:#1F1A15;--paper:#EDE0C4;--dim:#D9C9A6;--gold:#E2BE6A;--line:#5C7268;--red:#B5281C;--good:#A9D0B6;--bad:#FF9C8A}
+:root{--title:'Oswald','Arial Narrow',Impact,sans-serif;--text:'Inter',system-ui,sans-serif;--ink:#f1ece4;--dim:#a39fb0;--accent:#e8c463;--bad:#e2695c;--good:#8fbf97;--panel:#12121ae6;--solid:#15151e;--line:#e8c46344}
 *{box-sizing:border-box}
-html,body{margin:0;background:#0C1612;color:var(--paper);font-family:'Special Elite','Courier New',monospace}
-button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
-#app{max-width:430px;margin:0 auto;background:var(--bg);min-height:100vh;display:flex;flex-direction:column;position:relative}
-.top{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px}
-.title{font-family:'Limelight',serif;font-size:22px;line-height:1;color:var(--gold)}
-.date{font-size:13px;color:var(--dim);margin-top:3px}
-.speed{display:flex;gap:4px}
-.speed button{width:44px;height:44px;border:1px solid var(--paper);font-size:15px}
-.speed button[aria-pressed=true]{background:var(--paper);color:var(--bg)}
-.res{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:0 12px 6px}
-.res div{border:1px solid var(--line);padding:6px 6px 4px;display:flex;flex-direction:column;gap:2px;min-width:0}
-.res .l{font-size:12px;color:var(--dim)}
-.res .v{font-size:17px;white-space:nowrap}
-.res .t{font-size:12px;white-space:nowrap}
-.up{color:var(--good)}.down{color:var(--bad)}.flat{color:var(--dim)}
-.share{padding:0 12px 6px;font-size:12px}
-.bar{display:flex;height:10px}
-.bar i{display:block;height:10px;transition:width .6s}
-.legend{display:flex;justify-content:space-between;margin-top:3px}
-.mapwrap{position:relative;line-height:0}
-#map{display:block;width:100%;height:auto;background:#7FA3A8}
-.tag{position:absolute;transform:translate(-50%,-50%);line-height:1.15;text-align:center;min-width:44px;min-height:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px 4px}
-.tag .n{font-family:'Limelight',serif;font-size:13px;color:var(--ink);text-shadow:-1.5px 0 #F7EFD9,1.5px 0 #F7EFD9,0 -1.5px #F7EFD9,0 1.5px #F7EFD9,1px 1px #F7EFD9,-1px -1px #F7EFD9,1px -1px #F7EFD9,-1px 1px #F7EFD9}
-.tag .who{font-size:12px;background:var(--ink);color:#FFF6E4;padding:3px 6px 1px;margin-top:2px;white-space:nowrap;border:1.5px solid #F7EFD9}
-.tag .who.vac{background:var(--red);animation:pulse 1.2s infinite}
-.tag .who.riv{background:#4A3D2C}
-@keyframes pulse{50%{opacity:.55}}
-.toast{position:absolute;left:8px;right:8px;top:8px;background:var(--ink);border:1.5px solid var(--gold);color:#FFF6E4;font-size:13px;line-height:1.3;padding:8px 10px 6px;opacity:0;transition:opacity .3s;pointer-events:none}
-.toast.on{opacity:1}
-.toast b{font-family:'Limelight',serif;font-weight:400;color:var(--gold)}
-.prog{height:6px;background:#0C1612}
-.prog i{display:block;height:6px;background:var(--gold);width:0}
-.log{padding:8px 12px 14px;font-size:13px;line-height:1.35;display:flex;flex-direction:column;gap:4px;min-height:92px}
-.log div{display:flex;gap:8px}
-.log .m{color:var(--dim);flex-shrink:0;width:34px}
-.hint{font-size:12px;color:var(--dim);padding:0 12px 12px}
-#veil{position:fixed;inset:0;background:rgba(8,14,12,.6);display:none;align-items:flex-end;justify-content:center;z-index:5}
+html,body{margin:0;height:100%;background:#191a22;overflow:hidden;color:var(--ink);font:13px/1.35 var(--text);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{display:block;position:fixed;inset:0;width:100%;height:100%}
+.top{position:fixed;left:0;right:0;top:0;padding:10px 12px 22px;background:linear-gradient(#07080bf5,#07080bcc 62%,#07080b00);pointer-events:none;z-index:2}
+h1{font:500 27px/1 var(--title);letter-spacing:.5px;margin:0;text-transform:uppercase}
+h1::after{content:"";display:block;width:44px;height:3px;background:var(--accent);margin-top:5px}
+.sub{color:var(--dim);margin:6px 0 8px}
+.res{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.res div{border-top:1px solid var(--line);background:var(--panel);padding:5px 8px}
+.res small{display:block;font-size:.72em;color:var(--dim);letter-spacing:.4px;white-space:nowrap}
+.res b{font:500 1.45em/1.15 var(--title);letter-spacing:.5px;font-variant-numeric:tabular-nums;display:block}
+#alerts{margin-top:6px;display:grid;gap:4px}
+#alerts div{background:var(--panel);border-left:3px solid var(--bad);padding:4px 8px;font-size:.92em;pointer-events:auto}
+#labels{position:fixed;inset:0;z-index:1;pointer-events:none}
+.lab{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;white-space:nowrap;padding:4px 9px;background:var(--panel);border-left:3px solid var(--c);font-size:.86em;line-height:1.15}
+.lab b{display:block;font:500 1.35em/1.05 var(--title);letter-spacing:.6px;text-transform:uppercase}.lab span{color:var(--c)}
+.lab.sm{transform:translate(-50%,-50%);padding:2px 7px;background:#07080bb5}.lab.sm b{font-size:1.05em}.lab.sm span{font-size:.85em}
+.lab.fx{border:0;padding:2px 7px;font:500 .95em var(--title);letter-spacing:1px;color:#fff;pointer-events:none;animation:pulse .7s infinite alternate}
+.lab.fire{background:#c2401d}.lab.gunfire{background:#8a1f1f}.lab.police{background:#2a4fc0}
+@keyframes pulse{from{opacity:1}to{opacity:.55}}
+.bot{position:fixed;left:0;right:0;bottom:0;padding:26px 12px 12px;background:linear-gradient(#07080b00,#07080be0 45%);z-index:2;display:flex;gap:6px;align-items:center}
+button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 11px;min-height:42px}
+button.on,button.go{background:var(--accent);border-color:var(--accent);color:#15110b}
+button:disabled{opacity:.4}
+.grow{flex:1}
+#fps{font-size:.8em;color:var(--dim)}
+#toast{position:fixed;left:12px;right:12px;bottom:74px;z-index:3;display:grid;gap:4px;pointer-events:none}
+#toast div{background:var(--panel);border-left:3px solid var(--accent);padding:6px 9px}
+#toast div.bad{border-color:var(--bad)}
+#veil{position:fixed;inset:0;z-index:4;background:#07080b99;display:none;align-items:flex-end}
 #veil.on{display:flex}
-#sheet{width:100%;max-width:430px;max-height:88vh;overflow:auto;background:#E3D3B0;color:var(--ink);border-top:5px solid #1F342D;padding:14px 12px 16px;line-height:1.35}
-#sheet h2{font-family:'Limelight',serif;font-weight:400;font-size:21px;margin:0 0 4px;line-height:1.15}
-#sheet p{margin:0 0 10px;font-size:14px}
-.card{border:1.5px solid var(--ink);background:#F4E9CF;padding:10px 10px 8px;margin-bottom:8px;display:block;width:100%;text-align:left}
-.card .nm{font-family:'Limelight',serif;font-size:17px}
-.tags{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0;font-size:12.5px}
-.tags span{padding:3px 6px 1px;border:1.5px solid var(--ink)}
-.q{background:#CFE3D2}.f{background:#F2C9BF}
-.plan{font-size:13.5px;font-style:italic;margin:4px 0}
-.fx{font-size:12.5px;color:#4A3D2C}
-.go{display:block;width:100%;min-height:48px;background:var(--red);color:#FFF6E4;font-size:15px;padding:10px 12px 7px;margin-top:8px;text-align:center}
-.alt{display:block;width:100%;min-height:48px;border:1.5px solid var(--ink);font-size:15px;padding:10px 12px 7px;margin-top:8px;text-align:center}
-.pick{margin-top:6px;background:var(--red);color:#FFF6E4;padding:8px 10px 5px;font-size:14px;display:inline-block}
-.stat{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0;font-size:13px}
-.stat div{border:1.5px solid var(--ink);padding:6px 8px 4px;background:#F4E9CF}
-.stat b{display:block;font-weight:400;font-size:17px}
-.meter{height:8px;background:#CDBB92;border:1px solid var(--ink);margin-top:3px}
-.meter i{display:block;height:100%;background:#1F342D}
-</style>
-</head>
-<body>
-<div id="app">
-  <div class="top">
-    <div><div class="title">Ashport</div><div class="date" id="date">January 1926</div></div>
-    <div class="speed" role="group" aria-label="Game speed">
-      <button type="button" data-speed="0" aria-label="Pause">II</button>
-      <button type="button" data-speed="1" aria-label="Normal speed">x1</button>
-      <button type="button" data-speed="3" aria-label="Fast">x3</button>
-    </div>
+#sheet{width:100%;max-height:78%;overflow:auto;background:var(--solid);border-top:2px solid var(--accent);padding:14px 14px 18px}
+#sheet h2{font:500 22px/1.1 var(--title);letter-spacing:.5px;text-transform:uppercase;margin:0 0 4px}
+#sheet p{margin:4px 0 10px;color:var(--dim)}
+.rows{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 10px}
+.rows div{background:#ffffff0d;padding:5px 7px}.rows small{display:block;color:var(--dim);font-size:.75em}.rows b{font:500 1.3em var(--title)}
+.card{border:1px solid var(--line);background:#ffffff08;padding:9px 10px;margin:0 0 8px}
+.card h3{font:500 16px/1.2 var(--title);letter-spacing:.4px;margin:0}
+.card .who{color:var(--accent);font-size:.9em}
+.card .st{color:var(--dim);font-size:.88em;margin:4px 0}
+.card .mv{font-size:.92em;margin:4px 0 8px}
+.card button{width:100%}
+.list{margin:0 0 10px;padding:0;list-style:none}
+.list li{padding:6px 0;border-top:1px solid #ffffff14}
+.list small{color:var(--dim);display:block}
+.acts{display:flex;gap:6px;flex-wrap:wrap}.acts button{flex:1}
+#load{position:fixed;inset:0;display:grid;place-items:center;background:#191a22;z-index:6;font:500 24px var(--title);letter-spacing:3px}
+</style></head><body>
+<div id="load">ASHPORT</div>
+<div id="labels"></div>
+<div class="top">
+  <h1 id="date">January 1926</h1>
+  <div class="sub" id="sub">Name your first capo to begin</div>
+  <div class="res">
+    <div><small>DIRTY CASH</small><b id="dirty">$0</b></div>
+    <div><small>CLEAN CASH</small><b id="clean">$0</b></div>
+    <div><small>DISTRICTS</small><b id="held">0</b></div>
+    <div><small>YOUR MEN</small><b id="named">0 / 9</b></div>
   </div>
-  <div class="res" id="res"></div>
-  <div class="share"><div class="bar" id="bar"></div><div class="legend" id="legend"></div></div>
-  <div class="mapwrap" id="mapwrap">
-    <svg id="map" viewBox="0 0 390 470" role="img" aria-label="Isometric map of Ashport. Roof colours show who holds each building and building height shows how developed a district is."></svg>
-    <div id="tags"></div>
-    <div class="toast" id="toast" role="status"></div>
-  </div>
-  <div class="prog" aria-hidden="true"><i id="prog"></i></div>
-  <div class="log" id="log" aria-live="polite"></div>
-  <div class="hint">Tap a district to see it or to change who runs it. You never act yourself: you only choose people.</div>
+  <div id="alerts"></div>
 </div>
-<div id="veil"><div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh"></div></div>
-
-<script src="sim.js"></script>
-<script>
-(function(){
-'use strict';
-var INK='#1F1A15',GOLD='#F2C14E',PAPER='#F7EFD9';
-var ROOF={you:['#5E8F6E','#6F9A7F'],cal:['#B5604F','#C97464'],north:['#6A8DB3','#7C9FC2'],free:['#CDBF9C','#D8CBA9']};
-var WL=['#7A6C55','#8E7F63','#A39270'],WR=['#95866C','#B3A282','#D2C19A'];
-var SHORE=46,SHY=-40+SHORE*10;
-function $(id){return document.getElementById(id)}
-function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;var t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-function P(i,j){return [195+(i-j)*20,-40+(i+j)*10]}
-function zone(i,j){
-  if(i===12||i===13)return null;
-  if(i<12){if(j<=7)return 'uptown';if(j<=12)return 'hillside';return 'market'}
-  if(i>=22&&j<=19)return 'canal';
-  if(j<=12)return 'stock';
-  if(j<=17)return 'union';
-  return 'docks';
-}
-var SEED={hillside:[11,12],market:[11,14],union:[15,17],docks:[16,20],canal:[22,19]};
-var TILES=[];
-(function(){
-  var R=rng(11),i,j,z,p,t,mx={};
-  for(i=0;i<40;i++)for(j=0;j<40;j++){
-    if(Math.abs(i-j)>11||i+j<2||i+j>=SHORE)continue;
-    z=zone(i,j);if(!z)continue;
-    if(i%4===0||j%4===0)continue;
-    p=P(i,j);
-    t={cx:p[0],cy:p[1]+10,d:z,r:R(),hf:R(),a:[12,14,14,15][Math.floor(R()*4)],c:R()<.5?0:1,w:[],k:i+j,i:i,dist:0};
-    for(var q=0;q<16;q++)t.w.push(R());
-    if(SEED[z]){t.dist=Math.sqrt(Math.pow(i-SEED[z][0],2)+Math.pow(j-SEED[z][1],2));mx[z]=Math.max(mx[z]||0,t.dist)}
-    TILES.push(t);
-  }
-  TILES.forEach(function(t){t.thr=SEED[t.d]?Math.min(.999,.72*t.dist/mx[t.d]+.28*t.r):t.r});
-  TILES.sort(function(a,b){return a.k-b.k||a.i-b.i});
-})();
-
-var Sim=window.AshportSim;
-// Where each district label sits on the map. Rival districts are not played.
-var PLACES={
- uptown:{name:'Uptown',pos:[272,92],base:'north',rivalName:'Northside'},
- hillside:{pos:[150,168]},
- market:{pos:[64,268]},
- stock:{name:'Stockyards',pos:[342,236],base:'cal',rivalName:'Callahan'},
- union:{pos:[258,300]},
- docks:{pos:[186,396]},
- canal:{pos:[336,392]}
-};
-// G is the game itself and belongs to sim.js. UI is only what the page needs.
-var G,UI;
-function init(){
-  G=Sim.createGame();
-  UI={speed:UI?UI.speed:1,paused:true,log:[]};
-  say('The family holds the Docks and most of Market Street.');
-  drawStatic();render();hud();
-  $('veil').className='';
-  setTimeout(showPending,700);
-}
-function owner(t){
-  var d=G.districts[t.d];
-  if(!d)return PLACES[t.d].base;
-  if(t.thr<d.share/100)return 'you';
-  if(d.rival&&t.thr>1-d.rival)return 'cal';
-  return 'free';
-}
-function f(n){return (Math.round(n*10)/10)}
-function drawStatic(){
-  var s='',k,teeth='M0 '+SHY;
-  for(k=0;k<11;k++)teeth+=' L'+(k*40+15)+' '+(SHY+10)+' L'+(k*40+35)+' '+SHY;
-  s+='<rect x="0" y="0" width="390" height="'+SHY+'" fill="#C2B48F"/><path d="'+teeth+' L390 0 L0 0 Z" fill="#C2B48F"/><path d="'+teeth+'" fill="none" stroke="'+INK+'" stroke-width="2"/>';
-  function pp(a){return a.map(function(p){return f(p[0])+','+f(p[1])}).join(' ')}
-  s+='<polygon points="'+pp([P(12,0),P(14,0),P(14,40),P(12,40)])+'" fill="#7FA3A8" stroke="'+INK+'" stroke-width="1.5"/>';
-  [8,16,20,24,28].forEach(function(j){s+='<polygon points="'+pp([P(12,j+.2),P(14,j+.2),P(14,j+.8),P(12,j+.8)])+'" fill="'+PAPER+'" stroke="'+INK+'" stroke-width="1.2"/>'});
-  s+='<g stroke="#8A7550" stroke-width="5" stroke-linecap="round"><path d="M120 '+(SHY+8)+' l0 30 M170 '+(SHY+8)+' l0 34 M220 '+(SHY+8)+' l0 30"/></g>';
-  s+='<g id="bld" stroke="'+INK+'" stroke-width="0.9" stroke-linejoin="round"></g>';
-  function road(a,b){return 'M'+f(a[0])+' '+f(a[1])+' L'+f(b[0])+' '+f(b[1])}
-  function truck(path,dur,beg,col){return '<g><rect x="-7" y="-4" width="14" height="7" rx="1.5" fill="'+col+'" stroke="'+PAPER+'" stroke-width="0.8"/><rect x="3" y="-3" width="4" height="5" fill="'+GOLD+'"/><animateMotion path="'+path+'" dur="'+dur+'s" begin="'+beg+'s" repeatCount="indefinite" rotate="auto"/></g>'}
-  var r1=road(P(14,16.5),P(29,16.5)),r2=road(P(20.5,25),P(20.5,10)),r3=road(P(11.5,24.5),P(22,24.5));
-  s+=truck(r1,9,0,'#3F6B50')+truck(r1,9,-4.5,'#3F6B50')+truck(r2,8,0,INK)+truck(r2,8,-4,INK)+truck(r3,10,-2,'#3F6B50');
-  s+='<g fill="'+INK+'"><g><path d="M-13 -5 L7 -5 L14 0 L7 5 L-13 5 Z"/><animateMotion path="M410 '+(SHY+40)+' C300 '+(SHY+46)+' 240 '+(SHY+40)+' 190 '+(SHY+34)+'" dur="10s" repeatCount="indefinite" rotate="auto" keyPoints="0;1;1" keyTimes="0;0.7;1" calcMode="linear"/></g></g>';
-  $('map').innerHTML=s;
-}
-function render(){
-  var s='',i,t,o,lvl,h,a,b,cx,cy,li,d,y,k,lit,wd;
-  for(i=0;i<TILES.length;i++){
-    t=TILES[i];o=owner(t);d=G.districts[t.d]||{level:2};cx=t.cx;cy=t.cy;
-    s+='<polygon stroke="none" fill="#EFE4C8" points="'+cx+','+(cy-9)+' '+(cx+18)+','+cy+' '+cx+','+(cy+9)+' '+(cx-18)+','+cy+'"/>';
-    if(o==='free'&&t.hf<.12)continue;
-    lvl=o==='you'?d.level:(o==='free'?1:2);
-    h=f(7+t.hf*8+(lvl-1)*(9+t.hf*17));a=t.a;b=a/2;li=Math.max(0,Math.min(2,Math.round(lvl)-1));
-    s+='<polygon fill="'+WL[li]+'" points="'+(cx-a)+','+cy+' '+cx+','+(cy+b)+' '+cx+','+f(cy+b-h)+' '+(cx-a)+','+f(cy-h)+'"/>';
-    s+='<polygon fill="'+WR[li]+'" points="'+cx+','+(cy+b)+' '+(cx+a)+','+cy+' '+(cx+a)+','+f(cy-h)+' '+cx+','+f(cy+b-h)+'"/>';
-    s+='<polygon fill="'+ROOF[o][t.c]+'" points="'+cx+','+f(cy-b-h)+' '+(cx+a)+','+f(cy-h)+' '+cx+','+f(cy+b-h)+' '+(cx-a)+','+f(cy-h)+'"/>';
-    if(h>=15){
-      lit=o==='you'?(.15+.38*(lvl-1)):.4;wd='';k=0;
-      for(y=6;y<h-4;y+=8){
-        if(t.w[k++%16]<lit)wd+='M'+f(cx-a+2.5)+' '+f(cy-y+1.2)+'L'+f(cx-2)+' '+f(cy+b-y-1);
-        if(t.w[k++%16]<lit)wd+='M'+f(cx+2)+' '+f(cy+b-y-1)+'L'+f(cx+a-2.5)+' '+f(cy-y+1.2);
-      }
-      if(wd)s+='<path d="'+wd+'" fill="none" stroke="'+GOLD+'" stroke-width="2.2" stroke-dasharray="2.5 2.5"/>';
-    }
-  }
-  $('bld').innerHTML=s;
-  var h2='';
-  Object.keys(PLACES).forEach(function(id){
-    var pl=PLACES[id],d=G.districts[id]||pl,who;
-    if(!G.districts[id])who='<span class="who riv">'+pl.rivalName+'</span>';
-    else if(d.lieutenant)who='<span class="who">'+G.lieutenants[d.lieutenant].name+'</span>';
-    else who='<span class="who vac">Vacant</span>';
-    var st='left:'+(pl.pos[0]/390*100)+'%;top:'+(pl.pos[1]/470*100)+'%';
-    if(G.districts[id])h2+='<button type="button" class="tag" style="'+st+'" data-dist="'+id+'"><span class="n">'+d.name+'</span>'+who+'</button>';
-    else h2+='<div class="tag" style="'+st+'"><span class="n">'+d.name+'</span>'+who+'</div>';
-  });
-  $('tags').innerHTML=h2;
-}
-var money=Sim.money;
-function trend(v,unit,goodUp){
-  if(!v)return '<span class="t flat">steady</span>';
-  var good=goodUp?v>0:v<0;
-  return '<span class="t '+(good?'up':'down')+'">'+(v>0?'+':'-')+(unit==='$'?'$'+Math.abs(Math.round(v)).toLocaleString('en-US'):Math.abs(Math.round(v)))+'/mo</span>';
-}
-function hud(){
-  $('date').textContent=Sim.MONTHS[G.month%12]+' '+(1926+Math.floor(G.month/12));
-  $('res').innerHTML=
-   '<div><span class="l">Cash</span><span class="v">'+money(G.cash)+'</span>'+trend(G.delta.cash,'$',true)+'</div>'+
-   '<div><span class="l">Men</span><span class="v">'+G.men+'</span><span class="t flat">'+G.idle+' idle</span></div>'+
-   '<div><span class="l">Heat</span><span class="v" style="color:'+(G.heat>=70?'#FF9C8A':'inherit')+'">'+Math.round(G.heat)+'</span>'+trend(G.delta.heat,'',false)+'</div>'+
-   '<div><span class="l">Respect</span><span class="v">'+Math.round(G.respect)+'</span>'+trend(G.delta.respect,'',true)+'</div>';
-  var c=Sim.control(G),p=function(k){return Math.round(c[k]*100)};
-  $('bar').innerHTML='<i style="width:'+p('you')+'%;background:#6F9A7F"></i><i style="width:'+p('callahan')+'%;background:#C97464"></i><i style="width:'+p('northside')+'%;background:#7C9FC2"></i><i style="flex-grow:1;background:#DCCFAE"></i>';
-  $('legend').innerHTML='<span style="color:#A9D0B6">You '+p('you')+'%</span><span style="color:#FF9C8A">Callahan '+p('callahan')+'%</span><span style="color:#A9C6E3">Northside '+p('northside')+'%</span><span>Free '+(100-p('you')-p('callahan')-p('northside'))+'%</span>';
-  $('prog').style.width=(G.tick/Sim.TICKS_PER_MONTH*100)+'%';
-  $('log').innerHTML=UI.log.slice(0,3).map(function(l){return '<div><span class="m">'+l[0]+'</span><span>'+l[1]+'</span></div>'}).join('');
-  var bs=document.querySelectorAll('[data-speed]'),i;
-  for(i=0;i<bs.length;i++)bs[i].setAttribute('aria-pressed',String(Number(bs[i].getAttribute('data-speed'))===UI.speed));
-}
-function say(t){UI.log.unshift([Sim.MONTHS[G.month%12].slice(0,3),t])}
-var toastT;
-function toast(html){var e=$('toast');e.innerHTML=html;e.className='toast on';clearTimeout(toastT);toastT=setTimeout(function(){e.className='toast'},3200)}
-// ---- Time: the page only asks the rules to advance, then shows what happened ----
-function step(){
-  if(UI.paused||G.over||UI.speed===0)return;
-  show(Sim.tick(G));
-  render();hud();
-  if(G.over)showEnd();else if(G.pending)showPending();
-}
-function show(events){
-  events.forEach(function(e){
-    var d=e.district&&G.districts[e.district];
-    if(e.type==='news')say(e.text);
-    if(e.type==='level'){say(d.name+' reached level '+Sim.LEVEL_NAMES[e.level-1]+'. The street looks different now.');toast('<b>'+d.name+'</b> is now a level '+Sim.LEVEL_NAMES[e.level-1]+' district.')}
-    if(e.type==='envelope')toast('<b>The envelope</b> '+money(e.gross-e.skim)+' came up. Wages and costs '+money(e.wages+e.costs)+'. Net '+(e.net>=0?'+':'')+money(e.net)+'.<br>'+e.parts.filter(function(p){return p.amount>40}).map(function(p){return G.districts[p.district].name+' '+money(p.amount)}).join(', '));
-  });
-}
-
-// ---- Sheets ----
-function open(html){UI.paused=true;$('sheet').innerHTML=html;$('veil').className='on';$('sheet').scrollTop=0;var b=$('sheet').querySelector('button');if(b)b.focus()}
-function close(){$('veil').className='';UI.paused=false;render();hud()}
-function answer(a){
-  show(Sim.resolve(G,a));
-  if(G.pending)showPending();else close();
-}
-function showPending(){
-  var p=G.pending;if(!p)return;
-  var h='<h2 id="sh">'+p.title+'</h2><p>'+p.text+'</p>';
-  if(p.kind==='assign'){
-    if(!G.bench.length)h+='<p>Nobody is free. Move someone from another district first.</p>';
-    h+=G.bench.map(function(k){return ltCard(k,true)}).join('');
-    if(p.canSkip||!G.bench.length)h+='<button type="button" class="alt" data-skip="1">Leave it for now</button>';
-  }else{
-    h+=p.options.map(function(o,i){return '<button type="button" class="card" data-opt="'+i+'"><span class="nm">'+o.label+'</span><div class="fx">'+o.effect+'</div></button>'}).join('');
-  }
-  open(h);
-}
-function fx(l){
-  var a=[];
-  a.push(l.expand>=8?'Takes blocks fast':l.expand>=4?'Takes blocks steadily':l.expand>0?'Takes blocks slowly':'Does not expand');
-  a.push(l.build>=.09?'builds fast':l.build>=.05?'builds steadily':'builds slowly');
-  if(l.earn!==1)a.push('income x'+l.earn);
-  if(l.heat)a.push((l.heat>0?'+':'')+l.heat+' heat/mo');
-  if(l.cost)a.push('costs $'+l.cost+'/mo');
-  if(l.skim)a.push('keeps '+Math.round(l.skim*100)+'% of the take');
-  return a.join(' · ');
-}
-function ltCard(k,pick){
-  var l=G.lieutenants[k];
-  return '<div class="card"><div class="nm">'+l.name+'</div><div class="tags"><span class="q">'+l.quality+'</span><span class="f">'+l.flaw+'</span></div><div class="plan">"'+l.plan+'"</div><div class="fx">'+fx(l)+'</div><div class="fx">Loyalty '+Math.round(l.loyalty)+'<div class="meter"><i style="width:'+Math.max(0,Math.min(100,l.loyalty))+'%"></i></div></div>'+(pick?'<button type="button" class="pick" data-pick="'+k+'">Appoint '+l.name+'</button>':'')+'</div>';
-}
-function showDistrict(id){
-  var d=G.districts[id],lv=Sim.LEVEL_NAMES[Math.max(0,Math.min(2,Math.floor(d.level+1e-6)-1))];
-  var h='<h2 id="sh">'+d.name+'</h2><div class="stat"><div>Your influence<b>'+Math.round(d.share)+'%</b></div><div>District level<b>'+lv+'</b></div><div>Last envelope<b>'+money(d.last)+'</b></div><div>Callahan presence<b>'+Math.round(d.rival*100)+'%</b></div></div>';
-  h+=d.lieutenant?ltCard(d.lieutenant,false):'<p>Nobody runs this district. Your influence fades a little every month.</p>';
-  h+='<button type="button" class="go" data-change="'+id+'">'+(d.lieutenant?'Change lieutenant':'Appoint a lieutenant')+'</button><button type="button" class="alt" data-close="1">Back to the map</button>';
-  open(h);
-}
-function showEnd(){
-  render();hud();
-  open('<h2 id="sh">'+G.over.title+'</h2><p>'+G.over.text+'</p><p>This prototype stops after one year. The full game runs to the end of Prohibition in 1933.</p><button type="button" class="go" data-again="1">Play again</button>');
-}
-document.addEventListener('click',function(ev){
-  var t=ev.target.closest?ev.target.closest('button'):null;if(!t)return;
-  var a;
-  if((a=t.getAttribute('data-speed'))!==null){UI.speed=Number(a);hud();restart();return}
-  if((a=t.getAttribute('data-dist'))){if(!G.over&&!G.pending)showDistrict(a);return}
-  if((a=t.getAttribute('data-opt'))!==null){answer({option:Number(a)});return}
-  if((a=t.getAttribute('data-pick'))){answer({pick:a});return}
-  if(t.getAttribute('data-skip')){answer({skip:true});return}
-  if((a=t.getAttribute('data-change'))){Sim.requestAssign(G,a);showPending();return}
-  if(t.getAttribute('data-close')){close();return}
-  if(t.getAttribute('data-again')){init();return}
-});
-var timer=null;
-function restart(){clearInterval(timer);if(UI.speed>0)timer=setInterval(step,UI.speed===3?300:900)}
-init();restart();
-window.__ashport={state:function(){return G},ui:function(){return UI},step:step};
-})();
-</script>
-</body>
-</html>
+<div id="toast"></div>
+<div class="bot">
+  <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button>
+  <span class="grow"></span><span id="fps"></span>
+  <button id="journal">Journal</button>
+</div>
+<div id="veil"><div id="sheet"></div></div>
+<script src="./district.js"></script>
+<script src="./world.js"></script>
+<script src="./game.js"></script>
+<script src="./mapview.js"></script>
+<script src="./render.js"></script>
+<script src="./ui.js"></script>
+</body></html>

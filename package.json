@@ -3,11 +3,14 @@
   "private": true,
   "scripts": {
     "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "node --test tests/sim.test.js tests/district.test.js tests/world.test.js tests/game.test.js",
+    "test:unit": "node --test tests/sim.test.js tests/district.test.js tests/world.test.js tests/game.test.js tests/mapview.test.js",
     "test:integration": "node tests/playthrough.mjs",
-    "simulate": "node tools/simulate.js"
+    "simulate": "node tools/simulate.js",
+    "build": "esbuild render/main.js --bundle --format=iife --minify --target=es2020 --legal-comments=none --outfile=web/render.js"
   },
   "devDependencies": {
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "esbuild": "0.28.2",
+    "three": "0.187.0"
   }
 }
