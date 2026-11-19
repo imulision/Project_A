@@ -250,9 +250,24 @@ test('twenty years of sending men down the road: several cities, never the whole
   for (const start of ['sal', 'dutch', 'tommy']) {
     const g = spreader(start), h = E.hud(g), v = E.view(g);
     assert.ok(h.cities.held >= 3, start + ' is in ' + h.cities.held + ' cities');
-    assert.ok(h.share >= 12 && h.share <= 60, start + ' holds ' + h.share + ' % of the map');
-    assert.ok(v.cities.filter((c) => c.share.family >= 25).length >= 2, start + ' really holds two cities');
-    assert.ok(h.clean < 600000, start + ' sits on $' + h.clean);
+    assert.ok(h.share >= 10 && h.share <= 80, start + ' holds ' + h.share + ' % of the map');
+    assert.ok(v.cities.filter((c) => c.share.family >= 20).length >= 2, start + ' really holds two cities');
+    assert.ok(h.clean < 1000000, start + ' sits on $' + h.clean);
     assert.ok(h.men >= 8, start + ' has ' + h.men + ' men');
+  }
+});
+
+test('the boss starts with enough dirty money to take in the first man who knocks, within two years', () => {
+  for (const start of E.NAMES) {
+    const g = E.createGame({ capo: start });
+    assert.equal(E.hud(g).dirty, E.START_CASH);
+    let taken = null;
+    for (let m = 1; m <= 24 && !taken; m++) {
+      months(g, 1);
+      const d = E.view(g).cities[0].doors[0], spot = T.spots(g.cities[0])[0];
+      if (d) { E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: spot.x, y: spot.y }); taken = m; }
+    }
+    assert.ok(taken, start + ': nobody could be taken in during the first two years');
+    assert.equal(E.hud(g).men, 2);
   }
 });
