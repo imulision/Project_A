@@ -39,6 +39,7 @@
     rivalEvery: 6,      // months between two raids on the family's places
     rivalReach: 10,     // a rival only raids a block it presses on at least this hard
     anger: 12,          // every this many places the family runs in the city, the rivals hit twice as hard again
+    cover: 3,           // a capo's men answer for any family place within this many blocks of his club
     stand: 0.2,         // a capo of no Muscle holds this share of the family's press against a raid; each point adds a tenth
     // how a capo takes a rival's place: what it costs next to opening one, and how long it takes
     take: { force: { cost: 1.5, months: 4 }, bribe: { cost: 2, months: 3 }, buy: { cost: 3, months: 2 } }
@@ -308,6 +309,15 @@
     }
     if (best) open(c, best.x, best.y, { owner: c.rival, kind: bestKind(c, best.x, best.y) });
   }
+  // Who answers when a family place is hit: the hardest capo with a club close by, or its own.
+  function cover(c, x, y) {
+    var p = at(c, x, y), best = { capo: p.capo, muscle: D.CAPOS[p.capo].muscle };
+    places(c).forEach(function (q) {
+      if (q.owner !== 'family' || q.kind !== 'club' || far(x, y, q.x, q.y) > RULES.cover) return;
+      if (D.CAPOS[q.capo].muscle > best.muscle) best = { capo: q.capo, muscle: D.CAPOS[q.capo].muscle };
+    });
+    return best;
+  }
   // Now and then they come for the family's place they press on hardest. A capo's Muscle decides if it stands.
   function rivalRaids(c, events) {
     if (c.month % RULES.rivalEvery !== 0) return;
@@ -320,11 +330,13 @@
     });
     if (!target) return;
     var p = target.p, by = c.rival || places(c).filter(function (q) { return q.owner !== 'family'; })[0].owner, where = zoneOf(c, p.x, p.y).name;
-    var e = { capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: by };
+    var guard = cover(c, p.x, p.y);
+    var e = { capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: by, heldBy: guard.capo };
     var fury = 1 + places(c).filter(function (q) { return q.owner === 'family'; }).length / RULES.anger; // the bigger the family, the harder they come
-    if (target.h.family * (RULES.stand + D.CAPOS[p.capo].muscle / 10) >= target.h.rival * fury) {
+    if (target.h.family * (RULES.stand + guard.muscle / 10) >= target.h.rival * fury) {
       e.type = 'repelled';
-      e.label = 'The ' + by + 's come for ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where + ' and are thrown back';
+      e.label = 'The ' + by + 's come for ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where
+        + (guard.capo === p.capo ? ' and are thrown back' : ': ' + first(guard.capo) + '\'s men throw them back');
     } else {
       delete c.blocks[key(p.x, p.y)];
       e.type = 'burnt';
@@ -369,7 +381,7 @@
     return events;
   }
 
-  var api = { seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

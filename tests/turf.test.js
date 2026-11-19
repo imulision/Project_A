@@ -334,3 +334,45 @@ test('ten years in Ashport against the Callahans: a real foothold, never the who
   assert.ok(s.rival >= 30, 'the Callahans still hold ' + Math.round(s.rival) + '%');
   assert.ok(first.concat(rest).some((e) => e.type === 'burnt' || e.type === 'repelled'), 'and there was a fight');
 });
+
+// --- capos lean on one another ---
+test('a hard man\'s club close by holds the street for a bookkeeper', () => {
+  const front = (withSal) => {
+    const c = town(), f = family();
+    T.settle(c, 'mae', 3, 3); T.join(f, 'mae');
+    f.men.mae.cash = -100000;
+    T.open(c, 5, 3, { owner: 'family', kind: 'still', capo: 'mae' });
+    T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+    if (withSal) { T.settle(c, 'sal', 5, 5); T.join(f, 'sal'); f.men.sal.cash = -100000; }
+    return year(c, f, 24);
+  };
+  assert.ok(front(false).some((e) => e.type === 'burnt'));
+  const covered = front(true);
+  assert.ok(!covered.some((e) => e.type === 'burnt'));
+  const stood = covered.find((e) => e.type === 'repelled');
+  assert.equal(stood.capo, 'mae');
+  assert.equal(stood.heldBy, 'sal');
+  assert.match(stood.label, /Sal's men/);
+});
+
+test('a club across town covers nothing', () => {
+  const c = town(), f = family();
+  T.settle(c, 'mae', 3, 3); T.join(f, 'mae'); f.men.mae.cash = -100000;
+  T.open(c, 5, 3, { owner: 'family', kind: 'still', capo: 'mae' });
+  T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+  T.settle(c, 'sal', 11, 0); T.join(f, 'sal'); f.men.sal.cash = -100000;
+  assert.equal(T.cover(c, 5, 3).capo, 'mae');
+  assert.ok(year(c, f, 24).some((e) => e.type === 'burnt' && e.capo === 'mae'));
+});
+
+test('with Sal beside her, Mae keeps a real business in Ashport for ten years', () => {
+  const c = ashport(), f = family();
+  T.seed(c, 'Callahan', 30);
+  const spot = T.landing(c);
+  T.settle(c, 'mae', spot.x, spot.y); T.join(f, 'mae');
+  T.settle(c, 'sal', spot.x + 2, spot.y + 1); T.join(f, 'sal');
+  year(c, f, 120);
+  const hers = T.places(c, 'mae').filter((p) => p.kind !== 'club');
+  assert.ok(hers.length >= 5, hers.length + ' places of Mae\'s still standing');
+  assert.ok(hers.some((p) => p.kind === 'front' || p.kind === 'rented'), 'and she launders');
+});
