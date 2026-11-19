@@ -73,7 +73,7 @@ test('a project that needs more hands makes the capo hire, by his charisma', () 
 });
 
 test('a capo who cannot pay new men holds steady and says why', () => {
-  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 50 });
+  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 30 });
   d.guards = 4;
   const pick = D.chooseProject(d);
   assert.equal(pick.kind, 'hold');
@@ -173,7 +173,7 @@ test('every building of the district can be listed for the map', () => {
 });
 
 test('a capo who cannot man his first choice falls back on one he can do alone', () => {
-  const d = D.createDistrict({ capo: 'dutch', dirty: 1400, heat: 50, profit: 50 });
+  const d = D.createDistrict({ capo: 'dutch', dirty: 1400, heat: 50, profit: 30 });
   d.guards = 4; // nobody free and no profit to hire: the warehouse he would seize is out of reach
   assert.equal(D.chooseProject(d).kind, 'bribe');
 });
@@ -408,6 +408,19 @@ test('a capo who has just been attacked posts guards before anything else', () =
   assert.equal(d.attacked, 0);
 });
 
+test('a street crew takes streets even under a capo with no muscle of his own', () => {
+  const without = D.createDistrict({ capo: 'mae' });
+  const withCrew = D.createDistrict({ capo: 'mae' });
+  withCrew.crews = 1;
+  assert.ok(D.streetsChange(withCrew) - D.streetsChange(without) >= 0.79);
+});
+
+test('the rivals do not bother with a family that holds only a few streets', () => {
+  const few = D.createDistrict({ capo: 'mae', share: 5 });
+  const many = D.createDistrict({ capo: 'mae', share: 30 });
+  assert.ok(D.streetsChange(few) > D.streetsChange(many) + 0.7);
+});
+
 // --- integration: a whole year, the boss touching nothing but the name ---
 
 test('a year under Sal: streets taken by force, then the police and a hated name', () => {
@@ -430,15 +443,15 @@ test('a year under Sal: streets taken by force, then the police and a hated name
 
 test('a year under Mae: clean money and quiet, and not one street gained', () => {
   const { d, events } = year('mae');
-  assert.equal(d.men, 26);
+  assert.equal(d.men, 29);
   near(d.share, 29);
-  near(d.heat, 37);
-  near(d.goodwill, 55);
+  near(d.heat, 36);
+  near(d.goodwill, 53);
   assert.equal(d.raids, 0);
   assert.equal(events.filter((e) => e.type === 'raid').length, 0);
-  near(d.boss.clean, 2429);
-  near(d.boss.dirty, 1252);
-  assert.deepEqual(places(d), { still: 3, speakeasy: 2, gambling: 2, rented: 4, warehouse: 2, loans: 1 });
+  near(d.boss.clean, 2397);
+  near(d.boss.dirty, 1746);
+  assert.deepEqual(places(d), { still: 3, speakeasy: 2, gambling: 2, rented: 3, front: 1, warehouse: 1, loans: 2 });
 });
 
 test('naming the capo is enough to get two different districts', () => {
@@ -467,4 +480,35 @@ test('every capo of the pool survives five years on any start without breaking t
       }
     }
   }
+});
+
+test('a small outfit with thirsty streets grows its stills and its speakeasies in turn', () => {
+  for (const capo of ['mae', 'dutch']) { // the two who think of trade first
+    const d = D.createDistrict({ capo, share: 30, men: 11, dirty: 1400, sites: { still: 1, speakeasy: 1 } });
+    for (let i = 0; i < 12; i++) D.stepMonth(d);
+    assert.ok(d.sites.still >= 2 && d.sites.speakeasy >= 2, `${capo}: ${d.sites.still} still, ${d.sites.speakeasy} speakeasy after a year`);
+  }
+});
+
+test('a capo who cannot pay a whole new crew hires just the men the job needs', () => {
+  const d = D.createDistrict({ capo: 'tommy', men: 7, guards: 2, share: 35, dirty: 1400, profit: 150, sites: { still: 1, speakeasy: 1 } });
+  const idle = d.men - D.busyMen(d);
+  assert.equal(idle, 0);
+  const pick = D.chooseProject(d);
+  assert.notEqual(pick.kind, 'hold', pick.why);
+  assert.equal(pick.hire, pick.men - idle);
+});
+
+test('a capo who holds few streets but is gaining ground does not hide behind guards', () => {
+  const d = D.createDistrict({ capo: 'mae', share: 15, crews: 1, men: 12, dirty: 300, sites: { still: 1, speakeasy: 1 } });
+  assert.ok(D.streetsChange(d) > 0);
+  assert.notEqual(D.chooseProject(d).kind, 'guard');
+  d.crews = 0; d.goodwill = 20; d.share = 24;
+  assert.ok(D.streetsChange(d) < 0);
+  assert.equal(D.chooseProject(d).kind, 'guard');
+});
+
+test('a capo whose district barely pays does not keep a roomful of idle men', () => {
+  const d = D.createDistrict({ capo: 'danny', men: 19, guards: 4, share: 20, dirty: 700, profit: 20, pulledBack: 3, collectors: 1, sites: { still: 1, speakeasy: 1, rented: 1, warehouse: 1 } });
+  assert.equal(D.chooseProject(d).kind, 'trim');
 });

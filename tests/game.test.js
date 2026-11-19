@@ -150,3 +150,12 @@ test('in a page, the three rule files load with plain script tags and play a yea
   `, page.self);
   assert.equal(date, 'January 1927 / 6 / true');
 });
+
+test('before the game starts, the boss can already look at the men he could name', () => {
+  const g = G.createGame();
+  const cards = G.candidates(g);
+  assert.equal(cards.length, 6);
+  assert.ok(cards.every((c) => c.firstMove.length > 5), 'each one says what he would do with Hillside');
+  assert.deepEqual(G.candidates(g, 'ashport-hillside').map((c) => c.id), cards.map((c) => c.id));
+  assert.equal(g.started, false);
+});
