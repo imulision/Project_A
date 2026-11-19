@@ -1,8 +1,9 @@
 name: Android APK
 
-# Builds the Android app from web/ on every pull request, to prove it still
-# builds. On every push to main it also publishes the APK as a release, which
-# is what the phone installs and updates from.
+# Builds and tests the Android app on every pull request. On every push to
+# main it also publishes a release with two files: ashport.apk, installed once
+# on the phone, and web.zip, the game itself, which the installed app downloads
+# on its own at its next launch.
 on:
   push:
     branches: [main]
@@ -22,9 +23,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Build the APK
+      - name: Test and build the APK
         working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: ./gradlew --no-daemon testDebugUnitTest assembleDebug
       - name: Check that every file of the game is inside the APK
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk ashport.apk
@@ -32,16 +33,20 @@ jobs:
           for f in web/*; do
             grep -q " assets/$(basename "$f")\$" contents.txt || { echo "missing from the APK: $f"; exit 1; }
           done
+      - name: Pack the game for the apps already installed
+        run: cd web && zip -r ../web.zip .
       - uses: actions/upload-artifact@v4
         with:
-          name: ashport-apk
-          path: ashport.apk
+          name: ashport
+          path: |
+            ashport.apk
+            web.zip
       - name: Publish the release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "v$VERSION_NAME" ashport.apk
+          gh release create "v$VERSION_NAME" ashport.apk web.zip
           --target "$GITHUB_SHA"
           --title "Ashport $VERSION_NAME"
           --notes "Built from $GITHUB_SHA."
