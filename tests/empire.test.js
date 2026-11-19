@@ -127,3 +127,18 @@ test('a feud stops the clock, and the boss rules through an order', () => {
   assert.deepEqual([line.type, line.winner, line.loser], ['ruled', 'dutch', 'danny']);
   assert.match(line.label, /Dutch/);
 });
+
+test('the boss parts with a capo through an order, and the journal says how', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  const c = g.cities[0];
+  T.settle(c, 'danny', 0, 0); T.join(g.family, 'danny');
+  const ways = E.view(g).cities[0].capos.find((m) => m.id === 'danny').partings;
+  assert.deepEqual(ways.map((w) => w.way), ['retire', 'kill', 'jail']);
+  assert.throws(() => E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'retire' }), /clean money/);
+  E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'kill' });
+  assert.deepEqual(E.view(g).cities[0].capos.map((m) => m.id), ['dutch']);
+  const line = g.journal[g.journal.length - 1];
+  assert.deepEqual([line.type, line.capo, line.way], ['parted', 'danny', 'kill']);
+  assert.match(line.label, /Danny/);
+  assert.equal(E.hud(g).heat, T.RULES.out.blood);
+});
