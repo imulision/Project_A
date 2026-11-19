@@ -708,3 +708,17 @@ test('a capo does not send collectors round a district where he holds too few st
   assert.notEqual(D.chooseProject(few).kind, 'protection');
   assert.equal(D.chooseProject(enough).kind, 'protection');
 });
+
+test('a capo who has been hit posts guards until he can stand up to what hit him, however weak he is himself', () => {
+  const d = D.createDistrict({ capo: 'mae', guards: 6, men: 40, attacked: 6, threat: 6, dirty: 1400 });
+  assert.ok(D.defence(d) < 6);
+  assert.equal(D.chooseProject(d).kind, 'guard');
+  const safe = D.createDistrict({ capo: 'sal', guards: 6, men: 40, attacked: 6, threat: 6, dirty: 1400 });
+  assert.ok(D.defence(safe) >= 6);
+  assert.notEqual(D.chooseProject(safe).kind, 'guard');
+});
+
+test('hired guns make every guard count for more when the rivals come', () => {
+  const a = D.createDistrict({ capo: 'mae', guards: 4 }), b = D.createDistrict({ capo: 'mae', guards: 4, skills: ['hired-guns'] });
+  assert.ok(D.defence(b) > D.defence(a) * 1.4);
+});
