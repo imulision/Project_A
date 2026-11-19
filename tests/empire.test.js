@@ -109,3 +109,21 @@ test('the journal keeps the last two hundred lines', () => {
   assert.ok(g.journal.length <= E.JOURNAL_SIZE);
   assert.ok(g.journal.length > 50);
 });
+
+test('a feud stops the clock, and the boss rules through an order', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  const c = g.cities[0];
+  T.settle(c, 'danny', 0, 0); T.join(g.family, 'danny');
+  c.grudge = { 'danny|dutch': T.RULES.feud };
+  let feud = null;
+  for (let i = 0; i < E.TICKS_PER_MONTH && !feud; i++) feud = E.tick(g).find((e) => e.type === 'feud');
+  assert.ok(feud);
+  assert.equal(g.paused, true);
+  assert.equal(E.hud(g).pending, 1 + E.view(g).cities[0].doors.length);
+  assert.equal(E.view(g).cities[0].feuds[0].id, feud.id);
+  E.command(g, { type: 'rule', city: 'ashport', id: feud.id, winner: 'dutch' });
+  assert.deepEqual(E.view(g).cities[0].feuds, []);
+  const line = g.journal[g.journal.length - 1];
+  assert.deepEqual([line.type, line.winner, line.loser], ['ruled', 'dutch', 'danny']);
+  assert.match(line.label, /Dutch/);
+});
