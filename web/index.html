@@ -8,7 +8,7 @@
 <script>
 // The wait before the game: every file read and every stage of building the map moves the bar. If something breaks, it says so instead of waiting forever.
 window.AshportLoad = (function () {
-  var FILES = 8, STAGES = ['Street furniture', 'Land', 'City blocks', 'Lights', 'First picture'], total = FILES + STAGES.length, steps = [], files = 0, t0 = Date.now();
+  var FILES = 9, STAGES = ['Street furniture', 'Land', 'City blocks', 'Lights', 'First picture'], total = FILES + STAGES.length, steps = [], files = 0, t0 = Date.now();
   function show(label) { var part = Math.min(1, (steps.length + 1) / total); steps.push({ label: label, part: part, ms: Date.now() - t0 });
     var b = document.getElementById('load-bar'), w = document.getElementById('load-what'); if (b) b.style.width = Math.round(part * 100) + '%'; if (w) w.textContent = label + ' · ' + Math.round(part * 100) + '%'; }
   function fail(why) { var l = document.getElementById('load'); if (!l) return; l.classList.add('bad');
@@ -21,29 +21,30 @@ window.AshportLoad = (function () {
 <div id="labels"></div>
 <div class="top">
   <h1 id="date">January 1926</h1>
-  <div class="sub"><span id="sub">Name your first capo to begin</span><span id="fps"></span></div>
+  <div class="sub"><span id="sub">Pick your first capo to begin</span><span id="heat" data-tip="Heat: how closely the police watch your hottest city. Too much brings busts."></span><span id="fps"></span></div>
   <div class="res">
-    <div data-tip="Dirty cash: what your capos send up from the streets. It pays for moving into a district, men and most places. It cannot buy what must look honest."><small><span data-ic="dirty"></span>DIRTY <i id="dirty-in"></i></small><b id="dirty">$0</b></div>
-    <div data-tip="Clean cash: money your capos washed in their laundries and fronts before sending your share. It buys fronts and warehouses, and the police cannot seize it."><small><span data-ic="clean"></span>CLEAN <i id="clean-in"></i></small><b id="clean">$0</b></div>
-    <div data-tip="Districts your family holds, out of all the districts of the six cities."><small><span data-ic="streets"></span>DISTRICTS</small><b id="held">0</b></div>
-    <div data-tip="Men you named yourself. You can never name more than nine: beyond that, your underbosses choose."><small><span data-ic="men"></span>YOUR MEN</small><b id="named">0 / 9</b></div>
+    <div data-tip="Dirty cash: what your capos send up from the streets. It pays for a new capo's club and for the key places they ask you for."><small><span data-ic="dirty"></span>DIRTY</small><b id="dirty">$0</b></div>
+    <div data-tip="Clean cash: money washed in the laundries and fronts. It pays for what the family learns, and the police cannot seize it."><small><span data-ic="clean"></span>CLEAN</small><b id="clean">$0</b></div>
+    <div data-tip="Streets your family holds, out of all the streets of the six cities, and the cities where you have a man."><small><span data-ic="streets"></span>STREETS <i id="cities"></i></small><b id="share">0%</b></div>
+    <div data-tip="Your capos, out of the seats your cities can carry. Each key place you hold adds a seat in its city."><small><span data-ic="men"></span>CAPOS</small><b id="men">0 / 0</b></div>
   </div>
   <div id="alerts"></div>
 </div>
 <div id="toast"></div>
 <div id="tip"></div>
 <div class="bot">
-  <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button><button id="money">$</button>
+  <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button>
   <span class="grow"></span>
   <button id="family">Family</button><button id="journal">Journal</button>
 </div>
 <div id="veil"><div id="sheet"></div></div>
 <script src="./district.js"></script><script>AshportLoad.file()</script>
 <script src="./world.js"></script><script>AshportLoad.file()</script>
-<script src="./game.js"></script><script>AshportLoad.file()</script>
+<script src="./turf.js"></script><script>AshportLoad.file()</script>
+<script src="./empire.js"></script><script>AshportLoad.file()</script>
 <script src="./mapview.js"></script><script>AshportLoad.file()</script>
 <script src="./render.js"></script><script>AshportLoad.file()</script>
 <script src="./icons.js"></script><script>AshportLoad.file()</script>
-<script src="./sheets.js"></script><script>AshportLoad.file()</script>
-<script src="./ui.js"></script>
+<script src="./cards.js"></script><script>AshportLoad.file()</script>
+<script src="./city.js"></script>
 </body></html>
