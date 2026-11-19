@@ -12,18 +12,18 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(page_url);
-await page.waitForFunction(() => window.__ashport && window.__ashport.state().paused);
+await page.waitForFunction(() => document.querySelector('#veil.on h2'));
 
 const decisions = [];
 let ended = false;
 for (let n = 0; n < 400 && !ended; n++) {
   const st = await page.evaluate(() => {
-    const S = window.__ashport.state();
+    const G = window.__ashport.state();
     const h = document.querySelector('#veil.on h2');
-    return { over: S.over, paused: S.paused, month: S.m, heat: S.heat, title: h ? h.textContent : '' };
+    return { over: !!G.over, month: G.month, heat: G.heat, title: h ? h.textContent : '' };
   });
   if (st.over) { ended = true; break; }
-  if (st.paused && st.title) {
+  if (st.title) {
     decisions.push(st.title);
     await page.click('#sheet [data-pick], #sheet [data-opt], #sheet [data-skip], #sheet [data-close]');
     continue;
@@ -31,8 +31,9 @@ for (let n = 0; n < 400 && !ended; n++) {
   await page.evaluate(() => { for (let i = 0; i < 4; i++) window.__ashport.step(); });
 }
 const final = await page.evaluate(() => {
-  const S = window.__ashport.state();
-  return { month: S.m, heat: S.heat, buildings: document.querySelectorAll('#bld polygon').length };
+  const G = window.__ashport.state();
+  const h = document.querySelector('#veil.on h2');
+  return { month: G.month, heat: G.heat, ending: h ? h.textContent : '', verdict: G.over && G.over.title, buildings: document.querySelectorAll('#bld polygon').length };
 });
 await browser.close();
 
@@ -43,4 +44,5 @@ assert.ok(decisions.length >= 5, 'the year brings several decisions');
 assert.ok(final.month >= 1 && final.month <= 12, 'the game ends within the year');
 assert.ok(final.heat >= 0 && final.heat <= 100, 'heat stays in range');
 assert.ok(final.buildings > 300, 'the city is drawn');
+assert.equal(final.ending, final.verdict, 'the ending on screen is the one the rules decided');
 console.log('ok: full year played,', decisions.length, 'decisions, ended at month', final.month);
