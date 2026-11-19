@@ -65,6 +65,9 @@
     // and the loyalty that keeps a man steady; heat the police forget for a man handed over, months before he is out,
     // and the places he burns then (one more for each rank he had)
     out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2 },
+    keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
+    crowd: 0.12,        // every man the family already counts makes the next one this much dearer
+    greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
     stand: 0.2,         // a capo of no Muscle holds this share of the family's press against a raid; each point adds a tenth
     // how a capo takes a rival's place: what it costs next to opening one, and how long it takes
@@ -636,13 +639,15 @@
     return { winner: winner, loser: loser };
   }
 
+  // A price that grows with the family, rounded to the nearest $50.
+  function swell(base, rate, n) { return Math.round(base * Math.pow(1 + rate, Math.max(0, n)) / 50) * 50; }
   // --- where capos come from ---
   // Who would join the family in this city today, and through which door.
   function doors(c, f) {
     var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
     var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id); };
     var add = function (id, door, by, why, price) {
-      out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: RULES.doors[price || door] });
+      out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
       return out[out.length - 1];
     };
     Object.keys(LURES).forEach(function (id) {
@@ -839,6 +844,7 @@
   // One month for the whole family: every city, then what it is learning.
   function month(f, cities) {
     var events = [];
+    f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
     if (f.study && --f.study.monthsLeft <= 0) {
       f.tech[f.study.kind] = f.study.tier;
@@ -914,7 +920,7 @@
       if (!k) return;
       var way = wayOf(capo);
       var a = { id: c.id + ':' + k.key, capo: capo, key: k.key, x: k.x, y: k.y, way: way,
-                cost: Math.round(RULES.keyCost * RULES.take[way].cost), months: RULES.take[way].months * RULES.keyMonths,
+                cost: swell(RULES.keyCost * RULES.take[way].cost, RULES.greed, Math.max(f.crowns || 0, keys(c).filter(function (q) { return q.owner === 'family'; }).length)), months: RULES.take[way].months * RULES.keyMonths,
                 why: 'his places stand all around it' };
       c.asks.push(a);
       events.push({ type: 'asks', capo: capo, city: c.id, x: k.x, y: k.y, key: k.key, way: way, cost: a.cost, months: a.months,
@@ -933,9 +939,9 @@
                       label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places' });
       }
       var p = plan(c, f, capo);
-      // what he cannot use goes up to the boss rather than sleep in his club
+      // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare; }
+      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare * (1 - RULES.keeps[m.rank]); }
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);
