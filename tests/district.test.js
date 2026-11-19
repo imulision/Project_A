@@ -633,3 +633,78 @@ test('a capo with a grudge keeps more of the boss\'s cut for himself', () => {
   assert.ok(sore.last.skim > fair.last.skim * 1.3);
   assert.ok(sore.boss.dirty + sore.boss.clean < fair.boss.dirty + fair.boss.clean);
 });
+
+// --- what a capo practises, and what his abilities change ---
+test('the wheel has six sectors of three abilities, each with a name and words for the screen', () => {
+  assert.deepEqual(D.SECTORS, ['liquor', 'vice', 'money', 'law', 'muscle', 'routes']);
+  for (const s of D.SECTORS) {
+    assert.equal(D.WHEEL[s].length, 3);
+    for (const a of D.WHEEL[s]) assert.ok(a.id && a.name && a.text && Object.keys(a.effect).length > 0, s);
+  }
+  const all = D.SECTORS.flatMap((s) => D.WHEEL[s].map((a) => a.id));
+  assert.equal(new Set(all).size, 18);
+});
+
+test('a capo practises what his district actually does', () => {
+  const street = D.createDistrict({ capo: 'sal', crews: 2, collectors: 1, men: 30 });
+  const books = D.createDistrict({ capo: 'mae', dirty: 3000, sites: { rented: 2 } });
+  assert.deepEqual(D.practice(street), { liquor: 0, vice: 0, money: 0, law: 0, muscle: 0, routes: 0 }, 'nothing before the first month');
+  D.stepMonth(street); D.stepMonth(books);
+  const a = D.practice(street), b = D.practice(books);
+  assert.ok(a.muscle > a.money && a.muscle >= 2);
+  assert.ok(b.money > b.muscle && b.money > 1);
+  assert.ok(a.liquor > 0 && b.liquor > 0, 'both sell liquor');
+});
+
+test('an ability changes what the district does: a distillery makes more, double books wash more', () => {
+  const plain = D.createDistrict({ capo: 'dutch' }), skilled = D.createDistrict({ capo: 'dutch', skills: ['distillery'] });
+  D.stepMonth(plain); D.stepMonth(skilled);
+  assert.ok(D.flows(skilled).made > D.flows(plain).made * 1.2);
+
+  const a = D.createDistrict({ capo: 'mae', dirty: 3000, sites: { rented: 1 } });
+  const b = D.createDistrict({ capo: 'mae', dirty: 3000, sites: { rented: 1 }, skills: ['double-books'] });
+  D.stepMonth(a); D.stepMonth(b);
+  assert.ok(b.last.washed > a.last.washed * 1.2);
+});
+
+test('armed crews take more streets, and paid beat cops cool the district faster', () => {
+  const a = D.createDistrict({ capo: 'sal', crews: 2 }), b = D.createDistrict({ capo: 'sal', crews: 2, skills: ['armed-crews'] });
+  assert.ok(D.streetsChange(b) > D.streetsChange(a) + 0.5);
+  const c = D.createDistrict({ capo: 'tommy', heat: 40 }), e = D.createDistrict({ capo: 'tommy', heat: 40, skills: ['beat-cops'] });
+  D.stepMonth(c); D.stepMonth(e);
+  assert.ok(e.heat < c.heat - 0.9);
+});
+
+test('a district rejects an ability that is not on the wheel', () => {
+  assert.throws(() => D.createDistrict({ capo: 'sal', skills: ['laser'] }), /unknown ability/);
+});
+
+test('a capo of rank keeps a little more of the cut: veterans cost more', () => {
+  const young = D.createDistrict({ capo: 'sal' }), old = D.createDistrict({ capo: 'sal', rank: 3 });
+  D.stepMonth(young); D.stepMonth(old);
+  assert.ok(old.last.skim > young.last.skim);
+});
+
+test('a capo who loses money sends home the guards he does not need', () => {
+  const d = D.createDistrict({ capo: 'danny', men: 11, guards: 6, share: 30, profit: -80, dirty: 600, sites: { still: 1, speakeasy: 1 } });
+  assert.equal(d.men - D.busyMen(d), 0);
+  const pick = D.chooseProject(d);
+  assert.equal(pick.kind, 'standdown');
+  D.stepMonth(d);
+  assert.equal(d.guards, 4);
+  const hit = D.createDistrict({ capo: 'danny', men: 11, guards: 6, share: 30, profit: -80, dirty: 600, attacked: 3, sites: { still: 1, speakeasy: 1 } });
+  assert.notEqual(D.chooseProject(hit).kind, 'standdown', 'not while the rivals are on him');
+});
+
+test('when the street has turned against him, a capo takes a collector off the shops', () => {
+  const d = D.createDistrict({ capo: 'danny', collectors: 3, men: 20, goodwill: 9, share: 40, pulledBack: 3 });
+  assert.equal(D.chooseProject(d).kind, 'ease');
+  D.stepMonth(d);
+  assert.equal(d.collectors, 2);
+});
+
+test('a capo does not send collectors round a district where he holds too few streets to make them pay', () => {
+  const few = D.createDistrict({ capo: 'sal', share: 18, crews: 1, men: 20 }), enough = D.createDistrict({ capo: 'sal', share: 35, crews: 1, men: 20 });
+  assert.notEqual(D.chooseProject(few).kind, 'protection');
+  assert.equal(D.chooseProject(enough).kind, 'protection');
+});
