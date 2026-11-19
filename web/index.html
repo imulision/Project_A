@@ -4,7 +4,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Oswald:wght@400;500&display=swap" rel="stylesheet">
 <link href="./style.css" rel="stylesheet"></head><body>
-<div id="load">ASHPORT</div>
+<div id="load"><b>ASHPORT</b><div class="bar"><i id="load-bar"></i></div><small id="load-what">Starting</small></div>
+<script>
+// The wait before the game: every file read and every stage of building the map moves the bar. If something breaks, it says so instead of waiting forever.
+window.AshportLoad = (function () {
+  var FILES = 8, STAGES = ['Street furniture', 'Land', 'City blocks', 'Lights', 'First picture'], total = FILES + STAGES.length, steps = [], files = 0, t0 = Date.now();
+  function show(label) { var part = Math.min(1, (steps.length + 1) / total); steps.push({ label: label, part: part, ms: Date.now() - t0 });
+    var b = document.getElementById('load-bar'), w = document.getElementById('load-what'); if (b) b.style.width = Math.round(part * 100) + '%'; if (w) w.textContent = label + ' · ' + Math.round(part * 100) + '%'; }
+  function fail(why) { var l = document.getElementById('load'); if (!l) return; l.classList.add('bad');
+    document.getElementById('load-what').innerHTML = 'Could not start: ' + String(why).replace(/[<&]/g, ' ') + '<br><button onclick="location.reload()">Try again</button>'; }
+  window.addEventListener('error', function (e) { fail(e.message || 'a file did not load'); }, true);
+  window.addEventListener('unhandledrejection', function (e) { fail(e.reason && e.reason.message || e.reason); });
+  return { steps: steps, file: function () { show('Files ' + (++files) + ' / ' + FILES); }, stage: function (n) { show(STAGES[n]); }, fail: fail };
+})();
+</script>
 <div id="labels"></div>
 <div class="top">
   <h1 id="date">January 1926</h1>
@@ -25,12 +38,12 @@
   <button id="family">Family</button><button id="journal">Journal</button>
 </div>
 <div id="veil"><div id="sheet"></div></div>
-<script src="./district.js"></script>
-<script src="./world.js"></script>
-<script src="./game.js"></script>
-<script src="./mapview.js"></script>
-<script src="./render.js"></script>
-<script src="./icons.js"></script>
-<script src="./sheets.js"></script>
+<script src="./district.js"></script><script>AshportLoad.file()</script>
+<script src="./world.js"></script><script>AshportLoad.file()</script>
+<script src="./game.js"></script><script>AshportLoad.file()</script>
+<script src="./mapview.js"></script><script>AshportLoad.file()</script>
+<script src="./render.js"></script><script>AshportLoad.file()</script>
+<script src="./icons.js"></script><script>AshportLoad.file()</script>
+<script src="./sheets.js"></script><script>AshportLoad.file()</script>
 <script src="./ui.js"></script>
 </body></html>

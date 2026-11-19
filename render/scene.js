@@ -14,6 +14,8 @@ import { MODELS, ATLAS } from './models.js';
 export async function start(P, opt = {}) {
 
 const Q = new URLSearchParams(location.search);
+// the page shows a loading bar: say which stage begins, then let it paint before the heavy work
+const stage = n => new Promise(done => { if (opt.onStage) opt.onStage(n); setTimeout(done, 0); });
 const PLAIN = Q.has('plain');
 
 let seed = 7;
@@ -136,6 +138,7 @@ function dispose(group) {
   group.removeFromParent();
 }
 
+await stage(0);
 // ---------- load the kit
 const NAMES = ['road_straight', 'road_junction', 'road_straight_crossing', 'streetlight', 'car_sedan', 'car_stationwagon', 'car_hatchback', 'watertower'];
 const loader = new GLTFLoader();
@@ -232,6 +235,7 @@ const segDist = (px, pz, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, 
 const roadDist = (x, z) => { let d = 1e9; for (const r of ROADS) for (let k = 0; k < 2; k++) d = Math.min(d, segDist(x, z, ...r.pts[k], ...r.pts[k + 1])); return d; };
 
 
+await stage(1);
 // ---------- terrain: mountains to the east, the lake to the west, a river between, flat ground under cities and roads
 const hsh = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return n - Math.floor(n); };
 function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, a = fx * fx * (3 - 2 * fx), b = fz * fz * (3 - 2 * fz); return lerp(lerp(hsh(i, j), hsh(i + 1, j), a), lerp(hsh(i, j + 1), hsh(i + 1, j + 1), a), b); }
@@ -321,6 +325,7 @@ function height(x, z) {
   bake(world);
 }
 
+await stage(2);
 // ---------- cities
 const borderMat = (k, wide) => fxMat(null, new THREE.Color(FAMILY[k]).multiplyScalar(wide ? 1 : 1.5), wide ? 0.2 : 1);
 const lods = new THREE.Group(), details = new THREE.Group(); root.add(lods, details);
@@ -488,6 +493,7 @@ function levelOfDetail(now) {
   updateShadow(tgt);
 }
 
+await stage(3);
 // ---------- post: bloom on the lights, then a film grade (split tone, vignette, tilt-shift, grain)
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, cam));
@@ -691,7 +697,7 @@ function frame(now) {
     if (slow >= 2 && pr > 1 && !Q.has('fixed')) { setPr(Math.max(1, pr - 0.25)); slow = 0; }
     const el = document.getElementById('fps'); if (el && !el.classList.contains('on')) el.textContent = fps + ' fps';     // the page writes the full reading itself when the meter is open
   }
-  if (frames === 3) window.__ready = true;
+  if (frames === 3) { window.__ready = true; if (opt.onStage) opt.onStage(4); }
   window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
   requestAnimationFrame(frame);
 }

@@ -33,6 +33,13 @@ const hud = () => page.evaluate(() => ({ date: document.getElementById('date').t
 
 await page.goto(page_url);
 await page.waitForSelector('#veil.on h2', { timeout: 120000 });
+// the wait before the game: a bar that only moves forward, names what is being done, and ends full
+const steps = await page.evaluate(() => window.AshportLoad.steps);
+assert.ok(steps.length >= 10, 'loading says what it is doing, step by step (' + steps.length + ')');
+assert.ok(steps.every((s, i) => s.label && s.part > (i ? steps[i - 1].part : 0) && s.part <= 1), 'the bar only moves forward');
+assert.equal(steps[steps.length - 1].part, 1, 'and ends full');
+assert.match(steps[0].label, /^Files 1 \/ \d+$/, 'first the files, counted');
+assert.equal(await page.locator('#load').count(), 0, 'then the loading screen goes away');
 assert.equal(await page.textContent('#sheet h2'), 'Hillside needs a capo', 'the game opens on the first nomination');
 assert.equal(await page.locator('#sheet [data-face]').count(), 6, 'six faces to choose from');
 assert.equal(await page.locator('#who .face').count(), 1, 'the man being looked at has a portrait');
@@ -94,7 +101,7 @@ assert.ok(near.calls <= 220, 'the street view is drawn in at most 220 draw calls
 assert.ok(await page.locator('.lab').count() <= 90, 'and carries at most 90 labels');
 // the meter: touching the images-per-second figure opens the full reading, to be read aloud from a phone
 await page.click('#fps');
-await page.waitForFunction(() => /\d+ fps · \d+ draws · [\d.]+k tris · x[\d.]+ · \d+ cars · \d+ labels/.test(document.getElementById('fps').textContent), null, { timeout: 60000 });
+await page.waitForFunction(() => /\d+ fps · \d+ draws · [\d.]+k tris · x[\d.]+ · \d+ cars · \d+ labels · webgpu (yes|no) · start [\d.]+s \(.+ [\d.]+s\)/.test(document.getElementById('fps').textContent), null, { timeout: 60000 });
 await shot('13-meter');
 await page.click('#fps');
 await page.waitForFunction(() => /^\d+ fps$/.test(document.getElementById('fps').textContent), null, { timeout: 60000 });

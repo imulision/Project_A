@@ -141,4 +141,10 @@ body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.
 #know{min-height:58px;border-left:3px solid var(--accent);background:#ffffff0d;padding:7px 10px;margin:0 0 12px}#know>b{font:500 15px var(--title);letter-spacing:.4px;display:block}
 #know .go{width:100%;margin-top:8px}#know .move{margin:8px 0 0}#know .gauge{width:30px;height:30px}
 .slot.sm{width:28px;height:28px;border-width:1.5px;flex:none}.intent.wish{border-left-color:var(--bad)}.intent.wish .gauge{color:var(--bad)}
-#load{position:fixed;inset:0;display:grid;place-items:center;background:#191a22;z-index:6;font:500 24px var(--title);letter-spacing:3px}
+#load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#191a22;z-index:6;font:500 24px var(--title);letter-spacing:3px}
+#load b{font-weight:500}
+#load .bar{width:min(240px,60vw);height:3px;background:#ffffff1f;border-radius:2px;overflow:hidden}
+#load .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s}
+#load small{font:400 12px var(--text);letter-spacing:.5px;color:var(--dim);text-align:center;min-height:1.4em}
+#load.bad .bar i{background:var(--bad)}
+#load button{margin-top:10px;pointer-events:auto}
