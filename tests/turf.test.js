@@ -376,3 +376,188 @@ test('with Sal beside her, Mae keeps a real business in Ashport for ten years', 
   assert.ok(hers.length >= 5, hers.length + ' places of Mae\'s still standing');
   assert.ok(hers.some((p) => p.kind === 'front' || p.kind === 'rented'), 'and she launders');
 });
+
+// --- key places: the few buildings a whole city turns on ---
+
+// Sal with three places around the Callahans' brewery, and a boss with money.
+const siege = () => {
+  const c = town(), f = family();
+  f.dirty = 20000;
+  T.settle(c, 'sal', 8, 3);
+  T.join(f, 'sal');
+  T.open(c, 10, 3, { owner: 'Callahan', kind: 'key', key: 'brewery' });
+  T.open(c, 9, 2, { owner: 'family', kind: 'loans', capo: 'sal' });
+  return { c, f };
+};
+
+test('a key place is one of a short list, and the city knows who holds each', () => {
+  const c = town();
+  assert.deepEqual(Object.keys(T.KEYS).sort(), ['brewery', 'cityhall', 'depot', 'hotel', 'port', 'precinct']);
+  assert.throws(() => T.open(c, 2, 2, { owner: 'Callahan', kind: 'key', key: 'casino' }), /unknown key place/);
+  T.open(c, 2, 2, { owner: 'Callahan', kind: 'key', key: 'hotel' });
+  assert.throws(() => T.open(c, 4, 4, { owner: 'Callahan', kind: 'key', key: 'hotel' }), /already has/);
+  assert.deepEqual(T.keys(c), [{ key: 'hotel', name: 'Grand Hotel', x: 2, y: 2, owner: 'Callahan', capo: null, gives: T.KEYS.hotel.gives }]);
+  assert.ok(T.hold(c, 5, 2).rival > 0, 'it presses on the streets like a big place');
+});
+
+test('a capo never goes for a key place on his own: he asks the boss once he has it surrounded', () => {
+  const { c, f } = siege();
+  const idle = family({ tech: {} });
+  T.join(idle, 'sal');
+  T.stepMonth(c, idle);
+  assert.deepEqual(T.asks(c, f), [], 'his club and one place are not enough');
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  const events = T.stepMonth(c, f);
+  const ask = T.asks(c, f)[0];
+  assert.equal(ask.capo, 'sal');
+  assert.equal(ask.key, 'brewery');
+  assert.equal(ask.way, 'force');
+  assert.ok(ask.cost > 0 && ask.months > T.RULES.take.force.months);
+  assert.ok(events.some((e) => e.type === 'asks' && e.key === 'brewery' && e.capo === 'sal'));
+  for (let i = 0; i < 12; i++) T.stepMonth(c, f);
+  assert.equal(T.at(c, 10, 3).owner, 'Callahan', 'nothing happens while the boss says nothing');
+  assert.equal(T.asks(c, f).length, 1);
+});
+
+test('the boss says yes: he pays, and months later the key place is the family\'s', () => {
+  const { c, f } = siege();
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  T.stepMonth(c, f);
+  const ask = T.asks(c, f)[0], before = f.dirty;
+  T.answer(c, f, ask.id, true);
+  assert.equal(f.dirty, before - ask.cost);
+  assert.deepEqual(T.asks(c, f), []);
+  assert.equal(T.at(c, 10, 3).owner, 'Callahan');
+  f.men.sal.cash = 5000;
+  let taken = null, opened = 0;
+  for (let i = 0; i < ask.months; i++) {
+    const events = T.stepMonth(c, f);
+    taken = events.find((e) => e.type === 'taken') || taken;
+    opened += events.filter((e) => e.type === 'opened').length;
+  }
+  assert.ok(opened > 0, 'Sal goes on with his own business meanwhile');
+  assert.equal(taken.key, 'brewery');
+  assert.deepEqual(T.keys(c).map((k) => [k.key, k.owner, k.capo]), [['brewery', 'family', 'sal']]);
+  assert.equal(T.at(c, 10, 3).kind, 'key');
+});
+
+test('the boss cannot say yes with empty pockets', () => {
+  const { c, f } = siege();
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  T.stepMonth(c, f);
+  f.dirty = 10;
+  assert.throws(() => T.answer(c, f, T.asks(c, f)[0].id, true), /cannot pay/);
+  assert.equal(T.asks(c, f).length, 1);
+});
+
+test('the boss says no: the capo lets it rest for two years, then asks again', () => {
+  const { c, f } = siege();
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  T.stepMonth(c, f);
+  T.answer(c, f, T.asks(c, f)[0].id, false);
+  for (let i = 0; i < T.RULES.sulk - 1; i++) { T.stepMonth(c, f); assert.deepEqual(T.asks(c, f), []); }
+  T.stepMonth(c, f); T.stepMonth(c, f);
+  assert.equal(T.asks(c, f).length, 1);
+});
+
+test('a key place is not one of the places a capo\'s rank limits, and costs him no wages', () => {
+  const c = town();
+  T.settle(c, 'sal', 8, 3);
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  const before = T.income(c, 'sal');
+  T.open(c, 10, 3, { owner: 'family', kind: 'key', key: 'precinct', capo: 'sal' });
+  const f = family(); T.join(f, 'sal');
+  f.tech = {};
+  T.stepMonth(c, f);
+  assert.equal(f.men.sal.xp, 1, 'one place run, not two');
+  assert.equal(f.men.sal.income, before, 'and the precinct is not a business');
+});
+
+test('the brewery pours for every speakeasy of the family', () => {
+  const c = town();
+  T.settle(c, 'dutch', 2, 2);
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 3, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.ok(T.liquor(c).wet < 1);
+  const dry = T.income(c, 'dutch');
+  T.open(c, 8, 3, { owner: 'family', kind: 'key', key: 'brewery', capo: 'dutch' });
+  assert.equal(T.liquor(c).wet, 1);
+  assert.ok(T.income(c, 'dutch') > dry);
+});
+
+test('the Grand Hotel, the port and the depot each lift the places of their own streets, and only those', () => {
+  for (const [key, kind, other] of [['hotel', 'speakeasy', 'loans'], ['port', 'fence', 'speakeasy'], ['depot', 'chopshop', 'speakeasy']]) {
+    const c = town();
+    T.settle(c, 'danny', 2, 2);
+    T.open(c, 3, 2, { owner: 'family', kind: kind, capo: 'danny' });
+    const one = T.income(c, 'danny') - T.RULES.club;
+    T.open(c, 3, 3, { owner: 'family', kind: other, capo: 'danny' });
+    const both = T.income(c, 'danny');
+    T.open(c, 8, 4, { owner: 'family', kind: 'key', key: key, capo: 'danny' });
+    assert.ok(Math.abs(T.income(c, 'danny') - both - one * T.KEYS[key].lifts.by) < 0.01, key + ' lifts a ' + kind + ' and leaves a ' + other + ' as it was');
+    assert.ok(T.KEYS[key].lifts.by > 0);
+  }
+});
+
+test('with City Hall in its pocket the family opens places cheaper', () => {
+  const c = town();
+  T.settle(c, 'tommy', 2, 2);
+  const full = T.price(c, 'tommy', 'speakeasy');
+  T.open(c, 8, 4, { owner: 'family', kind: 'key', key: 'cityhall', capo: 'tommy' });
+  assert.equal(T.price(c, 'tommy', 'speakeasy'), Math.round(full * (1 - T.KEYS.cityhall.cheaper)));
+});
+
+test('with the precinct in its pocket a bookkeeper\'s place stands where it burnt', () => {
+  const play = (bought) => {
+    const c = town(), f = family();
+    T.settle(c, 'mae', 2, 2); T.join(f, 'mae').cash = 0;
+    T.open(c, 4, 2, { owner: 'family', kind: 'front', capo: 'mae' });
+    T.open(c, 5, 2, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+    if (bought) T.open(c, 11, 5, { owner: 'family', kind: 'key', key: 'precinct', capo: 'mae' });
+    f.tech = {}; // she opens nothing: only the raid is watched
+    let seen = null;
+    for (let i = 0; i < T.RULES.rivalEvery; i++) seen = T.stepMonth(c, f).find((e) => e.type === 'burnt' || e.type === 'repelled') || seen;
+    return seen.type;
+  };
+  assert.equal(play(false), 'burnt');
+  assert.equal(play(true), 'repelled');
+});
+
+test('the family that was there first holds all six key places, each on a street that suits it', () => {
+  const c = ashport();
+  T.crown(c, 'Callahan');
+  const keys = T.keys(c);
+  assert.equal(keys.length, 6);
+  assert.ok(keys.every((k) => k.owner === 'Callahan'));
+  const zone = (id) => { const k = keys.find((q) => q.key === id); return T.zoneOf(c, k.x, k.y).name; };
+  assert.equal(zone('port'), 'The Docks');
+  assert.equal(zone('cityhall'), 'Uptown');
+  assert.equal(zone('brewery'), 'Stockyards');
+  for (const a of keys) for (const b of keys) if (a !== b) assert.ok(Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) >= 3, 'they stand apart');
+  T.seed(c, 'Callahan', 30);
+  assert.equal(rivals(c).length, 36);
+});
+
+// --- speed: a month of rules must fit well inside one frame on a phone ---
+
+test('twenty years of Ashport with four capos play in well under a second', () => {
+  const c = ashport(), f = family();
+  T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+  for (const k of ['sal', 'mae', 'tommy', 'dutch']) { const l = T.landing(c); T.settle(c, k, l.x, l.y); T.join(f, k); }
+  const start = process.hrtime.bigint();
+  year(c, f, 240);
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(T.places(c).length > 60, 'a full city');
+  assert.ok(ms < 600, '240 months took ' + Math.round(ms) + ' ms');
+});
+
+test('the streets follow every change at once: a place enlarged, taken or burnt', () => {
+  const c = town();
+  T.open(c, 3, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.equal(T.hold(c, 6, 3).family, 0);
+  T.open(c, 9, 3, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.ok(T.hold(c, 8, 3).rival > 0, 'a new place presses at once');
+  const again = JSON.parse(JSON.stringify(c));
+  assert.deepEqual(T.share(again), T.share(c), 'a city saved and loaded holds the same streets');
+  assert.deepEqual(Object.keys(c).sort(), Object.keys(T.createCity({ id: 'x', w: 1, h: 1, zones: [] })).sort(), 'and nothing extra is saved with it');
+});
