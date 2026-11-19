@@ -17,7 +17,16 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|ERR_INTERNET|ERR_NAME|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const shot = async (name) => { if (shots) { await page.waitForTimeout(2500); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
-const months = (n) => page.evaluate((n) => { for (let i = 0; i < n * 4; i++) window.__ashport.beat(); }, n);
+// Time stops when a capo asks for the boss's word: the test approves and goes on.
+const months = (n) => page.evaluate((n) => {
+  for (let i = 0; i < n * 4; i++) {
+    const before = window.__ashport.game().ticks + ':' + window.__ashport.game().world.month;
+    window.__ashport.beat();
+    const ask = document.querySelector('#veil.on [data-act=approve]');
+    if (ask) { window.__asked = (window.__asked || 0) + 1; ask.click(); }
+    if (window.__ashport.game().ticks + ':' + window.__ashport.game().world.month === before) window.__ashport.beat();
+  }
+}, n);
 const hud = () => page.evaluate(() => ({ date: document.getElementById('date').textContent, held: document.getElementById('held').textContent, named: document.getElementById('named').textContent }));
 
 await page.goto(page_url);
@@ -37,6 +46,9 @@ const later = await hud();
 assert.equal(later.date, 'January 1928', 'two years have passed');
 const state = await page.evaluate(() => { const g = window.__ashport.game(); return { journal: g.journal.length, stats: window.__ashport.map().stats() }; });
 assert.ok(state.journal > 10, 'the journal tells what the capo did');
+assert.ok(await page.evaluate(() => window.__asked) >= 1, 'a capo asked for the boss\'s word, and got it');
+assert.ok(await page.evaluate(() => window.__ashport.game().journal.some((e) => e.type === 'job')), 'the approved job was done');
+assert.ok(state.stats.cars > 0, 'the family has cars on the road');
 assert.ok(state.stats.buildings > 1200, 'the six cities are drawn (' + state.stats.buildings + ' buildings)');
 await shot('3-two-years');
 

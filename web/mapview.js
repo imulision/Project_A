@@ -1,8 +1,9 @@
 // What the 3D map has to draw, worked out from the state of the game.
 //
 // plan(view) turns AshportGame.view(g) into cities made of blocks, districts
-// and lots, each lot with the building that stands on it. effects(events)
-// turns what happened in a month into fire, gunfire and police lights.
+// and lots, each lot with the building that stands on it. trips(plan, list)
+// turns AshportGame.trips(g) into cars with a route along the streets. effects(events, plan) turns what
+// happened in a month into fire, gunfire and police lights.
 // Nothing is drawn here and nothing is random: the same state always gives
 // the same map, so the renderer only rebuilds a city when its key changes.
 (function (root) {
@@ -89,18 +90,19 @@
                   model: tall ? (w === 2 && hash(i, j, ci * 7 + 3) < 0.45 ? pick(HIGH, r) : pick(MID, r)) : pick(LOW, r),
                   tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
                   shop: hash(i, j, ci * 7 + 5) < (ours ? [0.4, 0.65, 0.9][w] : 0.3),
-                  tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null };
+                  tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null, hideout: false };
       lots.push(lot); byDistrict[di].push(lot);
     }
     // The family's places: each kind has its own lots in a district, so a place never moves when another opens.
     c.districts.forEach(function (d, di) {
       var mine = byDistrict[di], count = {};
+      mine[mine.length >> 1].hideout = true;      // one fixed building per district: where the capo sits
       (d.buildings || []).slice().sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }).forEach(function (b) {
         var kind = KINDS.indexOf(b.type), look = SITES[b.type] || OTHER, nth = count[b.type] || 0; count[b.type] = nth + 1;
         var slot = ((kind < 0 ? KINDS.length : kind) + nth * (KINDS.length + 1)) % mine.length, tries = 0;
-        while (mine[slot].site && tries++ < mine.length) slot = (slot + 1) % mine.length;
+        while ((mine[slot].site || mine[slot].hideout) && tries++ < mine.length) slot = (slot + 1) % mine.length;
         var lot = mine[slot];
-        if (lot.site) return;
+        if (lot.site || lot.hideout) return;
         lot.site = { id: b.id, type: b.type, name: b.name, level: b.level, staff: b.staff, sign: look.sign, color: look.color };
         lot.model = look.model; lot.tall = MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = true; lot.lit = 3;
       });
@@ -122,19 +124,86 @@
     return { cities: cities, routes: routes };
   }
 
-  // What a month's events look like on the map.
-  function effects(events) {
-    var out = [];
-    (events || []).forEach(function (e) {
-      var at = { city: e.city, district: e.district, site: e.site || null };
-      var add = function (kind) { out.push({ kind: kind, city: at.city, district: at.district, site: at.site }); };
-      if (e.type === 'attack') { if (e.outcome === 'hit' && e.site) add('fire'); add('gunfire'); }
-      else if (e.type === 'raid') add('police');
+  // ---- who drives where
+  // The rules give each trip a flow; the map gives each flow a colour.
+  var FLOW = { logistics: '#ffb347', sales: '#7fe08a', money: '#ffe06a', building: '#c8d0ff', violence: '#ff5a3a' };
+  var POLICE = '#5a8dff';
+  var ONCE = ['works', 'streets', 'seizure', 'raid', 'attack', 'hit', 'kidnap'];   // a crew sent out; everything else runs all month
+  var CONVOY = { attack: 3, raid: 2 };
+  var MAX_LOOPS = 8;
+
+  // From one lot to another along the streets. Points are tiles [i, j]; streets are the columns i % 4 = 0 and the rows j % 3 = 0.
+  function route(a, b) {
+    var ra = a[1] % 3 === 1 ? a[1] - 1 : a[1] + 1, rb = b[1] % 3 === 1 ? b[1] - 1 : b[1] + 1, col = Math.round(a[0] / 4) * 4;
+    var pts = [a, [a[0], ra]];
+    if (ra !== rb) pts.push([col, ra], [col, rb]);
+    pts.push([b[0], rb], b);
+    return pts.filter(function (p, k) { return k === 0 || p[0] !== pts[k - 1][0] || p[1] !== pts[k - 1][1]; });
+  }
+  function byId(a, b) { return a.site.id < b.site.id ? -1 : a.site.id > b.site.id ? 1 : 0; }
+  function lotsOf(c, di) { return c.lots.filter(function (l) { return l.district === di; }); }
+  function sitesOf(c, di) { return lotsOf(c, di).filter(function (l) { return l.site; }).sort(byId); }
+  function ofKind(sites, kinds) { return sites.filter(function (l) { return kinds.indexOf(l.site.type) >= 0; }); }
+  // The place of a given kind that an event talks about: the rules name its kind, the newest one is meant.
+  function placeOf(c, di, what) {
+    var sites = sitesOf(c, di), exact = sites.filter(function (l) { return l.site.id === what; }), kind = ofKind(sites, [what]);
+    return exact[0] || kind[kind.length - 1] || null;
+  }
+  function someLot(c, di, salt) { var lots = lotsOf(c, di).filter(function (l) { return !l.site && !l.hideout; }); return lots.length ? pick(lots, hash(di, salt, lots.length)) : null; }
+  // Where strangers come from: the nearest district that is not this one, a rival's if there is one.
+  function outside(c, di, by) {
+    var best = -1;
+    c.districts.forEach(function (d, k) { if (k !== di && (best < 0 || (d.owner === by && c.districts[best].owner !== by))) best = k; });
+    return best;
+  }
+
+  // A fixed building of the district that is not one of its businesses: where the capo sits and the money is counted.
+  function hideout(c, di) { return lotsOf(c, di).filter(function (l) { return l.hideout; })[0] || null; }
+  // Where a word of the rules is on the map.
+  function pointOf(c, di, what, salt, by) {
+    if (what === 'hideout' || what === 'boss') return hideout(c, di);
+    if (what === 'streets' || what === 'shops') return someLot(c, di, 11 + salt);
+    if (what === 'police' || what === 'rivals') return someLot(c, outside(c, di, by), 23 + salt);
+    return placeOf(c, di, what) || someLot(c, di, 37 + salt);
+  }
+
+  // The cars on the road. `list` is AshportGame.trips(g): the rules say who goes from where to where and why,
+  // the map finds the buildings and the streets between them. Routine runs loop; a crew sent out goes once.
+  function trips(plan, list) {
+    var out = [], loops = {};
+    (list || []).forEach(function (t, n) {
+      var c = plan.cities.filter(function (x) { return x.id === t.city; })[0]; if (!c) return;
+      var di = -1; c.districts.forEach(function (d, k) { if (d.id === t.district) di = k; }); if (di < 0) return;
+      var loop = ONCE.indexOf(t.kind) < 0, by = t.by ? ownerKey(t.by) : null, cars = CONVOY[t.kind] || 1;
+      if (loop) { loops[t.district] = (loops[t.district] || 0) + 1; if (loops[t.district] > MAX_LOOPS) return; }
+      var color = t.vehicle === 'police' ? POLICE : t.kind === 'attack' && by ? COLORS[by] : FLOW[t.flow] || FLOW.money;
+      for (var k = 0; k < cars; k++) {
+        var a = pointOf(c, di, t.from, n * 7 + k, by), b = pointOf(c, di, t.to, n * 7 + k, by);
+        if (!a || !b) continue;
+        if (a === b) { a = someLot(c, di, 53 + n); if (!a || a === b) continue; }
+        out.push({ id: loop ? t.district + ':' + t.kind + ':' + t.from + '>' + t.to : 'once:' + n + ':' + k, kind: t.kind, city: c.id, loop: loop, color: color,
+                   vehicle: t.vehicle === 'truck' || t.vehicle === 'police' ? t.vehicle : 'car', violent: !!t.violent, path: route([a.i, a.j], [b.i, b.j]) });
+      }
     });
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, plan: plan, effects: effects };
+  // What a month's events look like on the map. With the plan, each one lands on the place it names.
+  function effects(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      var site = e.site || null;
+      if (plan && site) plan.cities.forEach(function (c) { if (c.id !== e.city) return;
+        c.districts.forEach(function (d, di) { if (d.id !== e.district) return; var l = placeOf(c, di, site); if (l) site = l.site.id; }); });
+      var add = function (kind) { out.push({ kind: kind, city: e.city, district: e.district, site: site }); };
+      if (e.type === 'attack') { if (e.outcome === 'hit' && e.site) add('fire'); add('gunfire'); }
+      else if (e.type === 'raid') add('police');
+      else if (e.type === 'job') { if (e.outcome === 'failed') add('police'); else if (e.kind === 'hit') add('gunfire'); }
+    });
+    return out;
+  }
+
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, route: route, trips: trips, effects: effects };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

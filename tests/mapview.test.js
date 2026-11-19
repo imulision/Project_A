@@ -123,3 +123,89 @@ test('attacks and raids become fire, gunfire and police lights where they happen
     { kind: 'police', city: 'ashport', district: 'ashport-hillside', site: 'hillside-speakeasy-1' },
   ]);
 });
+
+// ---- the life of the empire: the rules say who goes where, the map says by which streets
+const grown = () => { const g = G.createGame({ capo: 'dutch' }); for (let i = 0; i < 30; i++) month(g); return g; };
+const lotAt = (c, p) => c.lots.find((l) => l.i === p[0] && l.j === p[1]);
+const onStreet = (p) => p[0] % 4 === 0 || p[1] % 3 === 0;
+const ends = (c, t) => [lotAt(c, t.path[0]), lotAt(c, t.path[t.path.length - 1])];
+const at = { district: 'ashport-hillside', city: 'ashport', flow: 'violence', vehicle: 'car', violent: true };
+
+test('a route runs along the streets, from one lot to another', () => {
+  const c = city(M.plan(G.view(fresh())), 'ashport'), a = c.lots[0], b = c.lots[c.lots.length - 1];
+  const path = M.route([a.i, a.j], [b.i, b.j]);
+  assert.deepEqual(path[0], [a.i, a.j]);
+  assert.deepEqual(path[path.length - 1], [b.i, b.j]);
+  path.slice(1, -1).forEach((p) => assert.ok(onStreet(p), p + ' is on a street'));
+  for (let k = 1; k < path.length; k++) assert.ok(path[k][0] === path[k - 1][0] || path[k][1] === path[k - 1][1], 'no diagonal');
+});
+
+test('every trip of the rules is a car between the very buildings it names', () => {
+  const g = grown(), p = M.plan(G.view(g)), ash = city(p, 'ashport'), game = G.trips(g), cars = M.trips(p, game);
+  assert.ok(game.length > 0 && cars.length > 0);
+  game.filter((x) => x.kind === 'works' || x.kind === 'seizure').forEach((x) => assert.ok(cars.some((t) => t.kind === x.kind && ends(ash, t)[1].site && ends(ash, t)[1].site.id === x.to), 'a crew goes to ' + x.to));
+  const liquor = cars.filter((t) => t.kind === 'liquor');
+  assert.ok(liquor.length > 0, 'there is liquor on the road');
+  liquor.forEach((t) => { const [a, b] = ends(ash, t), src = game.find((x) => x.kind === 'liquor' && x.from === a.site.id && x.to === b.site.id); assert.ok(src, 'from ' + a.site.id + ' to ' + b.site.id); });
+  cars.forEach((t) => { assert.match(t.color, /^#[0-9a-f]{6}$/); assert.ok(t.path.length >= 2); assert.ok(['truck', 'car', 'police'].includes(t.vehicle)); });
+});
+
+test('the hideout of a district is one fixed building, and the takings go there', () => {
+  const g = grown(), p = M.plan(G.view(g)), ash = city(p, 'ashport');
+  const takings = M.trips(p, G.trips(g)).filter((t) => t.kind === 'takings');
+  assert.ok(takings.length > 0);
+  const hide = ends(ash, takings[0])[1];
+  takings.forEach((t) => assert.equal(ends(ash, t)[1], hide));
+  assert.equal(ash.districts[hide.district].id, 'ashport-hillside');
+  assert.equal(hide.site, null, 'the hideout is not one of the businesses');
+  assert.equal(hide.hideout, true);
+  month(g);
+  const next = M.plan(G.view(g)), again = M.trips(next, G.trips(g)).filter((t) => t.kind === 'takings');
+  if (again.length) assert.deepEqual(again[0].path[again[0].path.length - 1], [hide.i, hide.j], 'it does not move');
+});
+
+test('routine runs loop all month, a crew sent out goes once', () => {
+  const p = M.plan(G.view(grown()));
+  const cars = M.trips(p, [
+    Object.assign({}, at, { kind: 'liquor', flow: 'logistics', vehicle: 'truck', violent: false, from: 'hillside-still-1', to: 'hillside-speakeasy-1' }),
+    Object.assign({}, at, { kind: 'seizure', from: 'hideout', to: 'hillside-warehouse-1' }),
+    Object.assign({}, at, { kind: 'streets', from: 'hideout', to: 'streets' }),
+  ]);
+  assert.deepEqual(cars.map((t) => t.loop), [true, false, false]);
+  assert.equal(cars[0].vehicle, 'truck');
+  assert.notEqual(cars[0].color, cars[1].color, 'business and violence do not look the same');
+  assert.equal(M.trips(p, [])[0], undefined, 'no trip, no car');
+});
+
+test('rivals and the police come in several cars from outside the district', () => {
+  const p = M.plan(G.view(grown())), ash = city(p, 'ashport'), hill = ash.districts.findIndex((d) => d.id === 'ashport-hillside');
+  const attack = M.trips(p, [Object.assign({}, at, { kind: 'attack', from: 'rivals', to: 'still', by: 'Callahan', outcome: 'hit' })]);
+  assert.ok(attack.length >= 2);
+  attack.forEach((t) => { const [a, b] = ends(ash, t); assert.equal(t.color, M.COLORS.callahan); assert.notEqual(a.district, hill); assert.equal(b.site.type, 'still'); assert.equal(t.loop, false); });
+  const raid = M.trips(p, [Object.assign({}, at, { kind: 'raid', from: 'police', to: 'hillside-speakeasy-1', vehicle: 'police' })]);
+  assert.ok(raid.length >= 2);
+  raid.forEach((t) => { const [a, b] = ends(ash, t); assert.equal(t.vehicle, 'police'); assert.notEqual(a.district, hill); assert.equal(b.site.id, 'hillside-speakeasy-1'); });
+});
+
+test('a district never has more routine cars than the streets can show', () => {
+  const p = M.plan(G.view(grown())), many = [];
+  for (let k = 0; k < 30; k++) many.push(Object.assign({}, at, { kind: 'takings', flow: 'sales', violent: false, from: 'hillside-speakeasy-1', to: 'hideout' }));
+  assert.ok(M.trips(p, many).length <= 8);
+});
+
+test('the same month gives the same cars, so a car already on the road is kept', () => {
+  const g = grown(), p = M.plan(G.view(g));
+  assert.deepEqual(M.trips(p, G.trips(g)).map((t) => t.id), M.trips(p, G.trips(g)).map((t) => t.id));
+});
+
+test('fire and police lights land on the place that was hit, whatever name the rules give it', () => {
+  const p = M.plan(G.view(grown())), ash = city(p, 'ashport');
+  const fx = M.effects([{ type: 'attack', outcome: 'hit', site: 'still', district: 'ashport-hillside', city: 'ashport', label: 'x' }], p);
+  assert.equal(fx[0].kind, 'fire'); assert.equal(ash.lots.find((l) => l.site && l.site.id === fx[0].site).site.type, 'still');
+});
+
+test('a job the boss approved is seen where it was done', () => {
+  const fx = M.effects([{ type: 'job', kind: 'hit', outcome: 'done', district: 'ashport-hillside', city: 'ashport', label: 'x' },
+    { type: 'job', kind: 'kidnap', outcome: 'failed', district: 'ashport-hillside', city: 'ashport', label: 'x' }]);
+  assert.deepEqual(fx.map((f) => f.kind), ['gunfire', 'police'], 'a killing is gunfire, a job gone wrong brings the police');
+});

@@ -16,7 +16,11 @@
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
   // ---- the map
-  function showMap() { if (map && g.started) map.update(M.plan(G.view(g))); }
+  // The map follows the game: buildings, then the cars on the road, then what just happened.
+  function showMap(events) {
+    if (!map || !g.started) return;
+    var p = M.plan(G.view(g)); map.update(p); map.traffic(M.trips(p, G.trips(g))); map.effects(M.effects(events || [], p));
+  }
   function previewPlan() { return M.plan(G.view(G.createGame({ capo: Object.keys(CAPOS)[0] }))); }
 
   // ---- the top of the screen
@@ -32,7 +36,7 @@
     v.cities.forEach(function (c) { total += c.districts.length; held += c.held; });
     $('held').textContent = held + ' / ' + total;
     $('sub').textContent = h.paused ? 'Paused' : 'Your capos are at work';
-    $('alerts').innerHTML = h.alerts.slice(0, 2).map(function (a) { return '<div data-district="' + esc(a.district) + '">' + esc(a.text) + '</div>'; }).join('');
+    $('alerts').innerHTML = (h.pending ? '<div data-requests="1" style="border-color:var(--accent)">' + h.pending + (h.pending > 1 ? ' capos wait' : ' capo waits') + ' for your answer</div>' : '') + h.alerts.slice(0, 2).map(function (a) { return '<div data-district="' + esc(a.district) + '">' + esc(a.text) + '</div>'; }).join('');
   }
   function toast(text, bad) {
     var e = document.createElement('div'); e.textContent = text; if (bad) e.className = 'bad';
@@ -67,13 +71,20 @@
     G.view(g).cities.forEach(function (c) { c.districts.forEach(function (d) { if (d.id === id) out = { city: c, d: d }; }); });
     return out;
   }
+  // Last month in figures: what was made, sold, earned, washed and sent up to the boss.
+  function flowRows(id) {
+    var f = G.flows(g, id); if (!f) return '';
+    var cell = function (label, value) { return '<div><small>' + label + '</small><b>' + value + '</b></div>'; };
+    return '<div class="rows">' + cell('CRATES MADE', Math.round(f.made)) + cell('CRATES SOLD', Math.round(f.sold)) + cell('INCOME', money(f.income)) + cell('COSTS', money(f.costs)) + '</div>' +
+      '<div class="rows">' + cell('PROFIT', money(f.profit)) + cell('WASHED', money(f.washed)) + cell('TO YOU', money(f.tribute)) + cell('HELD BACK BY', f.limit ? esc(String(f.limit)) : 'nothing') + '</div>';
+  }
   function sheetDistrict(id) {
     var x = find(id); if (!x) return;
     var d = x.d, html = '<h2>' + esc(d.name) + '</h2>';
     if (d.owner === 'family') {
       html += '<p>' + esc(x.city.name) + ' · held by your family · capo: ' + esc(capoName(d.capo)) + (d.appointedBy ? ' (named by ' + esc(capoName(d.appointedBy)) + ')' : '') + (d.watched ? ' · watched by the police' : '') + '</p>' +
         '<div class="rows"><div><small>STREETS</small><b>' + Math.round(d.share) + '%</b></div><div><small>HEAT</small><b>' + Math.round(d.heat) + '</b></div><div><small>GOODWILL</small><b>' + Math.round(d.goodwill) + '</b></div><div><small>MEN</small><b>' + d.men + '</b></div></div>' +
-        '<ul class="list">' + (d.buildings.length ? d.buildings.map(function (b) { return '<li>' + esc(b.name) + '<small>' + b.staff + ' men · level ' + b.level + '</small></li>'; }).join('') : '<li>No place of ours yet</li>') + '</ul>' +
+        flowRows(id) + '<ul class="list">' + (d.buildings.length ? d.buildings.map(function (b) { return '<li>' + esc(b.name) + '<small>' + b.staff + ' men · level ' + b.level + '</small></li>'; }).join('') : '<li>No place of ours yet</li>') + '</ul>' +
         '<div class="acts"><button data-act="pick" data-order="appoint" data-district="' + esc(id) + '">Replace the capo</button><button data-act="close">Close</button></div>';
     } else {
       var o = G.openings(g).filter(function (o) { return o.district === id; })[0];
@@ -89,6 +100,15 @@
       (list.length ? list.map(function (c) { return card(c, orderType + ':' + id, 'Name ' + c.name.split(' ')[0]); }).join('') : '<p>Every man you trust already has a post.</p>') +
       '<div class="acts"><button data-act="close">Cancel</button></div>');
   }
+  // The capos propose, the boss decides: a killing or a kidnapping never happens without his word.
+  function sheetProposals() {
+    var list = G.proposals(g); if (!list.length) return close();
+    open('<h2>Your word is needed</h2>' + list.map(function (p) {
+      return '<div class="card"><h3>' + esc(p.capoName) + '</h3><div class="who">' + esc(p.place) + '</div><div class="mv">' + esc(p.label) + '</div>' +
+        '<div class="st">Why: ' + esc(p.why) + '<br>Target: ' + esc(p.target) + '<br>He waits ' + p.monthsLeft + ' more month' + (p.monthsLeft > 1 ? 's' : '') + ' for an answer.</div>' +
+        '<div class="acts"><button class="go" data-act="approve" data-id="' + esc(p.id) + '">Approve</button><button data-act="refuse" data-id="' + esc(p.id) + '">Refuse</button></div></div>'; }).join('') +
+      '<div class="acts"><button data-act="close">Decide later</button></div>');
+  }
   function sheetJournal() {
     open('<h2>Journal</h2><ul class="list">' + (g.journal.length ? g.journal.slice(0, 40).map(function (e) {
       return '<li>' + esc(e.label) + '<small>' + esc(e.date) + ' · ' + esc(e.place) + (e.why ? ' · ' + esc(e.why) : '') + '</small></li>'; }).join('') : '<li>Nothing has happened yet</li>') +
@@ -102,10 +122,12 @@
     else if (act === 'start') { if (order({ type: 'start', capo: b.dataset.capo })) { close(); map.focus('ashport'); toast(capoName(b.dataset.capo) + ' holds Hillside. Tap a district to see it.'); } }
     else if (act === 'pick') sheetPick(b.dataset.order, b.dataset.district);
     else if (act === 'new') { forget(); location.reload(); }
+    else if (act === 'approve' || act === 'refuse') { if (order({ type: act, id: b.dataset.id })) sheetProposals(); }
     else { var parts = act.split(':'); if (order({ type: parts[0], district: parts[1], capo: b.dataset.capo })) { close(); toast(capoName(b.dataset.capo) + (parts[0] === 'claim' ? ' moves in.' : ' takes over.')); } }
   });
   $('veil').addEventListener('click', function (e) { if (e.target === $('veil') && g.started) close(); });
-  $('alerts').addEventListener('click', function (e) { var a = e.target.closest('[data-district]'); if (a) sheetDistrict(a.dataset.district); });
+  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-requests]')) return sheetProposals();
+    var a = e.target.closest('[data-district]'); if (a) { map.focus(a.dataset.district.split('-')[0], a.dataset.district); sheetDistrict(a.dataset.district); } });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
@@ -137,9 +159,9 @@
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.world.month, events = G.tick(g);
     if (g.world.month === before) return;
-    map.effects(M.effects(events));
-    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid') toast(e.label, true); });
-    showMap(); showHud(); store();
+    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid' || e.type === 'job') toast(e.label, e.type !== 'job' || e.outcome === 'failed'); });
+    showMap(events); showHud(); store();
+    if (events.some(function (e) { return e.type === 'proposal'; })) sheetProposals();      // time waits for the boss's word
   }
 
   // ---- start
@@ -151,7 +173,7 @@
     onTap: function (hit) { if (!hit || !g.started) return; if (hit.near && hit.district) sheetDistrict(hit.district); else map.focus(hit.city); }
   }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
-    if (g.started) map.focus('ashport'); else sheetStart();
+    if (g.started) { showMap(); map.focus('ashport'); } else sheetStart();
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });
 })();
