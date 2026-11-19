@@ -12,7 +12,7 @@
   var W = node ? require('./world.js') : root.AshportWorld;
   var D = node ? require('./district.js') : root.AshportDistrict;
 
-  var VERSION = 3;            // 1 was the game by districts (game.js)
+  var VERSION = 3;            // 1 was the game by districts, since removed
   var TICKS_PER_MONTH = 4;
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
