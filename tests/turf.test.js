@@ -1107,3 +1107,65 @@ test('each bar is served by the nearest still, and a bar with no still gets no t
   assert.deepEqual(from(1, 1), { x: 0, y: 4 });
   assert.deepEqual(from(9, 4), { x: 10, y: 1 });
 });
+
+// --- the fourth door: turning a rival's lieutenant ---
+
+const lieutenants = () => Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].lieutenant);
+// Ashport with the Callahans in place and Dutch landed, the family rich.
+const rivalTown = () => {
+  const c = ashport(), f = rich();
+  T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+  const l = T.landing(c); T.settle(c, 'dutch', l.x, l.y); T.join(f, 'dutch');
+  return { c, f };
+};
+
+test('the family in place has three lieutenants, and every one of its places but the key places answers to one of them', () => {
+  const { c } = rivalTown();
+  assert.equal(lieutenants().length, 3);
+  assert.ok(lieutenants().every((id) => T.PEOPLE[id].lieutenant === 'Callahan' && T.tradeOf(id)));
+  const theirs = rivals(c).filter((p) => p.kind !== 'key');
+  assert.ok(theirs.every((p) => lieutenants().includes(p.man)));
+  for (const id of lieutenants()) assert.ok(theirs.filter((p) => p.man === id).length >= 3, id + ' holds a real zone');
+  assert.ok(rivals(c).filter((p) => p.kind === 'key').every((p) => !p.man));
+  assert.deepEqual(T.view(c, T.createFamily()).lieutenants.map((l) => l.id).sort(), lieutenants().sort());
+});
+
+test('a lieutenant listens only once the family holds a real share of the city, and he costs a fortune', () => {
+  const { c, f } = rivalTown();
+  assert.ok(!T.doors(c, f).some((d) => d.door === 'poach'));
+  for (let x = 0; x < 20; x += 2) for (let y = 0; y < 12; y += 3) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  assert.ok(T.share(c).family >= T.RULES.turn);
+  const d = T.doors(c, f).filter((q) => q.door === 'poach');
+  assert.ok(d.length >= 1);
+  assert.equal(d[0].by, 'Callahan');
+  assert.equal(d[0].cost, T.RULES.doors.poach);
+  assert.ok(d[0].cost > T.RULES.doors.name * 2);
+  assert.ok(d[0].places >= 1, 'the card says what he brings');
+});
+
+test('turned, he crosses with every place he ran: his best one becomes his club', () => {
+  const { c, f } = rivalTown();
+  for (let x = 0; x < 20; x += 2) for (let y = 0; y < 12; y += 3) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  const d = T.doors(c, f).find((q) => q.door === 'poach');
+  const his = rivals(c).filter((p) => p.man === d.capo), before = T.hold(c, his[0].x, his[0].y);
+  T.welcome(c, f, d.capo);
+  assert.equal(f.dirty, 20000 - d.cost);
+  const now = T.places(c, d.capo);
+  assert.equal(now.length, his.length);
+  assert.ok(now.every((p) => p.owner === 'family'));
+  assert.equal(now.filter((p) => p.kind === 'club').length, 1);
+  const after = T.hold(c, his[0].x, his[0].y);
+  assert.ok(after.family > before.family && after.rival < before.rival, 'his streets change hands');
+  assert.ok(f.men[d.capo]);
+  assert.ok(!T.doors(c, f).some((q) => q.capo === d.capo));
+  assert.ok(!rivals(c).some((p) => p.man === d.capo));
+  assert.doesNotThrow(() => year(c, f, 12));
+});
+
+test('a place the Callahans open later answers to the lieutenant next door', () => {
+  const { c, f } = rivalTown();
+  const before = rivals(c).length;
+  year(c, f, T.RULES.rivalGrows * 2);
+  assert.ok(rivals(c).length > before || T.share(c).rival > 0);
+  assert.ok(rivals(c).filter((p) => p.kind !== 'key').every((p) => lieutenants().includes(p.man)));
+});
