@@ -692,26 +692,48 @@ test('a city carries three capos, and one more for every key place the family ho
   assert.equal(T.seats(c).taken, 4);
 });
 
-test('twenty years of saying yes to everyone: the family grows man by man, key place by key place', () => {
-  for (const start of ['dutch', 'mae', 'tommy']) {
-    const c = ashport(), f = family();
-    T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
-    const l = T.landing(c); T.settle(c, start, l.x, l.y); T.join(f, start);
-    const men = [], keys = [];
-    for (let m = 1; m <= 240; m++) {
-      for (const e of T.stepMonth(c, f)) if (e.type === 'taken' && e.key) keys.push(m);
-      for (const a of T.asks(c)) if (f.dirty >= a.cost) T.answer(c, f, a.id, true);
-      for (const d of T.doors(c, f)) {
-        const s = T.seats(c), spot = T.spots(c).find((q) => T.grip(c, q.x, q.y) === null) || T.spots(c)[0];
-        if (f.dirty >= d.cost && s.taken < s.total && spot) { T.welcome(c, f, d.capo, spot.x, spot.y); men.push(m); }
-      }
+// A boss who says yes to everyone and learns what his capos ask for, for twenty years.
+const yesMan = (start, months = 240) => {
+  const c = ashport(), f = T.createFamily(), seen = { men: [], keys: [], learned: [], share: {} };
+  T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+  const l = T.landing(c); T.settle(c, start, l.x, l.y); T.join(f, start);
+  for (let m = 1; m <= months; m++) {
+    for (const e of T.month(f, [c])) {
+      if (e.type === 'taken' && e.key) seen.keys.push(m);
+      if (e.type === 'learned') seen.learned.push(m);
     }
-    assert.ok(men.length >= 4 && men.length <= 8, start + ': ' + men.length + ' men joined');
-    assert.ok(men[0] >= 12, start + ': nobody joins in the first year (month ' + men[0] + ')');
-    assert.ok(keys.length >= 2, start + ': ' + keys.length + ' key places taken');
-    assert.ok(keys[0] >= 36, start + ': no key place falls in the first three years (month ' + keys[0] + ')');
-    assert.ok(keys[keys.length - 1] - keys[0] >= 60, start + ': the key places fall over many years');
+    for (const a of T.asks(c)) if (T.funds(f) >= a.cost) T.answer(c, f, a.id, true);
+    for (const d of T.doors(c, f)) {
+      const s = T.seats(c), spot = T.spots(c).find((q) => T.grip(c, q.x, q.y) === null) || T.spots(c)[0];
+      if (T.funds(f) >= d.cost && s.taken < s.total && spot) { T.welcome(c, f, d.capo, spot.x, spot.y); seen.men.push(m); }
+    }
+    if (!f.study) {
+      const w = T.wishes(c, f)[0], t = w ? T.tree(f).find((q) => q.kind === w.kind) : T.tree(f).filter((q) => q.next && q.tier > 0).sort((x, y) => x.tier - y.tier)[0];
+      if (t && t.next && f.clean - 3000 >= t.next.cost) T.research(f, t.kind);
+    }
+    if (m % 60 === 0) seen.share[m / 12] = T.share(c).family;
   }
+  return seen;
+};
+
+test('twenty years of saying yes, whoever the first capo is: slow at first, never dead, never the whole city', () => {
+  for (const start of Object.keys(D.CAPOS)) {
+    const g = yesMan(start);
+    assert.ok(g.share[5] <= 30, start + ': ' + Math.round(g.share[5]) + '% after five years is too fast');
+    assert.ok(g.share[20] >= 15, start + ': ' + Math.round(g.share[20]) + '% after twenty years, the family is dying');
+    assert.ok(g.share[20] <= 85, start + ': ' + Math.round(g.share[20]) + '% after twenty years, nothing is left to fight for');
+    assert.ok(g.share[20] >= g.share[5], start + ': it grows');
+    assert.ok(g.men.length >= 2, start + ': ' + g.men.length + ' men joined');
+    assert.ok(g.men[0] >= 12, start + ': nobody joins in the first year');
+    assert.ok(g.learned.length >= 3, start + ': ' + g.learned.length + ' trades learned');
+    assert.ok(!g.keys.length || g.keys[0] >= 60, start + ': no key place falls in the first five years');
+  }
+});
+
+test('the first capo is a real choice: twenty years later the families are far apart', () => {
+  const ends = Object.keys(D.CAPOS).map((start) => yesMan(start).share[20]);
+  assert.ok(Math.max(...ends) - Math.min(...ends) >= 20);
+  assert.ok(ends.filter((e) => e >= 30).length >= 3, 'and more than one start does well');
 });
 
 // --- two kinds of money: dirty money must be washed, and it draws the police while it sleeps ---
@@ -728,10 +750,10 @@ test('a front washes the boss\'s dirty money into clean money, for a cut', () =>
   const { c, f } = laundry(1);
   f.dirty = 200;
   T.stepMonth(c, f);
-  const tribute = f.dirty + f.clean / (1 - T.RULES.cut) - 200; // what Mae sent up this month, all still dirty or washed
+  const tribute = f.dirty + f.clean / (1 - D.SITES.front.loss) - 200; // what Mae sent up this month, all still dirty or washed
   assert.ok(f.clean > 0, 'some money came out clean');
   assert.ok(f.dirty < 200 + tribute, 'and left the dirty pile');
-  assert.ok(Math.abs(T.washing(c).washed * (1 - T.RULES.cut) - f.clean) < 0.01, 'the cut stays with the front');
+  assert.ok(Math.abs(T.washing(c).washed * (1 - D.SITES.front.loss) - f.clean) < 0.01, 'the cut stays with the front');
 });
 
 test('a front only washes so much a month, and a bigger front washes more', () => {
@@ -848,7 +870,129 @@ test('the view of a city gives the map everything it draws', () => {
   assert.deepEqual(v.seats, T.seats(c));
   assert.deepEqual(v.takes, T.takes(c)); assert.deepEqual(v.asks, T.asks(c)); assert.deepEqual(v.doors, T.doors(c, f));
   assert.equal(v.rival, 'Callahan');
+  assert.deepEqual(v.tree, T.tree(f)); assert.deepEqual(v.wishes, T.wishes(c, f));
   assert.doesNotThrow(() => JSON.stringify(v));
   T.view(c, f).places[0].level = 9;
   assert.notEqual(T.view(c, f).places[0].level, 9, 'the view is a copy: the screen cannot change the game through it');
+});
+
+// --- the building tree: what the family knows how to run, learned with clean money ---
+
+test('a new family knows the liquor trade and nothing else', () => {
+  const f = T.createFamily();
+  assert.deepEqual(Object.keys(f.tech).filter((k) => f.tech[k] > 0).sort(), ['rented', 'speakeasy', 'still', 'warehouse']);
+  assert.deepEqual([f.dirty, f.clean, f.study], [0, 0, null]);
+  const tree = T.tree(f);
+  assert.equal(tree.length, Object.keys(T.TERRAIN).length);
+  const still = tree.find((t) => t.kind === 'still'), loans = tree.find((t) => t.kind === 'loans');
+  assert.deepEqual([still.tier, still.next.tier, still.next.cost, still.next.months], [1, 2, T.RULES.learn.cost[1], T.RULES.learn.months[1]]);
+  assert.deepEqual([loans.tier, loans.next.tier, loans.next.cost], [0, 1, T.RULES.learn.cost[0]]);
+  assert.equal(loans.name, D.SITES.loans.name);
+});
+
+test('the boss pays clean money, waits, and the family knows one tier more', () => {
+  const f = T.createFamily(), c = town();
+  assert.throws(() => T.research(f, 'loans'), /clean/);
+  f.clean = T.RULES.learn.cost[0] + 5;
+  assert.throws(() => T.research(f, 'casino'), /unknown/);
+  T.research(f, 'loans');
+  assert.equal(f.clean, 5);
+  assert.throws(() => T.research(f, 'still'), /already/);
+  assert.equal(T.tree(f).find((t) => t.kind === 'loans').studying, T.RULES.learn.months[0]);
+  let learned = null;
+  for (let i = 0; i < T.RULES.learn.months[0]; i++) {
+    assert.equal(f.tech.loans, 0);
+    learned = T.month(f, [c]).find((e) => e.type === 'learned') || learned;
+  }
+  assert.equal(f.tech.loans, 1);
+  assert.deepEqual([learned.kind, learned.tier], ['loans', 1]);
+  assert.equal(f.study, null);
+  assert.equal(c.month, T.RULES.learn.months[0], 'and the city lived those months');
+});
+
+test('a man of the family who likes the trade teaches it in half the time', () => {
+  const f = T.createFamily();
+  f.clean = 1e6;
+  T.join(f, 'sal');
+  T.research(f, 'loans');
+  assert.equal(f.study.monthsLeft, T.RULES.learn.months[0] / 2);
+});
+
+test('nothing goes beyond the third tier', () => {
+  const f = T.createFamily();
+  f.tech.still = 3; f.clean = 1e6;
+  assert.equal(T.tree(f).find((t) => t.kind === 'still').next, null);
+  assert.throws(() => T.research(f, 'still'), /nothing more/);
+});
+
+test('each capo says which closed trade he would open first, and never one he refuses', () => {
+  const f = T.createFamily(), c = town();
+  T.settle(c, 'sal', 2, 2); T.join(f, 'sal');
+  T.settle(c, 'dutch', 8, 2); T.join(f, 'dutch');
+  T.settle(c, 'mae', 5, 4); T.join(f, 'mae');
+  const w = T.wishes(c, f), of = (id) => w.find((q) => q.capo === id);
+  assert.equal(of('sal').kind, 'loans');
+  assert.equal(of('mae').kind, 'front');
+  assert.equal(of('dutch').kind, 'fence', 'his first trades are open: he asks for the next he likes');
+  f.tech.loans = 1;
+  assert.equal(T.wishes(c, f).find((q) => q.capo === 'sal'), undefined, 'Sal likes nothing else that is closed');
+  assert.equal(T.tree(f).find((t) => t.kind === 'front').wanted.join(), 'mae');
+});
+
+test('a rented laundry washes too: less than an owned front, and it keeps more', () => {
+  const play = (kind) => {
+    const { c, f } = laundry(0);
+    T.open(c, 3, 2, { owner: 'family', kind, capo: 'mae' });
+    f.dirty = 50000;
+    T.stepMonth(c, f);
+    return { washed: T.washing(c).washed, kept: 1 - f.clean / T.washing(c).washed };
+  };
+  const rented = play('rented'), front = play('front');
+  assert.ok(rented.washed > 0 && rented.washed < front.washed);
+  assert.ok(Math.abs(rented.kept - D.SITES.rented.loss) < 1e-9 && Math.abs(front.kept - D.SITES.front.loss) < 1e-9);
+});
+
+test('when dirty money piles up in the boss\'s safe, a capo opens a laundry before anything else', () => {
+  const next = (dirty) => {
+    const c = town(), f = T.createFamily();
+    T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+    T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+    T.open(c, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+    f.dirty = dirty;
+    return T.plan(c, f, 'dutch');
+  };
+  assert.notEqual(next(0).kind, 'rented');
+  const p = next(T.RULES.stash * 2);
+  assert.equal(p.kind, 'rented');
+  assert.match(p.why, /wash/);
+});
+
+test('Sal also comes to a family that keeps getting burnt out: it needs him', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'mae', 2, 2); T.join(f, 'mae');
+  assert.ok(!coming(c, f).includes('sal'));
+  c.burnt = 2;
+  const d = T.doors(c, f).find((q) => q.capo === 'sal');
+  assert.match(d.why, /burn/);
+  assert.equal(d.cost, T.RULES.doors.need, 'and he comes for less: he is the one who gains');
+  assert.ok(T.RULES.doors.need < T.RULES.doors.name);
+  assert.equal(T.createCity({ id: 'x', w: 1, h: 1, zones: [] }).burnt, 0);
+});
+
+test('clean money pays for anything dirty money pays for, once the dirty runs out', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  const cost = T.doors(c, f)[0].cost;
+  f.dirty = 100; f.clean = cost;
+  assert.equal(T.funds(f), 100 + cost);
+  T.welcome(c, f, 'danny', 7, 4);
+  assert.deepEqual([f.dirty, f.clean], [0, 100]);
+  const s = siege();
+  T.open(s.c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  T.stepMonth(s.c, s.f);
+  const ask = T.asks(s.c)[0];
+  s.f.dirty = 0; s.f.clean = ask.cost + 1;
+  T.answer(s.c, s.f, ask.id, true);
+  assert.equal(s.f.clean, 1);
 });
