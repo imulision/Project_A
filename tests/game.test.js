@@ -358,3 +358,10 @@ test('the boss orders a research from the wheel and watches its bar', () => {
   assert.equal(G.research(g), null);
   assert.ok(g.journal.some((e) => e.type === 'research'));
 });
+
+test('the screen reads the money of a district place by place, and nothing where the family is not', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 12; i++) month(g);
+  assert.ok(G.cash(g, W.HOME).some((c) => c.at === 'hideout' && c.kind === 'dirty'));
+  assert.deepEqual(G.cash(g, 'ashport-docks'), []);
+});
