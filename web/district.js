@@ -566,12 +566,18 @@
   // trip, from a place to a place. Ends are building ids (see buildings) or
   // 'hideout', 'streets', 'shops', 'boss', 'police'. Nothing here decides
   // anything: it only tells again what stepMonth did.
+  // What each kind of trip carries, for the icon on the vehicle.
+  var CARGO = { liquor: 'liquor', takings: 'dirty-cash', laundering: 'dirty-cash', tribute: 'cash', works: 'materials',
+                streets: 'men', collection: 'men', seizure: 'men', raid: 'police' };
+  function roleOf(k) {
+    return SITES[k].wash ? 'laundering' : k === 'still' || k === 'loft' ? 'production' : k === 'warehouse' ? 'storage' : k === 'speakeasy' ? 'sales' : 'business';
+  }
   function trips(d) {
     var m = d.last, list = [];
     if (!m) return list;
     var id = function (kind, n) { return slugOf(d) + '-' + kind + '-' + n; };
     var add = function (kind, from, to, vehicle, more) {
-      var t = { kind: kind, flow: FLOW_OF[kind], from: from, to: to, vehicle: vehicle, violent: false };
+      var t = { kind: kind, flow: FLOW_OF[kind], from: from, to: to, vehicle: vehicle, violent: false, cargo: CARGO[kind] };
       Object.keys(more || {}).forEach(function (k) { t[k] = more[k]; });
       list.push(t);
     };
@@ -606,7 +612,7 @@
     var list = [], slug = slugOf(d);
     SITE_KEYS.forEach(function (k) {
       for (var i = 1; i <= d.sites[k]; i++) {
-        list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, staff: SITES[k].staff, level: d.levels[k] || 1 });
+        list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, role: roleOf(k), staff: SITES[k].staff, level: d.levels[k] || 1 });
       }
     });
     return list;

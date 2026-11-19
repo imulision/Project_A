@@ -273,3 +273,57 @@ test('a request says how long the capo waits in all, for a gauge', () => {
   assert.equal(p.waits, W.RULES.jobs.expires);
   assert.ok(p.monthsLeft <= p.waits);
 });
+
+// --- taking a district ---
+test('the screen is told the ways into a district, their price, and each man\'s chances', () => {
+  const g = G.createGame({ capo: 'sal' });
+  const o = G.openings(g).find((x) => x.district === 'ashport-market');
+  assert.deepEqual(o.ways.map((w) => w.way), ['force', 'bribe', 'buy']);
+  for (const w of o.ways) { assert.ok(w.cost > 0 && w.months > 0); assert.ok(['dirty', 'clean'].includes(w.cur)); assert.equal(typeof w.affordable, 'boolean'); }
+  const tommy = G.candidates(g, 'ashport-market').find((c) => c.id === 'tommy');
+  assert.equal(tommy.odds.bribe, 'good');
+  assert.equal(tommy.odds.buy, 'good');
+});
+
+test('the boss orders a takeover, watches it advance, and reads how it ended', () => {
+  const g = G.createGame({ capo: 'sal' });
+  g.world.treasury.dirty = 20000;
+  assert.deepEqual(G.command(g, { type: 'takeover', district: 'ashport-market', way: 'bribe', capo: 'tommy' }), { ok: true });
+  month(g);
+  const t = G.takeovers(g)[0];
+  assert.equal(t.capoName, 'Tommy "the Priest" Byrne');
+  assert.equal(t.place, 'Market Street, Ashport');
+  assert.ok(t.progress > 0 && t.progress < 1);
+  for (let i = 0; i < t.months; i++) month(g);
+  assert.equal(G.view(g).cities[0].held, 2);
+  assert.ok(g.journal.some((e) => e.type === 'takeover' && e.outcome === 'done'));
+  assert.equal(G.command(g, { type: 'takeover', district: 'ashport-docks', way: 'buy', capo: 'mae' }).ok, false);
+});
+
+// A boss who only uses takeovers, and only the ones his man says look good.
+function patient(g, months) {
+  for (let m = 0; m < months; m++) {
+    month(g);
+    G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
+    if (G.takeovers(g).length) continue;
+    search: for (const o of G.openings(g)) {
+      for (const w of o.ways) {
+        if (!w.affordable) continue;
+        const man = G.candidates(g, o.district).find((c) => c.odds[w.way] === 'good');
+        if (!man) continue;
+        assert.deepEqual(G.command(g, { type: 'takeover', district: o.district, way: w.way, capo: man.id }), { ok: true });
+        break search;
+      }
+    }
+  }
+}
+
+test('with takeovers alone, a patient boss still builds a family across several cities in twenty years', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  patient(g, 240);
+  const cities = G.view(g).cities;
+  const held = cities.reduce((n, c) => n + c.held, 0);
+  assert.ok(held >= 8, `${held} districts after twenty years`);
+  assert.ok(held <= 30, `${held} districts: taking a district is meant to be hard`);
+  assert.ok(cities.filter((c) => c.held > 0).length >= 2);
+});

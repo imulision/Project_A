@@ -106,6 +106,13 @@
     hitLoot: 0.2,        // share of the stash the rivals carry off
     alarm: 6,            // months a capo stays on his guard after a hit
     grace: 12,           // months the rivals leave a new foothold alone
+    // The three ways into a district. None is cheap, quick or sure.
+    takeover: {
+      step: 0.25,        // every district the family holds makes the next one this much dearer
+      force: { cur: 'dirty', cost: 1500, months: 6, edge: 6, dead: 4, start: { share: 20, heat: 35 } },
+      bribe: { cur: 'dirty', cost: 3000, months: 4, skill: 12, fixer: 4, heat: 10, start: {} },
+      buy:   { cur: 'clean', cost: 6000, months: 3, start: { heat: 10, goodwill: 50 } }
+    },
     // The violent jobs a capo will not do without the boss's leave.
     jobs: {
       every: 12,         // months a capo waits before asking again
@@ -176,6 +183,7 @@
     SEATS.forEach(function (s) { if (w.table[s]) list.push({ capo: w.table[s], post: s, by: 'boss' }); });
     Object.keys(w.underbosses).forEach(function (c) { list.push({ capo: w.underbosses[c], post: 'underboss:' + c, by: 'boss' }); });
     familyDistricts(w).forEach(function (x) { list.push({ capo: x.state.capo, post: x.id, by: x.appointedBy || 'boss' }); });
+    (w.takeovers || []).forEach(function (t) { list.push({ capo: t.capo, post: 'takeover:' + t.district, by: t.by }); });
     return list;
   }
   // Only the people the boss named himself: the table, the underbosses, and
@@ -230,15 +238,123 @@
     if (!reachable(w, id)) throw new Error(id + ' is out of reach: the family holds nothing next to it');
     if (w.treasury.dirty + w.treasury.clean < RULES.moveInCost) throw new Error('the boss cannot afford to move into ' + id);
     if (!capo) { capo = pickCapo(w, id, underboss); by = underboss; }
-    var start = { capo: capo, name: p.name, traits: p.traits, support: tableSupport(w) };
-    Object.keys(RULES.foothold).forEach(function (k) { start[k] = RULES.foothold[k]; });
     // street money first; clean money is good anywhere and covers the rest
     var street = Math.min(w.treasury.dirty, RULES.moveInCost);
     w.treasury.dirty -= street;
     w.treasury.clean -= RULES.moveInCost - street;
+    install(w, id, capo, by, {});
+  }
+  // The capo walks in with a first crew, a still and a back room.
+  function install(w, id, capo, by, more) {
+    var x = district(w, id), p = placeOf(id);
+    var start = { capo: capo, name: p.name, traits: p.traits, support: tableSupport(w) };
+    Object.keys(RULES.foothold).forEach(function (k) { start[k] = RULES.foothold[k]; });
+    Object.keys(more).forEach(function (k) { start[k] = more[k]; });
     x.owner = 'family';
     x.state = D.createDistrict(start);
     x.appointedBy = by === 'boss' ? null : by;
+  }
+
+  // --- taking a district: by force, by bribery, or by buying it ---
+  var WAYS = ['force', 'bribe', 'buy'];
+  function wayOf(way) {
+    if (WAYS.indexOf(way) < 0) throw new Error('no such way into a district: ' + way);
+    return RULES.takeover[way];
+  }
+  function price(w, id, way) {
+    var t = wayOf(way), held = familyDistricts(w).length;
+    var worth = way === 'buy' ? Math.max(0.5, placeOf(id).traits.wealth) : 1;
+    return Math.round(t.cost * worth * Math.pow(1 + RULES.takeover.step, Math.max(0, held - 1)));
+  }
+  function canPay(w, cur, cost) { return (cur === 'clean' ? w.treasury.clean : w.treasury.dirty + w.treasury.clean) >= cost; }
+  function pay(w, cur, cost) {
+    var street = cur === 'clean' ? 0 : Math.min(w.treasury.dirty, cost);
+    w.treasury.dirty -= street;
+    w.treasury.clean -= cost - street;
+  }
+  // The district the men set out from: the family's best-armed one in that city, or next to it.
+  function baseFor(w, cityId) {
+    var mine = familyDistricts(w), near = mine.filter(function (x) { return x.city === cityId; });
+    if (!near.length) near = mine.filter(function (x) {
+      return ROUTES.some(function (r) { return (r.from === cityId && r.to === x.city) || (r.to === cityId && r.from === x.city); });
+    });
+    return near.length ? near.reduce(function (a, b) { return b.state.crews > a.state.crews ? b : a; }) : null;
+  }
+  // How it looks for this man, this way, today.
+  function odds(w, id, way, capo) {
+    var x = district(w, id), t = wayOf(way), c = D.CAPOS[capo], base = baseFor(w, x.city), power, needed, why;
+    if (!c) throw new Error('unknown capo: ' + capo);
+    if (way === 'force') {
+      power = c.muscle + 2 * (base ? base.state.crews : 0);
+      needed = rivalStrength(w, x.city) + t.edge;
+      why = 'his muscle and the street crews of ' + (base ? base.state.name : 'nobody') + ' against the ' + cityOf(x.city).rival + 's';
+    } else if (way === 'bribe') {
+      power = c.cunning + c.charisma + (w.table.fixer ? t.fixer : 0);
+      needed = t.skill;
+      why = 'his head and his tongue' + (w.table.fixer ? ', with the fixer behind him' : '; a fixer at the table would help');
+    } else {
+      power = needed = 1;
+      why = 'money on the table: the deeds change hands';
+    }
+    return { odds: power >= needed ? 'good' : 'poor', power: power, needed: needed, why: why };
+  }
+  function takeover(w, id, way, capo) {
+    var x = district(w, id), t = wayOf(way), underboss = w.underbosses[x.city], by = 'boss';
+    w.takeovers = w.takeovers || [];
+    if (x.owner === 'family') throw new Error(id + ' is already the family\'s');
+    if (w.takeovers.some(function (o) { return o.district === id; })) throw new Error('a takeover of ' + id + ' is already under way');
+    if (!reachable(w, id)) throw new Error(id + ' is out of reach: the family holds nothing next to it');
+    if (capo) mustBeFree(w, capo, id);
+    else if (!underboss) throw new Error('name a capo for ' + id + ': the family has no underboss in that city');
+    else { capo = pickCapo(w, id, underboss); by = underboss; }
+    var cost = price(w, id, way);
+    if (!canPay(w, t.cur, cost)) throw new Error('the boss cannot afford to ' + way + ' his way into ' + id);
+    pay(w, t.cur, cost);
+    var op = { district: id, city: x.city, way: way, capo: capo, by: by, month: w.month, months: t.months, cost: cost };
+    w.takeovers.push(op);
+    return { district: id, way: way, capo: capo, months: t.months, cost: cost };
+  }
+  function takeovers(w) {
+    return (w.takeovers || []).map(function (o) {
+      var base = baseFor(w, o.city);
+      return { district: o.district, city: o.city, way: o.way, capo: o.capo, months: o.months, cost: o.cost,
+               monthsLeft: Math.max(0, o.months - (w.month - o.month)), from: base ? base.id : null };
+    });
+  }
+  function settle(w, o) {
+    var t = RULES.takeover[o.way], p = placeOf(o.district), c = D.CAPOS[o.capo], rival = cityOf(o.city).rival;
+    var who = c.name.split(' ')[0], base = baseFor(w, o.city);
+    var e = { type: 'takeover', way: o.way, district: o.district, city: o.city, capo: o.capo };
+    if (odds(w, o.district, o.way, o.capo).odds === 'good') {
+      install(w, o.district, o.capo, o.by, t.start);
+      e.outcome = 'done';
+      e.label = o.way === 'force' ? who + '\'s men take ' + p.name + ' from the ' + rival + 's, gun in hand'
+              : o.way === 'bribe' ? 'The ' + rival + 's\' man in ' + p.name + ' takes the envelope: ' + who + ' walks in'
+              : 'The deeds are signed: ' + p.name + ' is bought, and ' + who + ' moves in';
+      e.effects = [p.name + ' is the family\'s', who + ' starts with ' + Math.round(w.districts[o.district].state.share) + '% of the streets'];
+      if (o.way === 'force') e.effects.push('The police are watching: Heat ' + t.start.heat);
+      return e;
+    }
+    e.outcome = 'failed';
+    if (o.way === 'force') {
+      e.dead = base ? Math.min(t.dead, base.state.men) : 0;
+      if (base) { base.state.men -= e.dead; base.state.attacked = RULES.alarm; }
+      w.nextAttack[o.city] = w.month; // the rivals answer at once
+      e.label = who + '\'s men are thrown out of ' + p.name + ': ' + e.dead + ' dead, the ' + rival + 's are coming';
+      e.effects = [e.dead + ' men dead', '$' + o.cost + ' lost', 'The ' + rival + 's strike back'];
+    } else {
+      if (base) base.state.heat = Math.min(100, base.state.heat + t.heat);
+      e.label = 'The ' + rival + 's\' man in ' + p.name + ' keeps the money and talks: ' + who + ' comes back with nothing';
+      e.effects = ['$' + o.cost + ' lost', 'Heat +' + t.heat + (base ? ' in ' + base.state.name : '')];
+    }
+    return e;
+  }
+  function runTakeovers(w, events) {
+    w.takeovers = (w.takeovers || []).filter(function (o) {
+      if (w.month - o.month < o.months) return true;
+      events.push(settle(w, o));
+      return false;
+    });
   }
 
   // The boss puts a city in the hands of an underboss, who then names its capos.
@@ -516,6 +632,7 @@
     w.attacks = [];
     w.rivalMood = w.rivalMood || {};
     w.nextAttack = w.nextAttack || {};
+    runTakeovers(w, events);
     CITIES.forEach(function (c) {
       if (w.month < (w.nextAttack[c.id] || RULES.attackEvery)) return;
       var e = attack(w, c);
@@ -539,6 +656,12 @@
     (w.attacks || []).forEach(function (a) {
       list.push({ kind: 'attack', flow: 'violence', from: 'rivals', to: a.outcome === 'hit' && a.site ? a.site : 'streets', vehicle: 'car', violent: true,
                   by: a.by, outcome: a.outcome, district: a.district, city: a.city });
+    });
+    takeovers(w).forEach(function (t) {
+      if (!t.from) return;
+      list.push({ kind: 'takeover', flow: t.way === 'force' ? 'violence' : 'money', from: 'hideout', to: 'rivals', vehicle: 'car',
+                  violent: t.way === 'force', cargo: t.way === 'force' ? 'men' : t.way === 'bribe' ? 'dirty-cash' : 'cash',
+                  way: t.way, target: t.district, district: t.from, city: w.districts[t.from].city });
     });
     (w.jobs || []).forEach(function (j) {
       list.push({ kind: j.kind, flow: 'violence', from: 'hideout', to: j.kind === 'hit' ? 'rivals' : 'streets', vehicle: 'car', violent: true,
@@ -596,7 +719,7 @@
 
   CITIES.forEach(function (c) { c.districts.forEach(makeLocal); });
 
-  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,

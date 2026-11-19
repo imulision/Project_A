@@ -853,3 +853,18 @@ test('the plan of a capo changes nothing in his district', () => {
   D.plan(d);
   assert.equal(JSON.stringify(d), before);
 });
+
+test('the map is told which places launder and what every vehicle carries', () => {
+  const d = D.createDistrict({ capo: 'dutch' });
+  for (let i = 0; i < 24; i++) D.stepMonth(d);
+  const roles = Object.fromEntries(D.buildings(d).map((b) => [b.type, b.role]));
+  assert.equal(roles.rented, 'laundering');
+  assert.equal(roles.still, 'production');
+  assert.equal(roles.speakeasy, 'sales');
+  const cargo = Object.fromEntries(D.trips(d).map((t) => [t.kind, t.cargo]));
+  assert.equal(cargo.liquor, 'liquor');
+  assert.equal(cargo.takings, 'dirty-cash');
+  assert.equal(cargo.laundering, 'dirty-cash');
+  assert.equal(cargo.tribute, 'cash');
+  assert.ok(D.trips(d).every((t) => t.cargo));
+});
