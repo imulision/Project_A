@@ -162,7 +162,7 @@
   function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats * sizeOf(d, 'speakeasy'); }
   function thirst(d) { return RULES.demand * d.share / 100; }
   function washing(d) {
-    return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d)) * (1 + gain(d, 'wash'))
+    return (d.sites.rented * SITES.rented.wash * sizeOf(d, 'rented') + d.sites.front * SITES.front.wash * sizeOf(d, 'front')) * craft(capoOf(d)) * (1 + gain(d, 'wash'))
       + (d.support.bookkeeper ? RULES.familyWash : 0);
   }
   function skillOf(c, site) { return site.skill ? 0.8 + 0.04 * c[site.skill] : 1; }
@@ -180,7 +180,7 @@
   function placeIncome(d, k) {
     var s = SITES[k];
     if (!s.income) return 0;
-    return s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1)
+    return s.income * sizeOf(d, k) * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1)
       * (1 + (VICE.indexOf(k) >= 0 ? gain(d, 'vice') : 0) + (s.exports ? gain(d, 'exports') : 0));
   }
   // What the district would bring in this month, liquor included, without changing it.
@@ -205,15 +205,35 @@
     return function (d) { d.sites[kind] += 1; };
   }
   function build(kind, label, why, need) {
-    return { kind: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind),
+    return { kind: kind, site: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind),
              saves: kind === 'still' || kind === 'speakeasy' };
   }
   function wantsLiquor(d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8; }
   function wantsSeats(d) { return seats(d) < Math.min(thirst(d), made(d) + 10) - 8; }
-  function canEnlarge(d, kind) { return d.sites[kind] >= RULES.enlargeFrom && d.levels[kind] < RULES.maxLevel; }
+  // The family's building tree, as this district knows it: 0 = the trade is
+  // closed to it, 1 to 3 = the tier its places of that kind can reach.
+  function tier(d, kind) { return d.tech[kind] === undefined ? RULES.maxLevel : d.tech[kind]; }
+  function locked(d, p) { return !!p.site && tier(d, p.site) < 1; }
+  function canEnlarge(d, kind, from) {
+    return d.sites[kind] >= (from || RULES.enlargeFrom) && d.levels[kind] < Math.min(RULES.maxLevel, tier(d, kind));
+  }
+  // Once a capo has as many rooms of a kind as his district can fill, the only way up is bigger rooms.
+  function fullOf(d, kind) {
+    if (kind === 'gambling') return d.sites.gambling >= d.sites.speakeasy;
+    if (kind === 'loft') return d.sites.loft >= 2;
+    return d.sites[kind] >= Math.round(2 * d.traits[SITES[kind].trait]);
+  }
+  function grow(kind, label, why) {
+    return { kind: 'enlarge-' + kind, like: kind, site: kind, label: label, why: why, cur: 'dirty', men: 0, hot: false,
+             price: function (d) { return RULES.enlargeCost * d.sites[kind] * d.levels[kind]; },
+             need: function (d) {
+               return canEnlarge(d, kind, 1) && fullOf(d, kind) && liquorSettled(d) && d.profit >= RULES.thinProfit ? 3 : 0; // a new racket comes first
+             },
+             apply: function (d) { d.levels[kind] += 1; } };
+  }
   // Every place of that kind grows one level: no new men, no new address.
   function enlarge(kind, label, why, wants) {
-    return { kind: 'enlarge-' + kind, like: kind, label: label, why: why, cur: 'dirty', men: 0, hot: false, saves: true,
+    return { kind: 'enlarge-' + kind, like: kind, site: kind, label: label, why: why, cur: 'dirty', men: 0, hot: false, saves: true,
              price: function (d) { return RULES.enlargeCost * d.sites[kind] * d.levels[kind]; },
              need: function (d) { return canEnlarge(d, kind) && wants(d) ? 6 : 0; },
              apply: function (d) { d.levels[kind] += 1; } };
@@ -271,13 +291,21 @@
     racket('fence', 'Sets up a fence for hijacked goods', 'too much comes off the ships to ignore'),
     racket('loans', 'Opens a loan office', 'people here have something to lose'),
     racket('union', 'Takes over a union local', 'the factories can be made to pay'),
+    grow('gambling', 'Enlarges his gambling rooms', 'every back room is taken: bigger tables'),
+    grow('loft', 'Enlarges his cannabis lofts', 'no more roofs to use: bigger lofts'),
+    grow('brothel', 'Enlarges his brothels', 'the night trade wants bigger houses'),
+    grow('chopshop', 'Enlarges his chop shops', 'more cars than his garages can strip'),
+    grow('fence', 'Enlarges his fences', 'more goods off the ships than his fences can move'),
+    grow('loans', 'Enlarges his loan offices', 'more borrowers than his offices can carry'),
+    grow('union', 'Tightens his grip on the union locals', 'the factories can pay more'),
+    enlarge('front', 'Enlarges his fronts', 'bigger fronts wash more than one more shop', washShort),
     { kind: 'seize', label: 'Takes a warehouse by force', why: 'the stash is full, and he takes room rather than pay for it', cost: 0, cur: 'dirty', men: SITES.warehouse.staff, hot: true,
       need: function (d) { return stashFull(d) ? 6 : 0; },
       apply: function (d) { d.sites.warehouse += 1; d.goodwill -= RULES.seizeGoodwill; d.heat += RULES.seizeHeat; } },
     build('warehouse', 'Buys a warehouse', 'the stash is full',
       function (d) { return stashFull(d) ? 4 : 0; }),
     build('front', 'Buys a laundry as a front', 'clean money buys a better laundry',
-      function (d) { return !washShort(d) ? 0 : cashPiling(d) ? 6 : 3; }),
+      function (d) { return !washShort(d) || canEnlarge(d, 'front') ? 0 : cashPiling(d) ? 6 : 3; }),
     build('rented', 'Rents a laundry under another name', 'dirty money outruns the laundering',
       function (d) { return washShort(d) && cashPiling(d) && d.clean < 1000 ? 5 : 0; }),
     { kind: 'bribe', label: 'Puts the precinct on the payroll', why: 'the police are getting close', cost: RULES.bribe, cur: 'dirty', men: 0,
@@ -332,7 +360,7 @@
   function chooseProject(d) {
     var c = capoOf(d), wages = payroll(d), free = d.men - busyMen(d), wanted = [], shortOfMen = false;
     PROJECTS.forEach(function (p, order) {
-      if (c.refuses.indexOf(p.like || p.kind) >= 0) return;
+      if (c.refuses.indexOf(p.like || p.kind) >= 0 || locked(d, p)) return;
       if (p.hot && (d.watched > 0 || d.heat > nerve(c))) return;
       var weight = p.need(d, c) * (c.likes.indexOf(p.like || p.kind) >= 0 ? RULES.likes : 1);
       // the payroll is never spent on a project, except to save a district that barely pays
@@ -365,12 +393,26 @@
       if (weight >= RULES.minNeed && (!best || weight > best.weight)) best = { p: p, weight: weight };
     });
     if (!best) return { kind: 'hold', label: pick.label, why: pick.why, cost: 0, saved: 0, progress: 1, waiting: null };
+    if (locked(d, best.p)) {
+      return { kind: best.p.kind, site: best.p.site, label: best.p.label, why: 'the family has not learned this trade', cost: costOf(best.p, d), saved: 0, progress: 0, waiting: 'research' };
+    }
     var p = best.p, cost = costOf(p, d), hot = !!p.hot && (d.watched > 0 || d.heat > nerve(c));
     var reserve = p.cur !== 'dirty' || (p.saves && d.profit < RULES.thinProfit) ? 0 : wages;
     var saved = Math.max(0, Math.min(cost, d[p.cur] - reserve));
     var short = cost > 0 && saved < cost;
     return { kind: p.kind, label: p.label, why: p.why, cost: cost, saved: saved, progress: short ? saved / cost : 1,
              waiting: hot ? 'heat' : short ? 'money' : 'men' };
+  }
+
+  // The closed trade he would open first if the family knew how, or null.
+  function wish(d) {
+    var c = capoOf(d), best = null;
+    PROJECTS.forEach(function (p) {
+      if (!locked(d, p) || c.refuses.indexOf(p.like || p.kind) >= 0) return;
+      var liked = c.likes.indexOf(p.like || p.kind) >= 0, weight = p.need(d, c) * (liked ? RULES.likes : 1);
+      if (weight >= RULES.minNeed && (!best || weight > best.weight)) best = { site: p.site, label: p.label, why: p.why, weight: weight, liked: liked };
+    });
+    return best;
   }
 
   function projectOf(kind) {
@@ -512,17 +554,17 @@
     var d = {
       name: 'Hillside', capo: o.capo, month: 0,
       men: 14, guards: 2, crews: 0, collectors: 0, trucks: 2, cars: 2,
-      sites: {}, levels: { still: 1, speakeasy: 1 },
+      sites: {}, levels: {}, tech: {},
       traits: { nightlife: 1, industry: 0.4, port: 0, wealth: 1.2 }, // a hill of houses above the city
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
       boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, threat: 0, grudge: 0, rank: 0, paid: false, skills: [], last: null
     };
-    SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
+    SITE_KEYS.forEach(function (k) { d.sites[k] = 0; d.levels[k] = 1; d.tech[k] = RULES.maxLevel; });
     d.sites.still = 2; d.sites.speakeasy = 2;
     Object.keys(o).forEach(function (k) {
-      if (k === 'sites' || k === 'traits' || k === 'support' || k === 'levels') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
+      if (k === 'sites' || k === 'traits' || k === 'support' || k === 'levels' || k === 'tech') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
       else if (k === 'skills') d.skills = o.skills.slice();
       else if (k in d) d[k] = o[k];
     });
@@ -637,7 +679,7 @@
   }
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
-              chooseProject: chooseProject, plan: plan, addCapo: addCapo, stepMonth: stepMonth, buildings: buildings, cash: cash, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
+              chooseProject: chooseProject, plan: plan, wish: wish, roleOf: roleOf, addCapo: addCapo, stepMonth: stepMonth, buildings: buildings, cash: cash, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
               goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS,
               defence: defence, SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
