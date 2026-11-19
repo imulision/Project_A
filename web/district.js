@@ -116,14 +116,15 @@
   }
   // Everything the district brings in this month except the liquor.
   function sideIncome(d) {
-    var c = capoOf(d), total = d.collectors * RULES.protectionTake * d.share / 50;
-    SITE_KEYS.forEach(function (k) {
-      var s = SITES[k];
-      if (!s.income) return;
-      total += d.sites[k] * s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(c, s)
-        * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
-    });
+    var total = d.collectors * RULES.protectionTake * d.share / 50;
+    SITE_KEYS.forEach(function (k) { total += d.sites[k] * placeIncome(d, k); });
     return total;
+  }
+  // What one place of that kind brings in a month, liquor apart.
+  function placeIncome(d, k) {
+    var s = SITES[k];
+    if (!s.income) return 0;
+    return s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
   }
   // What the district would bring in this month, liquor included, without changing it.
   function income(d) {
@@ -356,8 +357,10 @@
     SITE_KEYS.forEach(function (k) { heat += d.sites[k] * SITES[k].heat; });
     if (d.bribing) heat -= 2 + c.cunning / 2;
     d.heat = clamp(d.heat + heat);
+    var raided = null;
     if (d.heat >= RULES.raidHeat) {
-      events.push(raid(d));
+      raided = raid(d);
+      events.push(raided);
     }
 
     // the street
@@ -369,7 +372,8 @@
     if (d.watched > 0) d.watched -= 1;
     d.month += 1;
     d.last = { sold: m.sold, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
-               washed: w.washed, washLoss: w.washLoss, overflow: overflow, spilled: spilled };
+               washed: w.washed, washLoss: w.washLoss, overflow: overflow, spilled: spilled,
+               decision: events[0].kind, raid: raided ? raided.site || 'none' : null };
     return events;
   }
 
@@ -395,9 +399,64 @@
     return d;
   }
 
+  // The flows the map can show, and the flow each kind of trip belongs to.
+  var FLOWS = ['logistics', 'sales', 'money', 'building', 'violence'];
+  var FLOW_OF = { liquor: 'logistics', takings: 'sales', laundering: 'money', tribute: 'money', works: 'building',
+                  streets: 'violence', collection: 'violence', seizure: 'violence', raid: 'violence', attack: 'violence' };
+
+  // Last month's chain in figures: what was made, what waits in the cellar,
+  // what was sold and what held sales back, then where the money went.
+  function flows(d) {
+    var m = d.last || { sold: 0, income: 0, costs: 0, profit: 0, washed: 0, owed: 0, skim: 0, spilled: 0 };
+    var limit = thirst(d) <= seats(d) && thirst(d) <= d.stock + made(d) ? 'drinkers' : seats(d) <= d.stock + made(d) ? 'seats' : 'stills';
+    return { made: d.last ? made(d) : 0, stock: d.stock, sold: m.sold, seats: seats(d), drinkers: thirst(d), limit: limit,
+             income: m.income, costs: m.costs, profit: m.profit, washed: m.washed, tribute: m.owed - m.skim, kept: m.skim, spilled: m.spilled };
+  }
+
+  function slugOf(d) { return d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+
+  // What moved in the district last month, for the map to show: one entry per
+  // trip, from a place to a place. Ends are building ids (see buildings) or
+  // 'hideout', 'streets', 'shops', 'boss', 'police'. Nothing here decides
+  // anything: it only tells again what stepMonth did.
+  function trips(d) {
+    var m = d.last, list = [];
+    if (!m) return list;
+    var id = function (kind, n) { return slugOf(d) + '-' + kind + '-' + n; };
+    var add = function (kind, from, to, vehicle, more) {
+      var t = { kind: kind, flow: FLOW_OF[kind], from: from, to: to, vehicle: vehicle, violent: false };
+      Object.keys(more || {}).forEach(function (k) { t[k] = more[k]; });
+      list.push(t);
+    };
+    var i, bars = d.sites.speakeasy;
+    if (m.sold > 0) {
+      for (i = 1; i <= bars; i++) {
+        add('liquor', d.sites.still ? id('still', (i - 1) % d.sites.still + 1) : 'hideout', id('speakeasy', i), 'truck', { crates: m.sold / bars });
+      }
+    }
+    SITE_KEYS.forEach(function (k) {
+      if (k !== 'speakeasy' && !SITES[k].income) return;
+      var amount = k === 'speakeasy' ? m.sold * RULES.crate / bars : placeIncome(d, k);
+      for (var n = 1; n <= d.sites[k]; n++) add('takings', id(k, n), 'hideout', 'car', { amount: amount });
+    });
+    if (m.washed > 0) {
+      var laundry = d.sites.front ? id('front', 1) : d.sites.rented ? id('rented', 1) : 'boss'; // 'boss': the family's bookkeeper
+      add('laundering', 'hideout', laundry, 'car', { amount: m.washed });
+    }
+    if (m.owed - m.skim > 0) add('tribute', 'hideout', 'boss', 'car', { amount: m.owed - m.skim });
+    for (i = 0; i < d.crews; i++) add('streets', 'hideout', 'streets', 'car', { men: CREW.street.men, violent: true });
+    for (i = 0; i < d.collectors; i++) add('collection', 'hideout', 'shops', 'car', { men: CREW.protection.men, violent: true, amount: RULES.protectionTake * d.share / 50 });
+    if (SITES[m.decision] && d.sites[m.decision] > 0) add('works', 'hideout', id(m.decision, d.sites[m.decision]), 'truck');
+    if (m.decision === 'seize' && d.sites.warehouse > 0) {
+      add('seizure', 'hideout', id('warehouse', d.sites.warehouse), 'car', { men: SITES.warehouse.staff, violent: true });
+    }
+    if (m.raid) add('raid', 'police', SITES[m.raid] ? id(m.raid, d.sites[m.raid] + 1) : 'hideout', 'police', { violent: true });
+    return list;
+  }
+
   // What the map needs to draw the district: one entry per building.
   function buildings(d) {
-    var list = [], slug = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    var list = [], slug = slugOf(d);
     SITE_KEYS.forEach(function (k) {
       for (var i = 1; i <= d.sites[k]; i++) {
         list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, staff: SITES[k].staff, level: 1 });
@@ -408,7 +467,7 @@
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
               chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
-              goodwillChange: goodwillChange, streetsChange: streetsChange };
+              goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
 })(typeof self !== 'undefined' ? self : this);

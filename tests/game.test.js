@@ -159,3 +159,21 @@ test('before the game starts, the boss can already look at the men he could name
   assert.deepEqual(G.candidates(g, 'ashport-hillside').map((c) => c.id), cards.map((c) => c.id));
   assert.equal(g.started, false);
 });
+
+test('the screen can ask what moves on the map this month', () => {
+  const g = G.createGame();
+  assert.deepEqual(G.trips(g), []);
+  G.command(g, { type: 'start', capo: 'dutch' });
+  month(g);
+  const trips = G.trips(g);
+  assert.ok(trips.some((t) => t.kind === 'liquor') && trips.some((t) => t.kind === 'tribute'));
+  assert.deepEqual(G.trips(G.load(G.save(g))), trips);
+});
+
+test('the screen can ask for the flows of one of the family\'s districts', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  month(g);
+  const f = G.flows(g, 'ashport-hillside');
+  assert.ok(f.made > 0 && f.sold > 0 && f.income > 0);
+  assert.equal(G.flows(g, 'ashport-docks'), null);
+});

@@ -146,6 +146,13 @@
   }
 
   function view(g) { return W.view(g.world); }
+  // What moves on the map this month (see world.js). Nothing before the game starts.
+  function trips(g) { return g.world ? W.trips(g.world) : []; }
+  // Last month's chain of one district in figures (see district.js), or null if the family is not there.
+  function flows(g, districtId) {
+    var x = g.world && W.district(g.world, districtId);
+    return x && x.state ? D.flows(x.state) : null;
+  }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
     var g = JSON.parse(text);
@@ -154,7 +161,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);
