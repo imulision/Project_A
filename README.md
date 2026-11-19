@@ -31,10 +31,17 @@ with a quality, a flaw and a plan, monthly income, scripted events.
 
 ## Android app
 
-Every push to `main` publishes `ashport.apk` in the Releases of this repository.
-Install it once on the phone, and later releases install over it.
+Every push to `main` publishes a release with `ashport.apk` and `web.zip`.
+Install the APK once. At each launch the app asks GitHub for the latest release
+and, if it is newer, downloads `web.zip` and plays that from then on. A new APK
+is only needed when the shell in `android/` itself changes.
+
+The download logic is in `GameBundle.java` and `UpdateCheck.java`, plain Java
+tested in `android/app/src/test`. A failed or broken download never replaces
+the game already on the phone.
 
 All builds are signed with `android/prototype.keystore`, whose password is in
 `android/app/build.gradle`. That is deliberate: Android refuses an update signed
-with a different key, and this key protects nothing but a private prototype.
+with a different key. The repository is public, so anyone can read this key:
+only install the APK from the releases of this repository.
 Replace it with a secret key before the game is given to anyone else.
