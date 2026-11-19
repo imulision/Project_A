@@ -63,8 +63,17 @@ const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats()
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
 await shot('c2-first-club');
 
-// a touch on his face opens his sheet
-await page.click('.lab.capo');
+// a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens
+const face = await page.locator('.lab.capo').boundingBox(), fx = face.x + face.width / 2, fy = face.y + face.height / 2;
+await page.mouse.move(fx, fy); await page.mouse.down(); await page.mouse.move(fx + 40, fy + 30, { steps: 4 }); await page.mouse.move(fx + 90, fy + 60, { steps: 4 }); await page.mouse.up();
+await page.waitForTimeout(300);
+assert.equal(await page.locator('#veil.on').count(), 0, 'a drag is not a touch');
+const moved = await page.locator('.lab.capo').boundingBox();
+assert.ok(Math.hypot(moved.x - face.x, moved.y - face.y) > 40, 'the map followed the finger (' + Math.round(moved.x - face.x) + ', ' + Math.round(moved.y - face.y) + ')');
+
+// a short touch on his face opens his sheet
+await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
+await page.waitForSelector('#veil.on');
 assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
 await page.click('#sheet [data-act=close]');

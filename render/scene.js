@@ -764,7 +764,7 @@ el.addEventListener('pointermove', e => {
   else if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) zoomBy(d / pinch); pinch = d; }
 });
 const up = e => { pts.delete(e.pointerId); pinch = 0;
-  if (tap && e.type === 'pointerup' && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 9 && performance.now() - tap.t < 500 && opt.onTap) opt.onTap(pickAt(e.clientX, e.clientY));
+  if (tap && e.type === 'pointerup' && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 9 && performance.now() - tap.t < 500 && opt.onTap) opt.onTap(pickAt(e.clientX, e.clientY), e.clientX, e.clientY);
   tap = null; };
 el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 el.addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 0.9); }, { passive: false });
