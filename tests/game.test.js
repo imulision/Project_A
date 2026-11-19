@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const G = require('../web/game.js');
 const W = require('../web/world.js');
+const D = require('../web/district.js');
 
 const month = (g) => { const out = []; for (let i = 0; i < G.TICKS_PER_MONTH; i++) out.push(...G.tick(g)); return out; };
 
@@ -301,10 +302,16 @@ test('the boss orders a takeover, watches it advance, and reads how it ended', (
 });
 
 // A boss who only uses takeovers, and only the ones his man says look good.
-function patient(g, months) {
+function patient(g, months, learns) {
   for (let m = 0; m < months; m++) {
     month(g);
     G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
+    G.promotions(g).forEach((p) => G.command(g, { type: 'promote', capo: p.capo, ability: p.options[0].id }));
+    if (learns && !G.research(g)) {
+      // he has the family learn what his capos ask for, the cheapest first
+      const asked = G.tree(g).filter((b) => b.wantedBy.length && b.next && b.next.affordable).sort((x, y) => x.next.cost - y.next.cost)[0];
+      if (asked) assert.deepEqual(G.command(g, { type: 'research', building: asked.id }), { ok: true });
+    }
     if (G.takeovers(g).length) continue;
     search: for (const o of G.openings(g)) {
       for (const w of o.ways) {
@@ -364,4 +371,50 @@ test('the screen reads the money of a district place by place, and nothing where
   for (let i = 0; i < 12; i++) month(g);
   assert.ok(G.cash(g, W.HOME).some((c) => c.at === 'hideout' && c.kind === 'dirty'));
   assert.deepEqual(G.cash(g, 'ashport-docks'), []);
+});
+
+test('the screen reads the building tree, orders a trade and watches its bar', () => {
+  const blank = G.tree(G.createGame());
+  assert.equal(blank.find((b) => b.id === 'still').tier, 1);
+  assert.equal(blank.find((b) => b.id === 'gambling').tier, 0);
+  const g = G.createGame({ capo: 'danny' });
+  const gambling = () => G.tree(g).find((b) => b.id === 'gambling');
+  assert.equal(gambling().next.affordable, false);
+  assert.equal(G.command(g, { type: 'research', building: 'gambling' }).ok, false);
+  g.world.treasury.clean = 5000;
+  assert.equal(gambling().next.affordable, true);
+  assert.deepEqual(gambling().likedBy.map((p) => p.name), [D.CAPOS.danny.name]);
+  assert.deepEqual(G.command(g, { type: 'research', building: 'gambling' }), { ok: true });
+  assert.equal(gambling().next.affordable, false, 'one subject at a time');
+  month(g);
+  const r = G.research(g);
+  assert.deepEqual([r.id, r.building, r.tier, r.name], ['gambling', true, 1, 'Gambling room']);
+  assert.ok(r.progress > 0 && r.progress < 1);
+  assert.ok(gambling().progress > 0 && gambling().progress < 1);
+  for (let i = 0; i < r.months; i++) month(g);
+  assert.equal(gambling().tier, 1);
+  assert.equal(gambling().progress, null);
+  assert.ok(g.journal.some((e) => e.type === 'research' && e.building === 'gambling'));
+});
+
+test('a capo who waits for a trade says so, and the tree names him', () => {
+  const g = G.createGame({ capo: 'danny' });
+  let asked = null;
+  for (let i = 0; i < 36 && !asked; i++) { month(g); asked = G.tree(g).find((b) => b.wantedBy.length); }
+  assert.ok(asked, 'within three years Danny asks for a trade');
+  assert.deepEqual(asked.wantedBy.map((p) => p.id), ['danny']);
+  assert.equal(G.intent(g, W.HOME).wish.site, asked.id);
+});
+
+test('a boss who has the family learn what its capos ask for ends twenty years with more trades and more money coming in', () => {
+  const plain = G.createGame({ capo: 'dutch' }), learned = G.createGame({ capo: 'dutch' });
+  patient(plain, 240);
+  patient(learned, 240, true);
+  const trades = (g) => G.tree(g).filter((b) => b.tier > 0).length;
+  const held = (g) => G.view(g).cities.reduce((n, c) => n + c.held, 0);
+  const income = (g) => G.hud(g).lastMonth.dirty + G.hud(g).lastMonth.clean;
+  assert.equal(trades(plain), 4);
+  assert.ok(trades(learned) >= 7, trades(learned) + ' trades known');
+  assert.ok(held(learned) >= held(plain), held(learned) + ' districts against ' + held(plain));
+  assert.ok(income(learned) > 1.5 * income(plain), Math.round(income(learned)) + ' a month against ' + Math.round(income(plain)));
 });

@@ -108,6 +108,10 @@
     grace: 12,           // months the rivals leave a new foothold alone
     // Teaching the whole family what one man knows: clean $ and months, by ring of the wheel.
     research: { cost: [3000, 8000, 20000], months: [6, 9, 12] },
+    // The building tree: the trades a new family knows, and what each tier of a
+    // trade costs in clean money and months. `taught`: the share of the time it
+    // takes when a capo in post likes the trade.
+    tree: { open: ['still', 'speakeasy', 'rented', 'warehouse'], cost: [1000, 3500, 10000], months: [4, 6, 9], taught: 0.5 },
     promotionWait: 3,    // months a man waits for the boss's word before he takes his rank himself
     // Places at each rank: so many to start with, and one more for every so many districts held.
     places: { 1: { base: 2, every: 3 }, 2: { base: 1, every: 6 }, 3: { base: 0, every: 8 } },
@@ -252,7 +256,7 @@
   // The capo walks in with a first crew, a still and a back room.
   function install(w, id, capo, by, more) {
     var x = district(w, id), p = placeOf(id);
-    var start = { capo: capo, name: p.name, traits: p.traits, support: tableSupport(w) };
+    var start = { capo: capo, name: p.name, traits: p.traits, support: tableSupport(w), tech: known(w) };
     Object.keys(RULES.foothold).forEach(function (k) { start[k] = RULES.foothold[k]; });
     Object.keys(more).forEach(function (k) { start[k] = more[k]; });
     x.owner = 'family';
@@ -405,6 +409,7 @@
     x.state.skills = r.abilities.slice();
     (w.shared || []).forEach(function (a) { if (x.state.skills.indexOf(a) < 0) x.state.skills.push(a); });
     x.state.rank = r.rank;
+    x.state.tech = known(w);
   }
   // A month in post: he learns what his district did. Once he has earned the
   // next rank and a place is free, he waits for the boss to choose his ability.
@@ -525,9 +530,11 @@
   }
   function researching(w) {
     var r = w.research;
-    return r ? { id: r.id, months: r.months, monthsLeft: Math.max(0, r.months - (w.month - r.month)), cost: r.cost } : null;
+    return r ? { id: r.id, building: !!r.tier, tier: r.tier || null, months: r.months, monthsLeft: Math.max(0, r.months - (w.month - r.month)), cost: r.cost } : null;
   }
   function research(w, abilityId) {
+    if (D.SITES[abilityId]) return learnTrade(w, abilityId);
+    if (!D.ABILITIES[abilityId]) throw new Error('no such ability or trade: ' + abilityId);
     var ring = ringOf(abilityId), cost = RULES.research.cost[ring];
     if (w.research) throw new Error('the family is already learning ' + w.research.id);
     if ((w.shared || []).indexOf(abilityId) >= 0) throw new Error('the family already knows ' + abilityId);
@@ -539,12 +546,67 @@
   function runResearch(w, events) {
     var r = w.research;
     if (!r || w.month - r.month < r.months) return;
+    if (r.tier) {
+      w.tree = known(w);
+      w.tree[r.id] = r.tier;
+      w.research = null;
+      familyDistricts(w).forEach(function (x) { x.state.tech = known(w); });
+      events.push({ type: 'research', building: r.id, tier: r.tier, district: HOME, city: w.districts[HOME].city,
+                    label: r.tier === 1 ? 'The family has learned a new trade: ' + D.SITES[r.id].name + '. The capos can open one where it pays'
+                                        : D.SITES[r.id].name + ' reaches tier ' + TIERS[r.tier] + ': the capos can make theirs bigger' });
+      return;
+    }
     w.shared = w.shared || [];
     w.shared.push(r.id);
     w.research = null;
     var a = D.ABILITIES[r.id].ability;
     events.push({ type: 'research', ability: r.id, sector: D.ABILITIES[r.id].sector, district: HOME, city: w.districts[HOME].city,
                   label: 'The whole family now knows ' + a.name + ': ' + a.text.toLowerCase() + ', in every district' });
+  }
+
+  // --- the building tree: the trades the family knows, and the tier of each ---
+  var TIERS = ['', 'I', 'II', 'III'];
+  function startTree() {
+    var t = {};
+    Object.keys(D.SITES).forEach(function (k) { t[k] = RULES.tree.open.indexOf(k) >= 0 ? 1 : 0; });
+    return t;
+  }
+  // A copy of what the family knows. A game saved before the tree existed knows everything.
+  function known(w) {
+    var t = {};
+    Object.keys(D.SITES).forEach(function (k) { t[k] = w.tree ? w.tree[k] || 0 : D.RULES.maxLevel; });
+    return t;
+  }
+  function likedBy(w, kind) {
+    return posts(w).filter(function (n) { return D.CAPOS[n.capo].likes.indexOf(kind) >= 0; }).map(function (n) { return n.capo; });
+  }
+  // The next tier of a trade: its price and how long it takes. A capo who likes the trade teaches it faster.
+  function nextTier(w, kind) {
+    var tier = known(w)[kind] + 1;
+    if (tier > D.RULES.maxLevel) return null;
+    var months = RULES.tree.months[tier - 1];
+    if (likedBy(w, kind).length) months = Math.ceil(months * RULES.tree.taught);
+    return { tier: tier, cost: RULES.tree.cost[tier - 1], months: months };
+  }
+  function learnTrade(w, kind) {
+    var next = nextTier(w, kind);
+    if (w.research) throw new Error('the family is already learning ' + w.research.id);
+    if (!next) throw new Error(D.SITES[kind].name + ' is as far as it goes');
+    if (w.treasury.clean < next.cost) throw new Error('research is paid in clean money: $' + next.cost + ' needed');
+    w.treasury.clean -= next.cost;
+    w.research = { id: kind, tier: next.tier, month: w.month, months: next.months, cost: next.cost };
+  }
+  // The tree for the screen: every trade, its tier, the next step and who asks for it.
+  function tree(w) {
+    var t = known(w), asking = {}, now = researching(w);
+    familyDistricts(w).forEach(function (x) {
+      var wish = D.wish(x.state);
+      if (wish) (asking[wish.site] = asking[wish.site] || []).push(x.state.capo);
+    });
+    return Object.keys(D.SITES).map(function (k) {
+      return { id: k, name: D.SITES[k].name, role: D.roleOf(k), tier: t[k], of: D.RULES.maxLevel, next: nextTier(w, k),
+               likedBy: likedBy(w, k), wantedBy: asking[k] || [], monthsLeft: now && now.id === k ? now.monthsLeft : null };
+    });
   }
 
   // The family's wheel: every ability, lit when a man in post holds it.
@@ -846,14 +908,15 @@
     });
     var home = placeOf(HOME);
     w.rivalDead = {};
+    w.tree = startTree();
     w.districts[HOME].owner = 'family';
-    w.districts[HOME].state = D.createDistrict({ capo: o.capo, name: home.name, traits: home.traits });
+    w.districts[HOME].state = D.createDistrict({ capo: o.capo, name: home.name, traits: home.traits, tech: known(w) });
     return w;
   }
 
   CITIES.forEach(function (c) { c.districts.forEach(makeLocal); });
 
-  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, research: research, researching: researching, promotions: promotions, promote: promote, ranks: ranks, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, research: research, researching: researching, tree: tree, promotions: promotions, promote: promote, ranks: ranks, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,

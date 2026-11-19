@@ -333,8 +333,8 @@ test('nobody fences hijacked goods in a district without a port', () => {
 });
 
 test('on the docks a bootlegger ends up fencing what comes off the ships', () => {
-  const { d } = fiveYears('dutch', DOCKS);
-  assert.ok(d.sites.fence > 0);
+  const { d, kinds } = fiveYears('dutch', DOCKS);
+  assert.ok(kinds.has('fence'), 'the police may shut them, but he opens fences');
   assert.equal(d.name, 'The Docks');
 });
 
@@ -342,7 +342,8 @@ test('a capo sorts out the liquor before he branches out', () => {
   const d = D.createDistrict({ capo: 'danny', dirty: 3000, share: 80, sites: { still: 1, speakeasy: 2 }, ...DOCKS });
   assert.ok(!D.RACKETS.includes(D.chooseProject(d).kind));
   d.sites.still = 7; d.sites.speakeasy = 5; // now the liquor flows
-  d.sites.gambling = 5; d.sites.loft = 2; d.sites.warehouse = 2; d.sites.front = 6; d.dirty = 6000; d.crews = 4; d.collectors = 3; d.men = 80;
+  d.sites.gambling = 5; d.sites.loft = 2; d.levels.gambling = 3; d.levels.loft = 3; // his rooms are as big as they get
+   d.sites.warehouse = 2; d.sites.front = 6; d.dirty = 6000; d.crews = 4; d.collectors = 3; d.men = 80;
   d.trucks = 8; d.cars = 12; // and it is carried
   assert.ok(D.RACKETS.includes(D.chooseProject(d).kind), D.chooseProject(d).kind);
 });
@@ -882,4 +883,69 @@ test('the map is told where the money of a district sits, place by place', () =>
   const washed = at('washing').reduce((n, c) => n + c.amount, 0);
   assert.ok(Math.abs(washed - d.last.washed) < 0.01, 'the laundries share what was washed last month');
   assert.deepEqual(D.cash(D.createDistrict({ capo: 'sal' })).filter((c) => c.kind === 'takings'), []);
+});
+
+// --- the building tree: what the family knows how to run, and how big ---
+const OPEN = { still: 1, speakeasy: 1, rented: 1, warehouse: 1 };
+const knowing = (more) => { const t = {}; for (const k of Object.keys(D.SITES)) t[k] = 0; return Object.assign(t, OPEN, more); };
+const live = (d, months) => { for (let i = 0; i < months; i++) D.stepMonth(d); return d; };
+
+test('a district on its own knows every trade, at the highest tier', () => {
+  const d = D.createDistrict({ capo: 'danny' });
+  for (const k of Object.keys(D.SITES)) assert.equal(d.tech[k], D.RULES.maxLevel, k);
+});
+
+test('a capo never opens a place the family has not learned to run', () => {
+  const d = live(D.createDistrict({ capo: 'danny', tech: knowing({}) }), 60);
+  for (const k of Object.keys(D.SITES)) if (!OPEN[k]) assert.equal(d.sites[k], 0, k);
+  assert.ok(d.sites.still > 0 && d.sites.speakeasy > 0);
+  const free = live(D.createDistrict({ capo: 'danny' }), 60);
+  assert.ok(free.sites.gambling > 0, 'the same man opens gambling rooms once the family knows how');
+});
+
+test('a capo says which closed trade he would open, and whether it is to his taste', () => {
+  const d = D.createDistrict({ capo: 'danny', tech: knowing({}), dirty: 3000 });
+  const wish = D.wish(d);
+  assert.equal(wish.site, 'gambling');
+  assert.equal(wish.liked, true);
+  assert.match(wish.label, /gambling/i);
+  assert.equal(D.wish(D.createDistrict({ capo: 'danny' })), null, 'nothing is closed to him');
+  const mae = D.createDistrict({ capo: 'mae', tech: knowing({}), dirty: 3000 });
+  assert.notEqual((D.wish(mae) || {}).site, 'loft', 'she refuses it: she does not ask for it');
+});
+
+test('a capo with nothing else to do says he waits for the family to learn his trade', () => {
+  const d = D.createDistrict({ capo: 'danny', tech: knowing({}), share: 90, collectors: 3, heat: 10, sites: { still: 5, speakeasy: 5, rented: 4 }, trucks: 6, cars: 6, men: 60, pulledBack: 6 });
+  assert.equal(D.chooseProject(d).kind, 'hold');
+  const plan = D.plan(d);
+  assert.equal(plan.waiting, 'research');
+  assert.equal(plan.site, 'gambling');
+});
+
+test('places grow no bigger than the tier the family has reached', () => {
+  const small = live(D.createDistrict({ capo: 'dutch', share: 90, tech: knowing({}) }), 96);
+  assert.equal(small.levels.still, 1);
+  assert.equal(small.levels.speakeasy, 1);
+  const two = live(D.createDistrict({ capo: 'dutch', share: 90, tech: knowing({ still: 2, speakeasy: 2 }) }), 96);
+  assert.ok(two.levels.still <= 2 && two.levels.speakeasy <= 2);
+  assert.ok(Math.max(two.levels.still, two.levels.speakeasy) === 2, 'he enlarges up to tier II');
+});
+
+test('a bigger gambling room, loft or racket pays more, and a bigger front washes more', () => {
+  const base = { capo: 'danny', sites: { gambling: 2, front: 1 } };
+  const one = D.createDistrict(base), two = D.createDistrict({ ...base, levels: { gambling: 2, front: 2 } });
+  assert.ok(D.sideIncome(two) > D.sideIncome(one));
+  const before = one.clean, after = two.clean;
+  one.dirty = two.dirty = 5000;
+  D.stepMonth(one); D.stepMonth(two);
+  assert.ok(two.clean - after > one.clean - before, 'the bigger front washed more');
+});
+
+test('once his rooms are all open, a capo enlarges them if the family knows how', () => {
+  const d = live(D.createDistrict({ capo: 'dutch', share: 70 }), 120);
+  assert.ok(d.levels.gambling > 1, 'gambling rooms at level ' + d.levels.gambling);
+  const capped = live(D.createDistrict({ capo: 'dutch', share: 70, tech: knowing({ gambling: 1, loft: 1 }) }), 120);
+  assert.equal(capped.levels.gambling, 1);
+  assert.ok(d.levels.front > 1 && d.sites.front <= 4, 'three fronts, then bigger ones: ' + d.sites.front + ' at level ' + d.levels.front);
+  assert.equal(D.buildings(d).find((b) => b.type === 'gambling').level, d.levels.gambling);
 });

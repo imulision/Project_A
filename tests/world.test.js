@@ -884,3 +884,104 @@ test('what the family has learned stays when the man who taught it is gone', () 
   play(w, 1);
   assert.ok(W.district(w, W.HOME).state.skills.includes(ability));
 });
+
+// --- the building tree: the family learns trades, then learns to run them bigger ---
+const START = ['still', 'speakeasy', 'rented', 'warehouse'];
+const branch = (w, id) => W.tree(w).find((b) => b.id === id);
+
+test('a new family knows liquor, a rented laundry and a warehouse, and nothing else', () => {
+  const w = W.createWorld({ capo: 'danny' });
+  assert.deepEqual(W.tree(w).map((b) => b.id), Object.keys(D.SITES));
+  for (const b of W.tree(w)) {
+    assert.equal(b.tier, START.includes(b.id) ? 1 : 0, b.id);
+    assert.equal(b.of, 3);
+    assert.equal(b.name, D.SITES[b.id].name);
+    assert.ok(['laundering', 'production', 'sales', 'storage', 'business'].includes(b.role), b.id);
+  }
+  play(w, 36);
+  const s = W.district(w, W.HOME).state;
+  for (const k of Object.keys(D.SITES)) if (!START.includes(k)) assert.equal(s.sites[k], 0, k);
+  assert.ok(s.levels.still === 1 && s.levels.speakeasy === 1, 'nothing grows past tier I');
+});
+
+test('the boss pays clean money for a trade, waits, and his capos start opening it', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  w.treasury.clean = 50000;
+  const next = branch(w, 'gambling').next;
+  assert.deepEqual([next.tier, next.cost, next.months], [1, W.RULES.tree.cost[0], W.RULES.tree.months[0]]);
+  W.research(w, 'gambling');
+  assert.equal(w.treasury.clean, 50000 - next.cost);
+  assert.deepEqual([W.researching(w).id, W.researching(w).building, W.researching(w).tier], ['gambling', true, 1]);
+  assert.equal(branch(w, 'gambling').monthsLeft, next.months);
+  assert.equal(branch(w, 'gambling').tier, 0, 'not known until the months have passed');
+  const events = play(w, next.months + 1);
+  const done = events.find((e) => e.type === 'research');
+  assert.deepEqual([done.building, done.tier], ['gambling', 1]);
+  assert.match(done.label, /Gambling room/);
+  assert.equal(branch(w, 'gambling').tier, 1);
+  play(w, 36);
+  assert.ok(W.district(w, W.HOME).state.sites.gambling > 0);
+});
+
+test('each tier costs more and takes longer, and the third is the last', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  w.treasury.clean = 500000;
+  for (let t = 2; t <= 3; t++) {
+    const next = branch(w, 'still').next;
+    assert.deepEqual([next.tier, next.cost, next.months], [t, W.RULES.tree.cost[t - 1], W.RULES.tree.months[t - 1]]);
+    W.research(w, 'still');
+    play(w, next.months + 1);
+    assert.equal(branch(w, 'still').tier, t);
+  }
+  assert.equal(branch(w, 'still').next, null);
+  assert.throws(() => W.research(w, 'still'), /as far as it goes/);
+  assert.ok(W.RULES.tree.cost[2] > W.RULES.tree.cost[1] && W.RULES.tree.cost[1] > W.RULES.tree.cost[0]);
+  assert.ok(W.RULES.tree.months[2] > W.RULES.tree.months[1] && W.RULES.tree.months[1] > W.RULES.tree.months[0]);
+});
+
+test('a trade is paid in clean money, one subject at a time, abilities included', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  assert.throws(() => W.research(w, 'gambling'), /clean money/);
+  w.treasury.clean = 50000;
+  W.research(w, 'gambling');
+  assert.throws(() => W.research(w, 'loft'), /already/);
+  assert.throws(() => W.research(w, 'nonsense'), /no such/);
+});
+
+test('a capo in post who likes the trade teaches it: the family learns it in half the time', () => {
+  const months = W.RULES.tree.months[0];
+  const danny = W.createWorld({ capo: 'danny' }), mae = W.createWorld({ capo: 'mae' });
+  assert.deepEqual(branch(danny, 'gambling').likedBy, ['danny']);
+  assert.equal(branch(danny, 'gambling').next.months, Math.ceil(months / 2));
+  assert.deepEqual(branch(mae, 'gambling').likedBy, []);
+  assert.equal(branch(mae, 'gambling').next.months, months);
+  danny.treasury.clean = 50000;
+  W.research(danny, 'gambling');
+  assert.equal(W.researching(danny).months, Math.ceil(months / 2));
+});
+
+test('the tree says which capos are asking for a closed trade', () => {
+  const w = W.createWorld({ capo: 'danny' });
+  play(w, 12);
+  const asked = W.tree(w).filter((b) => b.wantedBy.length);
+  assert.ok(asked.length > 0, 'after a year Danny wants something the family cannot do');
+  assert.ok(asked.every((b) => b.tier === 0 && b.wantedBy[0] === 'danny'));
+  assert.ok(!asked.some((b) => D.CAPOS.danny.refuses.includes(b.id)));
+});
+
+test('a district the family moves into works with what the family knows', () => {
+  const w = W.createWorld({ capo: 'danny' });
+  w.treasury.dirty = 50000; w.treasury.clean = 50000;
+  W.research(w, 'gambling');
+  play(w, W.RULES.tree.months[0] + 1);
+  W.claim(w, 'ashport-market', 'mae');
+  assert.equal(W.district(w, 'ashport-market').state.tech.gambling, 1);
+  assert.equal(W.district(w, 'ashport-market').state.tech.loft, 0);
+});
+
+test('a game saved before the tree keeps every trade it had', () => {
+  const w = W.createWorld({ capo: 'danny' });
+  delete w.tree;
+  play(w, 1);
+  assert.ok(W.tree(w).every((b) => b.tier === 3));
+});
