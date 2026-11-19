@@ -823,3 +823,64 @@ test('with every place of a rank taken, a man who has earned it waits', () => {
     assert.deepEqual(W.ranks(w)[1].waiting, ['dutch']);
   } finally { W.RULES.places[1] = { base: 2, every: 3 }; }
 });
+
+// --- research: what one man knows, the boss can pay to teach the whole family ---
+const withAbility = () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const offer = untilReady(w);
+  W.promote(w, 'dutch', offer.options[0].id);
+  w.treasury.dirty = 50000; w.treasury.clean = 50000;
+  return { w, ability: offer.options[0].id };
+};
+
+test('the boss pays clean money and waits, and the whole family learns what one capo knows', () => {
+  const { w, ability } = withAbility();
+  W.claim(w, 'ashport-market', 'mae');
+  const cost = W.RULES.research.cost[0], months = W.RULES.research.months[0];
+  const clean = w.treasury.clean;
+  W.research(w, ability);
+  assert.equal(w.treasury.clean, clean - cost);
+  assert.deepEqual([W.researching(w).id, W.researching(w).monthsLeft, W.researching(w).months], [ability, months, months]);
+  assert.ok(!W.district(w, 'ashport-market').state.skills.includes(ability));
+  const events = play(w, months + 1);
+  const done = events.find((e) => e.type === 'research');
+  assert.equal(done.ability, ability);
+  assert.match(done.label, /whole family/);
+  assert.equal(W.researching(w), null);
+  assert.ok(W.district(w, 'ashport-market').state.skills.includes(ability), 'Mae\'s district works with it too');
+  assert.equal(W.district(w, W.HOME).state.skills.filter((a) => a === ability).length, 1, 'never counted twice');
+});
+
+test('research needs a man in post who knows the thing, clean money, and one subject at a time', () => {
+  const { w, ability } = withAbility();
+  assert.throws(() => W.research(w, 'death-squad'), /nobody in the family/);
+  w.treasury.clean = 10;
+  assert.throws(() => W.research(w, ability), /clean money/);
+  w.treasury.clean = 50000;
+  W.research(w, ability);
+  assert.throws(() => W.research(w, ability), /already/);
+});
+
+test('the wheel says what can be researched, at what price, and what the family already shares', () => {
+  const { w, ability } = withAbility();
+  const ring = () => W.wheel(w).sectors.flatMap((s) => s.rings).find((r) => r.id === ability);
+  assert.deepEqual([ring().lit, ring().shared, ring().research.open], [true, false, true]);
+  assert.equal(ring().research.cost, W.RULES.research.cost[0]);
+  const dark = W.wheel(w).sectors.flatMap((s) => s.rings).find((r) => !r.lit);
+  assert.equal(dark.research.open, false);
+  W.research(w, ability);
+  assert.equal(ring().research.monthsLeft, W.RULES.research.months[0]);
+  play(w, W.RULES.research.months[0] + 1);
+  assert.equal(ring().shared, true);
+  assert.equal(ring().research.open, false);
+  assert.ok(W.RULES.research.cost[2] > W.RULES.research.cost[1] && W.RULES.research.cost[1] > W.RULES.research.cost[0]);
+});
+
+test('what the family has learned stays when the man who taught it is gone', () => {
+  const { w, ability } = withAbility();
+  W.research(w, ability);
+  play(w, W.RULES.research.months[0] + 1);
+  W.appoint(w, W.HOME, 'mae');
+  play(w, 1);
+  assert.ok(W.district(w, W.HOME).state.skills.includes(ability));
+});
