@@ -19,6 +19,9 @@
       v.cities.forEach(function (c) { C.city(v, c.id); c.capos.forEach(function (k) { C.capo(v, c.id, k.id); }); }); return s; }
     catch (e) { if (t) { setAside = true; try { localStorage.setItem(SAVE + '-unreadable', t); localStorage.removeItem(SAVE); } catch (x) { /* no storage */ } } return null; }
   }
+  // The first version of the game (by districts) saved under another key: that game is not continued. It is kept aside, and the player is told once.
+  var OLD = 'ashport-save-1';
+  function retire() { try { var t = localStorage.getItem(OLD); if (!t) return; localStorage.setItem(OLD + '-unreadable', t); localStorage.removeItem(OLD); setAside = true; } catch (e) { /* no storage */ } }
   function store() { try { localStorage.setItem(SAVE, E.save(g)); } catch (e) { /* no storage: the game still plays */ } }
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
@@ -190,7 +193,7 @@
   // ---- start
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
   [].forEach.call(document.querySelectorAll('[data-ic]'), function (e) { e.innerHTML = I.icon(e.dataset.ic); });
-  g = stored() || E.createGame(); refresh();
+  retire(); g = stored() || E.createGame(); refresh();
   window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap, picking: function () { return picking; } };
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
