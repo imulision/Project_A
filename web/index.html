@@ -23,14 +23,14 @@ h1::after{content:"";display:block;width:44px;height:3px;background:var(--accent
 .lab b{display:block;font:500 1.35em/1.05 var(--title);letter-spacing:.6px;text-transform:uppercase}.lab span{color:var(--c)}
 .lab.sm{transform:translate(-50%,-50%);padding:2px 7px;background:#07080bb5}.lab.sm b{font-size:1.05em}.lab.sm span{font-size:.85em}
 .lab.fx{border:0;padding:2px 7px;font:500 .95em var(--title);letter-spacing:1px;color:#fff;pointer-events:none;animation:pulse .7s infinite alternate}
-.lab.fire{background:#c2401d}.lab.gunfire{background:#8a1f1f}.lab.police{background:#2a4fc0}
+.lab.promotion{background:#b8902a}.lab.fire{background:#c2401d}.lab.gunfire{background:#8a1f1f}.lab.police{background:#2a4fc0}
 @keyframes pulse{from{opacity:1}to{opacity:.55}}
 .bot{position:fixed;left:0;right:0;bottom:0;padding:26px 12px 12px;background:linear-gradient(#07080b00,#07080be0 45%);z-index:2;display:flex;gap:6px;align-items:center}
-button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 11px;min-height:42px}
+button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 10px;min-height:42px}
 button.on,button.go{background:var(--accent);border-color:var(--accent);color:#15110b}
 button:disabled{opacity:.4}
 .grow{flex:1}
-#fps{font-size:.8em;color:var(--dim)}
+#fps{font-size:.85em;color:var(--dim);float:right}
 #toast{position:fixed;left:12px;right:12px;bottom:74px;z-index:3;display:grid;gap:4px;pointer-events:none}
 #toast div{background:var(--panel);border-left:3px solid var(--accent);padding:6px 9px}
 #toast div.bad{border-color:var(--bad)}
@@ -51,13 +51,21 @@ button:disabled{opacity:.4}
 .list li{padding:6px 0;border-top:1px solid #ffffff14}
 .list small{color:var(--dim);display:block}
 .acts{display:flex;gap:6px;flex-wrap:wrap}.acts button{flex:1}
+.wheel{display:block;width:100%;max-width:400px;margin:6px auto 4px}
+.wheel path{stroke:#15151e;stroke-width:2;cursor:pointer}
+.wheel text{font:500 11px var(--title);letter-spacing:1.2px;fill:var(--dim);text-anchor:middle;text-transform:uppercase;pointer-events:none}
+.wheel text.boss{font-size:15px;fill:var(--ink)}.wheel text.count{font:600 10px var(--text);letter-spacing:0;fill:var(--accent)}
+.wheel path.sel{stroke:var(--ink);stroke-width:2.5}
+#skill{min-height:58px;border-left:3px solid var(--accent);background:#ffffff0d;padding:7px 10px;margin:0 0 12px}
+#skill b{font:500 15px var(--title);letter-spacing:.4px;display:block}
+.bar{height:4px;background:#ffffff1a;margin:6px 0 4px}.bar i{display:block;height:100%;background:var(--accent)}
 #load{position:fixed;inset:0;display:grid;place-items:center;background:#191a22;z-index:6;font:500 24px var(--title);letter-spacing:3px}
 </style></head><body>
 <div id="load">ASHPORT</div>
 <div id="labels"></div>
 <div class="top">
   <h1 id="date">January 1926</h1>
-  <div class="sub" id="sub">Name your first capo to begin</div>
+  <div class="sub"><span id="sub">Name your first capo to begin</span><span id="fps"></span></div>
   <div class="res">
     <div><small>DIRTY CASH</small><b id="dirty">$0</b></div>
     <div><small>CLEAN CASH</small><b id="clean">$0</b></div>
@@ -69,8 +77,8 @@ button:disabled{opacity:.4}
 <div id="toast"></div>
 <div class="bot">
   <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button>
-  <span class="grow"></span><span id="fps"></span>
-  <button id="journal">Journal</button>
+  <span class="grow"></span>
+  <button id="family">Family</button><button id="journal">Journal</button>
 </div>
 <div id="veil"><div id="sheet"></div></div>
 <script src="./district.js"></script>

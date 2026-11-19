@@ -562,7 +562,7 @@ function update(P2) {
 }
 // fire, gunfire and police lights where something just happened
 const fxList = []; let fxN = 0;
-const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16] };
+const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12] };
 function spawnFx(kind, x, z, h = 1) {
   const look = FXLOOK[kind]; if (!look) return;
   const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
@@ -627,6 +627,7 @@ function animateFx(dt, now) {
     if (f.t > f.life) { f.m.removeFromParent(); f.m.material.dispose(); fxList.splice(k, 1); continue; }
     const far = clamp(4 / cam.zoom, 0.6, 4), fade = Math.min(1, (f.life - f.t) / 2); let s, o = 0.95;
     if (f.kind === 'fire') s = (5 + 1.5 * Math.sin(now * 0.013 + f.n) + Math.sin(now * 0.031)) * far;
+    else if (f.kind === 'promotion') { s = (6 + 2 * Math.sin(now * 0.004)) * far; o = 0.7; }
     else if (f.kind === 'gunfire') { o = Math.sin(now * 0.045 + f.n * 2) > 0.5 ? 1 : 0; s = 3.5 * far; }
     else { f.m.material.color.setHex(Math.sin(now * 0.012) > 0 ? 0x3a6dff : 0xff2a2a); s = 4.5 * far; }
     f.m.scale.set(s, s, 1); f.m.material.opacity = o * fade;
@@ -691,5 +692,5 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true;
 });
 
-  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => window.__stats };
+  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings }) };     // counted now, not at the last frame drawn
 }

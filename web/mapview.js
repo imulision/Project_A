@@ -198,6 +198,7 @@
       var add = function (kind) { out.push({ kind: kind, city: e.city, district: e.district, site: site }); };
       if (e.type === 'attack') { if (e.outcome === 'hit' && e.site) add('fire'); add('gunfire'); }
       else if (e.type === 'raid') add('police');
+      else if (e.type === 'promotion') add('promotion');
       else if (e.type === 'job') { if (e.outcome === 'failed') add('police'); else if (e.kind === 'hit') add('gunfire'); }
     });
     return out;
