@@ -170,7 +170,7 @@
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
     var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('');
-    return { id: c.id, name: c.name, u: 0.5, v: 0.5, bx: c.w, by: c.h, home: true, key: key, turf: true,
+    return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos };
   }

@@ -101,7 +101,11 @@
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
   // the meter: touch the images-per-second figure for the full reading (draw calls, triangles, resolution, cars, labels, WebGPU on this device)
   function meter() { if (!map || !$('fps').classList.contains('on')) return; var s = map.stats();
-    $('fps').textContent = (window.__fps || 0) + ' fps · ' + s.calls + ' draws · ' + (s.tris / 1000).toFixed(0) + 'k tris · x' + s.pr + ' · ' + s.cars + ' cars · ' + document.querySelectorAll('.lab').length + ' labels · webgpu ' + (navigator.gpu ? 'yes' : 'no'); }
+    $('fps').textContent = (window.__fps || 0) + ' fps · ' + s.calls + ' draws · ' + (s.tris / 1000).toFixed(0) + 'k tris · x' + s.pr + ' · ' + s.cars + ' cars · ' + document.querySelectorAll('.lab').length + ' labels · webgpu ' + (navigator.gpu ? 'yes' : 'no') + loaded(); }
+  // how long the start took, and which step was the longest: read from the loading bar
+  function loaded() { var st = (window.AshportLoad || {}).steps || [], worst = null; if (!st.length) return '';
+    st.forEach(function (x, i) { var d = x.ms - (i ? st[i - 1].ms : 0); if (!worst || d > worst.d) worst = { d: d, label: (st[i - 1] || x).label }; });
+    return ' · start ' + (st[st.length - 1].ms / 1000).toFixed(1) + 's (' + worst.label + ' ' + (worst.d / 1000).toFixed(1) + 's)'; }
   $('fps').onclick = function () { var on = $('fps').classList.toggle('on'); if (on) meter(); else $('fps').textContent = (window.__fps || 0) + ' fps'; };
   setInterval(meter, 1000);
   $('money').onclick = function () { var on = document.body.classList.toggle('money'); $('money').classList.toggle('on', on);
@@ -161,12 +165,13 @@
   }
 
   // ---- start
+  if (window.AshportLoad) AshportLoad.file();      // this file is the last one
   [].forEach.call(document.querySelectorAll('[data-ic]'), function (e) { e.innerHTML = I.icon(e.dataset.ic); });
   g = stored() || G.createGame(); S.use(g);
   window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat };
   showHud();
   AshportRender.start(g.started ? M.plan(G.view(g)) : previewPlan(), {
-    colors: M.COLORS,
+    colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage,
     onTap: function (hit) { if (!hit || !g.started) return; if (hit.near && hit.district) show(S.district(hit.district)); else map.focus(hit.city); }
   }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
