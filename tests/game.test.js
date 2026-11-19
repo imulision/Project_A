@@ -206,3 +206,70 @@ test('the screen reads the wheel and each man\'s rank, and the journal tells of 
   assert.equal(G.wheel(G.createGame()).lit, 0);
   assert.deepEqual(G.person(G.load(G.save(g)), 'dutch'), dutch);
 });
+
+// --- never stuck ---
+test('the local man of a district is offered with the big names, and marked as such', () => {
+  const g = G.createGame({ capo: 'sal' });
+  const cards = G.candidates(g, 'ashport-market');
+  assert.equal(cards.filter((c) => c.local).length, 1);
+  assert.equal(cards.length, 6);
+  assert.ok(G.person(g, cards.find((c) => c.local).id).name);
+  assert.ok(G.candidates(g).every((c) => !c.local), 'no local man without a district');
+});
+
+// A boss who takes every district he can, as soon as he can pay for it.
+function greedy(g, months) {
+  for (let m = 0; m < months; m++) {
+    month(g);
+    G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
+    for (const o of G.openings(g)) {
+      if (!o.affordable) continue;
+      const cards = G.candidates(g, o.district);
+      assert.ok(cards.length > 0, `${G.hud(g).date}: nobody to name in ${o.name}`);
+      const local = cards.find((c) => c.local);
+      assert.deepEqual(G.command(g, { type: 'claim', district: o.district, capo: (local || cards[0]).id }), { ok: true });
+      break; // one district a month
+    }
+  }
+}
+
+test('a boss who keeps expanding for twenty years is never left without a move', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  greedy(g, 240);
+  const cities = G.view(g).cities;
+  const held = cities.reduce((n, c) => n + c.held, 0);
+  assert.ok(held >= 20, `${held} districts after twenty years`);
+  assert.ok(cities.filter((c) => c.held > 0).length >= 4, 'in at least four cities');
+  assert.ok(G.openings(g).every((o) => G.candidates(g, o.district).length > 0));
+  G.load(G.save(g));
+});
+
+test('the screen can draw the curves of a district and say what its capo is after', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 14; i++) month(g);
+  const h = G.history(g, W.HOME);
+  assert.equal(h.length, 14);
+  assert.equal(h[0].date, 'January 1926');
+  const p = G.intent(g, W.HOME);
+  assert.equal(p.capoName, 'Dutch Keller');
+  assert.ok(p.label && p.progress >= 0 && p.progress <= 1);
+  assert.equal(G.intent(g, 'ashport-docks'), null);
+});
+
+test('the top bar says what reached the boss last month, clean and dirty', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  const before = { ...g.world.treasury };
+  for (let i = 0; i < 12; i++) month(g);
+  const last = G.hud(g).lastMonth;
+  assert.equal(typeof last.clean, 'number');
+  assert.equal(typeof last.dirty, 'number');
+  assert.ok(g.world.treasury.clean > before.clean);
+});
+
+test('a request says how long the capo waits in all, for a gauge', () => {
+  const g = G.createGame({ capo: 'sal' });
+  for (let i = 0; i < 60 && !G.proposals(g).length; i++) { g.world.districts[W.HOME].state.attacked = 1; month(g); }
+  const p = G.proposals(g)[0];
+  assert.equal(p.waits, W.RULES.jobs.expires);
+  assert.ok(p.monthsLeft <= p.waits);
+});
