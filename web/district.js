@@ -34,7 +34,10 @@
     rivalWall: 60,          // above this share, every street is fought for
     rivalWallStep: 5,       // one more street lost per month for each of these points above the wall
     lastStand: 25,          // below this share, a capo posts guards
-    guardHold: 0.25,        // streets held per guard
+    guardHold: 0.25,        // streets held per guard, under a capo of average Muscle
+    charm: 0.2,             // Goodwill per month per point of Charisma above 5
+    goodwillPull: 0.08,     // share of the gap to 50 that Goodwill closes by itself every month
+    pullBack: 6,            // months a capo waits before sending out men he has just called back
     crewReach: 0.2,         // streets gained per street crew per point of Muscle
     hireFee: 60,
     likes: 1.5,             // a project the capo likes counts this much more
@@ -113,6 +116,7 @@
   var PROJECTS = [
     { kind: 'push', label: 'Sends 3 men to take new streets', why: 'there are streets left to take', cost: 0, cur: 'dirty', men: CREW.street.men, hot: true,
       need: function (d, c) {
+        if (d.pulledBack > 0) return 0;
         if (d.profit < RULES.thinProfit && d.share >= 30) return 0;
         if (d.share < 85 && c.muscle >= 4 && d.crews < 4) return 4;
         return d.share < 30 && d.crews < 1 ? 3 : 0;
@@ -146,10 +150,10 @@
       apply: function (d) { d.guards += 2; } },
     { kind: 'lielow', label: 'Pulls men off the street', why: 'the police are watching', cost: 0, cur: 'dirty', men: 0,
       need: function (d, c) { return (d.watched > 0 || d.heat > nerve(c)) && d.heat > 45 && d.crews + d.collectors > 0 ? 6 : 0; },
-      apply: function (d) { if (d.collectors > 0) d.collectors -= 1; else d.crews -= 1; } },
+      apply: function (d) { if (d.collectors > 0) d.collectors -= 1; else d.crews -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'recall', label: 'Calls a street crew back', why: 'the district does not pay for conquest', cost: 0, cur: 'dirty', men: 0,
       need: function (d) { return d.crews === 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit ? 4 : 0; },
-      apply: function (d) { d.crews -= 1; } },
+      apply: function (d) { d.crews -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'trim', label: 'Lets idle men go', why: 'the district loses money', cost: 0, cur: 'dirty', men: 0,
       need: function (d) { return d.profit < 0 && d.men > busyMen(d) ? 8 : 0; },
       apply: function (d) { d.men -= Math.ceil((d.men - busyMen(d)) / 2); } }
@@ -237,6 +241,20 @@
     return { type: 'raid', site: site, seized: seized, arrested: arrested, label: 'Police raid: ' + (site ? 'a ' + SITES[site].name.toLowerCase() + ' is shut, ' : '') + (arrested ? arrested + ' men arrested, ' : '') + '$' + Math.round(seized) + ' seized' };
   }
 
+  // How much the neighbourhood warms to the family this month.
+  function goodwillChange(d) {
+    var c = capoOf(d), change = d.crews * CREW.street.goodwill + d.collectors * CREW.protection.goodwill;
+    SITE_KEYS.forEach(function (k) { change += d.sites[k] * SITES[k].goodwill; });
+    return change + (c.charisma - 5) * RULES.charm - (d.goodwill - 50) * RULES.goodwillPull;
+  }
+
+  // Streets gained or lost this month, in points of the district.
+  function streetsChange(d) {
+    var c = capoOf(d);
+    return d.crews * c.muscle * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
+      + d.guards * RULES.guardHold * (0.5 + c.muscle / 10);
+  }
+
   // One month of the district. Changes `d` and returns what happened.
   function stepMonth(d) {
     var c = capoOf(d), events = [decide(d)];
@@ -278,11 +296,10 @@
     }
 
     // the street
-    var goodwill = d.crews * CREW.street.goodwill + d.collectors * CREW.protection.goodwill;
-    SITE_KEYS.forEach(function (k) { goodwill += d.sites[k] * SITES[k].goodwill; });
-    d.goodwill = clamp(d.goodwill + goodwill);
-    d.share = clamp(d.share + d.crews * c.muscle * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d) + d.guards * RULES.guardHold);
+    d.goodwill = clamp(d.goodwill + goodwillChange(d));
+    d.share = clamp(d.share + streetsChange(d));
 
+    if (d.pulledBack > 0) d.pulledBack -= 1;
     if (d.watched > 0) d.watched -= 1;
     d.month += 1;
     d.last = { sold: m.sold, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
@@ -299,7 +316,7 @@
       sites: { still: 2, speakeasy: 2, gambling: 0, loft: 0, rented: 0, front: 0, warehouse: 0 },
       dirty: 800, clean: 300, profit: 800, stock: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
-      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, last: null
+      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, last: null
     };
     Object.keys(o).forEach(function (k) {
       if (k === 'sites') Object.keys(o.sites).forEach(function (s) { d.sites[s] = o.sites[s]; });
@@ -320,7 +337,8 @@
   }
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
-              chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve };
+              chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve,
+              goodwillChange: goodwillChange, streetsChange: streetsChange };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
 })(typeof self !== 'undefined' ? self : this);
