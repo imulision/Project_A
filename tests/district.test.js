@@ -73,8 +73,7 @@ test('a project that needs more hands makes the capo hire, by his charisma', () 
 });
 
 test('a capo who cannot pay new men holds steady and says why', () => {
-  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 30, men: 16, sites: { still: 3 } });
-  d.guards = 4;
+  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 30, men: 14, sites: { still: 3 } }); // every man is busy
   const pick = D.chooseProject(d);
   assert.equal(pick.kind, 'hold');
   assert.match(pick.why, /cannot pay/);
@@ -730,8 +729,8 @@ test('liquor that no truck can carry stays in the cellar', () => {
 });
 
 test('money that no car comes for is left in the tills and lost', () => {
-  const few = D.createDistrict({ capo: 'dutch', cars: 1, share: 60, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 });
-  const enough = D.createDistrict({ capo: 'dutch', cars: 6, share: 60, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 });
+  const few = D.createDistrict({ capo: 'dutch', cars: 1, share: 60, dirty: 0, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 }); // and nothing to buy a car with
+  const enough = D.createDistrict({ capo: 'dutch', cars: 6, share: 60, dirty: 0, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 });
   D.stepMonth(few); D.stepMonth(enough);
   near(few.last.income, D.RULES.carLoad);
   assert.ok(enough.last.income > few.last.income + 500);
@@ -948,4 +947,15 @@ test('once his rooms are all open, a capo enlarges them if the family knows how'
   assert.equal(capped.levels.gambling, 1);
   assert.ok(d.levels.front > 1 && d.sites.front <= 4, 'three fronts, then bigger ones: ' + d.sites.front + ' at level ' + d.levels.front);
   assert.equal(D.buildings(d).find((b) => b.type === 'gambling').level, d.levels.gambling);
+});
+
+test('a capo who has lost more men than his places need still cuts his costs', () => {
+  // four of his men died in a failed assault: his places are short-handed and the district loses money
+  const d = D.createDistrict({ capo: 'sal', men: 10, guards: 6, sites: { still: 1, speakeasy: 1, rented: 1, warehouse: 2 }, share: 65, dirty: 0, profit: -42, heat: 20 });
+  assert.ok(D.busyMen(d) > d.men);
+  assert.equal(D.chooseProject(d).kind, 'restart', 'he puts his own money into one more still');
+  live(d, 1);
+  assert.equal(D.chooseProject(d).kind, 'standdown', 'then sends home guards the district cannot pay');
+  live(d, 36);
+  assert.ok(d.profit > D.RULES.thinProfit, 'three years later the district pays again: ' + Math.round(d.profit));
 });

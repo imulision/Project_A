@@ -227,10 +227,11 @@ function greedy(g, months) {
     month(g);
     G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
     for (const o of G.openings(g)) {
+      if (o.underWay) continue; // a man is already on his way there
       const cards = G.candidates(g, o.district);
       assert.ok(cards.length > 0, `${G.hud(g).date}: nobody to name in ${o.name}`);
       const way = o.ways.find((w) => w.affordable);
-      if (!way || o.underWay) continue;
+      if (!way) continue;
       const man = cards.find((c) => c.odds[way.way] === 'good') || cards.find((c) => c.local) || cards[0];
       assert.deepEqual(G.command(g, { type: 'takeover', district: o.district, way: way.way, capo: man.id }), { ok: true });
       break; // one move a month, whatever the odds
@@ -305,7 +306,7 @@ test('the boss orders a takeover, watches it advance, and reads how it ended', (
 });
 
 // A boss who only uses takeovers, and only the ones his man says look good.
-function patient(g, months, learns) {
+function patient(g, months, learns, only) {
   for (let m = 0; m < months; m++) {
     month(g);
     G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
@@ -318,7 +319,7 @@ function patient(g, months, learns) {
     if (G.takeovers(g).length) continue;
     search: for (const o of G.openings(g)) {
       for (const w of o.ways) {
-        if (!w.affordable) continue;
+        if (!w.affordable || (only && w.way !== only)) continue;
         const man = G.candidates(g, o.district).find((c) => c.odds[w.way] === 'good');
         if (!man) continue;
         assert.deepEqual(G.command(g, { type: 'takeover', district: o.district, way: w.way, capo: man.id }), { ok: true });
@@ -421,3 +422,20 @@ test('a boss who has the family learn what its capos ask for ends twenty years w
   assert.ok(held(learned) >= held(plain), held(learned) + ' districts against ' + held(plain));
   assert.ok(income(learned) > 1.5 * income(plain), Math.round(income(learned)) + ' a month against ' + Math.round(income(plain)));
 });
+
+// One winning strategy would make every game the same: each way into a district must carry a family on its own.
+for (const [way, start, prepare] of [
+  ['force', 'sal', () => {}],
+  ['bribe', 'dutch', (g) => assert.deepEqual(G.command(g, { type: 'seat', seat: 'fixer', capo: 'tommy' }), { ok: true })],
+  ['buy', 'mae', () => {}],
+]) {
+  test(`a boss who only ever uses ${way} builds a family across several cities in twenty years`, () => {
+    const g = G.createGame({ capo: start });
+    prepare(g);
+    patient(g, 240, true, way);
+    const cities = G.view(g).cities, held = cities.reduce((n, c) => n + c.held, 0);
+    assert.ok(held >= 10, `${held} districts with ${way} alone`);
+    assert.ok(cities.filter((c) => c.held > 0).length >= 3);
+    assert.ok(G.hud(g).lastMonth.dirty + G.hud(g).lastMonth.clean > 2000, 'and the family pays its boss');
+  });
+}

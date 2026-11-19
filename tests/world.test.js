@@ -985,3 +985,19 @@ test('a game saved before the tree keeps every trade it had', () => {
   play(w, 1);
   assert.ok(W.tree(w).every((b) => b.tier === 3));
 });
+
+test('a takeover is settled on the chances the boss was shown when he gave the order', () => {
+  const w = rich();
+  W.district(w, W.HOME).state.crews = 4;
+  const man = W.local('ashport-uptown').id;
+  assert.equal(W.odds(w, 'ashport-uptown', 'force', man).odds, 'good');
+  W.takeover(w, 'ashport-uptown', 'force', man);
+  assert.equal(W.takeovers(w)[0].odds, 'good');
+  W.district(w, W.HOME).state.crews = 0; // the crews are called back while the men are on their way
+  let done = null;
+  for (let i = 0; i < W.RULES.takeover.force.months + 1 && !done; i++) {
+    W.district(w, W.HOME).state.crews = 0;
+    done = W.stepMonth(w).find((e) => e.type === 'takeover');
+  }
+  assert.equal(done.outcome, 'done');
+});
