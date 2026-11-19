@@ -255,6 +255,57 @@ test('no district is raided more than a few times a year, whoever runs it', () =
   }
 });
 
+test('Goodwill is pulled back toward the middle: the higher it is, the harder it is to raise', () => {
+  const mid = D.createDistrict({ capo: 'mae', goodwill: 50 });
+  const high = D.createDistrict({ capo: 'mae', goodwill: 90 });
+  const low = D.createDistrict({ capo: 'mae', goodwill: 10 });
+  assert.ok(D.goodwillChange(high) < D.goodwillChange(mid));
+  assert.ok(D.goodwillChange(low) > D.goodwillChange(mid));
+});
+
+test('a charismatic capo is better liked than a cold one in the same district', () => {
+  const tommy = D.createDistrict({ capo: 'tommy' });
+  const vince = D.createDistrict({ capo: 'vince' });
+  assert.ok(D.goodwillChange(tommy) > D.goodwillChange(vince) + 0.5);
+});
+
+test('the same guards hold more streets under a capo with muscle', () => {
+  const sal = D.createDistrict({ capo: 'sal' });
+  const mae = D.createDistrict({ capo: 'mae' });
+  sal.guards = mae.guards = 6;
+  assert.ok(D.streetsChange(sal) > D.streetsChange(mae) + 0.5);
+});
+
+test('a capo who has just pulled men back does not send them out again for six months', () => {
+  const d = D.createDistrict({ capo: 'danny', profit: 60, share: 50, dirty: 900, men: 29 });
+  d.crews = 3; d.collectors = 3;
+  assert.equal(D.stepMonth(d)[0].kind, 'recall');
+  for (let i = 0; i < 5; i++) {
+    d.profit = 2000; d.dirty = 3000; // business is good again
+    assert.notEqual(D.stepMonth(d)[0].kind, 'push', `month ${i + 1} after the recall`);
+  }
+});
+
+test('no capo sends and recalls the same men over and over', () => {
+  for (const capo of Object.keys(D.CAPOS)) {
+    for (const start of [{}, { heat: 55, goodwill: 30 }]) {
+      const d = D.createDistrict({ capo, ...start });
+      let recalls = 0;
+      for (let i = 0; i < 60; i++) if (D.stepMonth(d)[0].kind === 'recall') recalls++;
+      assert.ok(recalls <= 6, `${capo}: ${recalls} recalls in five years`);
+    }
+  }
+});
+
+test('after five years no district is loved or hated without limit, and none is empty', () => {
+  for (const capo of Object.keys(D.CAPOS)) {
+    const d = D.createDistrict({ capo });
+    for (let i = 0; i < 60; i++) D.stepMonth(d);
+    assert.ok(d.goodwill > 2 && d.goodwill < 98, `${capo}: goodwill ${d.goodwill}`);
+    assert.ok(d.share >= 15, `${capo}: ${d.share}% of the streets`);
+  }
+});
+
 // --- integration: a whole year, the boss touching nothing but the name ---
 
 test('a year under Sal: streets taken by force, then the police and a hated name', () => {
@@ -264,11 +315,11 @@ test('a year under Sal: streets taken by force, then the police and a hated name
   assert.equal(raids[0].site, 'speakeasy');
   assert.equal(raids[0].arrested, 3);
   assert.equal(d.men, 23);
-  near(d.share, 46);
+  near(d.share, 50);
   near(d.heat, 53);
-  near(d.goodwill, 10);
-  near(d.boss.dirty, 1436);
-  near(d.boss.clean, 109);
+  near(d.goodwill, 26);
+  near(d.boss.dirty, 1455);
+  near(d.boss.clean, 130);
   assert.deepEqual(d.sites, { still: 2, speakeasy: 1, gambling: 0, loft: 0, rented: 1, front: 0, warehouse: 2 });
   const kinds = events.filter((e) => e.type === 'decision').map((e) => e.kind);
   assert.deepEqual(kinds.slice(0, 8), ['protection', 'seize', 'seize', 'push', 'protection', 'push', 'protection', 'push']);
@@ -278,21 +329,21 @@ test('a year under Sal: streets taken by force, then the police and a hated name
 test('a year under Mae: clean money and quiet, and not one street gained', () => {
   const { d, events } = year('mae');
   assert.equal(d.men, 26);
-  near(d.share, 32);
-  near(d.heat, 36);
-  near(d.goodwill, 67);
+  near(d.share, 30);
+  near(d.heat, 40);
+  near(d.goodwill, 57);
   assert.equal(d.raids, 0);
   assert.equal(events.filter((e) => e.type === 'raid').length, 0);
-  near(d.boss.clean, 2646);
-  near(d.boss.dirty, 1119);
-  assert.deepEqual(d.sites, { still: 3, speakeasy: 2, gambling: 2, loft: 0, rented: 3, front: 1, warehouse: 2 });
+  near(d.boss.clean, 2419);
+  near(d.boss.dirty, 1076);
+  assert.deepEqual(d.sites, { still: 3, speakeasy: 2, gambling: 2, loft: 0, rented: 3, front: 0, warehouse: 2 });
 });
 
 test('naming the capo is enough to get two different districts', () => {
   const sal = year('sal').d, mae = year('mae').d;
   assert.ok(sal.share > mae.share + 10);
   assert.ok(sal.heat > mae.heat + 10);
-  assert.ok(mae.goodwill > sal.goodwill + 40);
+  assert.ok(mae.goodwill > sal.goodwill + 20);
   assert.ok(mae.boss.clean > 2000 && sal.boss.clean < 200);
   assert.ok(sal.raids > mae.raids);
 });
