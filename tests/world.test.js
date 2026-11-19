@@ -103,11 +103,12 @@ test('the table serves every district of the family', () => {
 test('a month runs every district and brings every tribute to the boss', () => {
   const w = W.createWorld({ capo: 'sal' });
   W.claim(w, 'ashport-docks', 'dutch');
+  const before = w.treasury.dirty + w.treasury.clean;
   const events = W.stepMonth(w);
   assert.equal(w.month, 1);
   const owed = held(w).reduce((sum, x) => sum + x.state.boss.dirty + x.state.boss.clean, 0);
   assert.ok(owed > 0);
-  assert.ok(Math.abs(w.treasury.dirty + w.treasury.clean - owed) < 0.01);
+  assert.ok(Math.abs(w.treasury.dirty + w.treasury.clean - before - owed) < 0.01);
   assert.deepEqual([...new Set(events.map((e) => e.district))].sort(), ['ashport-docks', 'ashport-hillside']);
   assert.ok(events.every((e) => e.city === 'ashport'));
 });
@@ -171,4 +172,103 @@ test('five years across three districts and a full table break no rule', () => {
   assert.ok(w.treasury.clean > 0 && w.treasury.dirty > 0);
   for (const x of held(w)) assert.ok(D.busyMen(x.state) <= x.state.men, x.id);
   assert.equal(W.named(w).length, 6);
+});
+
+// --- moving in, rivals, underbosses ---
+
+test('moving into a district costs the boss money and starts with a few streets', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const cash = w.treasury.dirty;
+  W.claim(w, 'ashport-docks', 'dutch');
+  assert.equal(cash - w.treasury.dirty, W.RULES.moveInCost);
+  const docks = W.district(w, 'ashport-docks').state;
+  assert.equal(docks.share, 5);
+  assert.equal(docks.men, 8);
+  assert.ok(docks.share < W.district(w, 'ashport-hillside').state.share);
+});
+
+test('the boss cannot move in with an empty treasury', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  w.treasury.dirty = 200;
+  assert.throws(() => W.claim(w, 'ashport-docks', 'dutch'), /cannot afford/);
+  assert.equal(W.district(w, 'ashport-docks').owner, 'Callahan');
+});
+
+test('every six months the rivals hit the family where it is weakest', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  const events = [];
+  for (let i = 0; i < 6; i++) events.push(...W.stepMonth(w));
+  const attacks = events.filter((e) => e.type === 'attack');
+  assert.equal(attacks.length, 1);
+  assert.equal(attacks[0].by, 'Callahan');
+  assert.equal(attacks[0].district, 'ashport-hillside');
+  assert.equal(attacks[0].outcome, 'hit');
+  assert.ok(attacks[0].streets > 0 && attacks[0].stolen >= 0);
+});
+
+test('a district held by a hard man with crews on the street throws the rivals back', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const events = [];
+  for (let i = 0; i < 6; i++) events.push(...W.stepMonth(w));
+  const attack = events.find((e) => e.type === 'attack');
+  assert.equal(attack.outcome, 'repelled');
+});
+
+test('a hit costs streets, a place and cash, and the capo answers with guards', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  for (let i = 0; i < 5; i++) W.stepMonth(w);
+  const s = W.district(w, 'ashport-hillside').state;
+  const before = { share: s.share, places: Object.values(s.sites).reduce((a, b) => a + b, 0), guards: s.guards };
+  W.stepMonth(w);
+  assert.ok(s.share < before.share - 5);
+  assert.ok(Object.values(s.sites).reduce((a, b) => a + b, 0) < before.places + 1);
+  for (let i = 0; i < 3; i++) W.stepMonth(w);
+  assert.ok(s.guards > before.guards, 'expected more guards after the attack');
+});
+
+test('rivals grow bolder with the years', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const early = W.rivalStrength(w, 'ashport');
+  w.month = 48;
+  assert.ok(W.rivalStrength(w, 'ashport') > early);
+});
+
+test('an underboss needs a city where the family holds at least two districts', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  assert.throws(() => W.setUnderboss(w, 'ashport', 'tommy'), /two districts/);
+  W.claim(w, 'ashport-market', 'danny');
+  W.setUnderboss(w, 'ashport', 'tommy');
+  assert.equal(w.underbosses.ashport, 'tommy');
+  assert.throws(() => W.claim(w, 'ashport-docks', 'tommy'), /already/);
+});
+
+test('with an underboss in the city, he picks the capo that suits the district', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  W.claim(w, 'ashport-market', 'danny');
+  assert.throws(() => W.claim(w, 'ashport-docks'), /name a capo/);
+  W.setUnderboss(w, 'ashport', 'tommy');
+  W.claim(w, 'ashport-docks'); // the boss names nobody
+  const docks = W.district(w, 'ashport-docks');
+  assert.equal(docks.state.capo, 'dutch'); // the bootlegger who likes to fence, on the docks
+  assert.equal(docks.appointedBy, 'tommy');
+});
+
+test('the boss never names more than nine people, however large the family', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  W.claim(w, 'ashport-market', 'danny');
+  W.setUnderboss(w, 'ashport', 'tommy');
+  W.claim(w, 'ashport-docks');
+  const posts = W.named(w).map((n) => n.post).sort();
+  assert.deepEqual(posts, ['ashport-hillside', 'ashport-market', 'underboss:ashport']);
+  assert.ok(W.named(w).length <= W.CITIES.length + W.SEATS.length);
+});
+
+test('the rivals give a new foothold a year before they come for it', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  W.claim(w, 'ashport-docks', 'mae');
+  const events = [];
+  for (let i = 0; i < 12; i++) events.push(...W.stepMonth(w));
+  assert.ok(events.filter((e) => e.type === 'attack').every((e) => e.district !== 'ashport-docks'));
+  for (let i = 0; i < 6; i++) events.push(...W.stepMonth(w));
+  assert.ok(W.RULES.grace === 12);
 });

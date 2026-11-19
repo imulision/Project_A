@@ -195,7 +195,10 @@
       need: function (d) { return d.heat > 40 && !d.bribing ? 6 : 0; },
       apply: function (d) { d.bribing = true; } },
     { kind: 'guard', label: 'Posts 2 more guards', why: 'the rivals are at his door', cost: 0, cur: 'dirty', men: 2,
-      need: function (d) { return d.share < RULES.lastStand && d.guards < 8 ? 5 : 0; },
+      need: function (d) {
+        if (d.attacked > 0 && d.guards < 6) return 9; // he has just been hit
+        return d.share < RULES.lastStand && d.guards < 8 ? 5 : 0;
+      },
       apply: function (d) { d.guards += 2; } },
     { kind: 'lielow', label: 'Pulls men off the street', why: 'the police are watching', cost: 0, cur: 'dirty', men: 0,
       need: function (d, c) { return (d.watched > 0 || d.heat > nerve(c)) && d.heat > 45 && d.crews + d.collectors > 0 ? 6 : 0; },
@@ -348,6 +351,7 @@
     d.share = clamp(d.share + streetsChange(d));
 
     if (d.pulledBack > 0) d.pulledBack -= 1;
+    if (d.attacked > 0) d.attacked -= 1;
     if (d.watched > 0) d.watched -= 1;
     d.month += 1;
     d.last = { sold: m.sold, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
@@ -366,7 +370,7 @@
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
-      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, last: null
+      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, last: null
     };
     SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
     d.sites.still = 2; d.sites.speakeasy = 2;
