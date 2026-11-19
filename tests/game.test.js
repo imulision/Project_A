@@ -177,3 +177,19 @@ test('the screen can ask for the flows of one of the family\'s districts', () =>
   assert.ok(f.made > 0 && f.sold > 0 && f.income > 0);
   assert.equal(G.flows(g, 'ashport-docks'), null);
 });
+
+test('the boss reads what his capos ask leave for, and answers yes or no', () => {
+  const g = G.createGame({ capo: 'sal' });
+  g.world.districts['ashport-hillside'].state.attacked = 3;
+  month(g);
+  const asks = G.proposals(g);
+  assert.equal(asks.length, 1);
+  assert.ok(asks[0].capoName && asks[0].place && asks[0].label && asks[0].why && asks[0].monthsLeft > 0);
+  assert.equal(G.hud(g).pending, 1);
+  assert.equal(g.journal[0].type, 'proposal');
+  assert.deepEqual(G.command(g, { type: 'refuse', id: 'nope' }).ok, false);
+  assert.deepEqual(G.command(g, { type: 'approve', id: asks[0].id }), { ok: true });
+  assert.equal(G.hud(g).pending, 0);
+  month(g);
+  assert.ok(g.journal.some((e) => e.type === 'job' && e.outcome === 'done'));
+});

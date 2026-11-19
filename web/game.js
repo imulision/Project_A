@@ -73,7 +73,9 @@
     appoint: function (g, c) { W.appoint(g.world, c.district, c.capo); },
     seat: function (g, c) { W.seat(g.world, c.seat, c.capo); },
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
-    underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); }
+    underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); },
+    approve: function (g, c) { W.rule(g.world, c.id, true); },
+    refuse: function (g, c) { W.rule(g.world, c.id, false); }
   };
 
   // An order of the boss. Never throws: the answer says whether it went through.
@@ -140,9 +142,10 @@
 
   // The top of the screen.
   function hud(g) {
-    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [] };
+    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [], pending: 0 };
     return { date: dateOf(g.world.month), dirty: g.world.treasury.dirty, clean: g.world.treasury.clean,
-             named: W.named(g.world).length, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: alerts(g) };
+             named: W.named(g.world).length, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: alerts(g),
+             pending: W.proposals(g.world).length };
   }
 
   function view(g) { return W.view(g.world); }
@@ -153,6 +156,15 @@
     var x = g.world && W.district(g.world, districtId);
     return x && x.state ? D.flows(x.state) : null;
   }
+  // What the capos ask the boss's leave for, with the words the screen needs.
+  function proposals(g) {
+    if (!g.world) return [];
+    return W.proposals(g.world).map(function (p) {
+      return { id: p.id, kind: p.kind, district: p.district, city: p.city, capo: p.capo, capoName: D.CAPOS[p.capo].name,
+               place: W.placeOf(p.district).name + ', ' + W.cityOf(p.city).name, target: p.target, label: p.label, why: p.why,
+               monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
+    });
+  }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
     var g = JSON.parse(text);
@@ -161,7 +173,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);
