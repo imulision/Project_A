@@ -12,7 +12,7 @@
   var W = node ? require('./world.js') : root.AshportWorld;
   var D = node ? require('./district.js') : root.AshportDistrict;
 
-  var VERSION = 2;            // 1 was the game by districts (game.js)
+  var VERSION = 3;            // 1 was the game by districts (game.js)
   var TICKS_PER_MONTH = 4;
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
@@ -34,6 +34,8 @@
       return { name: d.name, x0: col * BLOCK.w, y0: row * BLOCK.h, x1: last ? cols * BLOCK.w - 1 : (col + 1) * BLOCK.w - 1, y1: (row + 1) * BLOCK.h - 1, traits: d.traits };
     }) });
   }
+  function linked(a, b) { return W.ROUTES.some(function (r) { return (r.from === a && r.to === b) || (r.from === b && r.to === a); }); }
+  function held(g, c) { return Object.keys(g.family.men).some(function (id) { return T.clubOf(c, id); }); }
   function specOf(id) { return W.CITIES.filter(function (c) { return c.id === id; })[0]; }
 
   function createGame(options) {
@@ -44,14 +46,18 @@
   function start(g, capo) {
     if (g.started) throw new Error('the game has already started');
     if (NAMES.indexOf(capo) < 0) throw new Error('unknown capo: ' + capo);
-    var spec = W.CITIES[0], c = layout(spec);
-    T.crown(c, spec.rival);
-    T.seed(c, spec.rival, RIVAL_PLACES);
-    var spot = T.landing(c);
+    // every city of the map, each held by the family that was there first and laid out by its own dice
+    g.cities = W.CITIES.map(function (spec, i) {
+      var c = layout(spec);
+      c.dice = i + 1;
+      T.crown(c, spec.rival);
+      T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
+      return c;
+    });
+    var home = g.cities[0], spot = T.landing(home);
     g.family = T.createFamily();
-    T.settle(c, capo, spot.x, spot.y);
+    T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
-    g.cities = [c];
     g.started = true;
   }
 
@@ -100,11 +106,15 @@
                   label: o.yes ? 'You give ' + T.person(a.capo).name + ' your word for the ' + a.name : 'You tell ' + T.person(a.capo).name + ' to leave the ' + a.name + ' alone' }, g.month);
     },
     // somebody is at the door: the boss takes him in and picks the street for his club
+    // or sends him down the road: `from` is the city where he knocked, `city` the one he opens
     welcome: function (g, o) {
-      var c = cityOf(g, o.city);
-      T.welcome(c, g.family, o.capo, o.x, o.y);
-      record(g, { type: 'welcomed', capo: o.capo, city: c.id, x: o.x, y: o.y,
-                  label: T.person(o.capo).name + ' joins the family and opens his club in ' + T.zoneOf(c, o.x, o.y).name }, g.month);
+      var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
+      if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
+      T.send(from, c, g.family, o.capo, o.x, o.y);
+      var club = T.clubOf(c, o.capo), e = { type: 'welcomed', capo: o.capo, city: c.id, x: club.x, y: club.y,
+        label: T.person(o.capo).name + ' joins the family and opens his club in ' + T.zoneOf(c, club.x, club.y).name + (from !== c ? ', ' + specOf(c.id).name : '') };
+      if (from !== c) e.from = from.id;
+      record(g, e, g.month);
     },
     // two capos are at each other's throats: the boss rules for one of them
     rule: function (g, o) {
@@ -144,22 +154,33 @@
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [] };
     return { date: dateOf(g.month), month: g.month, tree: T.tree(g.family), study: g.family.study,
+             routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
                v.name = specOf(c.id).name;
+               v.held = held(g, c);
+               // where each man at the door could be sent instead: the cities next door that still have a seat
+               v.doors.forEach(function (d) {
+                 d.roads = d.door === 'poach' ? [] : g.cities.filter(function (q) {
+                   var s = T.seats(q);
+                   return linked(c.id, q.id) && s.taken < s.total;
+                 }).map(function (q) { return { city: q.id, name: specOf(q.id).name, cost: d.cost + T.RULES.doors.road }; });
+               });
                return v;
              }) };
   }
   function hud(g) {
     var out = { date: dateOf(g.month), paused: g.paused, speed: g.speed, started: g.started };
     if (!g.started) return out;
-    var blocks = 0, ours = 0, heat = 0, pending = 0, seats = { taken: 0, total: 0 };
+    var blocks = 0, ours = 0, heat = 0, pending = 0, seats = { taken: 0, total: 0 }, cities = { held: 0, total: g.cities.length };
     g.cities.forEach(function (c) {
       var s = T.share(c), n = c.w * c.h, k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
       pending += T.asks(c).length + T.doors(c, g.family).length + T.feuds(c).length;
-      seats.taken += k.taken; seats.total += k.total;
+      if (!held(g, c)) return;
+      cities.held += 1; seats.taken += k.taken; seats.total += k.total;
     });
+    out.cities = cities;
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
     out.seats = seats; out.pending = pending;

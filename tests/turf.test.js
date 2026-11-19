@@ -1296,3 +1296,98 @@ test('the second of a man the boss had killed never comes forward', () => {
   for (let x = 4; x <= 6; x++) for (let y = 0; y <= 1; y++) if (!T.at(c2, x, y)) T.open(c2, x, y, { owner: 'family', kind: 'rented', capo: 'mae' });
   assert.ok(!coming(c2, f2).includes(second));
 });
+
+// --- from one city to the next ---
+
+test('a man at the door of one city can be sent to plant his club in another, for the price of the road', () => {
+  const a = town(), b = town(), f = rich();
+  b.id = 'next';
+  T.settle(a, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(a, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  const d = T.doors(a, f).find((q) => q.capo === 'danny');
+  assert.throws(() => T.send(a, b, f, 'mae', 3, 3), /is not at the door/);
+  f.dirty = d.cost + T.RULES.doors.road - 1;
+  assert.throws(() => T.send(a, b, f, 'danny', 3, 3), /cannot pay/);
+  f.dirty = d.cost + T.RULES.doors.road;
+  T.send(a, b, f, 'danny', 3, 3);
+  assert.equal(f.dirty, 0);
+  assert.equal(T.clubOf(a, 'danny'), null);
+  assert.deepEqual(T.clubOf(b, 'danny'), { x: 3, y: 3 });
+  assert.deepEqual([T.seats(a).taken, T.seats(b).taken], [1, 1]);
+  assert.ok(!coming(a, f).includes('danny') && !coming(b, f).includes('danny'));
+  assert.ok(year(b, f, 12).some((e) => e.type === 'opened' && e.capo === 'danny' && e.city === 'next'));
+  assert.equal(T.view(a, f).capos.length, 1);
+});
+
+test('a city across the road has its own seats, and a lieutenant who crosses stays where his places are', () => {
+  const { c, f } = rivalTown(), b = town();
+  for (let x = 0; x < 20; x += 2) for (let y = 0; y < 12; y += 3) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  const d = T.doors(c, f).find((q) => q.door === 'poach');
+  f.dirty = 50000;
+  assert.throws(() => T.send(c, b, f, d.capo, 3, 3), /stays/);
+  T.settle(b, 'mae', 0, 0); T.settle(b, 'sal', 0, 5); T.settle(b, 'tommy', 11, 5);
+  const other = T.doors(c, f).find((q) => q.door !== 'poach');
+  assert.ok(other, 'somebody else is at the door');
+  assert.throws(() => T.send(c, b, f, other.capo, 3, 3), /no seat/);
+});
+
+test('nobody knows the first man in a new city: he plants his club on any free block, even on the rivals\' streets', () => {
+  const a = town(), b = town(), f = rich();
+  T.settle(a, 'dutch', 2, 2); T.join(f, 'dutch');
+  for (const [x, y, kind] of [[3, 2, 'gambling'], [3, 3, 'loft'], [3, 4, 'front']]) T.open(a, x, y, { owner: 'family', kind, capo: 'dutch' });
+  T.open(b, 10, 1, { owner: 'Northside', kind: 'speakeasy' });
+  T.open(b, 0, 5, { owner: 'Northside', kind: 'speakeasy', level: 3 });
+  assert.equal(T.grip(b, 10, 2), 'rival');
+  assert.equal(T.spots(b).length, 12 * 6 - 2, 'every free block');
+  assert.throws(() => T.send(a, b, f, 'danny', 10, 1), /already a place/);
+  T.send(a, b, f, 'danny', 10, 2);
+  assert.deepEqual(T.clubOf(b, 'danny'), { x: 10, y: 2 });
+  assert.ok(!T.spots(b).some((s) => T.grip(b, s.x, s.y) === 'rival'), 'the next one is known');
+  assert.throws(() => T.send(a, b, f, 'mae', 1, 5), /Northside/);
+});
+
+// --- a bigger family pays more ---
+
+test('every man the family already counts makes the next one dearer, wherever he is', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  const price = () => T.doors(c, f).find((d) => d.capo === 'danny').cost;
+  assert.equal(price(), T.RULES.doors.name, 'the second man costs the plain price');
+  T.join(f, 'mae');
+  assert.equal(price(), Math.round(T.RULES.doors.name * (1 + T.RULES.crowd) / 50) * 50);
+  T.join(f, 'sal'); T.join(f, 'tommy');
+  assert.equal(price(), Math.round(T.RULES.doors.name * Math.pow(1 + T.RULES.crowd, 3) / 50) * 50);
+  f.dirty = price() - 1;
+  assert.throws(() => T.welcome(c, f, 'danny', 7, 4), /cannot pay/);
+});
+
+test('every key place the family holds, in any city, makes the next one dearer', () => {
+  const { c, f } = siege(), other = town();
+  other.id = 'other';
+  T.settle(other, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(other, 4, 4, { owner: 'family', kind: 'key', key: 'depot', capo: 'dutch' });
+  T.open(other, 8, 4, { owner: 'family', kind: 'key', key: 'port', capo: 'dutch' });
+  T.open(c, 9, 3, { owner: 'family', kind: 'loans', capo: 'sal' });
+  const asked = T.month(f, [other, c]).find((e) => e.type === 'asks');
+  assert.equal(f.crowns, 2);
+  const plain = T.RULES.keyCost * T.RULES.take[asked.way].cost;
+  assert.equal(asked.cost, Math.round(plain * Math.pow(1 + T.RULES.greed, 2) / 50) * 50);
+  assert.equal(T.asks(c)[0].cost, asked.cost);
+});
+
+test('the bigger the man, the more he keeps: what a Soldier cannot use all goes up, a Legend sends a tenth', () => {
+  const tribute = T.RULES.club * T.RULES.tribute, spare = 1000;
+  const up = (rank) => {
+    const c = town(), f = family({ dirty: 1000 });
+    T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+    f.men.dutch.rank = rank; f.men.dutch.xp = T.RULES.xp[rank];
+    for (const k of Object.keys(f.tech)) f.tech[k] = 0; // nothing he may open: all he has is spare
+    f.men.dutch.cash = T.RULES.pocket + spare + tribute - T.RULES.club;
+    T.stepMonth(c, f);
+    return { sent: f.dirty - 1000 + T.RULES.pay[rank] - tribute, kept: f.men.dutch.cash };
+  };
+  assert.deepEqual(T.RULES.keeps, [0, 0.5, 0.75, 0.9]);
+  assert.deepEqual([0, 1, 2, 3].map((r) => Math.round(up(r).sent)), [0, 1, 2, 3].map((r) => Math.round(spare * (1 - T.RULES.keeps[r]))));
+  assert.equal(up(3).kept, up(0).kept, 'what he keeps he spends on himself: it does not pile up in his club');
+});
