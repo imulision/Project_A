@@ -5,6 +5,7 @@
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 
 const shots = process.argv[2];
@@ -151,6 +152,16 @@ const before = await hud();
 await page.reload();
 await page.waitForFunction(() => window.__ashport && window.__ashport.map());
 assert.deepEqual(await hud(), before, 'the saved game comes back after a reload');
+
+// a game saved by an older version that today's rules cannot read must not stop the game from opening:
+// it is set aside, the player is told, and a new game starts
+const old = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures/save-before-tree.json'), 'utf8');
+await page.evaluate((t) => localStorage.setItem('ashport-save-1', t), old);
+await page.reload();
+await page.waitForSelector('#veil.on h2', { timeout: 120000 });
+assert.equal(await page.textContent('#sheet h2'), 'Hillside needs a capo', 'an unreadable save gives a new game, not a dead screen');
+assert.match(await page.textContent('#toast'), /older version/, 'and the player is told why');
+assert.equal(await page.locator('#load').count(), 0);
 
 await browser.close();
 assert.deepEqual(errors, [], 'no script errors');
