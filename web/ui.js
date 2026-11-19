@@ -109,6 +109,45 @@
         '<div class="acts"><button class="go" data-act="approve" data-id="' + esc(p.id) + '">Approve</button><button data-act="refuse" data-id="' + esc(p.id) + '">Refuse</button></div></div>'; }).join('') +
       '<div class="acts"><button data-act="close">Decide later</button></div>');
   }
+  // ---- the wheel: six trades around the boss, three rings each, lit by capos who rise in rank
+  var TRADE = { liquor: '#ffb347', vice: '#e86aa6', money: '#7fe08a', law: '#6aa6ff', muscle: '#ff5a3a', routes: '#d8c48a' };
+  function arc(a0, a1, r0, r1) {      // a slice of ring between two angles (degrees, 0 at the top, clockwise)
+    var pt = function (a, r) { var t = (a - 90) * Math.PI / 180; return (r * Math.cos(t)).toFixed(1) + ' ' + (r * Math.sin(t)).toFixed(1); };
+    return 'M' + pt(a0, r0) + 'L' + pt(a0, r1) + 'A' + r1 + ' ' + r1 + ' 0 0 1 ' + pt(a1, r1) + 'L' + pt(a1, r0) + 'A' + r0 + ' ' + r0 + ' 0 0 0 ' + pt(a0, r0) + 'Z';
+  }
+  function wheelSvg(w) {
+    var step = 360 / w.sectors.length, out = '<svg class="wheel" viewBox="-205 -182 410 364"><defs><filter id="lit" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+    w.sectors.forEach(function (s, i) {
+      var a0 = i * step + 2, a1 = (i + 1) * step - 2, mid = (a0 + a1) / 2, t = (mid - 90) * Math.PI / 180, c = TRADE[s.id] || '#e8c463';
+      s.rings.forEach(function (r, k) {
+        out += '<path data-skill="' + i + ':' + k + '" d="' + arc(a0, a1, 46 + k * 35, 78 + k * 35) + '" fill="' + c + '"' + (r.lit ? ' filter="url(#lit)"' : ' fill-opacity="' + (0.2 - k * 0.04) + '"') + '/>';
+      });
+      out += '<text x="' + (167 * Math.cos(t)).toFixed(1) + '" y="' + (167 * Math.sin(t) + 4).toFixed(1) + '" fill="' + c + '" style="fill:' + c + '">' + esc(s.name) + '</text>';
+    });
+    return out + '<circle r="38" fill="#0e0e15" stroke="#e8c463" stroke-width="2"/><text class="boss" y="-1">Boss</text><text class="count" y="15">' + w.lit + ' / ' + w.of + '</text></svg>';
+  }
+  function skillText(w, key) {
+    var p = key.split(':'), s = w.sectors[+p[0]], r = s.rings[+p[1]];
+    return '<b style="color:' + TRADE[s.id] + '">' + esc(s.name) + ' · ' + esc(r.name) + '</b>' + esc(r.text) + '<br><small style="color:var(--dim)">' +
+      (r.lit ? 'Brought by ' + esc(r.by.map(capoName).join(', ')) : 'Not yet. A capo of yours has to rise in this trade.') + '</small>';
+  }
+  function men() {      // everyone the family counts on, each named once
+    var ids = [], v = G.view(g), add = function (id) { if (id && ids.indexOf(id) < 0) ids.push(id); };
+    v.cities.forEach(function (c) { c.districts.forEach(function (d) { if (d.owner === 'family') add(d.capo); }); });
+    Object.keys(v.table || {}).forEach(function (k) { add(v.table[k]); }); Object.keys(v.underbosses || {}).forEach(function (k) { add(v.underbosses[k]); });
+    return ids.map(function (id) { return G.person(g, id); }).filter(Boolean);
+  }
+  function sheetFamily() {
+    var w = G.wheel(g);
+    open('<h2>The family</h2><p>Six trades around you. Your men light them as they rise in rank, and what they bring serves the whole family.</p>' + wheelSvg(w) +
+      '<div id="skill">Touch a part of the wheel to see what it brings.</div>' +
+      men().map(function (m) {
+        return '<div class="card"><h3>' + esc(m.name) + '</h3><div class="who">' + esc(m.rankName) + ' · ' + esc(m.specialty) + '</div>' +
+          '<div class="bar"><i style="width:' + Math.min(100, Math.round(100 * m.total / (m.nextRankAt || m.total || 1))) + '%"></i></div>' +
+          '<div class="st">' + (m.nextRankAt ? 'Next rank at ' + Math.round(m.nextRankAt) + ' (now ' + Math.round(m.total) + ')' : 'Highest rank') + '</div>' +
+          (m.abilities.length ? m.abilities.map(function (a) { return '<div class="mv"><span style="color:' + TRADE[a.sector] + '">' + esc(a.name) + '</span>: ' + esc(a.text) + '</div>'; }).join('') : '<div class="st">Has brought nothing to the wheel yet.</div>') + '</div>'; }).join('') +
+      '<div class="acts"><button data-act="close">Close</button></div>');
+  }
   function sheetJournal() {
     open('<h2>Journal</h2><ul class="list">' + (g.journal.length ? g.journal.slice(0, 40).map(function (e) {
       return '<li>' + esc(e.label) + '<small>' + esc(e.date) + ' · ' + esc(e.place) + (e.why ? ' · ' + esc(e.why) : '') + '</small></li>'; }).join('') : '<li>Nothing has happened yet</li>') +
@@ -116,6 +155,8 @@
   }
 
   $('sheet').addEventListener('click', function (e) {
+    var seg = e.target.closest('[data-skill]');
+    if (seg) { [].forEach.call($('sheet').querySelectorAll('.sel'), function (x) { x.classList.remove('sel'); }); seg.classList.add('sel'); $('skill').innerHTML = skillText(G.wheel(g), seg.dataset.skill); return; }
     var b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
     var act = b.dataset.act;
     if (act === 'close') close();
@@ -131,6 +172,7 @@
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
+  $('family').onclick = function () { if (g.started) sheetFamily(); };
   $('journal').onclick = function () { if (g.started) sheetJournal(); };
 
   // ---- labels over the map
@@ -142,11 +184,11 @@
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
           e = labs[l.id] = document.createElement('div');
-          if (l.fx) { e.className = 'lab fx ' + l.fx; e.textContent = { fire: 'FIRE', gunfire: 'GUNFIRE', police: 'POLICE RAID' }[l.fx]; }
+          if (l.fx) { e.className = 'lab fx ' + l.fx; e.textContent = { fire: 'FIRE', gunfire: 'GUNFIRE', police: 'POLICE RAID', promotion: 'PROMOTED' }[l.fx]; }
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<b></b><span></span>'; e.onclick = function () { tapLabel(e.l); }; }
           $('labels').appendChild(e);
         }
-        e.l = l; e.style.left = l.x + 'px'; e.style.top = (l.y - (l.fx ? { fire: 0, gunfire: 22, police: 44 }[l.fx] : 0)) + 'px';
+        e.l = l; e.style.left = l.x + 'px'; e.style.top = (l.y - (l.fx ? ({ fire: 0, gunfire: 22, police: 44, promotion: 66 }[l.fx] || 0) : 0)) + 'px';
         if (!l.fx) { e.style.setProperty('--c', l.color); e.firstChild.textContent = l.name; e.lastChild.textContent = l.sub; }
       });
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
@@ -159,7 +201,7 @@
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.world.month, events = G.tick(g);
     if (g.world.month === before) return;
-    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid' || e.type === 'job') toast(e.label, e.type !== 'job' || e.outcome === 'failed'); });
+    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid' || e.type === 'job' || e.type === 'promotion') toast(e.label, e.type === 'attack' || e.type === 'raid' || e.outcome === 'failed'); });
     showMap(events); showHud(); store();
     if (events.some(function (e) { return e.type === 'proposal'; })) sheetProposals();      // time waits for the boss's word
   }

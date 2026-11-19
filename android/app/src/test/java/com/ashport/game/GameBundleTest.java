@@ -143,4 +143,11 @@ public class GameBundleTest {
         assertNull(GameBundle.readRelease("{\"message\":\"Not Found\"}"));
         assertNull(GameBundle.readRelease(""));
     }
+
+    @Test
+    public void installingTellsEachFileAsItIsWritten() throws IOException {
+        java.util.List<Integer> seen = new java.util.ArrayList<>();
+        GameBundle.install(zip("index.html", "a", "sim.js", "b", "art/map.png", "c"), root, "v0.1.4", seen::add);
+        assertEquals(java.util.Arrays.asList(1, 2, 3), seen);
+    }
 }

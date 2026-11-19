@@ -64,6 +64,14 @@ assert.equal((await hud()).named, '2 / 9');
 await months(6);
 await shot('4-market-street');
 
+// the wheel of the family: six trades, three rings, and what a part brings when touched
+await page.click('#family');
+assert.equal(await page.locator('#sheet .wheel path').count(), 18, 'the wheel has 18 parts');
+await page.locator('#sheet .wheel path').first().click();
+assert.match(await page.textContent('#skill'), /Liquor/, 'touching a part says what it brings');
+assert.ok(await page.locator('#sheet .card').count() >= 2, 'the men of the family are listed with their rank');
+await shot('6-family');
+await page.click('#sheet [data-act=close]');
 await page.click('#journal');
 assert.ok(await page.locator('#sheet .list li').count() > 10, 'the journal opens');
 await page.click('#sheet [data-act=close]');
