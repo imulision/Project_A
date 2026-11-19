@@ -10,7 +10,14 @@
 
   var g = null, map = null, labs = {}, marks = {}, taking = {}, tills = {};
 
-  function stored() { try { var t = localStorage.getItem(SAVE); return t ? G.load(t) : null; } catch (e) { return null; } }
+  // A saved game is kept only if today's rules can still read all of it: an older save that would break the screen is set aside
+  // (kept under another name, in case it can be converted later) and the player is told. Never a dead screen at the door.
+  var setAside = false;
+  function stored() {
+    var t = null;
+    try { t = localStorage.getItem(SAVE); if (!t) return null; var s = G.load(t); G.hud(s); M.plan(G.view(s)); G.tree(s); G.wheel(s); G.ranks(s); G.proposals(s); G.promotions(s); G.takeovers(s); return s; }
+    catch (e) { if (t) { setAside = true; try { localStorage.setItem(SAVE + '-unreadable', t); localStorage.removeItem(SAVE); } catch (x) { /* no storage */ } } return null; }
+  }
   function store() { try { localStorage.setItem(SAVE, G.save(g)); } catch (e) { /* no storage: the game still plays */ } }
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
@@ -176,6 +183,7 @@
   }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
     if (g.started) { showMap(); map.focus('ashport'); } else show(S.start());
+    if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });
 })();
