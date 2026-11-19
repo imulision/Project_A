@@ -157,3 +157,74 @@ test('a capo runs only so many places for his rank; beyond that he makes them bi
   const flat = ALL(); for (const k of Object.keys(flat)) flat[k] = 1;
   assert.equal(T.wants(c, 'dutch', { rank: 0, tech: flat }), null, 'tier I everywhere: nothing left to do but wait for his rank');
 });
+
+// --- the month: places pay, the capo saves, and opens when he can ---
+const year = (c, f, n = 12) => { const out = []; for (let i = 0; i < n; i++) out.push(...T.stepMonth(c, f)); return out; };
+const family = (more) => Object.assign({ tech: ALL(), men: {}, dirty: 0 }, more);
+
+test('a capo starts with money in his pocket, opens his first places, and they pay', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 3);
+  T.join(f, 'dutch');
+  assert.equal(f.men.dutch.cash, T.RULES.purse);
+  const events = year(c, f);
+  const opened = events.filter((e) => e.type === 'opened');
+  assert.ok(opened.length >= 2, opened.length + ' places in a year');
+  assert.deepEqual(Object.keys(opened[0]).sort(), ['capo', 'city', 'cost', 'kind', 'label', 'type', 'why', 'x', 'y']);
+  assert.ok(f.dirty > 0, 'the boss has had his cut');
+  assert.ok(f.men.dutch.income > 0);
+});
+
+test('a speakeasy pours what the family\'s stills make: without liquor it earns a third', () => {
+  const dry = town(), wet = town(), f = family();
+  for (const c of [dry, wet]) { T.settle(c, 'dutch', 2, 3); T.open(c, 3, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch' }); }
+  T.settle(wet, 'sal', 9, 3);
+  T.open(wet, 9, 2, { owner: 'family', kind: 'still', capo: 'sal' });
+  const bar = (c) => T.income(c, 'dutch') - T.RULES.club;
+  assert.ok(Math.abs(bar(dry) / bar(wet) - T.RULES.dry) < 0.01, 'Dutch\'s bar pours Sal\'s liquor');
+});
+
+test('a place earns by the street it is on, by its size, and by how firmly the family holds it', () => {
+  const pay = (x, more, rival) => {
+    const c = town();
+    T.settle(c, 'danny', x, 3);
+    T.open(c, x + 1, 3, Object.assign({ owner: 'family', kind: 'gambling', capo: 'danny' }, more));
+    if (rival) T.open(c, x + 2, 3, { owner: 'Callahan', kind: 'speakeasy', level: 3 });
+    return T.income(c, 'danny');
+  };
+  assert.ok(pay(2) > pay(8), 'a gambling room among the factories pays less');
+  assert.ok(pay(2, { level: 2 }) > pay(2));
+  assert.ok(pay(2, {}, true) < pay(2), 'with a rival pressing on the same street');
+});
+
+test('a capo who has no money waits, and says what he is saving for', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 3);
+  T.join(f, 'dutch');
+  f.men.dutch.cash = 0;
+  assert.deepEqual(T.stepMonth(c, f).filter((e) => e.type === 'opened'), []);
+  const plan = T.plan(c, f, 'dutch');
+  assert.equal(plan.waiting, 'money');
+  assert.ok(plan.cost > 0 && plan.progress >= 0 && plan.progress < 1);
+});
+
+test('time earns a man his rank, and his rank lets him run more', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 3);
+  T.join(f, 'dutch');
+  const events = year(c, f, 120);
+  const ranks = events.filter((e) => e.type === 'rank');
+  assert.ok(ranks.length >= 1);
+  assert.match(ranks[0].label, /can now run 10 places/);
+  assert.ok(T.places(c, 'dutch').length - 1 > T.RULES.reach[0]);
+  assert.ok(T.places(c, 'dutch').length - 1 <= T.RULES.reach[f.men.dutch.rank]);
+});
+
+test('a capo with nothing but his club and empty pockets still gets started', () => {
+  const c = town(), f = family();
+  T.settle(c, 'vince', 8, 3);
+  T.join(f, 'vince');
+  f.men.vince.cash = 0;
+  const opened = year(c, f, 24).filter((e) => e.type === 'opened');
+  assert.ok(opened.length >= 1, 'his club pays for a first place within two years');
+});

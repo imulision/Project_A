@@ -23,8 +23,17 @@
     trade: 2,           // how much more a capo wants the place that is his trade
     likes: 1.5,         // and the other places he likes
     another: 0.5,       // each place of a kind he already runs makes one more that much less tempting
-    enlarge: 0.5        // share of a place's price, per level reached, to make it bigger
+    enlarge: 0.5,       // share of a place's price, per level reached, to make it bigger
+    purse: 600,         // dirty $ a capo arrives with
+    club: 150,          // dirty $ a month a social club makes on its own: no capo is ever left with nothing
+    wage: 90,           // dirty $ a month for the men of one place
+    tribute: 0.30,      // share of a capo's monthly profit owed to the boss
+    bigger: 0.5,        // what each level above the first adds to what a place earns
+    dry: 1 / 3,         // what a speakeasy earns with nothing to pour
+    pours: 2,           // speakeasies one still of level 1 keeps wet
+    xp: [0, 150, 500, 1200] // months of places run before a man is worth each rank
   };
+  var RANKS = ['Soldier', 'Capo', 'Veteran', 'Legend'];
   // What a street must be good for, for each kind of place to pay.
   var TERRAIN = { still: 'industry', speakeasy: 'nightlife', gambling: 'nightlife', loft: 'industry', rented: 'wealth', front: 'wealth',
                   warehouse: 'port', brothel: 'nightlife', chopshop: 'industry', fence: 'port', loans: 'wealth', union: 'industry' };
@@ -127,18 +136,46 @@
     return kind === tradeOf(capo) ? RULES.trade : D.CAPOS[capo].likes.indexOf(kind) >= 0 ? RULES.likes : 1;
   }
 
+  // How well the family's stills keep its speakeasies wet, across the whole city: 0 to 1.
+  function liquor(c) {
+    var stills = 0, bars = 0;
+    places(c).forEach(function (p) {
+      if (p.owner !== 'family') return;
+      if (p.kind === 'still') stills += 1 + RULES.bigger * (p.level - 1);
+      if (p.kind === 'speakeasy') bars += 1;
+    });
+    return { stills: stills, bars: bars, wet: bars ? Math.min(1, RULES.pours * stills / bars) : 1 };
+  }
+  // What one place brings in a month: the street, its size, how firmly it is held, and the liquor for a bar.
+  function earns(c, p, wet) {
+    if (!WORTH[p.kind]) return 0;
+    var h = hold(c, p.x, p.y);
+    return WORTH[p.kind] * worth(c, p.x, p.y, p.kind) * (1 + RULES.bigger * (p.level - 1)) * (h.family / (h.family + h.rival))
+      * (p.kind === 'speakeasy' ? RULES.dry + (1 - RULES.dry) * wet : 1);
+  }
+  function income(c, capo) {
+    var wet = liquor(c).wet;
+    return run(c, capo).reduce(function (n, p) { return n + earns(c, p, wet); }, clubOf(c, capo) ? RULES.club : 0);
+  }
+  function wages(c, capo) { return RULES.wage * run(c, capo).length; }
+
   // What a capo would do next, if he had the money: open a place on his
   // frontier, make one bigger once he runs all his rank allows, or nothing.
   // `tech` is the family's building tree (0 = the trade is closed).
   function wants(c, capo, o) {
     var card = D.CAPOS[capo], mine = run(c, capo), club = clubOf(c, capo), best = null;
-    var count = {};
+    var count = {}, drink = liquor(c);
     mine.forEach(function (p) { count[p.kind] = (count[p.kind] || 0) + 1; });
+    // no capo opens one more bar with nothing to pour in it, and a dry city calls for a still
+    var thirst = function (kind) {
+      if (kind === 'speakeasy') return drink.bars > 0 && drink.bars >= RULES.pours * drink.stills ? 0.4 : 1;
+      return kind === 'still' && drink.bars > RULES.pours * drink.stills ? 1.5 : 1;
+    };
     if (mine.length < RULES.reach[o.rank]) {
       frontier(c, capo).forEach(function (b) {
         KINDS.forEach(function (kind) {
           if (!(o.tech[kind] >= 1) || card.refuses.indexOf(kind) >= 0) return;
-          var score = worth(c, b.x, b.y, kind) * taste(capo, kind) * WORTH[kind] / D.SITES[kind].cost / (1 + RULES.another * (count[kind] || 0));
+          var score = worth(c, b.x, b.y, kind) * taste(capo, kind) * WORTH[kind] / D.SITES[kind].cost / (1 + RULES.another * (count[kind] || 0)) * thirst(kind);
           var d = club ? far(b.x, b.y, club.x, club.y) : 0;
           if (!best || score > best.score + 1e-9 || (Math.abs(score - best.score) <= 1e-9 && d < best.d)) best = { score: score, d: d, x: b.x, y: b.y, kind: kind };
         });
@@ -157,7 +194,48 @@
              why: mine.length >= RULES.reach[o.rank] ? 'he runs all the places his rank allows: he makes them bigger' : 'no street left to open on' };
   }
 
-  var api = { RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  // --- the family in a city, month after month ---
+  // `f` is what the family carries from city to city: its building tree,
+  // its men (cash in hand, rank, what they have learned) and the boss's money.
+  function join(f, capo) {
+    if (!D.CAPOS[capo]) throw new Error('unknown capo: ' + capo);
+    if (!f.men[capo]) f.men[capo] = { cash: RULES.purse, xp: 0, rank: 0, income: 0 };
+    return f.men[capo];
+  }
+  function first(capo) { return D.CAPOS[capo].name.split(' ')[0]; }
+  // What he is after and how far his money is from it, for the screen.
+  function plan(c, f, capo) {
+    var m = f.men[capo], w = wants(c, capo, { rank: m.rank, tech: f.tech });
+    if (!w) return { move: 'hold', waiting: 'rank', cost: 0, saved: 0, progress: 1, why: 'he runs all he can at his rank' };
+    var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
+    return { move: w.move, kind: w.kind, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
+             waiting: saved >= w.cost ? null : 'money', why: w.why };
+  }
+  function stepMonth(c, f) {
+    var events = [];
+    Object.keys(f.men).forEach(function (capo) {
+      if (!clubOf(c, capo)) return;
+      var m = f.men[capo], inc = income(c, capo), pay = wages(c, capo), profit = inc - pay;
+      m.income = inc;
+      if (profit > 0) { f.dirty += profit * RULES.tribute; m.cash += profit * (1 - RULES.tribute); } else m.cash += profit;
+      m.xp += run(c, capo).length;
+      if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
+        m.rank += 1;
+        events.push({ type: 'rank', capo: capo, city: c.id, rank: m.rank,
+                      label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places' });
+      }
+      var p = plan(c, f, capo);
+      if (p.move === 'hold' || p.waiting) return;
+      m.cash -= p.cost;
+      if (p.move === 'open') open(c, p.x, p.y, { owner: 'family', kind: p.kind, capo: capo });
+      else at(c, p.x, p.y).level += 1;
+      events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
+                    label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+    });
+    return events;
+  }
+
+  var api = { RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
