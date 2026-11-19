@@ -327,3 +327,17 @@ test('with takeovers alone, a patient boss still builds a family across several 
   assert.ok(held <= 30, `${held} districts: taking a district is meant to be hard`);
   assert.ok(cities.filter((c) => c.held > 0).length >= 2);
 });
+
+test('the boss reads who waits for a promotion, promotes him, and sees the family by rank', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 60 && !G.promotions(g).length; i++) month(g);
+  const offer = G.promotions(g)[0];
+  assert.equal(offer.capoName, 'Dutch Keller');
+  assert.ok(offer.options.every((o) => o.name && o.text && o.sector));
+  assert.equal(G.hud(g).promotions, 1);
+  assert.deepEqual(G.command(g, { type: 'promote', capo: 'dutch', ability: offer.options[1].id }), { ok: true });
+  assert.ok(g.journal.some((e) => e.type === 'promotion'));
+  const ranks = G.ranks(g);
+  assert.equal(ranks[1].men[0].name, 'Dutch Keller');
+  assert.equal(ranks[1].pay, W.RANKS[1].pay);
+});

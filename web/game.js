@@ -37,6 +37,7 @@
 
   function record(g, e, month) {
     if (e.type === 'decision' && e.kind === 'hold') return;
+    if (e.type === 'ready') return; // the man waiting shows in promotions(), not in the journal
     var place = W.placeOf(e.district), city = W.cityOf(e.city);
     var entry = { date: dateOf(month), type: e.type, label: e.label, district: e.district, city: e.city, place: place.name + ', ' + city.name };
     if (e.why) entry.why = e.why;
@@ -76,6 +77,7 @@
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
     underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); },
     takeover: function (g, c) { W.takeover(g.world, c.district, c.way, c.capo); },
+    promote: function (g, c) { record(g, W.promote(g.world, c.capo, c.ability), g.world.month); },
     approve: function (g, c) { W.rule(g.world, c.id, true); },
     refuse: function (g, c) { W.rule(g.world, c.id, false); }
   };
@@ -157,10 +159,10 @@
 
   // The top of the screen.
   function hud(g) {
-    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [], pending: 0, lastMonth: { dirty: 0, clean: 0 } };
+    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [], pending: 0, promotions: 0, lastMonth: { dirty: 0, clean: 0 } };
     return { date: dateOf(g.world.month), dirty: g.world.treasury.dirty, clean: g.world.treasury.clean,
              named: W.named(g.world).length, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: alerts(g),
-             pending: W.proposals(g.world).length,
+             pending: W.proposals(g.world).length, promotions: W.promotions(g.world).length,
              lastMonth: g.world.lastMonth || { dirty: 0, clean: 0 } }; // what the capos sent up: dirty as it is, clean once washed
   }
 
@@ -180,6 +182,24 @@
                place: W.placeOf(p.district).name + ', ' + W.cityOf(p.city).name, target: p.target, label: p.label, why: p.why,
                gain: p.gain, risk: p.risk, odds: p.odds, waits: W.RULES.jobs.expires,
                monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
+    });
+  }
+  // The men who have earned a rank and wait for the boss to choose their ability.
+  function promotions(g) {
+    if (!g.world) return [];
+    return W.promotions(g.world).map(function (p) {
+      p.capoName = D.CAPOS[p.capo].name;
+      p.place = W.placeOf(p.district).name + ', ' + W.cityOf(g.world.districts[p.district].city).name;
+      return p;
+    });
+  }
+  // The family rank by rank, for its pyramid: pay, places, who is there, who waits.
+  function ranks(g) {
+    var who = function (id) { return { id: id, name: D.CAPOS[id].name }; };
+    return W.ranks(g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] })).map(function (r) {
+      r.men = g.world ? r.men.map(who) : [];
+      r.waiting = g.world ? r.waiting.map(who) : [];
+      return r;
     });
   }
   // The takeovers under way, each with its man and how far it is.
@@ -232,7 +252,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);

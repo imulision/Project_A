@@ -454,7 +454,7 @@
 
     // the boss's cut, less what the capo keeps for himself
     var owed = Math.max(0, m.profit) * RULES.tribute;
-    var skim = owed * Math.min(100, 100 - c.loyalty + RULES.grudge * d.grudge + RULES.rankPride * d.rank) / 250;
+    var skim = owed * Math.min(100, 100 - c.loyalty + RULES.grudge * d.grudge + (d.paid ? 0 : RULES.rankPride * d.rank)) / 250; // a rank the boss pays for is not held against him
     d.dirty += m.profit - owed;
     var w = launder(d, c);
     var paid = owed - skim;
@@ -517,7 +517,7 @@
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
-      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, threat: 0, grudge: 0, rank: 0, skills: [], last: null
+      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, threat: 0, grudge: 0, rank: 0, paid: false, skills: [], last: null
     };
     SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
     d.sites.still = 2; d.sites.speakeasy = 2;
