@@ -336,7 +336,7 @@ function plan(C) {
   }
   for (const l of C.p.lots) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site, hideout: l.hideout && l.ours });
   }
   nBuildings += C.lots.length;
 }
@@ -394,10 +394,11 @@ function buildNear(C) {
     const hx = x - Math.cos(r) * 0.22, hz = z + Math.sin(r) * 0.22;
     glow(hx, 1.02, hz, 0.55, GLOW_WARM, 0xffffff, 0.85); pool(hx, hz, 2.4, 0xffb868, 0.38);
   }
-  for (const l of C.lots) if (l.site) {     // the family's places carry a sign
-    const fx = l.rot ? 1 : 0, fz = l.rot ? 0 : 1, sg = sign(l.site.sign, l.site.color);
+  for (const l of C.lots) if (l.site || l.hideout) {     // the family's places carry a sign, and so does the capo's hideout
+    if (!l.site) l.site0 = { sign: 'SOCIAL CLUB', color: '#ffc74a' };
+    const fx = l.rot ? 1 : 0, fz = l.rot ? 0 : 1, look = l.site || l.site0, sg = sign(look.sign, look.color);
     sg.position.set(l.x + fx * 0.84, 0.95, l.z + fz * 0.84); if (l.rot) sg.rotation.y = Math.PI / 2; cur.add(sg);
-    glow(l.x + fx, 0.9, l.z + fz, 2.2, GLOW_SOFT, new THREE.Color(l.site.color), 0.7); pool(l.x + fx * 1.3, l.z + fz * 1.3, 3, new THREE.Color(l.site.color), 0.5);
+    glow(l.x + fx, 0.9, l.z + fz, 2.2, GLOW_SOFT, new THREE.Color(look.color), 0.7); pool(l.x + fx * 1.3, l.z + fz * 1.3, 3, new THREE.Color(look.color), 0.5);
   }
   bake(cur); G.add(cur);
   for (const { name, mat, shadow, list } of inst.values()) {
@@ -546,7 +547,8 @@ const labels = () => {
     else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + (d.c0 + d.c1) * 2 * T, c.oz + (d.r0 + d.r1) * 1.5 * T);
       out.push({ id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
   });
-  for (const f of fxList) { const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + f.n, fx: f.kind, x, y }); }
+  const shown = new Set();      // one badge per kind and per block, however many shots are fired
+  for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, x, y }); }
   return out;
 };
 // the state of the game changed: rebuild only the cities that look different
@@ -580,13 +582,13 @@ const agents = new Map(), MAXDOTS = 400;
 const dots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: GLOW_WARM, size: 10, sizeAttenuation: false, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
 dots.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3)); dots.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3));
 dots.geometry.setDrawRange(0, 0); dots.frustumCulled = false; dots.renderOrder = 5; scene.add(dots);
-const AGENTMAT = { liquor: CARMATS[3], build: CARMATS[3], cash: CARMATS[0], police: kitMat(0.35, -1, 0x27365f), attack: kitMat(0.35, -1, 0x241f1f) };
+const POLICEMAT = kitMat(0.35, -1, 0x27365f), MUSCLEMAT = kitMat(0.35, -1, 0x241f1f);
 function agentFor(t) {
   const C = CITIES.find(c => c.id === t.city); if (!C) return null;
   const pts = t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
   for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
   if (!L) return null;
-  return { C, pts, len, L, p: t.loop ? hsh(pts[0][0], pts[0][1] + L) * L : 0, dir: 1, loop: t.loop, wait: 0, kind: t.kind, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
+  return { C, pts, len, L, p: t.loop ? hsh(pts[0][0], pts[0][1] + L) * L : 0, dir: 1, loop: t.loop, wait: 0, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
 }
 function traffic(trips) {
   const seen = new Set();
@@ -603,21 +605,21 @@ function moveAgents(dt) {
     else {
       a.p += a.dir * a.speed * dt;
       if (a.p >= a.L) {
-        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (a.kind === 'seize' || a.kind === 'attack') spawnFx('gunfire', e[0], e[1]); if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
+        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
         a.p = a.L; a.dir = -1; a.wait = 1.5;
       } else if (a.p <= 0) { a.p = 0; a.dir = 1; a.wait = 1.5; }
     }
     let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
     const p0 = a.pts[k], p1 = a.pts[k + 1], s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
     if (a.C.near && a.C.near.visible) {
-      if (!a.o) { a.o = new THREE.Mesh(GEO[a.kind === 'liquor' || a.kind === 'build' ? 'car_stationwagon' : 'car_sedan'], AGENTMAT[a.kind] || CARMATS[2]); a.o.position.y = 0.17; a.o.castShadow = false; scene.add(a.o); }
+      if (!a.o) { a.o = new THREE.Mesh(GEO[a.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], a.vehicle === 'police' ? POLICEMAT : a.violent ? MUSCLEMAT : a.vehicle === 'truck' ? CARMATS[3] : CARMATS[0]); if (a.vehicle === 'truck') a.o.scale.setScalar(1.2); a.o.position.y = 0.17; a.o.castShadow = false; scene.add(a.o); }
       const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir;
       a.o.visible = true; a.o.position.x = x; a.o.position.z = z; if (fx || fz) a.o.rotation.y = Math.atan2(fx, fz);
     } else if (a.o) a.o.visible = false;
     if (n < MAXDOTS) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
   }
   dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
-  dots.material.size = clamp(5 * Math.sqrt(cam.zoom), 6, 14) * (innerHeight / 844);
+  dots.material.size = clamp(6 * Math.sqrt(cam.zoom), 7, 20) * (innerHeight / 844);
 }
 function animateFx(dt, now) {
   for (let k = fxList.length - 1; k >= 0; k--) {

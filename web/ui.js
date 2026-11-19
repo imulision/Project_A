@@ -19,7 +19,7 @@
   // The map follows the game: buildings, then the cars on the road, then what just happened.
   function showMap(events) {
     if (!map || !g.started) return;
-    var p = M.plan(G.view(g)); map.update(p); map.traffic(M.trips(p, events || [])); map.effects(M.effects(events || [], p));
+    var p = M.plan(G.view(g)); map.update(p); map.traffic(M.trips(p, G.trips(g))); map.effects(M.effects(events || [], p));
   }
   function previewPlan() { return M.plan(G.view(G.createGame({ capo: Object.keys(CAPOS)[0] }))); }
 
@@ -71,13 +71,20 @@
     G.view(g).cities.forEach(function (c) { c.districts.forEach(function (d) { if (d.id === id) out = { city: c, d: d }; }); });
     return out;
   }
+  // Last month in figures: what was made, sold, earned, washed and sent up to the boss.
+  function flowRows(id) {
+    var f = G.flows(g, id); if (!f) return '';
+    var cell = function (label, value) { return '<div><small>' + label + '</small><b>' + value + '</b></div>'; };
+    return '<div class="rows">' + cell('CRATES MADE', Math.round(f.made)) + cell('CRATES SOLD', Math.round(f.sold)) + cell('INCOME', money(f.income)) + cell('COSTS', money(f.costs)) + '</div>' +
+      '<div class="rows">' + cell('PROFIT', money(f.profit)) + cell('WASHED', money(f.washed)) + cell('TO YOU', money(f.tribute)) + cell('HELD BACK BY', f.limit ? esc(String(f.limit)) : 'nothing') + '</div>';
+  }
   function sheetDistrict(id) {
     var x = find(id); if (!x) return;
     var d = x.d, html = '<h2>' + esc(d.name) + '</h2>';
     if (d.owner === 'family') {
       html += '<p>' + esc(x.city.name) + ' · held by your family · capo: ' + esc(capoName(d.capo)) + (d.appointedBy ? ' (named by ' + esc(capoName(d.appointedBy)) + ')' : '') + (d.watched ? ' · watched by the police' : '') + '</p>' +
         '<div class="rows"><div><small>STREETS</small><b>' + Math.round(d.share) + '%</b></div><div><small>HEAT</small><b>' + Math.round(d.heat) + '</b></div><div><small>GOODWILL</small><b>' + Math.round(d.goodwill) + '</b></div><div><small>MEN</small><b>' + d.men + '</b></div></div>' +
-        '<ul class="list">' + (d.buildings.length ? d.buildings.map(function (b) { return '<li>' + esc(b.name) + '<small>' + b.staff + ' men · level ' + b.level + '</small></li>'; }).join('') : '<li>No place of ours yet</li>') + '</ul>' +
+        flowRows(id) + '<ul class="list">' + (d.buildings.length ? d.buildings.map(function (b) { return '<li>' + esc(b.name) + '<small>' + b.staff + ' men · level ' + b.level + '</small></li>'; }).join('') : '<li>No place of ours yet</li>') + '</ul>' +
         '<div class="acts"><button data-act="pick" data-order="appoint" data-district="' + esc(id) + '">Replace the capo</button><button data-act="close">Close</button></div>';
     } else {
       var o = G.openings(g).filter(function (o) { return o.district === id; })[0];

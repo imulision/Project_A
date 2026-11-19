@@ -124,10 +124,12 @@ test('attacks and raids become fire, gunfire and police lights where they happen
   ]);
 });
 
-// ---- the life of the empire: who drives where
+// ---- the life of the empire: the rules say who goes where, the map says by which streets
 const grown = () => { const g = G.createGame({ capo: 'dutch' }); for (let i = 0; i < 30; i++) month(g); return g; };
 const lotAt = (c, p) => c.lots.find((l) => l.i === p[0] && l.j === p[1]);
 const onStreet = (p) => p[0] % 4 === 0 || p[1] % 3 === 0;
+const ends = (c, t) => [lotAt(c, t.path[0]), lotAt(c, t.path[t.path.length - 1])];
+const at = { district: 'ashport-hillside', city: 'ashport', flow: 'violence', vehicle: 'car', violent: true };
 
 test('a route runs along the streets, from one lot to another', () => {
   const c = city(M.plan(G.view(fresh())), 'ashport'), a = c.lots[0], b = c.lots[c.lots.length - 1];
@@ -138,52 +140,62 @@ test('a route runs along the streets, from one lot to another', () => {
   for (let k = 1; k < path.length; k++) assert.ok(path[k][0] === path[k - 1][0] || path[k][1] === path[k - 1][1], 'no diagonal');
 });
 
-test('liquor goes from the stills to the rooms that sell it, and the money to where it is washed', () => {
-  const p = M.plan(G.view(grown())), ash = city(p, 'ashport'), trips = M.trips(p, []);
-  const kindAt = (pt) => lotAt(ash, pt).site.type;
-  const liquor = trips.filter((t) => t.kind === 'liquor'), cash = trips.filter((t) => t.kind === 'cash');
+test('every trip of the rules is a car between the very buildings it names', () => {
+  const g = grown(), p = M.plan(G.view(g)), ash = city(p, 'ashport'), game = G.trips(g), cars = M.trips(p, game);
+  assert.ok(game.length > 0 && cars.length > 0);
+  game.filter((x) => x.kind === 'works' || x.kind === 'seizure').forEach((x) => assert.ok(cars.some((t) => t.kind === x.kind && ends(ash, t)[1].site && ends(ash, t)[1].site.id === x.to), 'a crew goes to ' + x.to));
+  const liquor = cars.filter((t) => t.kind === 'liquor');
   assert.ok(liquor.length > 0, 'there is liquor on the road');
-  liquor.forEach((t) => { assert.ok(['still', 'warehouse'].includes(kindAt(t.path[0]))); assert.ok(['speakeasy', 'gambling', 'brothel'].includes(kindAt(t.path[t.path.length - 1]))); assert.equal(t.loop, true); });
-  assert.ok(cash.length > 0, 'there is money on the road');
-  const washes = ash.lots.some((l) => l.site && ['rented', 'front'].includes(l.site.type));
-  if (washes) cash.forEach((t) => assert.ok(['rented', 'front'].includes(kindAt(t.path[t.path.length - 1]))));
+  liquor.forEach((t) => { const [a, b] = ends(ash, t), src = game.find((x) => x.kind === 'liquor' && x.from === a.site.id && x.to === b.site.id); assert.ok(src, 'from ' + a.site.id + ' to ' + b.site.id); });
+  cars.forEach((t) => { assert.match(t.color, /^#[0-9a-f]{6}$/); assert.ok(t.path.length >= 2); assert.ok(['truck', 'car', 'police'].includes(t.vehicle)); });
 });
 
-test('only the family has its cars out, and never too many in one district', () => {
-  const p = M.plan(G.view(grown())), trips = M.trips(p, []), per = {};
-  trips.forEach((t) => {
-    const c = city(p, t.city), d = c.districts[lotAt(c, t.path[0]).district];
-    assert.equal(d.owner, 'family');
-    per[d.id] = (per[d.id] || 0) + 1;
-    assert.match(t.color, /^#[0-9a-f]{6}$/);
-  });
-  Object.keys(per).forEach((id) => assert.ok(per[id] <= 8, id + ' has ' + per[id] + ' cars'));
-  assert.deepEqual(M.trips(p, []).map((t) => t.id), trips.map((t) => t.id), 'the same state gives the same cars');
+test('the hideout of a district is one fixed building, and the takings go there', () => {
+  const g = grown(), p = M.plan(G.view(g)), ash = city(p, 'ashport');
+  const takings = M.trips(p, G.trips(g)).filter((t) => t.kind === 'takings');
+  assert.ok(takings.length > 0);
+  const hide = ends(ash, takings[0])[1];
+  takings.forEach((t) => assert.equal(ends(ash, t)[1], hide));
+  assert.equal(ash.districts[hide.district].id, 'ashport-hillside');
+  assert.equal(hide.site, null, 'the hideout is not one of the businesses');
+  assert.equal(hide.hideout, true);
+  month(g);
+  const next = M.plan(G.view(g)), again = M.trips(next, G.trips(g)).filter((t) => t.kind === 'takings');
+  if (again.length) assert.deepEqual(again[0].path[again[0].path.length - 1], [hide.i, hide.j], 'it does not move');
 });
 
-test('what a capo decides is seen on the road', () => {
-  const p = M.plan(G.view(grown())), ash = city(p, 'ashport'), at = { district: 'ashport-hillside', city: 'ashport' };
-  const one = (e) => M.trips(p, [Object.assign({ label: 'x' }, at, e)]).filter((t) => !t.loop);
-  const end = (t) => lotAt(ash, t.path[t.path.length - 1]);
-  const built = one({ type: 'decision', kind: 'speakeasy' });
-  assert.equal(built.length, 1); assert.equal(built[0].kind, 'build'); assert.equal(end(built[0]).site.type, 'speakeasy');
-  const seized = one({ type: 'decision', kind: 'seize' });
-  assert.equal(seized[0].kind, 'seize'); assert.equal(end(seized[0]).site.type, 'warehouse');
-  const push = one({ type: 'decision', kind: 'push' });
-  assert.equal(push[0].kind, 'push'); assert.equal(ash.districts[end(push[0]).district].id, 'ashport-hillside');
-  assert.deepEqual(one({ type: 'decision', kind: 'hold' }), [], 'holding steady moves nobody');
+test('routine runs loop all month, a crew sent out goes once', () => {
+  const p = M.plan(G.view(grown()));
+  const cars = M.trips(p, [
+    Object.assign({}, at, { kind: 'liquor', flow: 'logistics', vehicle: 'truck', violent: false, from: 'hillside-still-1', to: 'hillside-speakeasy-1' }),
+    Object.assign({}, at, { kind: 'seizure', from: 'hideout', to: 'hillside-warehouse-1' }),
+    Object.assign({}, at, { kind: 'streets', from: 'hideout', to: 'streets' }),
+  ]);
+  assert.deepEqual(cars.map((t) => t.loop), [true, false, false]);
+  assert.equal(cars[0].vehicle, 'truck');
+  assert.notEqual(cars[0].color, cars[1].color, 'business and violence do not look the same');
+  assert.equal(M.trips(p, [])[0], undefined, 'no trip, no car');
 });
 
-test('rivals and the police come from outside the district', () => {
-  const p = M.plan(G.view(grown())), ash = city(p, 'ashport'), at = { district: 'ashport-hillside', city: 'ashport', label: 'x' };
-  const hill = ash.districts.findIndex((d) => d.id === 'ashport-hillside');
-  const attack = M.trips(p, [Object.assign({ type: 'attack', by: 'Callahan', outcome: 'hit', site: 'still' }, at)]).filter((t) => !t.loop);
-  assert.ok(attack.length >= 2, 'they come in several cars');
-  attack.forEach((t) => { assert.equal(t.kind, 'attack'); assert.equal(t.color, M.COLORS.callahan);
-    assert.notEqual(lotAt(ash, t.path[0]).district, hill); assert.equal(lotAt(ash, t.path[t.path.length - 1]).site.type, 'still'); });
-  const raid = M.trips(p, [Object.assign({ type: 'raid', site: 'speakeasy' }, at)]).filter((t) => !t.loop);
+test('rivals and the police come in several cars from outside the district', () => {
+  const p = M.plan(G.view(grown())), ash = city(p, 'ashport'), hill = ash.districts.findIndex((d) => d.id === 'ashport-hillside');
+  const attack = M.trips(p, [Object.assign({}, at, { kind: 'attack', from: 'rivals', to: 'still', by: 'Callahan', outcome: 'hit' })]);
+  assert.ok(attack.length >= 2);
+  attack.forEach((t) => { const [a, b] = ends(ash, t); assert.equal(t.color, M.COLORS.callahan); assert.notEqual(a.district, hill); assert.equal(b.site.type, 'still'); assert.equal(t.loop, false); });
+  const raid = M.trips(p, [Object.assign({}, at, { kind: 'raid', from: 'police', to: 'hillside-speakeasy-1', vehicle: 'police' })]);
   assert.ok(raid.length >= 2);
-  raid.forEach((t) => { assert.equal(t.kind, 'police'); assert.notEqual(lotAt(ash, t.path[0]).district, hill); assert.equal(lotAt(ash, t.path[t.path.length - 1]).district, hill); });
+  raid.forEach((t) => { const [a, b] = ends(ash, t); assert.equal(t.vehicle, 'police'); assert.notEqual(a.district, hill); assert.equal(b.site.id, 'hillside-speakeasy-1'); });
+});
+
+test('a district never has more routine cars than the streets can show', () => {
+  const p = M.plan(G.view(grown())), many = [];
+  for (let k = 0; k < 30; k++) many.push(Object.assign({}, at, { kind: 'takings', flow: 'sales', violent: false, from: 'hillside-speakeasy-1', to: 'hideout' }));
+  assert.ok(M.trips(p, many).length <= 8);
+});
+
+test('the same month gives the same cars, so a car already on the road is kept', () => {
+  const g = grown(), p = M.plan(G.view(g));
+  assert.deepEqual(M.trips(p, G.trips(g)).map((t) => t.id), M.trips(p, G.trips(g)).map((t) => t.id));
 });
 
 test('fire and police lights land on the place that was hit, whatever name the rules give it', () => {
