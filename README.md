@@ -7,7 +7,7 @@ lieutenants run which districts, and they act their own way.
 ## Layout
 
 - `web/sim.js` holds the rules of the game: months, districts, lieutenants, money, events. It knows nothing about the screen.
-- `web/district.js` holds the rules of the next version, where the boss only names a capo and the capo runs his district (hiring, places, crews, laundering, police). The page does not use it yet. `npm run simulate` plays every capo over five years and prints a report. Tests are in `tests/district.test.js`.
+- `web/district.js` holds the rules of the next version, where the boss only names a capo and the capo runs his district (hiring, places, crews, laundering, police). It covers liquor, gambling, cannabis, brothels, chop shops, fences, loan offices, union locals and laundering. `web/world.js` holds the map: six cities, their districts, the routes between them, the three seats at the boss's table, and `view(world)` for the future map. The page does not use them yet. `npm run simulate` plays every capo over five years and prints a report. Tests are in `tests/district.test.js` and `tests/world.test.js`.
 - `web/index.html` is the page. It draws the state held by `sim.js` and passes the player's answers back to it. There is no build step: open the file in a browser to play.
 - `tests/sim.test.js` holds the unit tests of the rules. They run without a browser.
 - `tests/playthrough.mjs` is the integration test: it plays a full in-game year in a real browser.

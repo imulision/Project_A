@@ -7,6 +7,11 @@ const D = require('../web/district.js');
 const near = (actual, expected, slack = 0.51) =>
   assert.ok(Math.abs(actual - expected) <= slack, `expected about ${expected}, got ${actual}`);
 
+// Only the kinds of place the district actually has.
+function places(d) {
+  return Object.fromEntries(Object.entries(d.sites).filter(([, n]) => n > 0));
+}
+
 function year(capo, overrides) {
   const d = D.createDistrict({ capo, ...overrides });
   const events = [];
@@ -19,7 +24,7 @@ test('a new district starts as Hillside in January 1926', () => {
   assert.equal(d.name, 'Hillside');
   assert.equal(d.month, 0);
   assert.equal(d.men, 14);
-  assert.deepEqual(d.sites, { still: 2, speakeasy: 2, gambling: 0, loft: 0, rented: 0, front: 0, warehouse: 0 });
+  assert.deepEqual(places(d), { still: 2, speakeasy: 2 });
   assert.equal(d.dirty, 800);
   assert.equal(d.clean, 300);
   assert.equal(d.share, 35);
@@ -306,6 +311,96 @@ test('after five years no district is loved or hated without limit, and none is 
   }
 });
 
+// --- the other rackets, and what a district is good for ---
+
+const DOCKS = { name: 'The Docks', traits: { nightlife: 0.8, industry: 1.2, port: 1.5, wealth: 0.5 } };
+
+function fiveYears(capo, overrides) {
+  const d = D.createDistrict({ capo, ...overrides });
+  const kinds = new Set();
+  for (let i = 0; i < 60; i++) kinds.add(D.stepMonth(d)[0].kind);
+  return { d, kinds };
+}
+
+test('Hillside is a hill of houses: no port, little industry', () => {
+  const d = D.createDistrict({ capo: 'dutch' });
+  assert.equal(d.traits.port, 0);
+  assert.ok(d.traits.industry < 0.5);
+});
+
+test('nobody fences hijacked goods in a district without a port', () => {
+  for (const capo of Object.keys(D.CAPOS)) assert.equal(fiveYears(capo).d.sites.fence, 0, capo);
+});
+
+test('on the docks a bootlegger ends up fencing what comes off the ships', () => {
+  const { d } = fiveYears('dutch', DOCKS);
+  assert.ok(d.sites.fence > 0);
+  assert.equal(d.name, 'The Docks');
+});
+
+test('a capo sorts out the liquor before he branches out', () => {
+  const d = D.createDistrict({ capo: 'danny', dirty: 3000, share: 80, sites: { still: 1, speakeasy: 2 }, ...DOCKS });
+  assert.ok(!D.RACKETS.includes(D.chooseProject(d).kind));
+  d.sites.still = 7; d.sites.speakeasy = 5; // now the liquor flows
+  d.sites.gambling = 5; d.sites.loft = 2; d.sites.warehouse = 2; d.sites.front = 6; d.dirty = 6000; d.crews = 4; d.collectors = 3; d.men = 80;
+  assert.ok(D.RACKETS.includes(D.chooseProject(d).kind), D.chooseProject(d).kind);
+});
+
+test('a racket pays by what the district is good for', () => {
+  const quiet = D.createDistrict({ capo: 'danny', sites: { brothel: 1 }, traits: { nightlife: 0.5 } });
+  const lively = D.createDistrict({ capo: 'danny', sites: { brothel: 1 }, traits: { nightlife: 1.5 } });
+  near(D.income(lively) - D.income(quiet), D.SITES.brothel.income, 0.01);
+});
+
+test('a racket pays by the stat of the capo that it calls for', () => {
+  const sal = D.createDistrict({ capo: 'sal', sites: { loans: 1 } });
+  const mae = D.createDistrict({ capo: 'mae', sites: { loans: 1 } });
+  assert.ok(D.sideIncome(sal) > D.sideIncome(mae) + 50); // loan sharking is collected with Muscle
+});
+
+test('a brothel hears things: one secret a month for the family', () => {
+  const d = D.createDistrict({ capo: 'danny', sites: { brothel: 2 } });
+  D.stepMonth(d);
+  assert.equal(d.secrets, 2);
+});
+
+test('what a capo refuses, he refuses in any district', () => {
+  for (const capo of ['mae', 'tommy']) {
+    const { d, kinds } = fiveYears(capo, { traits: { nightlife: 1.5 } });
+    assert.ok(!kinds.has('brothel') && d.sites.brothel === 0, capo);
+  }
+});
+
+test('with the family\'s routes behind him, what a capo ships out pays 30% more', () => {
+  const alone = D.createDistrict({ capo: 'vince', sites: { chopshop: 1 }, traits: { industry: 1 } });
+  const backed = D.createDistrict({ capo: 'vince', sites: { chopshop: 1 }, traits: { industry: 1 }, support: { routes: true } });
+  const gain = D.income(backed) - D.income(alone);
+  near(gain, D.SITES.chopshop.income * (0.8 + 0.04 * D.CAPOS.vince.cunning) * 0.3, 0.01);
+});
+
+test('with the family\'s bookkeeper behind him, a capo launders more and loses less', () => {
+  const alone = D.createDistrict({ capo: 'sal', dirty: 3000, profit: 300, sites: { rented: 1, warehouse: 2 } });
+  const backed = D.createDistrict({ capo: 'sal', dirty: 3000, profit: 300, sites: { rented: 1, warehouse: 2 }, support: { bookkeeper: true } });
+  D.stepMonth(alone); D.stepMonth(backed);
+  assert.ok(backed.last.washed > alone.last.washed + 200);
+  assert.ok(backed.last.washLoss / backed.last.washed < alone.last.washLoss / alone.last.washed);
+});
+
+test('with the family\'s fixer behind him, a district cools faster', () => {
+  const alone = D.createDistrict({ capo: 'sal', heat: 50 });
+  const backed = D.createDistrict({ capo: 'sal', heat: 50, support: { fixer: true } });
+  D.stepMonth(alone); D.stepMonth(backed);
+  near(alone.heat - backed.heat, D.RULES.fixerCooling, 0.01);
+});
+
+test('a lively district gives its capo something to do for years', () => {
+  const dull = fiveYears('mae');
+  const lively = fiveYears('mae', { traits: { nightlife: 1.2, industry: 1.2, port: 1.2, wealth: 1.2 } });
+  const rackets = (d) => ['brothel', 'chopshop', 'fence', 'loans', 'union'].reduce((n, k) => n + d.sites[k], 0);
+  assert.ok(rackets(lively.d) > rackets(dull.d));
+  assert.ok(lively.d.boss.dirty + lively.d.boss.clean > dull.d.boss.dirty + dull.d.boss.clean);
+});
+
 // --- integration: a whole year, the boss touching nothing but the name ---
 
 test('a year under Sal: streets taken by force, then the police and a hated name', () => {
@@ -320,7 +415,7 @@ test('a year under Sal: streets taken by force, then the police and a hated name
   near(d.goodwill, 26);
   near(d.boss.dirty, 1455);
   near(d.boss.clean, 130);
-  assert.deepEqual(d.sites, { still: 2, speakeasy: 1, gambling: 0, loft: 0, rented: 1, front: 0, warehouse: 2 });
+  assert.deepEqual(places(d), { still: 2, speakeasy: 1, rented: 1, warehouse: 2 });
   const kinds = events.filter((e) => e.type === 'decision').map((e) => e.kind);
   assert.deepEqual(kinds.slice(0, 8), ['protection', 'seize', 'seize', 'push', 'protection', 'push', 'protection', 'push']);
   assert.ok(kinds.slice(8).includes('lielow'));
@@ -329,14 +424,14 @@ test('a year under Sal: streets taken by force, then the police and a hated name
 test('a year under Mae: clean money and quiet, and not one street gained', () => {
   const { d, events } = year('mae');
   assert.equal(d.men, 26);
-  near(d.share, 30);
-  near(d.heat, 40);
-  near(d.goodwill, 57);
+  near(d.share, 29);
+  near(d.heat, 37);
+  near(d.goodwill, 55);
   assert.equal(d.raids, 0);
   assert.equal(events.filter((e) => e.type === 'raid').length, 0);
-  near(d.boss.clean, 2419);
-  near(d.boss.dirty, 1076);
-  assert.deepEqual(d.sites, { still: 3, speakeasy: 2, gambling: 2, loft: 0, rented: 3, front: 0, warehouse: 2 });
+  near(d.boss.clean, 2429);
+  near(d.boss.dirty, 1252);
+  assert.deepEqual(places(d), { still: 3, speakeasy: 2, gambling: 2, rented: 4, warehouse: 2, loans: 1 });
 });
 
 test('naming the capo is enough to get two different districts', () => {
@@ -349,7 +444,8 @@ test('naming the capo is enough to get two different districts', () => {
 });
 
 test('every capo of the pool survives five years on any start without breaking the rules', () => {
-  const starts = [{}, { share: 15, heat: 20 }, { heat: 55, goodwill: 30 }, { dirty: 100, clean: 0, men: 12 }];
+  const starts = [{}, { share: 15, heat: 20 }, { heat: 55, goodwill: 30 }, { dirty: 100, clean: 0, men: 12 },
+    { traits: { nightlife: 1.5, industry: 1.5, port: 1.5, wealth: 1.5 } }];
   for (const capo of Object.keys(D.CAPOS)) {
     for (const start of starts) {
       const d = D.createDistrict({ capo, ...start });

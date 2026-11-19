@@ -34,3 +34,25 @@ for (const [title, start] of Object.entries(STARTS)) {
     console.log(`| ${D.CAPOS[capo].name} | ${Math.round(d.share)}% | ${d.men} | ${Math.round(d.heat)} | ${Math.round(d.goodwill)} | ${d.raids} | ${$(d.boss.dirty)} | ${$(d.boss.clean)} | ${$(d.lost)} | ${idle}/${years * 12} | ${moves} |`);
   }
 }
+
+// --- the family: three districts of Ashport, with and without the boss's table ---
+const W = require('../web/world.js');
+function family(table) {
+  const w = W.createWorld({ capo: 'sal' });
+  W.claim(w, 'ashport-docks', 'dutch');
+  W.claim(w, 'ashport-market', 'danny');
+  if (table) { W.seat(w, 'bookkeeper', 'mae'); W.seat(w, 'routes', 'vince'); W.seat(w, 'fixer', 'tommy'); }
+  let raids = 0;
+  for (let i = 0; i < years * 12; i++) raids += W.stepMonth(w).filter((e) => e.type === 'raid').length;
+  return { w, raids };
+}
+console.log(`\n### Three districts of Ashport (${years} years)\n`);
+console.log('| Family | Share of the city | Men | Raids | Boss, dirty | Boss, clean | Places by district |');
+console.log('|---|---|---|---|---|---|---|');
+for (const [label, table] of [['No table', false], ['Bookkeeper, routes and fixer seated', true]]) {
+  const { w, raids } = family(table);
+  const r = W.cityReport(w, 'ashport');
+  const places = W.districts(w).filter((x) => x.owner === 'family').map((x) =>
+    `${x.state.name} (${x.state.capo}): ` + Object.entries(x.state.sites).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`).join(', ')).join(' / ');
+  console.log(`| ${label} | ${Math.round(r.share)}% | ${r.men} | ${raids} | ${$(w.treasury.dirty)} | ${$(w.treasury.clean)} | ${places} |`);
+}
