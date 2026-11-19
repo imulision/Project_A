@@ -336,7 +336,7 @@ function plan(C) {
   }
   for (const l of C.p.lots) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site, hideout: l.hideout && l.ours });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site, hideout: l.hideout && l.ours, di: l.district });
   }
   nBuildings += C.lots.length;
 }
@@ -537,7 +537,7 @@ const focus = (id, districtId) => {     // glide to the whole map, to a city, or
     : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();
-const scr = (x, z) => { _v.set(x, 0, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
+const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
 // what the page writes over the map: city names from afar, district names up close, and what is happening
 const labels = () => {
   const out = [], near = cam.zoom >= NEAR_ZOOM;
@@ -546,9 +546,16 @@ const labels = () => {
       out.push({ id: 'c' + c.id, city: c.id, name: c.name, sub: c.p.held ? `you hold ${c.p.held} of ${c.p.total}` : (d ? d.ownerName : ''), color: COLORS[k], x, y }); }
     else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + (d.c0 + d.c1) * 2 * T, c.oz + (d.r0 + d.r1) * 1.5 * T);
       out.push({ id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
+    // the capo is seen where he sits: over the hideout of his district
+    if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
+      const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + d.id, capo: d.capo, city: c.id, district: d.id, x, y }); });
   });
+  // what every car carries, when the cars themselves are drawn
+  let shownCars = 0;
+  for (const [id, a] of agents) { if (!a.o || !a.o.visible || shownCars >= MAXTAGS) continue; shownCars++;
+    const [x, y] = scr(a.o.position.x, a.o.position.z, 1.1); out.push({ id: 'v' + id, car: a.tag, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
-  for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, x, y }); }
+  for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
 };
 // the state of the game changed: rebuild only the cities that look different
@@ -578,7 +585,7 @@ function effects(list) {
 }
 // the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
 // Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
-const agents = new Map(), MAXDOTS = 400;
+const agents = new Map(), MAXDOTS = 400, MAXTAGS = 28;
 const dots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: GLOW_WARM, size: 10, sizeAttenuation: false, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
 dots.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3)); dots.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3));
 dots.geometry.setDrawRange(0, 0); dots.frustumCulled = false; dots.renderOrder = 5; scene.add(dots);
@@ -588,15 +595,20 @@ function agentFor(t) {
   const pts = t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
   for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
   if (!L) return null;
-  return { C, pts, len, L, p: t.loop ? hsh(pts[0][0], pts[0][1] + L) * L : 0, dir: 1, loop: t.loop, wait: 0, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
+  // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
+  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0, sig: t.path.join(';'), leaving: false,
+           tag: { cargo: t.cargo, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
 }
 function traffic(trips) {
   const seen = new Set();
   for (const t of trips) {
-    if (t.loop) { seen.add(t.id); if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } }
+    if (t.loop) { seen.add(t.id); const old = agents.get(t.id);
+      if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (fxN++), old); }      // the route changed: the old car finishes its run
+      if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load }); }
     else { const a = agentFor(t); if (a) agents.set('once' + (fxN++), a); }
   }
-  for (const [id, a] of agents) if (a.loop && !seen.has(id)) { if (a.o) a.o.removeFromParent(); agents.delete(id); }
+  // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there
+  for (const [id, a] of agents) if (a.loop && !a.leaving && !seen.has(id)) { a.leaving = true; agents.delete(id); agents.set('old' + (fxN++), a); }
 }
 function moveAgents(dt) {
   const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
@@ -606,8 +618,9 @@ function moveAgents(dt) {
       a.p += a.dir * a.speed * dt;
       if (a.p >= a.L) {
         if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
+        if (a.leaving) { if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
         a.p = a.L; a.dir = -1; a.wait = 1.5;
-      } else if (a.p <= 0) { a.p = 0; a.dir = 1; a.wait = 1.5; }
+      } else if (a.p <= 0) { if (a.leaving) { if (a.o) a.o.removeFromParent(); agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
     }
     let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
     const p0 = a.pts[k], p1 = a.pts[k + 1], s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;

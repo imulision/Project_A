@@ -75,7 +75,7 @@
     var shape = shapeOf(n, turn), size = shape.split('x'), bx = parseInt(size[0], 10), by = parseInt(size[1], 10), rects = LAYOUTS[shape];
     var districts = c.districts.map(function (d, i) {
       var r = rects[i % rects.length], key = ownerKey(d.owner);
-      return { id: d.id, name: d.name, c0: r[0], c1: r[1], r0: r[2], r1: r[3], owner: key, ownerName: key === 'family' ? 'Your family' : d.owner,
+      return { id: d.id, name: d.name, capo: key === 'family' ? d.capo || null : null, c0: r[0], c1: r[1], r0: r[2], r1: r[3], owner: key, ownerName: key === 'family' ? 'Your family' : d.owner,
                wealth: wealthOf(d), capo: d.capo, share: d.share, heat: d.heat, watched: !!d.watched };
     });
     var lots = [], byDistrict = districts.map(function () { return []; });
@@ -169,6 +169,8 @@
 
   // The cars on the road. `list` is AshportGame.trips(g): the rules say who goes from where to where and why,
   // the map finds the buildings and the streets between them. Routine runs loop; a crew sent out goes once.
+  // 'hillside-still-2' is a still: the kind of place at the end of a trip, for the screen to picture.
+  function endOf(end) { var m = /-([a-z]+)-\d+$/.exec(String(end)); return m && SITES[m[1]] ? m[1] : String(end); }
   function trips(plan, list) {
     var out = [], loops = {};
     (list || []).forEach(function (t, n) {
@@ -177,12 +179,14 @@
       var loop = ONCE.indexOf(t.kind) < 0, by = t.by ? ownerKey(t.by) : null, cars = CONVOY[t.kind] || 1;
       if (loop) { loops[t.district] = (loops[t.district] || 0) + 1; if (loops[t.district] > MAX_LOOPS) return; }
       var color = t.vehicle === 'police' ? POLICE : t.kind === 'attack' && by ? COLORS[by] : FLOW[t.flow] || FLOW.money;
+      var load = {}; ['crates', 'amount', 'men'].forEach(function (f) { if (typeof t[f] === 'number') load[f] = t[f]; });
       for (var k = 0; k < cars; k++) {
         var a = pointOf(c, di, t.from, n * 7 + k, by), b = pointOf(c, di, t.to, n * 7 + k, by);
         if (!a || !b) continue;
         if (a === b) { a = someLot(c, di, 53 + n); if (!a || a === b) continue; }
         out.push({ id: loop ? t.district + ':' + t.kind + ':' + t.from + '>' + t.to : 'once:' + n + ':' + k, kind: t.kind, city: c.id, loop: loop, color: color,
-                   vehicle: t.vehicle === 'truck' || t.vehicle === 'police' ? t.vehicle : 'car', violent: !!t.violent, path: route([a.i, a.j], [b.i, b.j]) });
+                   vehicle: t.vehicle === 'truck' || t.vehicle === 'police' ? t.vehicle : 'car', violent: !!t.violent, path: route([a.i, a.j], [b.i, b.j]),
+                   district: t.district, cargo: t.kind, load: load, from: endOf(t.from), to: endOf(t.to), by: t.by || null });
       }
     });
     return out;
