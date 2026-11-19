@@ -60,7 +60,14 @@
     cool: 6,            // months for one grudge to be forgotten
     sulks: 12,          // months the man the boss ruled against keeps his money to himself
     seats: 3,           // capos a city carries; every key place the family holds there adds one
-    doors: { rise: 1000, figure: 1500, name: 2500, need: 1000, poach: 6000 },
+    doors: { rise: 1000, figure: 1500, name: 2500, need: 1000, poach: 6000, road: 2000 }, // road: what it costs on top to send the man to another city
+    // parting with a capo: clean $ to pay him off by rank; heat a killing brings, months the less loyal keep their money
+    // and the loyalty that keeps a man steady; heat the police forget for a man handed over, months before he is out,
+    // and the places he burns then (one more for each rank he had)
+    out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2 },
+    keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
+    crowd: 0.12,        // every man the family already counts makes the next one this much dearer
+    greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
     stand: 0.2,         // a capo of no Muscle holds this share of the family's press against a raid; each point adds a tenth
     // how a capo takes a rival's place: what it costs next to opening one, and how long it takes
@@ -134,7 +141,7 @@
   function createCity(spec) {
     return { id: spec.id, w: spec.w, h: spec.h, zones: spec.zones.map(function (z) {
       return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
-    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, heat: 0, washed: 0 };
+    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], heat: 0, washed: 0 };
   }
   // A throw of the city's own dice: the same city always plays out the same way.
   function roll(c, n) {
@@ -632,13 +639,15 @@
     return { winner: winner, loser: loser };
   }
 
+  // A price that grows with the family, rounded to the nearest $50.
+  function swell(base, rate, n) { return Math.round(base * Math.pow(1 + rate, Math.max(0, n)) / 50) * 50; }
   // --- where capos come from ---
   // Who would join the family in this city today, and through which door.
   function doors(c, f) {
     var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
-    var free = function (id) { return !f.men[id] && !clubOf(c, id); };
+    var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id); };
     var add = function (id, door, by, why, price) {
-      out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: RULES.doors[price || door] });
+      out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
       return out[out.length - 1];
     };
     Object.keys(LURES).forEach(function (id) {
@@ -653,6 +662,7 @@
     Object.keys(PEOPLE).forEach(function (id) {
       var p = PEOPLE[id];
       if (!free(id)) return;
+      if (gone[p.mentor] === 'kill') return;
       if (p.mentor && f.men[p.mentor] && clubOf(c, p.mentor) && run(c, p.mentor).length >= RULES.reach[f.men[p.mentor].rank]) {
         add(id, 'rise', p.mentor, first(p.mentor) + ' runs all he can and vouches for him');
       }
@@ -666,9 +676,11 @@
     return out;
   }
   // Where a newcomer may plant his club: any free block the rivals do not hold.
+  // In a city where the family has nothing yet, nobody knows him: any free block will do.
+  function known(c) { return memo(c).places.some(function (p) { return p.owner === 'family'; }); }
   function spots(c) {
-    var out = [];
-    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (!at(c, x, y) && grip(c, x, y) !== 'rival') out.push({ x: x, y: y });
+    var out = [], here = known(c);
+    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (!at(c, x, y) && (!here || grip(c, x, y) !== 'rival')) out.push({ x: x, y: y });
     return out;
   }
   // How many capos the city carries, and how many are there.
@@ -678,30 +690,118 @@
              total: RULES.seats + ours.filter(function (p) { return p.kind === 'key'; }).length };
   }
   // The boss says yes and picks the street where the man plants his club.
-  function welcome(c, f, capo, x, y) {
-    var d = doors(c, f).filter(function (q) { return q.capo === capo; })[0];
+  function welcome(c, f, capo, x, y) { send(c, c, f, capo, x, y); }
+  // Or he sends him to plant it in another city: the man knocked in `from`, and opens `to`. The road has its price.
+  function send(from, to, f, capo, x, y) {
+    var d = doors(from, f).filter(function (q) { return q.capo === capo; })[0];
     if (!d) throw new Error(capo + ' is not at the door');
-    var s = seats(c);
-    if (s.taken >= s.total) throw new Error('no seat left in ' + c.id + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
+    var away = to !== from, cost = d.cost + (away ? RULES.doors.road : 0);
+    if (away && d.door === 'poach') throw new Error(first(capo) + ' stays where his places are');
+    var s = seats(to);
+    if (s.taken >= s.total) throw new Error('no seat left in ' + to.id + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
     if (d.door === 'poach') {
-      if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' ' + first(capo) + ' asks to cross');
-      spend(f, d.cost);
+      if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' ' + first(capo) + ' asks to cross');
+      spend(f, cost);
       // he crosses with every place he ran: the best one becomes his club
-      var mine = places(c).filter(function (p) { return p.man === capo; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
+      var mine = places(to).filter(function (p) { return p.man === capo; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
       mine.forEach(function (p, i) {
-        c.blocks[key(p.x, p.y)] = { owner: 'family', kind: i ? p.kind : 'club', level: i ? p.level : Math.max(p.level, RULES.clubLevel), capo: capo };
+        to.blocks[key(p.x, p.y)] = { owner: 'family', kind: i ? p.kind : 'club', level: i ? p.level : Math.max(p.level, RULES.clubLevel), capo: capo };
       });
-      changed(c);
+      changed(to);
       join(f, capo);
       return;
     }
-    if (!inside(c, x, y)) throw new Error(x + ',' + y + ' is outside ' + c.id);
-    if (at(c, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
-    if (grip(c, x, y) === 'rival') throw new Error('these are the ' + (c.rival || places(c).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
-    if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' it takes to set ' + first(capo) + ' up');
-    spend(f, d.cost);
-    settle(c, capo, x, y);
+    if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + to.id);
+    if (at(to, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
+    if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
+    if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' it takes to set ' + first(capo) + ' up');
+    spend(f, cost);
+    settle(to, capo, x, y);
     join(f, capo);
+  }
+  // --- parting with a capo ---
+  var PARTINGS = {
+    retire: { name: 'Pay him off', gives: 'He leaves in peace. The others take over what he ran.' },
+    kill: { name: 'Have him killed', gives: 'Half of what he ran goes with him, the police look closer, and the less loyal keep their money for a while.' },
+    jail: { name: 'Give him to the police', gives: 'The heat falls and his places are padlocked. One day he is out.' }
+  };
+  function others(c, f, capo) { return Object.keys(f.men).filter(function (id) { return id !== capo && clubOf(c, id); }); }
+  // The ways the boss can part with a man, and what each costs him today.
+  function partings(c, f, capo) {
+    if (!f.men[capo] || !clubOf(c, capo) || !others(c, f, capo).length) return [];
+    return Object.keys(PARTINGS).map(function (way) {
+      return { way: way, name: PARTINGS[way].name, gives: PARTINGS[way].gives, cost: way === 'retire' ? RULES.out.retire[f.men[capo].rank] : 0 };
+    });
+  }
+  function part(c, f, capo, way) {
+    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
+    if (!PARTINGS[way]) throw new Error('no such way to part with a man: ' + way);
+    var left = others(c, f, capo), club = clubOf(c, capo), rank = f.men[capo].rank;
+    if (!left.length) throw new Error(first(capo) + ' is the last capo you have in ' + c.id);
+    if (way === 'retire') {
+      var cost = RULES.out.retire[rank];
+      if ((f.clean || 0) < cost) throw new Error('it takes $' + cost + ' of clean money to pay ' + first(capo) + ' off');
+      f.clean -= cost;
+    }
+    // what he ran, the biggest first: the nearest capo with room takes each over, the rest close
+    var his = places(c, capo).filter(function (p) { return p.kind !== 'club'; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
+    var runs = his.filter(function (p) { return p.kind !== 'key'; }).length, keep = way === 'retire' ? runs : way === 'kill' ? Math.ceil(runs / 2) : 0;
+    var room = {}, out = { way: way, kept: 0, closed: 0 };
+    left.forEach(function (id) { room[id] = RULES.reach[f.men[id].rank] - run(c, id).length; });
+    var nearest = function (p, need) {
+      return left.filter(function (id) { return !need || room[id] > 0; }).sort(function (a, b) {
+        var ca = clubOf(c, a), cb = clubOf(c, b);
+        return far(p.x, p.y, ca.x, ca.y) - far(p.x, p.y, cb.x, cb.y) || (a < b ? -1 : 1);
+      })[0];
+    };
+    his.forEach(function (p) {
+      var heir = p.kind === 'key' ? nearest(p, false) : keep > 0 ? nearest(p, true) : null;
+      if (p.kind !== 'key') keep -= 1;
+      if (heir) {
+        c.blocks[key(p.x, p.y)].capo = heir;
+        if (p.kind !== 'key') { room[heir] -= 1; out.kept += 1; }
+      } else { delete c.blocks[key(p.x, p.y)]; out.closed += 1; }
+    });
+    delete c.blocks[key(club.x, club.y)];
+    changed(c);
+    // his quarrels, his plans and his sulks go with him
+    c.ops = c.ops.filter(function (o) { return o.capo !== capo; });
+    c.asks = c.asks.filter(function (a) { return a.capo !== capo; });
+    c.feuds = (c.feuds || []).filter(function (q) { return q.a !== capo && q.b !== capo; });
+    Object.keys(c.grudge || {}).forEach(function (k) { if (k.split('|').indexOf(capo) >= 0) delete c.grudge[k]; });
+    if (c.sulk) delete c.sulk[capo];
+    delete f.men[capo];
+    f.gone = f.gone || {};
+    f.gone[capo] = way;
+    if (way === 'kill') {
+      c.heat = Math.min(100, (c.heat || 0) + RULES.out.blood);
+      c.sulk = c.sulk || {};
+      left.forEach(function (id) {
+        if (who(id).loyalty < RULES.out.steady) c.sulk[id] = Math.max(c.sulk[id] || 0, c.month + RULES.out.shaken);
+      });
+    }
+    if (way === 'jail') {
+      c.heat = Math.max(0, (c.heat || 0) - RULES.out.tip);
+      c.jailed = c.jailed || [];
+      c.jailed.push({ capo: capo, out: c.month + RULES.out.term, x: club.x, y: club.y, n: RULES.out.revenge + rank });
+    }
+    return out;
+  }
+  // A man the boss gave to the police is out: he burns what stands nearest to where his club was.
+  function revenge(c, events) {
+    c.jailed = (c.jailed || []).filter(function (j) {
+      if (j.out > c.month) return true;
+      places(c).filter(function (p) { return p.owner === 'family' && p.kind !== 'club' && p.kind !== 'key'; }).sort(function (a, b) {
+        return far(a.x, a.y, j.x, j.y) - far(b.x, b.y, j.x, j.y) || a.y - b.y || a.x - b.x;
+      }).slice(0, j.n).forEach(function (p) {
+        delete c.blocks[key(p.x, p.y)];
+        c.burnt = (c.burnt || 0) + 1;
+        events.push({ type: 'burnt', capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: j.capo,
+                      label: first(j.capo) + ' is out, and burns ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+      });
+      changed(c);
+      return false;
+    });
   }
   // --- the family, and the building tree it carries from city to city ---
   function createFamily() {
@@ -744,6 +844,7 @@
   // One month for the whole family: every city, then what it is learning.
   function month(f, cities) {
     var events = [];
+    f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
     if (f.study && --f.study.monthsLeft <= 0) {
       f.tech[f.study.kind] = f.study.tier;
@@ -806,7 +907,7 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
@@ -819,7 +920,7 @@
       if (!k) return;
       var way = wayOf(capo);
       var a = { id: c.id + ':' + k.key, capo: capo, key: k.key, x: k.x, y: k.y, way: way,
-                cost: Math.round(RULES.keyCost * RULES.take[way].cost), months: RULES.take[way].months * RULES.keyMonths,
+                cost: swell(RULES.keyCost * RULES.take[way].cost, RULES.greed, Math.max(f.crowns || 0, keys(c).filter(function (q) { return q.owner === 'family'; }).length)), months: RULES.take[way].months * RULES.keyMonths,
                 why: 'his places stand all around it' };
       c.asks.push(a);
       events.push({ type: 'asks', capo: capo, city: c.id, x: k.x, y: k.y, key: k.key, way: way, cost: a.cost, months: a.months,
@@ -838,9 +939,9 @@
                       label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places' });
       }
       var p = plan(c, f, capo);
-      // what he cannot use goes up to the boss rather than sleep in his club
+      // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare; }
+      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare * (1 - RULES.keeps[m.rank]); }
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);
@@ -857,6 +958,7 @@
     });
     rivalGrows(c);
     rivalRaids(c, events);
+    revenge(c, events);
     tempers(c, events);
     money(c, f, events);
     doors(c, f).forEach(function (d) {
@@ -867,7 +969,7 @@
     return events;
   }
 
-  var api = { trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

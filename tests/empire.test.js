@@ -24,7 +24,6 @@ test('the game starts in Ashport: the Callahans hold the six key places, the fir
   E.command(g, { type: 'start', capo: 'dutch' });
   assert.equal(g.started, true);
   const v = E.view(g);
-  assert.equal(v.cities.length, 1);
   const a = v.cities[0];
   assert.equal(a.id, 'ashport'); assert.equal(a.name, 'Ashport');
   assert.deepEqual(a.zones.map((z) => z.name), W.CITIES[0].districts.map((d) => d.name));
@@ -61,7 +60,6 @@ test('the hud is the family at a glance', () => {
   const h = E.hud(g), a = E.view(g).cities[0];
   assert.deepEqual([h.dirty, h.clean], [Math.round(g.family.dirty), Math.round(g.family.clean)]);
   assert.equal(h.heat, a.heat);
-  assert.equal(h.share, Math.round(a.share.family));
   assert.equal(h.men, 1);
   assert.deepEqual(h.seats, a.seats);
   assert.equal(h.pending, a.asks.length + a.doors.length);
@@ -126,4 +124,83 @@ test('a feud stops the clock, and the boss rules through an order', () => {
   const line = g.journal[g.journal.length - 1];
   assert.deepEqual([line.type, line.winner, line.loser], ['ruled', 'dutch', 'danny']);
   assert.match(line.label, /Dutch/);
+});
+
+test('the boss parts with a capo through an order, and the journal says how', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  const c = g.cities[0];
+  T.settle(c, 'danny', 0, 0); T.join(g.family, 'danny');
+  const ways = E.view(g).cities[0].capos.find((m) => m.id === 'danny').partings;
+  assert.deepEqual(ways.map((w) => w.way), ['retire', 'kill', 'jail']);
+  assert.throws(() => E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'retire' }), /clean money/);
+  E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'kill' });
+  assert.deepEqual(E.view(g).cities[0].capos.map((m) => m.id), ['dutch']);
+  const line = g.journal[g.journal.length - 1];
+  assert.deepEqual([line.type, line.capo, line.way], ['parted', 'danny', 'kill']);
+  assert.match(line.label, /Danny/);
+  assert.equal(E.hud(g).heat, T.RULES.out.blood);
+});
+
+// --- six cities ---
+
+test('the game holds the six cities of the map, each with the family that was there first; the boss starts in Ashport alone', () => {
+  const g = E.createGame({ capo: 'dutch' }), v = E.view(g);
+  assert.deepEqual(v.cities.map((c) => c.id), W.CITIES.map((c) => c.id));
+  assert.deepEqual(v.cities.map((c) => c.rival), W.CITIES.map((c) => c.rival));
+  for (const c of v.cities) {
+    const spec = W.CITIES.find((q) => q.id === c.id);
+    assert.equal(c.name, spec.name);
+    assert.deepEqual(c.zones.map((z) => z.name), spec.districts.map((d) => d.name));
+    assert.equal(c.keys.length, 6);
+    assert.ok(c.places.filter((p) => p.owner === c.rival).length > 15, c.id + ' is somebody\'s');
+    assert.equal(c.held, c.id === 'ashport');
+  }
+  assert.deepEqual(v.routes, W.ROUTES.map((r) => ({ from: r.from, to: r.to, kind: r.kind })));
+  const marrow = v.cities.find((c) => c.id === 'marrow'), vesper = v.cities.find((c) => c.id === 'vesper');
+  assert.notDeepEqual(marrow.places.map((p) => p.x + ',' + p.y), vesper.places.map((p) => p.x + ',' + p.y), 'no two cities are laid out alike');
+});
+
+test('the hud counts the whole map: the cities the family is in, its seats there, its share of every street', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  months(g, 6);
+  const h = E.hud(g), v = E.view(g);
+  assert.deepEqual(h.cities, { held: 1, total: 6 });
+  assert.deepEqual(h.seats, v.cities[0].seats, 'seats of a city the family is not in do not count');
+  const blocks = v.cities.reduce((n, c) => n + c.w * c.h, 0), ours = v.cities.reduce((n, c) => n + c.share.family * c.w * c.h / 100, 0);
+  assert.equal(h.share, Math.round(ours * 100 / blocks));
+  assert.ok(h.share < v.cities[0].share.family);
+});
+
+const knocking = () => {
+  const g = E.createGame({ capo: 'dutch' }), c = g.cities[0], club = T.clubOf(c, 'dutch');
+  const near = T.spots(c).find((s) => Math.max(Math.abs(s.x - club.x), Math.abs(s.y - club.y)) === 1);
+  T.open(c, near.x, near.y, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  g.family.dirty = 20000;
+  return g;
+};
+
+test('a man at the door can be sent down the road to a city next door, and the door says which and for how much', () => {
+  const g = knocking(), d = E.view(g).cities[0].doors.find((q) => q.capo === 'danny');
+  assert.deepEqual(d.roads.map((r) => r.city).sort(), ['calder', 'dunmore', 'marrow']);
+  assert.ok(d.roads.every((r) => r.name && r.cost === d.cost + T.RULES.doors.road));
+  const calder = g.cities.find((c) => c.id === 'calder'), spot = T.landing(calder);
+  assert.ok(T.spots(calder).some((s) => s.x === spot.x && s.y === spot.y));
+  assert.throws(() => E.command(g, { type: 'welcome', city: 'vesper', from: 'ashport', capo: 'danny', x: 1, y: 1 }), /no road/);
+  E.command(g, { type: 'welcome', city: 'calder', from: 'ashport', capo: 'danny', x: spot.x, y: spot.y });
+  assert.equal(g.family.dirty, 20000 - d.cost - T.RULES.doors.road);
+  const v = E.view(g), there = v.cities.find((c) => c.id === 'calder');
+  assert.deepEqual(there.capos.map((m) => m.id), ['danny']);
+  assert.equal(there.held, true);
+  assert.deepEqual(v.cities[0].capos.map((m) => m.id), ['dutch']);
+  assert.deepEqual(E.hud(g).cities, { held: 2, total: 6 });
+  const line = g.journal[g.journal.length - 1];
+  assert.deepEqual([line.type, line.capo, line.city, line.from], ['welcomed', 'danny', 'calder', 'ashport']);
+  assert.match(line.label, /Calder Falls/);
+  assert.ok(months(g, 12).some((e) => e.type === 'opened' && e.capo === 'danny' && e.city === 'calder'), 'and he goes to work there');
+});
+
+test('twenty years of the six cities play in well under two seconds', () => {
+  const g = knocking(), t = Date.now();
+  months(g, 240);
+  assert.ok(Date.now() - t < 2000, 'took ' + (Date.now() - t) + ' ms');
 });
