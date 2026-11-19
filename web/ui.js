@@ -99,6 +99,11 @@
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
+  // the meter: touch the images-per-second figure for the full reading (draw calls, triangles, resolution, cars, labels, WebGPU on this device)
+  function meter() { if (!map || !$('fps').classList.contains('on')) return; var s = map.stats();
+    $('fps').textContent = (window.__fps || 0) + ' fps · ' + s.calls + ' draws · ' + (s.tris / 1000).toFixed(0) + 'k tris · x' + s.pr + ' · ' + s.cars + ' cars · ' + document.querySelectorAll('.lab').length + ' labels · webgpu ' + (navigator.gpu ? 'yes' : 'no'); }
+  $('fps').onclick = function () { var on = $('fps').classList.toggle('on'); if (on) meter(); else $('fps').textContent = (window.__fps || 0) + ' fps'; };
+  setInterval(meter, 1000);
   $('money').onclick = function () { var on = document.body.classList.toggle('money'); $('money').classList.toggle('on', on);
     if (on) toast('Money view: what each place took in last month, in blue what the laundries washed, and what each capo keeps at his club.'); };
   $('family').onclick = function () { if (g.started) show(S.family()); };
