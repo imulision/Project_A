@@ -439,3 +439,13 @@ for (const [way, start, prepare] of [
     assert.ok(G.hud(g).lastMonth.dirty + G.hud(g).lastMonth.clean > 2000, 'and the family pays its boss');
   });
 }
+
+test('a game saved before the building tree existed is refused in plain words, never half loaded', () => {
+  const g = G.createGame({ capo: 'sal' });
+  month(g);
+  const old = JSON.parse(G.save(g));
+  delete old.world.tree;
+  assert.throws(() => G.load(JSON.stringify(old)), /older version of Ashport/);
+  assert.throws(() => G.load('not a save'), /cannot be read/);
+  assert.equal(G.load(G.save(G.createGame())).started, false, 'a game not started yet has no world, and loads');
+});
