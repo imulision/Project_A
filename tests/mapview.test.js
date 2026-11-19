@@ -209,3 +209,8 @@ test('a job the boss approved is seen where it was done', () => {
     { type: 'job', kind: 'kidnap', outcome: 'failed', district: 'ashport-hillside', city: 'ashport', label: 'x' }]);
   assert.deepEqual(fx.map((f) => f.kind), ['gunfire', 'police'], 'a killing is gunfire, a job gone wrong brings the police');
 });
+
+test('a promotion shines over the district of the man who earned it', () => {
+  const fx = M.effects([{ type: 'promotion', capo: 'sal', rank: 1, district: 'ashport-hillside', city: 'ashport', label: 'x' }]);
+  assert.deepEqual(fx, [{ kind: 'promotion', city: 'ashport', district: 'ashport-hillside', site: null }]);
+});
