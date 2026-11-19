@@ -106,10 +106,13 @@
     var taken = {}, world = g.world;
     if (world) W.posts(world).forEach(function (n) { taken[n.capo] = true; });
     else { world = W.createWorld({ capo: Object.keys(D.CAPOS)[0] }); districtId = districtId || W.HOME; }
-    return Object.keys(D.CAPOS).filter(function (id) { return !taken[id]; }).map(function (id) {
+    var ids = Object.keys(D.CAPOS);
+    // the local man of the district comes last: always there, never the best
+    if (g.world && districtId && W.district(world, districtId).owner !== 'family') ids.push(W.local(districtId).id);
+    return ids.filter(function (id) { return !taken[id]; }).map(function (id) {
       var c = D.CAPOS[id];
       var who = W.person(world, id);
-      return { id: id, name: c.name, specialty: c.specialty, rank: who.rank, rankName: who.rankName,
+      return { id: id, name: c.name, specialty: c.specialty, local: !!c.local, rank: who.rank, rankName: who.rankName,
                stats: { muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma, loyalty: c.loyalty, ambition: c.ambition },
                likes: words(c.likes), refuses: words(c.refuses),
                firstMove: districtId ? firstMove(world, districtId, id) : '' };
@@ -118,7 +121,7 @@
 
   // The districts the family can move into now.
   function openings(g) {
-    var cash = g.world.treasury.dirty;
+    var cash = g.world.treasury.dirty + g.world.treasury.clean;
     return W.districts(g.world).filter(function (x) { return x.owner !== 'family' && W.reachable(g.world, x.id); }).map(function (x) {
       var p = W.placeOf(x.id);
       return { district: x.id, name: p.name, city: W.cityOf(x.city).name, rival: x.owner, traits: p.traits,
@@ -143,10 +146,11 @@
 
   // The top of the screen.
   function hud(g) {
-    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [], pending: 0 };
+    if (!g.started) return { date: dateOf(0), dirty: 0, clean: 0, named: 0, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: [], pending: 0, lastMonth: { dirty: 0, clean: 0 } };
     return { date: dateOf(g.world.month), dirty: g.world.treasury.dirty, clean: g.world.treasury.clean,
              named: W.named(g.world).length, maxNamed: MAX_NAMED, paused: g.paused, speed: g.speed, alerts: alerts(g),
-             pending: W.proposals(g.world).length };
+             pending: W.proposals(g.world).length,
+             lastMonth: g.world.lastMonth || { dirty: 0, clean: 0 } }; // what the capos sent up: dirty as it is, clean once washed
   }
 
   function view(g) { return W.view(g.world); }
@@ -163,8 +167,27 @@
     return W.proposals(g.world).map(function (p) {
       return { id: p.id, kind: p.kind, district: p.district, city: p.city, capo: p.capo, capoName: D.CAPOS[p.capo].name,
                place: W.placeOf(p.district).name + ', ' + W.cityOf(p.city).name, target: p.target, label: p.label, why: p.why,
+               gain: p.gain, risk: p.risk, odds: p.odds, waits: W.RULES.jobs.expires,
                monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
     });
+  }
+  // The last two years of a district, oldest first, for its curves.
+  function history(g, districtId) {
+    if (!g.world) return [];
+    return W.history(g.world, districtId).map(function (h) {
+      return { date: dateOf(h.month), month: h.month, share: h.share, heat: h.heat, goodwill: h.goodwill, men: h.men,
+               income: h.income, profit: h.profit, toBoss: h.toBoss };
+    });
+  }
+  // What the capo of a district is after and how close he is, or null if the family is not there.
+  function intent(g, districtId) {
+    var x = g.world && W.district(g.world, districtId);
+    if (!x || !x.state) return null;
+    var p = D.plan(x.state);
+    p.capo = x.state.capo;
+    p.capoName = D.CAPOS[x.state.capo].name;
+    p.did = x.state.last ? x.state.last.decision : null;
+    return p;
   }
   // The family's wheel of abilities (see world.js). Dark before the game starts.
   function wheel(g) { return W.wheel(g.world || W.createWorld({ capo: Object.keys(D.CAPOS)[0] })); }
@@ -188,7 +211,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);

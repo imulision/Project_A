@@ -832,3 +832,24 @@ test('when the last place of a kind is lost, what is rebuilt starts small again'
   assert.equal(d.sites.still, 0);
   assert.equal(d.levels.still, 1);
 });
+
+// --- what the capo is after ---
+test('a capo says what he is saving for and how far along he is', () => {
+  const d = D.createDistrict({ capo: 'mae', dirty: 0, share: 15, men: 11 }); // a poor start: she has to save
+  let seen = 0;
+  for (let i = 0; i < 36; i++) {
+    D.stepMonth(d);
+    const p = D.plan(d);
+    assert.ok(p.kind && p.label, 'always something to say');
+    assert.ok(p.progress >= 0 && p.progress <= 1);
+    if (p.cost > 0 && p.progress < 1) { seen++; assert.ok(p.saved < p.cost); }
+  }
+  assert.ok(seen > 0, 'at some point he was saving for something he could not yet pay');
+});
+
+test('the plan of a capo changes nothing in his district', () => {
+  const d = D.createDistrict({ capo: 'sal' });
+  const before = JSON.stringify(d);
+  D.plan(d);
+  assert.equal(JSON.stringify(d), before);
+});

@@ -554,3 +554,87 @@ test('left alone for ten years, every capo still holds a real part of Hillside',
     assert.ok(s.men >= 8, `${capo}: ${s.men} men left`);
   }
 });
+
+// --- local men: the boss is never short of someone to name ---
+test('every district has a local man the boss can put in charge of it', () => {
+  const D = require('../web/district.js');
+  const w = W.createWorld({ capo: 'sal' });
+  const man = W.local('ashport-market');
+  assert.equal(man.local, 'ashport-market');
+  assert.ok(man.name.length > 3);
+  for (const k of ['muscle', 'business', 'cunning', 'charisma']) assert.ok(man[k] >= 2 && man[k] <= 6, k);
+  W.claim(w, 'ashport-market', man.id);
+  assert.equal(W.district(w, 'ashport-market').state.capo, man.id);
+  assert.ok(!Object.keys(D.CAPOS).includes(man.id), 'the big names stay a short list');
+  for (let i = 0; i < 24; i++) W.stepMonth(w);
+});
+
+test('a local man only runs his own district', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  assert.throws(() => W.claim(w, 'ashport-market', W.local('ashport-docks').id), /only knows/);
+});
+
+test('an underboss with no big name left promotes the local man', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  w.treasury.dirty = 50000;
+  W.claim(w, 'ashport-market', 'mae');
+  W.setUnderboss(w, 'ashport', 'dutch');
+  W.seat(w, 'bookkeeper', 'tommy'); W.seat(w, 'routes', 'vince'); W.seat(w, 'fixer', 'danny');
+  W.claim(w, 'ashport-docks');
+  assert.equal(W.district(w, 'ashport-docks').state.capo, W.local('ashport-docks').id);
+});
+
+test('clean money pays for a new district when the dirty money runs short', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  w.treasury.dirty = 400; w.treasury.clean = 5000;
+  W.claim(w, 'ashport-market', 'mae');
+  assert.equal(w.treasury.dirty, 0);
+  assert.equal(w.treasury.clean, 5000 - (W.RULES.moveInCost - 400));
+});
+
+test('each killing asked for names another lieutenant, until the rival family has none left', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const s = W.district(w, W.HOME).state;
+  const names = [];
+  for (let i = 0; i < 240 && names.length < 10; i++) {
+    s.attacked = 1; s.crews = 6; s.men = Math.max(s.men, 40); s.dirty = Math.max(s.dirty, 5000);
+    W.stepMonth(w);
+    W.proposals(w).forEach((p) => { if (p.kind === 'hit') { names.push(p.target); W.rule(w, p.id, true); } });
+  }
+  assert.equal(names.length, W.LIEUTENANTS.Callahan.length);
+  assert.equal(new Set(names).size, names.length);
+  assert.deepEqual(names, W.LIEUTENANTS.Callahan);
+});
+
+test('the world remembers the last two years of each district, month by month', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  for (let i = 0; i < 30; i++) W.stepMonth(w);
+  const h = W.history(w, W.HOME);
+  assert.equal(h.length, 24);
+  assert.equal(h[23].month, 29);
+  for (const k of ['share', 'heat', 'goodwill', 'men', 'income', 'profit', 'toBoss']) assert.equal(typeof h[23][k], 'number', k);
+  assert.deepEqual(W.history(w, 'ashport-docks'), []);
+});
+
+test('a request says what there is to gain, what is risked and how it looks; the result says what it changed', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const s = W.district(w, W.HOME).state;
+  let p = null, done = null;
+  for (let i = 0; i < 40 && !done; i++) {
+    s.attacked = 1; s.crews = 6;
+    const events = W.stepMonth(w);
+    done = events.find((e) => e.type === 'job');
+    if (!p && W.proposals(w).length) { p = W.proposals(w)[0]; W.rule(w, p.id, true); }
+  }
+  assert.ok(p.gain.length > 10 && p.risk.length > 10);
+  assert.equal(p.odds, 'good');
+  assert.equal(done.outcome, 'done');
+  assert.ok(done.effects.length >= 2);
+  assert.ok(done.effects.every((t) => typeof t === 'string'));
+  s.crews = 0;
+  const weak = W.createWorld({ capo: 'vince' });
+  const v = W.district(weak, W.HOME).state;
+  weak.rivalMood = { ashport: W.RULES.rivalMood }; // the Callahans are riding high
+  for (let i = 0; i < 80 && !W.proposals(weak).some((q) => q.kind === 'hit'); i++) { v.attacked = 1; v.crews = 0; W.stepMonth(weak); }
+  assert.equal(W.proposals(weak).find((q) => q.kind === 'hit').odds, 'poor');
+});
