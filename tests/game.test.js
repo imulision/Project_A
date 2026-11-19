@@ -33,7 +33,7 @@ test('a paused game does not move, and the boss can still give orders', () => {
   G.command(g, { type: 'pause' });
   assert.deepEqual(month(g), []);
   assert.equal(G.hud(g).date, 'January 1926');
-  assert.deepEqual(G.command(g, { type: 'claim', district: 'ashport-docks', capo: 'dutch' }), { ok: true });
+  assert.deepEqual(G.command(g, { type: 'seat', seat: 'fixer', capo: 'tommy' }), { ok: true });
   G.command(g, { type: 'resume' });
   month(g);
   assert.equal(G.hud(g).date, 'February 1926');
@@ -50,7 +50,7 @@ test('at double speed a month takes half the ticks', () => {
 test('an order that cannot be carried out says why and changes nothing', () => {
   const g = G.createGame({ capo: 'sal' });
   const before = JSON.stringify(g);
-  const answer = G.command(g, { type: 'claim', district: 'lorne-harbour', capo: 'mae' });
+  const answer = G.command(g, { type: 'takeover', district: 'lorne-harbour', way: 'force', capo: 'mae' });
   assert.equal(answer.ok, false);
   assert.match(answer.error, /out of reach/);
   assert.equal(G.command(g, { type: 'dance' }).ok, false);
@@ -59,16 +59,19 @@ test('an order that cannot be carried out says why and changes nothing', () => {
 
 test('every order of the boss goes through: replace, seat, unseat, underboss', () => {
   const g = G.createGame({ capo: 'sal' });
+  Object.assign(g.world.treasury, { dirty: 50000, clean: 50000 });
+  W.claim(g.world, 'ashport-market', 'danny'); // the family already holds two districts of the city
   for (const c of [
-    { type: 'claim', district: 'ashport-market', capo: 'danny' },
     { type: 'appoint', district: 'ashport-hillside', capo: 'mae' },
     { type: 'seat', seat: 'fixer', capo: 'tommy' },
     { type: 'unseat', seat: 'fixer' },
     { type: 'underboss', city: 'ashport', capo: 'tommy' },
-    { type: 'claim', district: 'ashport-docks' },
+    { type: 'takeover', district: 'ashport-docks', way: 'buy' },
   ]) assert.deepEqual(G.command(g, c), { ok: true }, JSON.stringify(c));
   assert.equal(W.district(g.world, 'ashport-hillside').state.capo, 'mae');
   assert.equal(g.world.underbosses.ashport, 'tommy');
+  assert.equal(G.takeovers(g)[0].district, 'ashport-docks', 'the underboss chose the man');
+  assert.match(G.command(g, { type: 'claim', district: 'ashport-station', capo: 'vince' }).error, /no such order/, 'nobody walks into a district for a flat fee any more');
 });
 
 test('the journal keeps what happened, newest first, with its date and place', () => {
@@ -224,12 +227,13 @@ function greedy(g, months) {
     month(g);
     G.proposals(g).forEach((p) => G.command(g, { type: 'approve', id: p.id }));
     for (const o of G.openings(g)) {
-      if (!o.affordable) continue;
       const cards = G.candidates(g, o.district);
       assert.ok(cards.length > 0, `${G.hud(g).date}: nobody to name in ${o.name}`);
-      const local = cards.find((c) => c.local);
-      assert.deepEqual(G.command(g, { type: 'claim', district: o.district, capo: (local || cards[0]).id }), { ok: true });
-      break; // one district a month
+      const way = o.ways.find((w) => w.affordable);
+      if (!way || o.underWay) continue;
+      const man = cards.find((c) => c.odds[way.way] === 'good') || cards.find((c) => c.local) || cards[0];
+      assert.deepEqual(G.command(g, { type: 'takeover', district: o.district, way: way.way, capo: man.id }), { ok: true });
+      break; // one move a month, whatever the odds
     }
   }
 }
@@ -239,8 +243,7 @@ test('a boss who keeps expanding for twenty years is never left without a move',
   greedy(g, 240);
   const cities = G.view(g).cities;
   const held = cities.reduce((n, c) => n + c.held, 0);
-  assert.ok(held >= 20, `${held} districts after twenty years`);
-  assert.ok(cities.filter((c) => c.held > 0).length >= 4, 'in at least four cities');
+  assert.ok(held >= 5, `${held} districts after twenty years, sending men whatever their chances`);
   assert.ok(G.openings(g).every((o) => G.candidates(g, o.district).length > 0));
   G.load(G.save(g));
 });
