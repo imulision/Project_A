@@ -73,10 +73,10 @@ await shot('4-market-street');
 await page.evaluate(() => window.__ashport.map().focus('ashport', 'ashport-hillside'));
 await page.waitForSelector('.lab.capo .face', { timeout: 60000 });
 assert.ok(await page.locator('.lab.tag').count() > 0, 'the cars on the road show what they carry');
-await page.locator('.lab.tag').first().click({ force: true });
+await page.evaluate(() => document.querySelector('.lab.tag').click());      // by the element itself: another badge may lie over it on the screen
 assert.match(await page.textContent('#tip.on'), /crates|\$|men/, 'touching a car says what it carries');
 await shot('7-street');
-await page.locator('.lab.capo').first().click({ force: true });
+await page.evaluate(() => document.querySelector('.lab.capo').click());
 await page.waitForSelector('#veil.on .tiles');
 assert.equal(await page.textContent('#sheet h2'), 'Hillside', 'touching the capo opens his district');
 assert.ok(await page.locator('#sheet .tile').count() >= 6, 'the figures of the district are tiles with an icon');
