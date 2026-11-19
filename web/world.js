@@ -94,7 +94,7 @@
   var RULES = {
     startCash: 2500,     // dirty $ the boss starts with
     moveInCost: 1000,    // dirty $ the boss pays to set a capo up in a new district
-    foothold: { share: 15, men: 11, crews: 1, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
+    foothold: { share: 15, men: 11, crews: 1, trucks: 1, cars: 1, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
     attackEvery: 6,      // months before a rival family moves, and before it comes back after drawing blood
     attackAfterDefeat: 12, // months it takes to try again after being thrown back
     rivalCap: 6,         // the boldest a rival family ever gets
