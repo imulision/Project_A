@@ -116,6 +116,65 @@
              districts: districts, lots: lots };
   }
 
+  // ---- the city of the new game: no districts, a grid of blocks, one place a block
+  // planTurf(city) turns one city of AshportEmpire.view(g) into the same kind of plan as above, so the renderer draws
+  // both. A block of the rules is a block of the map (six lots). Its place stands on a fixed lot of it.
+  var KEYS = {
+    brewery: { model: 'era_works', sign: 'BREWERY' }, hotel: { model: 'era_hotel9', sign: 'GRAND HOTEL' }, port: { model: 'era_warehouse', sign: 'PORT AUTHORITY' },
+    depot: { model: 'era_warehouse', sign: 'FREIGHT DEPOT' }, cityhall: { model: 'era_deco11', sign: 'CITY HALL' }, precinct: { model: 'era_office8', sign: 'PRECINCT' }
+  };
+  var CLUB = { model: 'era_corner5', sign: 'SOCIAL CLUB' };
+  var WASH = { rented: 1, front: 1 };
+  var SPOT = 1;      // which of the six lots of a block carries its place
+
+  function planTurf(c, ci) {
+    ci = ci || 0;
+    var zones = c.zones.map(function (z, n) { return { id: c.id + '-' + n, name: z.name, c0: z.x0, c1: z.x1 + 1, r0: z.y0, r1: z.y1 + 1, capo: null }; });
+    var zoneOf = function (x, y) { for (var n = 0; n < zones.length; n++) { var z = zones[n]; if (x >= z.c0 && x < z.c1 && y >= z.r0 && y < z.r1) return n; } return 0; };
+    var rival = ownerKey(c.rival), placeAt = {}, capoAt = {};
+    c.places.forEach(function (p) { placeAt[p.x + ',' + p.y] = p; });
+    var lots = [], looks = [], count = zones.map(function () { return { all: 0, family: 0, rival: 0 }; });
+    var blocks = c.blocks.map(function (b) {
+      var ours = b.grip === 'family', w = !ours ? -1 : b.family >= 66 ? 2 : b.family >= 33 ? 1 : 0, zi = zoneOf(b.x, b.y), n = 0;
+      count[zi].all++; if (ours) count[zi].family++; else if (b.grip === 'rival') count[zi].rival++;
+      looks.push(w);
+      for (var j = b.y * 3 + 1; j <= b.y * 3 + 2; j++) for (var i = b.x * 4 + 1; i <= b.x * 4 + 3; i++, n++) {
+        var tall = hash(i, j, ci * 7 + 1) < (ours ? [0.2, 0.5, 0.8][w] : 0.3), r = hash(i, j, ci * 7 + 2);
+        var lot = { i: i, j: j, bx: b.x, by: b.y, district: zi, tall: tall,
+                    model: tall ? (w === 2 && hash(i, j, ci * 7 + 3) < 0.45 ? pick(HIGH, r) : pick(MID, r)) : pick(LOW, r),
+                    tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
+                    shop: hash(i, j, ci * 7 + 5) < (ours ? [0.4, 0.65, 0.9][w] : 0.3),
+                    tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null, hideout: false };
+        var p = n === SPOT && placeAt[b.x + ',' + b.y];
+        if (p) {
+          var mine = p.owner === 'family', look = p.kind === 'key' ? KEYS[p.key] || OTHER : p.kind === 'club' ? CLUB : SITES[p.kind] || OTHER;
+          lot.site = { id: b.x + '.' + b.y, type: p.kind, key: p.key || null, name: p.name, level: p.level, owner: mine ? 'family' : p.owner, capo: mine ? p.capo || null : null,
+                       role: p.kind === 'key' ? 'key' : p.kind === 'club' ? 'club' : WASH[p.kind] ? 'laundering' : 'business',
+                       sign: look.sign, color: mine ? (look.color || COLORS.family) : COLORS[ownerKey(p.owner)] };
+          lot.model = look.model; lot.tall = MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = mine; lot.lit = mine ? 3 : 1; lot.tower = false;
+          lot.hideout = mine && p.kind === 'club';
+          if (lot.hideout) capoAt[p.capo] = lot;
+        }
+        lots.push(lot);
+      }
+      return { x: b.x, y: b.y, grip: b.grip, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
+    });
+    zones.forEach(function (z, n) {
+      var k = count[n]; z.share = k.all ? 100 * k.family / k.all : 0;
+      z.owner = k.family > k.rival ? 'family' : k.rival ? rival : 'other'; z.ownerName = z.owner === 'family' ? 'Your family' : z.owner === 'other' ? '' : c.rival;
+      z.wealth = z.owner !== 'family' ? -1 : z.share >= 55 ? 2 : z.share >= 25 ? 1 : 0; z.heat = c.heat; z.watched = false;
+    });
+    var capos = c.capos.map(function (k) {
+      var lot = capoAt[k.id] || {}, pl = k.plan || {};
+      return { id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
+               tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
+    });
+    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('');
+    return { id: c.id, name: c.name, u: 0.5, v: 0.5, bx: c.w, by: c.h, home: true, key: key, turf: true,
+             held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
+             districts: zones, lots: lots, blocks: blocks, capos: capos };
+  }
+
   function plan(view) {
     var used = {}, index = {};
     var cities = view.cities.map(function (c, ci) { index[c.id] = ci; return planCity(c, ci, used); });
@@ -211,7 +270,7 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, route: route, trips: trips, effects: effects };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, planTurf: planTurf, route: route, trips: trips, effects: effects };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);
