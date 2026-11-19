@@ -86,8 +86,8 @@
   }
 
   // What this capo would do with his first month in that district.
-  function firstMove(g, districtId, capo) {
-    var x = W.district(g.world, districtId), d;
+  function firstMove(world, districtId, capo) {
+    var x = W.district(world, districtId), d;
     if (x.state) { d = JSON.parse(JSON.stringify(x.state)); d.capo = capo; }
     else {
       var start = { capo: capo, traits: W.placeOf(districtId).traits };
@@ -99,15 +99,17 @@
   }
 
   // The men still free, each with his card and what he announces for that district.
+  // Before the game starts, every man is free and speaks for the family's first district.
   function candidates(g, districtId) {
-    var taken = {};
-    W.posts(g.world).forEach(function (n) { taken[n.capo] = true; });
+    var taken = {}, world = g.world;
+    if (world) W.posts(world).forEach(function (n) { taken[n.capo] = true; });
+    else { world = W.createWorld({ capo: Object.keys(D.CAPOS)[0] }); districtId = districtId || W.HOME; }
     return Object.keys(D.CAPOS).filter(function (id) { return !taken[id]; }).map(function (id) {
       var c = D.CAPOS[id];
       return { id: id, name: c.name, specialty: c.specialty,
                stats: { muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma, loyalty: c.loyalty, ambition: c.ambition },
                likes: words(c.likes), refuses: words(c.refuses),
-               firstMove: districtId ? firstMove(g, districtId, id) : '' };
+               firstMove: districtId ? firstMove(world, districtId, id) : '' };
     });
   }
 
@@ -144,6 +146,13 @@
   }
 
   function view(g) { return W.view(g.world); }
+  // What moves on the map this month (see world.js). Nothing before the game starts.
+  function trips(g) { return g.world ? W.trips(g.world) : []; }
+  // Last month's chain of one district in figures (see district.js), or null if the family is not there.
+  function flows(g, districtId) {
+    var x = g.world && W.district(g.world, districtId);
+    return x && x.state ? D.flows(x.state) : null;
+  }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
     var g = JSON.parse(text);
@@ -152,7 +161,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);

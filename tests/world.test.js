@@ -182,8 +182,9 @@ test('moving into a district costs the boss money and starts with a few streets'
   W.claim(w, 'ashport-docks', 'dutch');
   assert.equal(cash - w.treasury.dirty, W.RULES.moveInCost);
   const docks = W.district(w, 'ashport-docks').state;
-  assert.equal(docks.share, 5);
-  assert.equal(docks.men, 8);
+  assert.equal(docks.share, 15);
+  assert.equal(docks.men, 11);
+  assert.equal(docks.crews, 1); // the men who took the first streets
   assert.ok(docks.share < W.district(w, 'ashport-hillside').state.share);
 });
 
@@ -271,4 +272,39 @@ test('the rivals give a new foothold a year before they come for it', () => {
   assert.ok(events.filter((e) => e.type === 'attack').every((e) => e.district !== 'ashport-docks'));
   for (let i = 0; i < 6; i++) events.push(...W.stepMonth(w));
   assert.ok(W.RULES.grace === 12);
+});
+
+test('a foothold pays its way and grows, whoever is sent there', () => {
+  const D = require('../web/district.js');
+  for (const capo of Object.keys(D.CAPOS)) {
+    const w = W.createWorld({ capo: capo === 'sal' ? 'mae' : 'sal' });
+    W.claim(w, 'ashport-market', capo);
+    const s = W.district(w, 'ashport-market').state;
+    let losing = 0;
+    for (let i = 0; i < 24; i++) { W.stepMonth(w); if (s.profit < 0) losing++; }
+    assert.ok(losing <= 3, `${capo}: ${losing} months at a loss`);
+    assert.ok(s.share > 15, `${capo}: ${Math.round(s.share)}% of the streets after two years`);
+  }
+});
+
+test('the trips of the family say which district and which city they run in', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  W.claim(w, 'ashport-market', 'mae');
+  W.stepMonth(w);
+  const trips = W.trips(w);
+  assert.ok(trips.length > 4);
+  assert.ok(trips.every((t) => t.city === 'ashport' && (t.district === 'ashport-hillside' || t.district === 'ashport-market')));
+  assert.ok(trips.some((t) => t.district === 'ashport-market' && t.kind === 'liquor'));
+});
+
+test('when a rival family comes for a district, its cars show among the trips of that month only', () => {
+  const w = W.createWorld({ capo: 'mae' });
+  for (let i = 0; i < W.RULES.attackEvery - 1; i++) W.stepMonth(w);
+  assert.equal(W.trips(w).filter((t) => t.kind === 'attack').length, 0);
+  const hit = W.stepMonth(w).find((e) => e.type === 'attack');
+  const raids = W.trips(w).filter((t) => t.kind === 'attack');
+  assert.equal(raids.length, 1);
+  assert.deepEqual([raids[0].from, raids[0].district, raids[0].violent, raids[0].outcome], ['rivals', hit.district, true, hit.outcome]);
+  W.stepMonth(w);
+  assert.equal(W.trips(w).filter((t) => t.kind === 'attack').length, 0);
 });

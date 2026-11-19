@@ -94,7 +94,7 @@
   var RULES = {
     startCash: 2500,     // dirty $ the boss starts with
     moveInCost: 1000,    // dirty $ the boss pays to set a capo up in a new district
-    foothold: { share: 5, men: 8, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
+    foothold: { share: 15, men: 11, crews: 1, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
     attackEvery: 6,      // months between two moves of a rival family
     rivalStrength: 3,    // what a district must put up to throw the rivals back
     rivalGrowth: 0.5,    // how much bolder the rivals get every year
@@ -270,10 +270,30 @@
       w.treasury.clean += x.state.boss.clean - before.clean;
     });
     w.month += 1;
+    w.attacks = [];
     if (w.month % RULES.attackEvery === 0) {
-      CITIES.forEach(function (c) { var e = attack(w, c); if (e) events.push(e); });
+      CITIES.forEach(function (c) {
+        var e = attack(w, c);
+        if (!e) return;
+        events.push(e);
+        w.attacks.push({ by: e.by, district: e.district, city: e.city, outcome: e.outcome, site: e.site });
+      });
     }
     return events;
+  }
+
+  // What moved on the map last month: the trips of every district the family
+  // holds, each with its district and city, and the cars of the rivals who came.
+  function trips(w) {
+    var list = [];
+    familyDistricts(w).forEach(function (x) {
+      D.trips(x.state).forEach(function (t) { t.district = x.id; t.city = x.city; list.push(t); });
+    });
+    (w.attacks || []).forEach(function (a) {
+      list.push({ kind: 'attack', flow: 'violence', from: 'rivals', to: a.outcome === 'hit' && a.site ? a.site : 'streets', vehicle: 'car', violent: true,
+                  by: a.by, outcome: a.outcome, district: a.district, city: a.city });
+    });
+    return list;
   }
 
   function cityReport(w, cityId) {
@@ -322,10 +342,10 @@
     return w;
   }
 
-  var api = { CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
-              cityReport: cityReport, view: view };
+              cityReport: cityReport, view: view, trips: trips };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportWorld = api;
 })(typeof self !== 'undefined' ? self : this);

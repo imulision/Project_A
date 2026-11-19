@@ -23,7 +23,7 @@
     spillHeat: 400,         // overflow $ per point of Heat
     cellar: 40,             // crates kept without a warehouse
     cellarPerWarehouse: 150,
-    washReserve: 600,       // dirty $ kept at hand on top of the payroll
+    washReserve: 900,       // dirty $ kept at hand on top of the payroll
     raidHeat: 60,
     raidSeizure: 500,
     raidCooling: 18,
@@ -31,6 +31,7 @@
     thinProfit: 150,        // below this monthly profit, conquest is a luxury
     cooling: 3,             // Heat lost every month on its own
     rivalPush: 1.0,         // streets the rivals take back every month
+    rivalNotice: 30,        // below this share, the rivals push back less and less
     rivalWall: 60,          // above this share, every street is fought for
     rivalWallStep: 5,       // one more street lost per month for each of these points above the wall
     lastStand: 25,          // below this share, a capo posts guards
@@ -39,6 +40,8 @@
     goodwillPull: 0.08,     // share of the gap to 50 that Goodwill closes by itself every month
     pullBack: 6,            // months a capo waits before sending out men he has just called back
     crewReach: 0.2,         // streets gained per street crew per point of Muscle
+    crewMuscle: 4,          // a crew's own worth, under a capo with less Muscle than that
+    idleMen: 3,             // more idle men than this are sent home when the district barely pays
     hireFee: 60,
     likes: 1.5,             // a project the capo likes counts this much more
     minNeed: 3,             // below this, a project is not worth a month
@@ -113,20 +116,24 @@
   }
   // Everything the district brings in this month except the liquor.
   function sideIncome(d) {
-    var c = capoOf(d), total = d.collectors * RULES.protectionTake * d.share / 50;
-    SITE_KEYS.forEach(function (k) {
-      var s = SITES[k];
-      if (!s.income) return;
-      total += d.sites[k] * s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(c, s)
-        * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
-    });
+    var total = d.collectors * RULES.protectionTake * d.share / 50;
+    SITE_KEYS.forEach(function (k) { total += d.sites[k] * placeIncome(d, k); });
     return total;
+  }
+  // What one place of that kind brings in a month, liquor apart.
+  function placeIncome(d, k) {
+    var s = SITES[k];
+    if (!s.income) return 0;
+    return s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(capoOf(d), s) * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
   }
   // What the district would bring in this month, liquor included, without changing it.
   function income(d) {
     return Math.min(d.stock + made(d), seats(d), thirst(d)) * RULES.crate + sideIncome(d);
   }
-  function rivalPush(d) { return RULES.rivalPush + Math.max(0, d.share - RULES.rivalWall) / RULES.rivalWallStep; }
+  // The rivals do not bother with a family that holds only a few streets.
+  function rivalPush(d) {
+    return RULES.rivalPush * Math.min(1, d.share / RULES.rivalNotice) + Math.max(0, d.share - RULES.rivalWall) / RULES.rivalWallStep;
+  }
   function siteCount(d) { return SITE_KEYS.reduce(function (n, k) { return n + d.sites[k]; }, 0); }
 
   function busyMen(d) {
@@ -170,7 +177,7 @@
       need: function (d) { return d.collectors < Math.min(3, d.crews + 1) ? 5 : 0; },
       apply: function (d) { d.collectors += 1; } },
     build('still', 'Sets up a cellar still', 'the speakeasies run dry',
-      function (d) { return made(d) < Math.min(thirst(d), seats(d)) - 8 ? 6 : 0; }),
+      function (d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8 ? 6 : 0; }),
     build('speakeasy', 'Turns a shop into a speakeasy', 'more drinkers than seats',
       function (d) { return seats(d) < Math.min(thirst(d), made(d) + 10) - 8 ? 6 : 0; }),
     build('gambling', 'Opens a gambling room', 'a back room sits empty',
@@ -197,7 +204,7 @@
     { kind: 'guard', label: 'Posts 2 more guards', why: 'the rivals are at his door', cost: 0, cur: 'dirty', men: 2,
       need: function (d) {
         if (d.attacked > 0 && d.guards < 6) return 9; // he has just been hit
-        return d.share < RULES.lastStand && d.guards < 8 ? 5 : 0;
+        return d.share < RULES.lastStand && streetsChange(d) < 0 && d.guards < 8 ? 5 : 0;
       },
       apply: function (d) { d.guards += 2; } },
     { kind: 'lielow', label: 'Pulls men off the street', why: 'the police are watching', cost: 0, cur: 'dirty', men: 0,
@@ -207,9 +214,17 @@
       need: function (d) { return d.crews === 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit ? 4 : 0; },
       apply: function (d) { d.crews -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'trim', label: 'Lets idle men go', why: 'the district loses money', cost: 0, cur: 'dirty', men: 0,
-      need: function (d) { return d.profit < 0 && d.men > busyMen(d) ? 8 : 0; },
+      need: function (d) {
+        var idle = d.men - busyMen(d);
+        return idle > 0 && d.profit < 0 ? 8 : idle > RULES.idleMen && d.profit < RULES.thinProfit ? 3 : 0;
+      },
       apply: function (d) { d.men -= Math.ceil((d.men - busyMen(d)) / 2); } }
   ];
+
+  function canHire(d, p, n, wages) {
+    var spent = (p.cur === 'dirty' ? p.cost : 0) + n * RULES.hireFee;
+    return d.profit > n * RULES.wage && d.dirty - spent >= wages ? n : 0;
+  }
 
   function hold(why) { return { kind: 'hold', label: 'Holds steady', why: why, cost: 0, cur: 'dirty', men: 0, hire: 0 }; }
 
@@ -228,9 +243,9 @@
     for (var i = 0; i < wanted.length; i++) {
       var p = wanted[i].p, hire = 0;
       if (free < p.men) {
-        hire = 2 + Math.floor(c.charisma / 3);
-        var spent = (p.cur === 'dirty' ? p.cost : 0) + hire * RULES.hireFee;
-        if (d.profit <= hire * RULES.wage || d.dirty - spent < wages || free + hire < p.men) { shortOfMen = true; continue; }
+        // he brings in a whole crew if he can pay for it, otherwise just the men the job needs
+        hire = canHire(d, p, Math.max(2 + Math.floor(c.charisma / 3), p.men - free), wages) || canHire(d, p, p.men - free, wages);
+        if (!hire) { shortOfMen = true; continue; }
       }
       return { kind: p.kind, label: p.label, why: p.why, cost: p.cost, cur: p.cur, men: p.men, hire: hire };
     }
@@ -300,7 +315,7 @@
   // Streets gained or lost this month, in points of the district.
   function streetsChange(d) {
     var c = capoOf(d);
-    return d.crews * c.muscle * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
+    return d.crews * Math.max(c.muscle, RULES.crewMuscle) * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
       + d.guards * RULES.guardHold * (0.5 + c.muscle / 10);
   }
 
@@ -342,8 +357,10 @@
     SITE_KEYS.forEach(function (k) { heat += d.sites[k] * SITES[k].heat; });
     if (d.bribing) heat -= 2 + c.cunning / 2;
     d.heat = clamp(d.heat + heat);
+    var raided = null;
     if (d.heat >= RULES.raidHeat) {
-      events.push(raid(d));
+      raided = raid(d);
+      events.push(raided);
     }
 
     // the street
@@ -355,7 +372,8 @@
     if (d.watched > 0) d.watched -= 1;
     d.month += 1;
     d.last = { sold: m.sold, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
-               washed: w.washed, washLoss: w.washLoss, overflow: overflow, spilled: spilled };
+               washed: w.washed, washLoss: w.washLoss, overflow: overflow, spilled: spilled,
+               decision: events[0].kind, raid: raided ? raided.site || 'none' : null };
     return events;
   }
 
@@ -381,9 +399,64 @@
     return d;
   }
 
+  // The flows the map can show, and the flow each kind of trip belongs to.
+  var FLOWS = ['logistics', 'sales', 'money', 'building', 'violence'];
+  var FLOW_OF = { liquor: 'logistics', takings: 'sales', laundering: 'money', tribute: 'money', works: 'building',
+                  streets: 'violence', collection: 'violence', seizure: 'violence', raid: 'violence', attack: 'violence' };
+
+  // Last month's chain in figures: what was made, what waits in the cellar,
+  // what was sold and what held sales back, then where the money went.
+  function flows(d) {
+    var m = d.last || { sold: 0, income: 0, costs: 0, profit: 0, washed: 0, owed: 0, skim: 0, spilled: 0 };
+    var limit = thirst(d) <= seats(d) && thirst(d) <= d.stock + made(d) ? 'drinkers' : seats(d) <= d.stock + made(d) ? 'seats' : 'stills';
+    return { made: d.last ? made(d) : 0, stock: d.stock, sold: m.sold, seats: seats(d), drinkers: thirst(d), limit: limit,
+             income: m.income, costs: m.costs, profit: m.profit, washed: m.washed, tribute: m.owed - m.skim, kept: m.skim, spilled: m.spilled };
+  }
+
+  function slugOf(d) { return d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+
+  // What moved in the district last month, for the map to show: one entry per
+  // trip, from a place to a place. Ends are building ids (see buildings) or
+  // 'hideout', 'streets', 'shops', 'boss', 'police'. Nothing here decides
+  // anything: it only tells again what stepMonth did.
+  function trips(d) {
+    var m = d.last, list = [];
+    if (!m) return list;
+    var id = function (kind, n) { return slugOf(d) + '-' + kind + '-' + n; };
+    var add = function (kind, from, to, vehicle, more) {
+      var t = { kind: kind, flow: FLOW_OF[kind], from: from, to: to, vehicle: vehicle, violent: false };
+      Object.keys(more || {}).forEach(function (k) { t[k] = more[k]; });
+      list.push(t);
+    };
+    var i, bars = d.sites.speakeasy;
+    if (m.sold > 0) {
+      for (i = 1; i <= bars; i++) {
+        add('liquor', d.sites.still ? id('still', (i - 1) % d.sites.still + 1) : 'hideout', id('speakeasy', i), 'truck', { crates: m.sold / bars });
+      }
+    }
+    SITE_KEYS.forEach(function (k) {
+      if (k !== 'speakeasy' && !SITES[k].income) return;
+      var amount = k === 'speakeasy' ? m.sold * RULES.crate / bars : placeIncome(d, k);
+      for (var n = 1; n <= d.sites[k]; n++) add('takings', id(k, n), 'hideout', 'car', { amount: amount });
+    });
+    if (m.washed > 0) {
+      var laundry = d.sites.front ? id('front', 1) : d.sites.rented ? id('rented', 1) : 'boss'; // 'boss': the family's bookkeeper
+      add('laundering', 'hideout', laundry, 'car', { amount: m.washed });
+    }
+    if (m.owed - m.skim > 0) add('tribute', 'hideout', 'boss', 'car', { amount: m.owed - m.skim });
+    for (i = 0; i < d.crews; i++) add('streets', 'hideout', 'streets', 'car', { men: CREW.street.men, violent: true });
+    for (i = 0; i < d.collectors; i++) add('collection', 'hideout', 'shops', 'car', { men: CREW.protection.men, violent: true, amount: RULES.protectionTake * d.share / 50 });
+    if (SITES[m.decision] && d.sites[m.decision] > 0) add('works', 'hideout', id(m.decision, d.sites[m.decision]), 'truck');
+    if (m.decision === 'seize' && d.sites.warehouse > 0) {
+      add('seizure', 'hideout', id('warehouse', d.sites.warehouse), 'car', { men: SITES.warehouse.staff, violent: true });
+    }
+    if (m.raid) add('raid', 'police', SITES[m.raid] ? id(m.raid, d.sites[m.raid] + 1) : 'hideout', 'police', { violent: true });
+    return list;
+  }
+
   // What the map needs to draw the district: one entry per building.
   function buildings(d) {
-    var list = [], slug = d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    var list = [], slug = slugOf(d);
     SITE_KEYS.forEach(function (k) {
       for (var i = 1; i <= d.sites[k]; i++) {
         list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, staff: SITES[k].staff, level: 1 });
@@ -394,7 +467,7 @@
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
               chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
-              goodwillChange: goodwillChange, streetsChange: streetsChange };
+              goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
 })(typeof self !== 'undefined' ? self : this);
