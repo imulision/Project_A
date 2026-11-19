@@ -133,14 +133,40 @@
     }
     return null;
   }
-  // Every place of the city, or only those a capo runs.
-  function places(c, capo) {
-    return Object.keys(c.blocks).map(function (k) {
+  // What is worked out once and kept until a place changes: the list of
+  // places and how hard each side presses on every block. It lives beside the
+  // city, never in it, so a saved game carries none of it. Whatever changes
+  // c.blocks must call changed(c).
+  var kept = new WeakMap();
+  function changed(c) { kept.delete(c); }
+  function memo(c) {
+    var m = kept.get(c);
+    if (m) return m;
+    m = { family: new Float64Array(c.w * c.h), rival: new Float64Array(c.w * c.h) };
+    m.places = Object.keys(c.blocks).map(function (k) {
       var p = c.blocks[k], xy = k.split(',');
       var out = { x: Number(xy[0]), y: Number(xy[1]), owner: p.owner, kind: p.kind, level: p.level, capo: p.capo };
       if (p.key) out.key = p.key;
       return out;
-    }).filter(function (p) { return capo === undefined || p.capo === capo; });
+    });
+    m.places.forEach(function (p) {
+      var r = p.level + 1, side = p.owner === 'family' ? m.family : m.rival, press = RULES.press * p.level;
+      for (var y = Math.max(0, p.y - r); y <= Math.min(c.h - 1, p.y + r); y++) {
+        for (var x = Math.max(0, p.x - r); x <= Math.min(c.w - 1, p.x + r); x++) {
+          side[y * c.w + x] += press / (1 + far(x, y, p.x, p.y));
+        }
+      }
+    });
+    kept.set(c, m);
+    return m;
+  }
+  // Every place of the city, or only those a capo runs.
+  function places(c, capo) {
+    return memo(c).places.filter(function (p) { return capo === undefined || p.capo === capo; }).map(function (p) {
+      var out = { x: p.x, y: p.y, owner: p.owner, kind: p.kind, level: p.level, capo: p.capo };
+      if (p.key) out.key = p.key;
+      return out;
+    });
   }
   function run(c, capo) { return places(c, capo).filter(function (p) { return p.kind !== 'club' && p.kind !== 'key'; }); }
   // The key places of the city, and who holds each.
@@ -173,6 +199,7 @@
       b.level = RULES.keyLevel;
     }
     c.blocks[key(x, y)] = b;
+    changed(c);
   }
   // A capo arrives: his social club is his base, and where he is found.
   function clubOf(c, capo) {
@@ -186,13 +213,8 @@
 
   // How hard the family and its rivals press on one block.
   function hold(c, x, y) {
-    var h = { family: 0, rival: 0 };
-    places(c).forEach(function (p) {
-      var d = far(x, y, p.x, p.y);
-      if (d > p.level + 1) return;
-      h[p.owner === 'family' ? 'family' : 'rival'] += RULES.press * p.level / (1 + d);
-    });
-    return h;
+    var m = memo(c), i = y * c.w + x;
+    return inside(c, x, y) ? { family: m.family[i], rival: m.rival[i] } : { family: 0, rival: 0 };
   }
   // Whose streets a block is: 'family', 'rival', 'contested', or null when nobody holds it.
   function grip(c, x, y) {
@@ -350,11 +372,13 @@
       if (!was || was.owner === 'family') return false; // nothing left to take
       if (o.key) {
         was.owner = 'family'; was.capo = o.capo;
+        changed(c);
         events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: 'key', key: o.key, way: o.way, from: c.rival,
                       label: 'The ' + KEYS[o.key].name + ' is ours: ' + first(o.capo) + ' holds it now' });
         return false;
       }
       c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
+      changed(c);
       events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
                     label: o.way === 'force' ? first(o.capo) + '\'s men take the ' + was.owner + 's\' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand'
                          : o.way === 'bribe' ? 'The ' + was.owner + 's\' man in ' + zoneOf(c, o.x, o.y).name + ' takes ' + first(o.capo) + '\'s envelope'
@@ -405,6 +429,7 @@
         + (guard.capo === p.capo ? ' and are thrown back' : ': ' + first(guard.capo) + '\'s men throw them back');
     } else {
       delete c.blocks[key(p.x, p.y)];
+      changed(c);
       e.type = 'burnt';
       e.label = 'The ' + by + 's burn out ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where;
     }
@@ -478,7 +503,7 @@
         return;
       }
       if (p.move === 'open') open(c, p.x, p.y, { owner: 'family', kind: p.kind, capo: capo });
-      else at(c, p.x, p.y).level += 1;
+      else { at(c, p.x, p.y).level += 1; changed(c); }
       events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
                     label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
     });

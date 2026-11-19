@@ -537,3 +537,27 @@ test('the family that was there first holds all six key places, each on a street
   T.seed(c, 'Callahan', 30);
   assert.equal(rivals(c).length, 36);
 });
+
+// --- speed: a month of rules must fit well inside one frame on a phone ---
+
+test('twenty years of Ashport with four capos play in well under a second', () => {
+  const c = ashport(), f = family();
+  T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+  for (const k of ['sal', 'mae', 'tommy', 'dutch']) { const l = T.landing(c); T.settle(c, k, l.x, l.y); T.join(f, k); }
+  const start = process.hrtime.bigint();
+  year(c, f, 240);
+  const ms = Number(process.hrtime.bigint() - start) / 1e6;
+  assert.ok(T.places(c).length > 60, 'a full city');
+  assert.ok(ms < 600, '240 months took ' + Math.round(ms) + ' ms');
+});
+
+test('the streets follow every change at once: a place enlarged, taken or burnt', () => {
+  const c = town();
+  T.open(c, 3, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.equal(T.hold(c, 6, 3).family, 0);
+  T.open(c, 9, 3, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.ok(T.hold(c, 8, 3).rival > 0, 'a new place presses at once');
+  const again = JSON.parse(JSON.stringify(c));
+  assert.deepEqual(T.share(again), T.share(c), 'a city saved and loaded holds the same streets');
+  assert.deepEqual(Object.keys(c).sort(), Object.keys(T.createCity({ id: 'x', w: 1, h: 1, zones: [] })).sort(), 'and nothing extra is saved with it');
+});
