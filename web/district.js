@@ -47,36 +47,48 @@
     rent: 80,
     seizeGoodwill: 6,
     seizeHeat: 5,
-    pushHeat: 2
+    pushHeat: 2,
+    exportBonus: 0.3,       // extra income on what leaves town when the family runs the routes
+    familyWash: 300,        // dirty $ a month the family's bookkeeper washes for a district
+    fixerCooling: 2,        // Heat lost every month when the family's fixer works the city
+    racketNeed: 3           // how much a capo wants a racket in a district made for it
   };
 
   // What a place costs, who works there, and what it does every month.
   var SITES = {
     still:     { name: 'Cellar still',   cost: 400,  cur: 'dirty', staff: 2, heat: 0.5,  goodwill: 0,    crates: 20 },
     speakeasy: { name: 'Speakeasy',      cost: 600,  cur: 'dirty', staff: 3, heat: 0.5,  goodwill: 0.6,  seats: 28 },
-    gambling:  { name: 'Gambling room',  cost: 500,  cur: 'dirty', staff: 2, heat: 1,    goodwill: 0,    income: 420 },
+    gambling:  { name: 'Gambling room',  cost: 500,  cur: 'dirty', staff: 2, heat: 1,    goodwill: 0,    income: 420, skill: 'business' },
     loft:      { name: 'Cannabis loft',  cost: 700,  cur: 'dirty', staff: 2, heat: 2,    goodwill: -0.5, income: 600 },
     rented:    { name: 'Rented laundry', cost: 300,  cur: 'dirty', staff: 1, heat: 0,    goodwill: 0,    wash: 300, loss: 0.25 },
     front:     { name: 'Owned front',    cost: 1000, cur: 'clean', staff: 1, heat: -0.5, goodwill: 0.5,  wash: 500, loss: 0.15 },
-    warehouse: { name: 'Warehouse',      cost: 1200, cur: 'clean', staff: 1, heat: 0,    goodwill: 0 }
+    warehouse: { name: 'Warehouse',      cost: 1200, cur: 'clean', staff: 1, heat: 0,    goodwill: 0 },
+    // The other rackets. `trait` is what the district must be good for,
+    // `skill` the stat of the capo that makes it pay, `exports` what leaves town.
+    brothel:   { name: 'Brothel',        cost: 800,  cur: 'dirty', staff: 3, heat: 1.5,  goodwill: -1,   income: 700, trait: 'nightlife', secrets: 1 },
+    chopshop:  { name: 'Chop shop',      cost: 700,  cur: 'dirty', staff: 3, heat: 1.5,  goodwill: -0.5, income: 500, trait: 'industry', skill: 'cunning', exports: true },
+    fence:     { name: 'Fence',          cost: 500,  cur: 'dirty', staff: 2, heat: 1,    goodwill: 0,    income: 450, trait: 'port', skill: 'business', exports: true },
+    loans:     { name: 'Loan office',    cost: 600,  cur: 'dirty', staff: 2, heat: 0.5,  goodwill: -1,   income: 400, trait: 'wealth', skill: 'muscle' },
+    union:     { name: 'Union local',    cost: 900,  cur: 'dirty', staff: 2, heat: 0.5,  goodwill: 0.5,  income: 350, trait: 'industry', skill: 'charisma' }
   };
+  var RACKETS = ['brothel', 'chopshop', 'fence', 'loans', 'union'];
   var SITE_KEYS = Object.keys(SITES);
   var CREW = { street: { men: 3, heat: 1, goodwill: -0.5 }, protection: { men: 2, heat: 1, goodwill: -1.5 } };
-  var RAID_ORDER = ['loft', 'speakeasy', 'still']; // a speakeasy is only shut if another remains
+  var RAID_ORDER = ['loft', 'brothel', 'chopshop', 'fence', 'speakeasy', 'still']; // a speakeasy is only shut if another remains
 
   var CAPOS = {
     sal:   { name: 'Sal "the Hammer" Moretti', specialty: 'Enforcer', muscle: 8, business: 4, cunning: 3, charisma: 6, loyalty: 65, ambition: 70,
-             likes: ['protection', 'seize', 'push'], refuses: ['bribe'] },
+             likes: ['protection', 'seize', 'push', 'loans'], refuses: ['bribe'] },
     mae:   { name: 'Mae "the Ledger" Whitlock', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 8, charisma: 4, loyalty: 70, ambition: 40,
-             likes: ['front', 'rented', 'bribe'], refuses: ['protection', 'seize', 'loft'] },
+             likes: ['front', 'rented', 'bribe'], refuses: ['protection', 'seize', 'loft', 'brothel'] },
     dutch: { name: 'Dutch Keller', specialty: 'Bootlegger', muscle: 5, business: 7, cunning: 5, charisma: 3, loyalty: 55, ambition: 50,
-             likes: ['still', 'speakeasy', 'warehouse'], refuses: ['protection'] },
+             likes: ['still', 'speakeasy', 'warehouse', 'fence'], refuses: ['protection'] },
     tommy: { name: 'Tommy "the Priest" Byrne', specialty: 'Politician', muscle: 3, business: 5, cunning: 6, charisma: 9, loyalty: 80, ambition: 30,
-             likes: ['speakeasy', 'gambling', 'bribe'], refuses: ['loft', 'seize'] },
+             likes: ['speakeasy', 'gambling', 'bribe', 'union'], refuses: ['loft', 'seize', 'brothel'] },
     vince: { name: 'Vince "Three-Fingers" Kowalski', specialty: 'Pusher', muscle: 7, business: 3, cunning: 6, charisma: 3, loyalty: 45, ambition: 80,
-             likes: ['loft', 'push', 'seize'], refuses: ['front'] },
+             likes: ['loft', 'push', 'seize', 'chopshop'], refuses: ['front'] },
     danny: { name: 'Danny "the Kid" Reyes', specialty: 'Gambler', muscle: 5, business: 6, cunning: 4, charisma: 6, loyalty: 60, ambition: 90,
-             likes: ['gambling', 'push', 'loft'], refuses: [] }
+             likes: ['gambling', 'push', 'loft', 'brothel'], refuses: [] }
   };
 
   function capoOf(d) { return CAPOS[d.capo]; }
@@ -90,7 +102,30 @@
   function made(d) { return d.sites.still * SITES.still.crates * trade(capoOf(d)); }
   function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats; }
   function thirst(d) { return RULES.demand * d.share / 100; }
-  function washing(d) { return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d)); }
+  function washing(d) {
+    return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d))
+      + (d.support.bookkeeper ? RULES.familyWash : 0);
+  }
+  function skillOf(c, site) { return site.skill ? 0.8 + 0.04 * c[site.skill] : 1; }
+  // The liquor comes first: no capo branches out while his speakeasies run dry.
+  function liquorSettled(d) {
+    return made(d) >= Math.min(thirst(d), seats(d)) - 8 && seats(d) >= Math.min(thirst(d), made(d) + 10) - 8;
+  }
+  // Everything the district brings in this month except the liquor.
+  function sideIncome(d) {
+    var c = capoOf(d), total = d.collectors * RULES.protectionTake * d.share / 50;
+    SITE_KEYS.forEach(function (k) {
+      var s = SITES[k];
+      if (!s.income) return;
+      total += d.sites[k] * s.income * (s.trait ? d.traits[s.trait] : 1) * skillOf(c, s)
+        * (s.exports && d.support.routes ? 1 + RULES.exportBonus : 1);
+    });
+    return total;
+  }
+  // What the district would bring in this month, liquor included, without changing it.
+  function income(d) {
+    return Math.min(d.stock + made(d), seats(d), thirst(d)) * RULES.crate + sideIncome(d);
+  }
   function rivalPush(d) { return RULES.rivalPush + Math.max(0, d.share - RULES.rivalWall) / RULES.rivalWallStep; }
   function siteCount(d) { return SITE_KEYS.reduce(function (n, k) { return n + d.sites[k]; }, 0); }
 
@@ -105,6 +140,15 @@
   }
   function build(kind, label, why, need) {
     return { kind: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind) };
+  }
+  function racket(kind, label, why) {
+    var site = SITES[kind];
+    return build(kind, label, why, function (d) {
+      var fit = d.traits[site.trait];
+      if (fit < 0.5 || d.sites[kind] >= Math.round(2 * fit)) return 0;
+      if (!liquorSettled(d) || d.profit < RULES.thinProfit) return 0;
+      return RULES.racketNeed * fit;
+    });
   }
   function stashFull(d) { return d.dirty > 0.7 * stashRoom(d) && d.sites.warehouse < 2; }
   function washShort(d) { return washing(d) < 0.6 * Math.max(d.profit, 300); }
@@ -133,6 +177,11 @@
       function (d, c) { return d.sites.gambling < d.sites.speakeasy ? 3 + c.business / 4 : 0; }),
     build('loft', 'Installs a cannabis loft', 'easy margin while the street is quiet',
       function (d) { return d.heat < 45 && d.sites.loft < 2 ? 3 : 0; }),
+    racket('brothel', 'Opens a brothel', 'the night trade is there for the taking'),
+    racket('chopshop', 'Sets up a chop shop', 'cars are easy money in a district of garages'),
+    racket('fence', 'Sets up a fence for hijacked goods', 'too much comes off the ships to ignore'),
+    racket('loans', 'Opens a loan office', 'people here have something to lose'),
+    racket('union', 'Takes over a union local', 'the factories can be made to pay'),
     { kind: 'seize', label: 'Takes a warehouse by force', why: 'the stash is full, and he takes room rather than pay for it', cost: 0, cur: 'dirty', men: SITES.warehouse.staff, hot: true,
       need: function (d) { return stashFull(d) ? 6 : 0; },
       apply: function (d) { d.sites.warehouse += 1; d.goodwill -= RULES.seizeGoodwill; d.heat += RULES.seizeHeat; } },
@@ -205,17 +254,14 @@
     d.stock += made(d);
     var sold = Math.min(d.stock, seats(d), thirst(d));
     d.stock = Math.min(d.stock - sold, RULES.cellar + RULES.cellarPerWarehouse * d.sites.warehouse);
-    var income = sold * RULES.crate
-      + d.sites.gambling * SITES.gambling.income * trade(c)
-      + d.sites.loft * SITES.loft.income
-      + d.collectors * RULES.protectionTake * d.share / 50;
+    var income = sold * RULES.crate + sideIncome(d);
     var costs = payroll(d) + siteCount(d) * RULES.upkeep + d.sites.rented * RULES.rent + (d.bribing ? RULES.bribe : 0);
     return { sold: sold, income: income, costs: costs, profit: income - costs };
   }
 
   function launder(d, c) {
     var washed = Math.max(0, Math.min(washing(d), d.dirty - payroll(d) - RULES.washReserve));
-    var loss = d.sites.front > 0 ? SITES.front.loss : SITES.rented.loss;
+    var loss = d.sites.front > 0 || d.support.bookkeeper ? SITES.front.loss : SITES.rented.loss;
     d.dirty -= washed;
     d.clean += washed * (1 - loss);
     return { washed: washed, washLoss: washed * loss, cleaned: washed * (1 - loss) };
@@ -273,6 +319,8 @@
     d.boss.clean += paidClean;
     d.boss.dirty += paid - paidClean;
 
+    SITE_KEYS.forEach(function (k) { if (SITES[k].secrets) d.secrets += d.sites[k] * SITES[k].secrets; });
+
     // too much dirty money
     var overflow = Math.max(0, d.dirty - stashRoom(d));
     var spilled = overflow * RULES.spill;
@@ -287,7 +335,7 @@
     }
 
     // the police
-    var heat = -RULES.cooling + overflow / RULES.spillHeat + d.crews * CREW.street.heat + d.collectors * CREW.protection.heat;
+    var heat = -RULES.cooling - (d.support.fixer ? RULES.fixerCooling : 0) + overflow / RULES.spillHeat + d.crews * CREW.street.heat + d.collectors * CREW.protection.heat;
     SITE_KEYS.forEach(function (k) { heat += d.sites[k] * SITES[k].heat; });
     if (d.bribing) heat -= 2 + c.cunning / 2;
     d.heat = clamp(d.heat + heat);
@@ -313,13 +361,17 @@
     var d = {
       name: 'Hillside', capo: o.capo, month: 0,
       men: 14, guards: 2, crews: 0, collectors: 0,
-      sites: { still: 2, speakeasy: 2, gambling: 0, loft: 0, rented: 0, front: 0, warehouse: 0 },
-      dirty: 800, clean: 300, profit: 800, stock: 0,
+      sites: {},
+      traits: { nightlife: 1, industry: 0.4, port: 0, wealth: 1.2 }, // a hill of houses above the city
+      support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
+      dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
       boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, last: null
     };
+    SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
+    d.sites.still = 2; d.sites.speakeasy = 2;
     Object.keys(o).forEach(function (k) {
-      if (k === 'sites') Object.keys(o.sites).forEach(function (s) { d.sites[s] = o.sites[s]; });
+      if (k === 'sites' || k === 'traits' || k === 'support') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
       else if (k in d) d[k] = o[k];
     });
     return d;
@@ -337,7 +389,7 @@
   }
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
-              chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve,
+              chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
               goodwillChange: goodwillChange, streetsChange: streetsChange };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
