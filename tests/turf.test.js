@@ -1074,3 +1074,36 @@ test('the boss rules for one man: the feud ends, and the other keeps his money t
   const d = f.dirty; T.stepMonth(c, f);
   assert.ok(f.dirty - d >= 2 * T.RULES.club * T.RULES.tribute - 0.01, 'then both pay again');
 });
+
+// --- what moves in the streets this month, for the map ---
+
+test('the trips of a city: liquor from the stills to the bars, takings to the club, dirty money to the laundry, crews to what they take', () => {
+  const c = town(), f = family({ dirty: 5000 });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 3, 3, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  T.open(c, 10, 4, { owner: 'Callahan', kind: 'speakeasy' });
+  c.ops.push({ capo: 'dutch', x: 10, y: 4, way: 'buy', kind: 'speakeasy', cost: 1, month: 0, months: 3 });
+  const trips = T.trips(c, f), of = (kind) => trips.filter((t) => t.kind === kind);
+  assert.deepEqual(of('liquor'), [{ kind: 'liquor', cargo: 'liquor', capo: 'dutch', from: { x: 8, y: 2 }, to: { x: 3, y: 2 } }]);
+  assert.deepEqual(of('takings').map((t) => [t.from.x, t.from.y, t.to.x, t.to.y, t.cargo]).sort(), [[3, 2, 2, 2, 'cash'], [3, 3, 2, 2, 'cash'], [8, 2, 2, 2, 'cash']]);
+  assert.deepEqual(of('wash'), [{ kind: 'wash', cargo: 'cash', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 3 } }]);
+  assert.deepEqual(of('crew'), [{ kind: 'crew', cargo: 'buy', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 10, y: 4 } }]);
+  f.dirty = 0;
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'wash'), [], 'nothing to wash, nobody drives to the laundry');
+  assert.deepEqual(T.view(c, f).trips, T.trips(c, f));
+});
+
+test('each bar is served by the nearest still, and a bar with no still gets no truck', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 5, 2); T.join(f, 'dutch');
+  T.open(c, 1, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'liquor'), []);
+  T.open(c, 0, 4, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 10, 1, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 9, 4, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  const from = (x, y) => T.trips(c, f).find((t) => t.kind === 'liquor' && t.to.x === x && t.to.y === y).from;
+  assert.deepEqual(from(1, 1), { x: 0, y: 4 });
+  assert.deepEqual(from(9, 4), { x: 10, y: 1 });
+});

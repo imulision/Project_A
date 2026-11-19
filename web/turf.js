@@ -714,6 +714,34 @@
     return events;
   }
 
+  // --- what moves in the streets ---
+  // The trips of the month, for the map: liquor from the nearest still to each
+  // bar, every place's takings to its capo's club, the boss's dirty money from
+  // the clubs to the laundries, and the crews on their way to what they take.
+  function trips(c, f) {
+    var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
+    var at2 = function (p) { return { x: p.x, y: p.y }; };
+    var stills = ours.filter(function (p) { return p.kind === 'still'; });
+    var washes = ours.filter(function (p) { return D.SITES[p.kind] && D.SITES[p.kind].wash; });
+    ours.forEach(function (p) {
+      var club = p.capo && clubOf(c, p.capo);
+      if (p.kind === 'speakeasy' && stills.length) {
+        var s = stills.reduce(function (a, b) { return far(p.x, p.y, b.x, b.y) < far(p.x, p.y, a.x, a.y) ? b : a; });
+        out.push({ kind: 'liquor', cargo: 'liquor', capo: s.capo, from: at2(s), to: at2(p) });
+      }
+      if (club && p.kind !== 'club' && p.kind !== 'key') out.push({ kind: 'takings', cargo: 'cash', capo: p.capo, from: at2(p), to: club });
+    });
+    if (f.dirty > 0) washes.forEach(function (p) {
+      var club = clubOf(c, p.capo);
+      if (club) out.push({ kind: 'wash', cargo: 'cash', capo: p.capo, from: club, to: at2(p) });
+    });
+    c.ops.forEach(function (o) {
+      var club = clubOf(c, o.capo);
+      if (club) out.push({ kind: 'crew', cargo: o.way, capo: o.capo, from: club, to: { x: o.x, y: o.y } });
+    });
+    return out;
+  }
+
   // --- what the screen reads ---
   // One plain picture of the city: every block and who holds it, every place,
   // every capo with where he is and what he is after, and what waits for the boss.
@@ -731,7 +759,7 @@
         p.name = p.kind === 'club' ? 'Social Club' : p.kind === 'key' ? KEYS[p.key].name : D.SITES[p.kind].name;
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, name: p.name, level: p.level, capo: p.capo };
       }).map(function (p) { if (!p.key) delete p.key; return p; }),
-      keys: keys(c), share: share(c), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), tree: tree(f), wishes: wishes(c, f),
+      keys: keys(c), share: share(c), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
@@ -797,7 +825,7 @@
     return events;
   }
 
-  var api = { grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
