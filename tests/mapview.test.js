@@ -214,3 +214,21 @@ test('a promotion shines over the district of the man who earned it', () => {
   const fx = M.effects([{ type: 'promotion', capo: 'sal', rank: 1, district: 'ashport-hillside', city: 'ashport', label: 'x' }]);
   assert.deepEqual(fx, [{ kind: 'promotion', city: 'ashport', district: 'ashport-hillside', site: null }]);
 });
+
+test('a car says what it carries, from where to where, and for which district', () => {
+  const p = M.plan(G.view(fresh()));
+  const [truck, car, crew] = M.trips(p, [
+    { kind: 'liquor', flow: 'logistics', from: 'hillside-still-1', to: 'hillside-speakeasy-1', vehicle: 'truck', crates: 30, district: 'ashport-hillside', city: 'ashport' },
+    { kind: 'tribute', flow: 'money', from: 'hideout', to: 'boss', vehicle: 'car', amount: 134.4, district: 'ashport-hillside', city: 'ashport' },
+    { kind: 'streets', flow: 'violence', from: 'hideout', to: 'streets', vehicle: 'car', men: 3, violent: true, district: 'ashport-hillside', city: 'ashport' }]);
+  assert.deepEqual([truck.cargo, truck.load, truck.district], ['liquor', { crates: 30 }, 'ashport-hillside']);
+  assert.deepEqual([truck.from, truck.to], ['still', 'speakeasy']);
+  assert.deepEqual([car.cargo, car.load, car.from, car.to], ['tribute', { amount: 134.4 }, 'hideout', 'boss']);
+  assert.deepEqual([crew.cargo, crew.load], ['streets', { men: 3 }]);
+});
+
+test('the plan says who runs each district of the family, and where he sits', () => {
+  const g = fresh(), p = M.plan(G.view(g)), hill = city(p, 'ashport').districts.find((d) => d.id === 'ashport-hillside');
+  assert.equal(hill.capo, 'sal');
+  assert.equal(city(p, 'ashport').districts.find((d) => d.id !== 'ashport-hillside').capo, null, 'the map does not name the men of the rivals');
+});

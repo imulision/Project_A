@@ -32,7 +32,11 @@ const hud = () => page.evaluate(() => ({ date: document.getElementById('date').t
 await page.goto(page_url);
 await page.waitForSelector('#veil.on h2', { timeout: 120000 });
 assert.equal(await page.textContent('#sheet h2'), 'Hillside needs a capo', 'the game opens on the first nomination');
-assert.equal(await page.locator('#sheet .card').count(), 6, 'six men to choose from');
+assert.equal(await page.locator('#sheet [data-face]').count(), 6, 'six faces to choose from');
+assert.equal(await page.locator('#who .face').count(), 1, 'the man being looked at has a portrait');
+assert.equal(await page.locator('#who .stat').count(), 4, 'and his four stats as gauges, not as a sentence');
+await page.click('#sheet [data-face=sal]');
+assert.match(await page.textContent('#who h3'), /Sal/, 'touching a face shows that man');
 await shot('1-start');
 
 await page.click('#sheet [data-act=start][data-capo=sal]');
@@ -57,12 +61,31 @@ await page.locator('.lab.sm', { hasText: 'Market Street' }).click();
 await page.waitForSelector('#veil.on');
 assert.equal(await page.textContent('#sheet h2'), 'Market Street');
 await page.click('#sheet [data-order=claim]');
+await page.click('#sheet [data-face=mae]');
 await page.click('#sheet [data-capo=mae]');
 await page.waitForSelector('#veil:not(.on)', { state: 'attached' });
 assert.equal((await hud()).held, '2 / 41', 'the family holds a second district');
 assert.equal((await hud()).named, '2 / 9');
 await months(6);
 await shot('4-market-street');
+
+// the district in pictures: the capo, what he is after, figures with their curve, the places, and laundering marked as such
+await page.evaluate(() => window.__ashport.map().focus('ashport', 'ashport-hillside'));
+await page.waitForSelector('.lab.capo .face', { timeout: 60000 });
+assert.ok(await page.locator('.lab.tag').count() > 0, 'the cars on the road show what they carry');
+await page.evaluate(() => document.querySelector('.lab.tag').click());      // by the element itself: another badge may lie over it on the screen
+assert.match(await page.textContent('#tip.on'), /crates|\$|men/, 'touching a car says what it carries');
+await shot('7-street');
+await page.evaluate(() => document.querySelector('.lab.capo').click());
+await page.waitForSelector('#veil.on .tiles');
+assert.equal(await page.textContent('#sheet h2'), 'Hillside', 'touching the capo opens his district');
+assert.ok(await page.locator('#sheet .tile').count() >= 6, 'the figures of the district are tiles with an icon');
+assert.ok(await page.locator('#sheet .intent').count() >= 1, 'the sheet says what the capo is after');
+assert.ok(await page.locator('#sheet .place').count() >= 2, 'his places are pictured');
+assert.ok(await page.locator('#sheet .chain .node').count() >= 8, 'liquor and money are shown as a chain');
+if (await page.evaluate(() => !!AshportGame.history)) assert.ok(await page.locator('#sheet .tile .spark polyline').count() >= 4, 'each figure has its curve');
+await shot('8-district');
+await page.click('#sheet [data-act=close]');
 
 // the wheel of the family: six trades, three rings, and what a part brings when touched
 await page.click('#family');
