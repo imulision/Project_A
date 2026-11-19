@@ -24,6 +24,8 @@ const months = (n) => page.evaluate((n) => {
     window.__ashport.beat();
     const ask = document.querySelector('#veil.on [data-act=approve]');
     if (ask) { window.__asked = (window.__asked || 0) + 1; ask.click(); }
+    const rise = document.querySelector('#veil.on [data-act=promote]');
+    if (rise) { window.__promoted = (window.__promoted || 0) + 1; rise.click(); }
     if (window.__ashport.game().ticks + ':' + window.__ashport.game().world.month === before) window.__ashport.beat();
   }
 }, n);
@@ -56,17 +58,25 @@ assert.ok(state.stats.cars > 0, 'the family has cars on the road');
 assert.ok(state.stats.buildings > 1200, 'the six cities are drawn (' + state.stats.buildings + ' buildings)');
 await shot('3-two-years');
 
-// touch Market Street on the map, move in, name Mae
+// touch Market Street on the map, choose to go in by force, send a man this way suits: six months later it is the family's
 await page.locator('.lab.sm', { hasText: 'Market Street' }).click();
 await page.waitForSelector('#veil.on');
 assert.equal(await page.textContent('#sheet h2'), 'Market Street');
-await page.click('#sheet [data-order=claim]');
+assert.equal(await page.locator('#sheet .way').count(), 3, 'three ways in: force, a bribe, or buying it');
+await page.click('#sheet [data-way=force]');
 await page.click('#sheet [data-face=mae]');
-await page.click('#sheet [data-capo=mae]');
+assert.match(await page.textContent('#who .move'), /Poor odds/, 'the sheet says when a way does not suit a man: Mae is no gunman');
+await page.locator('#sheet .facebtn.good').first().click();
+assert.match(await page.textContent('#who .move'), /Good odds/, 'and when it does');
+await page.click('#who [data-capo]');
 await page.waitForSelector('#veil:not(.on)', { state: 'attached' });
+assert.equal((await hud()).held, '1 / 41', 'a district is not taken in a day');
+await months(1);
+await page.waitForSelector('.lab.sm.tk .ring', { timeout: 60000 });      // a round gauge over Market Street while his men work on it
+await shot('4-taking');
+await months(6);
 assert.equal((await hud()).held, '2 / 41', 'the family holds a second district');
 assert.equal((await hud()).named, '2 / 9');
-await months(6);
 await shot('4-market-street');
 
 // the district in pictures: the capo, what he is after, figures with their curve, the places, and laundering marked as such
@@ -82,6 +92,7 @@ assert.equal(await page.textContent('#sheet h2'), 'Hillside', 'touching the capo
 assert.ok(await page.locator('#sheet .tile').count() >= 6, 'the figures of the district are tiles with an icon');
 assert.ok(await page.locator('#sheet .intent').count() >= 1, 'the sheet says what the capo is after');
 assert.ok(await page.locator('#sheet .place').count() >= 2, 'his places are pictured');
+assert.ok(await page.locator('.lab.pin').count() >= 2, 'and each of them carries its mark on the map');
 assert.ok(await page.locator('#sheet .chain .node').count() >= 8, 'liquor and money are shown as a chain');
 if (await page.evaluate(() => !!AshportGame.history)) assert.ok(await page.locator('#sheet .tile .spark polyline').count() >= 4, 'each figure has its curve');
 await shot('8-district');
@@ -93,6 +104,7 @@ assert.equal(await page.locator('#sheet .wheel path').count(), 18, 'the wheel ha
 await page.locator('#sheet .wheel path').first().click();
 assert.match(await page.textContent('#skill'), /Liquor/, 'touching a part says what it brings');
 assert.ok(await page.locator('#sheet .card').count() >= 2, 'the men of the family are listed with their rank');
+assert.ok(await page.locator('#sheet .pyr .slot').count() >= 3, 'the family is drawn as a pyramid, free places included');
 await shot('6-family');
 await page.click('#sheet [data-act=close]');
 await page.click('#journal');

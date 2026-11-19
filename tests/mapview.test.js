@@ -232,3 +232,24 @@ test('the plan says who runs each district of the family, and where he sits', ()
   assert.equal(hill.capo, 'sal');
   assert.equal(city(p, 'ashport').districts.find((d) => d.id !== 'ashport-hillside').capo, null, 'the map does not name the men of the rivals');
 });
+
+test('men sent to take a district drive into that very district', () => {
+  const p = M.plan(G.view(fresh())), ash = city(p, 'ashport'), up = ash.districts.find((d) => d.id === 'ashport-uptown');
+  const [car] = M.trips(p, [{ kind: 'takeover', flow: 'violence', from: 'hideout', to: 'rivals', vehicle: 'car', violent: true, cargo: 'men', way: 'force', target: 'ashport-uptown', district: 'ashport-hillside', city: 'ashport' }]);
+  const [i, j] = car.path[car.path.length - 1];
+  assert.ok(i >= up.c0 * 4 && i <= (up.c1 + 1) * 4 && j >= up.r0 * 3 && j <= (up.r1 + 1) * 3, 'the run ends in Uptown');
+  assert.deepEqual([car.cargo, car.way, car.target, car.loop], ['takeover', 'force', 'ashport-uptown', true]);
+});
+
+test('a district taken by force is seen as gunfire there, a failed attempt as police', () => {
+  assert.deepEqual(M.effects([{ type: 'takeover', way: 'force', district: 'ashport-uptown', city: 'ashport', outcome: 'done' }]).map((e) => [e.kind, e.district]), [['gunfire', 'ashport-uptown']]);
+  assert.deepEqual(M.effects([{ type: 'takeover', way: 'bribe', district: 'ashport-uptown', city: 'ashport', outcome: 'failed' }]).map((e) => e.kind), ['police']);
+  assert.deepEqual(M.effects([{ type: 'takeover', way: 'buy', district: 'ashport-uptown', city: 'ashport', outcome: 'done' }]).map((e) => e.kind), ['promotion']);
+});
+
+test('a place of the family says what it is for, so the map can mark the laundries', () => {
+  const g = fresh(); for (let i = 0; i < 30; i++) month(g);
+  const lots = city(M.plan(G.view(g)), 'ashport').lots.filter((l) => l.site);
+  assert.ok(lots.length > 0);
+  lots.forEach((l) => assert.ok(['laundering', 'production', 'sales', 'storage', 'business'].includes(l.site.role), l.site.type + ' has no role'));
+});
