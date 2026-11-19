@@ -530,7 +530,11 @@ function setPr(v) { pr = v; renderer.setPixelRatio(pr); composer.setPixelRatio(p
 window.__setPr = setPr;
 renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0;
-const focus = id => { const c = CITIES.find(c => c.id === id); goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: c.home ? 5.4 : 6.2 }; };
+const focus = (id, districtId) => {     // glide to the whole map, to a city, or to one of its districts
+  const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
+  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 }
+    : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: c.home ? 5.4 : 6.2 };
+};
 const _v = new THREE.Vector3();
 const scr = (x, z) => { _v.set(x, 0, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
 // what the page writes over the map: city names from afar, district names up close, and what is happening
@@ -557,15 +561,63 @@ function update(P2) {
 // fire, gunfire and police lights where something just happened
 const fxList = []; let fxN = 0;
 const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16] };
+function spawnFx(kind, x, z, h = 1) {
+  const look = FXLOOK[kind]; if (!look) return;
+  const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
+  m.quaternion.copy(cam.quaternion); m.position.set(x, h + 0.6, z); m.renderOrder = 6; scene.add(m);
+  fxList.push({ n: fxN++, kind, x, z, m, t: 0, life: look[1] });
+}
 function effects(list) {
   for (const e of list) {
-    const C = CITIES.find(c => c.id === e.city), look = FXLOOK[e.kind]; if (!C || !look) continue;
+    const C = CITIES.find(c => c.id === e.city); if (!C) continue;
     const l = e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
-    const x = l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, z = l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T;
-    const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
-    m.quaternion.copy(cam.quaternion); m.position.set(x, (l ? l.h : 1) + 0.6, z); m.renderOrder = 6; scene.add(m);
-    fxList.push({ n: fxN++, kind: e.kind, x, z, m, t: 0, life: look[1] });
+    spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1);
   }
+}
+// the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
+// Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
+const agents = new Map(), MAXDOTS = 400;
+const dots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: GLOW_WARM, size: 10, sizeAttenuation: false, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+dots.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3)); dots.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3));
+dots.geometry.setDrawRange(0, 0); dots.frustumCulled = false; dots.renderOrder = 5; scene.add(dots);
+const AGENTMAT = { liquor: CARMATS[3], build: CARMATS[3], cash: CARMATS[0], police: kitMat(0.35, -1, 0x27365f), attack: kitMat(0.35, -1, 0x241f1f) };
+function agentFor(t) {
+  const C = CITIES.find(c => c.id === t.city); if (!C) return null;
+  const pts = t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
+  for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
+  if (!L) return null;
+  return { C, pts, len, L, p: t.loop ? hsh(pts[0][0], pts[0][1] + L) * L : 0, dir: 1, loop: t.loop, wait: 0, kind: t.kind, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
+}
+function traffic(trips) {
+  const seen = new Set();
+  for (const t of trips) {
+    if (t.loop) { seen.add(t.id); if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } }
+    else { const a = agentFor(t); if (a) agents.set('once' + (fxN++), a); }
+  }
+  for (const [id, a] of agents) if (a.loop && !seen.has(id)) { if (a.o) a.o.removeFromParent(); agents.delete(id); }
+}
+function moveAgents(dt) {
+  const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
+  for (const [id, a] of agents) {
+    if (a.wait > 0) a.wait -= dt;
+    else {
+      a.p += a.dir * a.speed * dt;
+      if (a.p >= a.L) {
+        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (a.kind === 'seize' || a.kind === 'attack') spawnFx('gunfire', e[0], e[1]); if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
+        a.p = a.L; a.dir = -1; a.wait = 1.5;
+      } else if (a.p <= 0) { a.p = 0; a.dir = 1; a.wait = 1.5; }
+    }
+    let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
+    const p0 = a.pts[k], p1 = a.pts[k + 1], s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
+    if (a.C.near && a.C.near.visible) {
+      if (!a.o) { a.o = new THREE.Mesh(GEO[a.kind === 'liquor' || a.kind === 'build' ? 'car_stationwagon' : 'car_sedan'], AGENTMAT[a.kind] || CARMATS[2]); a.o.position.y = 0.17; a.o.castShadow = false; scene.add(a.o); }
+      const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir;
+      a.o.visible = true; a.o.position.x = x; a.o.position.z = z; if (fx || fz) a.o.rotation.y = Math.atan2(fx, fz);
+    } else if (a.o) a.o.visible = false;
+    if (n < MAXDOTS) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
+  }
+  dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
+  dots.material.size = clamp(5 * Math.sqrt(cam.zoom), 6, 14) * (innerHeight / 844);
 }
 function animateFx(dt, now) {
   for (let k = fxList.length - 1; k >= 0; k--) {
@@ -593,7 +645,7 @@ function frame(now) {
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   levelOfDetail(now);
   moveCars(trucks, dt); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, dt);
-  animateFx(dt, now);
+  moveAgents(dt); animateFx(dt, now);
   grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
   renderer.info.reset(); composer.render(); frames++; fpsN++;
   if (now - fpsT > 1000) {
@@ -604,7 +656,7 @@ function frame(now) {
     const el = document.getElementById('fps'); if (el) el.textContent = fps + ' fps';
   }
   if (frames === 3) window.__ready = true;
-  window.__stats = { buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
+  window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -637,5 +689,5 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true;
 });
 
-  return { update, effects, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => window.__stats };
+  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => window.__stats };
 }

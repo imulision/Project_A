@@ -16,7 +16,11 @@
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
   // ---- the map
-  function showMap() { if (map && g.started) map.update(M.plan(G.view(g))); }
+  // The map follows the game: buildings, then the cars on the road, then what just happened.
+  function showMap(events) {
+    if (!map || !g.started) return;
+    var p = M.plan(G.view(g)); map.update(p); map.traffic(M.trips(p, events || [])); map.effects(M.effects(events || [], p));
+  }
   function previewPlan() { return M.plan(G.view(G.createGame({ capo: Object.keys(CAPOS)[0] }))); }
 
   // ---- the top of the screen
@@ -105,7 +109,7 @@
     else { var parts = act.split(':'); if (order({ type: parts[0], district: parts[1], capo: b.dataset.capo })) { close(); toast(capoName(b.dataset.capo) + (parts[0] === 'claim' ? ' moves in.' : ' takes over.')); } }
   });
   $('veil').addEventListener('click', function (e) { if (e.target === $('veil') && g.started) close(); });
-  $('alerts').addEventListener('click', function (e) { var a = e.target.closest('[data-district]'); if (a) sheetDistrict(a.dataset.district); });
+  $('alerts').addEventListener('click', function (e) { var a = e.target.closest('[data-district]'); if (a) { map.focus(a.dataset.district.split('-')[0], a.dataset.district); sheetDistrict(a.dataset.district); } });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
@@ -137,9 +141,8 @@
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.world.month, events = G.tick(g);
     if (g.world.month === before) return;
-    map.effects(M.effects(events));
     events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid') toast(e.label, true); });
-    showMap(); showHud(); store();
+    showMap(events); showHud(); store();
   }
 
   // ---- start
@@ -151,7 +154,7 @@
     onTap: function (hit) { if (!hit || !g.started) return; if (hit.near && hit.district) sheetDistrict(hit.district); else map.focus(hit.city); }
   }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
-    if (g.started) map.focus('ashport'); else sheetStart();
+    if (g.started) { showMap(); map.focus('ashport'); } else sheetStart();
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });
 })();

@@ -37,6 +37,7 @@ const later = await hud();
 assert.equal(later.date, 'January 1928', 'two years have passed');
 const state = await page.evaluate(() => { const g = window.__ashport.game(); return { journal: g.journal.length, stats: window.__ashport.map().stats() }; });
 assert.ok(state.journal > 10, 'the journal tells what the capo did');
+assert.ok(state.stats.cars > 0, 'the family has cars on the road');
 assert.ok(state.stats.buildings > 1200, 'the six cities are drawn (' + state.stats.buildings + ' buildings)');
 await shot('3-two-years');
 

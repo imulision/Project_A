@@ -1,8 +1,9 @@
 // What the 3D map has to draw, worked out from the state of the game.
 //
 // plan(view) turns AshportGame.view(g) into cities made of blocks, districts
-// and lots, each lot with the building that stands on it. effects(events)
-// turns what happened in a month into fire, gunfire and police lights.
+// and lots, each lot with the building that stands on it. trips(plan, events)
+// says which cars are on the road and why. effects(events, plan) turns what
+// happened in a month into fire, gunfire and police lights.
 // Nothing is drawn here and nothing is random: the same state always gives
 // the same map, so the renderer only rebuilds a city when its key changes.
 (function (root) {
@@ -122,19 +123,90 @@
     return { cities: cities, routes: routes };
   }
 
-  // What a month's events look like on the map.
-  function effects(events) {
+  // ---- who drives where
+  var TRIP = { liquor: '#ffb347', cash: '#7fe08a', collect: '#ffc74a', push: '#ffc74a', build: '#ffe9b0', seize: '#ff5a3a', police: '#5a8dff' };
+  var MAKERS = ['still', 'warehouse'], SELLERS = ['speakeasy', 'gambling', 'brothel'], WASHERS = ['rented', 'front'];
+  var MAX_LOOPS = 8;
+
+  // From one lot to another along the streets. Points are tiles [i, j]; streets are the columns i % 4 = 0 and the rows j % 3 = 0.
+  function route(a, b) {
+    var ra = a[1] % 3 === 1 ? a[1] - 1 : a[1] + 1, rb = b[1] % 3 === 1 ? b[1] - 1 : b[1] + 1, col = Math.round(a[0] / 4) * 4;
+    var pts = [a, [a[0], ra]];
+    if (ra !== rb) pts.push([col, ra], [col, rb]);
+    pts.push([b[0], rb], b);
+    return pts.filter(function (p, k) { return k === 0 || p[0] !== pts[k - 1][0] || p[1] !== pts[k - 1][1]; });
+  }
+  function byId(a, b) { return a.site.id < b.site.id ? -1 : a.site.id > b.site.id ? 1 : 0; }
+  function lotsOf(c, di) { return c.lots.filter(function (l) { return l.district === di; }); }
+  function sitesOf(c, di) { return lotsOf(c, di).filter(function (l) { return l.site; }).sort(byId); }
+  function ofKind(sites, kinds) { return sites.filter(function (l) { return kinds.indexOf(l.site.type) >= 0; }); }
+  // The place of a given kind that an event talks about: the rules name its kind, the newest one is meant.
+  function placeOf(c, di, what) {
+    var sites = sitesOf(c, di), exact = sites.filter(function (l) { return l.site.id === what; }), kind = ofKind(sites, [what]);
+    return exact[0] || kind[kind.length - 1] || null;
+  }
+  function someLot(c, di, salt) { var lots = lotsOf(c, di).filter(function (l) { return !l.site; }); return lots.length ? pick(lots, hash(di, salt, lots.length)) : null; }
+  // Where strangers come from: the nearest district that is not this one, a rival's if there is one.
+  function outside(c, di, by) {
+    var best = -1;
+    c.districts.forEach(function (d, k) { if (k !== di && (best < 0 || (d.owner === by && c.districts[best].owner !== by))) best = k; });
+    return best;
+  }
+
+  // The cars on the road: the family's routine (loops, as long as the places stand) and what this month's events set in motion (one way).
+  function trips(plan, events) {
+    var out = [];
+    plan.cities.forEach(function (c) {
+      c.districts.forEach(function (d, di) {
+        if (d.owner !== 'family') return;
+        var sites = sitesOf(c, di), n = 0;
+        var add = function (kind, a, b, k) {
+          if (n >= MAX_LOOPS || a === b) return; n++;
+          out.push({ id: d.id + ':' + kind + ':' + k, kind: kind, city: c.id, loop: true, color: TRIP[kind], path: route([a.i, a.j], [b.i, b.j]) });
+        };
+        var makers = ofKind(sites, MAKERS), sellers = ofKind(sites, SELLERS), washers = ofKind(sites, WASHERS);
+        var earners = sites.filter(function (l) { return MAKERS.indexOf(l.site.type) < 0 && WASHERS.indexOf(l.site.type) < 0; });
+        if (makers.length) sellers.slice(0, 4).forEach(function (s, k) { add('liquor', makers[k % makers.length], s, k); });
+        var bank = washers.length ? washers : sites.slice(0, 1);
+        earners.slice(0, 4).forEach(function (s, k) { add('cash', s, bank[k % bank.length], k); });
+      });
+    });
+    (events || []).forEach(function (e, n) {
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0]; if (!c) return;
+      var di = -1; c.districts.forEach(function (d, k) { if (d.id === e.district) di = k; }); if (di < 0) return;
+      var sites = sitesOf(c, di), home = sites[0] || someLot(c, di, 1); if (!home) return;
+      var go = function (kind, a, b, color, k) {
+        if (!a || !b || a === b) return;
+        out.push({ id: 'e' + n + ':' + k, kind: kind, city: c.id, loop: false, color: color || TRIP[kind], path: route([a.i, a.j], [b.i, b.j]) });
+      };
+      if (e.type === 'decision') {
+        if (SITES[e.kind]) { var made = placeOf(c, di, e.kind); go('build', made === home ? someLot(c, di, 2) : home, made, null, 0); }
+        else if (e.kind === 'seize') go('seize', home, placeOf(c, di, 'warehouse') || someLot(c, di, n + 3), null, 0);
+        else if (e.kind === 'push') go('push', home, someLot(c, di, n + 5), null, 0);
+        else if (e.kind === 'protection') go('collect', home, someLot(c, di, n + 7), null, 0);
+      } else if (e.type === 'attack' || e.type === 'raid') {
+        var by = e.type === 'attack' ? ownerKey(e.by) : null, from = outside(c, di, by), target = placeOf(c, di, e.site) || home;
+        for (var k = 0; k < (e.type === 'attack' ? 3 : 2); k++) go(e.type === 'attack' ? 'attack' : 'police', someLot(c, from, n * 7 + k), target, by ? COLORS[by] : null, k);
+      }
+    });
+    return out;
+  }
+
+  // What a month's events look like on the map. With the plan, each one lands on the place it names.
+  function effects(events, plan) {
     var out = [];
     (events || []).forEach(function (e) {
-      var at = { city: e.city, district: e.district, site: e.site || null };
-      var add = function (kind) { out.push({ kind: kind, city: at.city, district: at.district, site: at.site }); };
+      var site = e.site || null;
+      if (plan && site) plan.cities.forEach(function (c) { if (c.id !== e.city) return;
+        c.districts.forEach(function (d, di) { if (d.id !== e.district) return; var l = placeOf(c, di, site); if (l) site = l.site.id; }); });
+      var add = function (kind) { out.push({ kind: kind, city: e.city, district: e.district, site: site }); };
       if (e.type === 'attack') { if (e.outcome === 'hit' && e.site) add('fire'); add('gunfire'); }
       else if (e.type === 'raid') add('police');
     });
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, plan: plan, effects: effects };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, TRIP: TRIP, plan: plan, route: route, trips: trips, effects: effects };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);
