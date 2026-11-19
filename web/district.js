@@ -46,6 +46,7 @@
     rankPride: 3,           // points of Loyalty a capo forgets for every rank he has risen
     hated: 15,              // below this Goodwill, a capo eases off the shops
     shopsWorth: 30,         // below this share, there are too few shops to make collectors pay
+    maxGuards: 14,          // no capo turns his district into a barracks beyond this
     hireFee: 60,
     likes: 1.5,             // a project the capo likes counts this much more
     minNeed: 3,             // below this, a project is not worth a month
@@ -242,7 +243,7 @@
       apply: function (d) { d.bribing = true; } },
     { kind: 'guard', label: 'Posts 2 more guards', why: 'the rivals are at his door', cost: 0, cur: 'dirty', men: 2,
       need: function (d) {
-        if (d.attacked > 0 && d.guards < 6) return 9; // he has just been hit
+        if (d.attacked > 0 && d.guards < RULES.maxGuards && (d.guards < 6 || defence(d) < d.threat)) return 9; // he has just been hit
         return d.share < RULES.lastStand && streetsChange(d) < 0 && d.guards < 8 ? 5 : 0;
       },
       apply: function (d) { d.guards += 2; } },
@@ -357,6 +358,11 @@
     return change + (c.charisma - 5) * RULES.charm - (d.goodwill - 50) * RULES.goodwillPull;
   }
 
+  // What the district can put up when a rival family comes: its guards, worth more under a hard man, and its street crews.
+  function defence(d) {
+    return d.guards * (0.5 + capoOf(d).muscle / 10) * (1 + gain(d, 'hold')) + d.crews;
+  }
+
   // Streets gained or lost this month, in points of the district.
   function streetsChange(d) {
     var c = capoOf(d);
@@ -433,7 +439,7 @@
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
       heat: 30, goodwill: 50, share: 35, bribing: false,
-      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, grudge: 0, rank: 0, skills: [], last: null
+      boss: { dirty: 0, clean: 0 }, lost: 0, raids: 0, watched: 0, pulledBack: 0, attacked: 0, threat: 0, grudge: 0, rank: 0, skills: [], last: null
     };
     SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
     d.sites.still = 2; d.sites.speakeasy = 2;
@@ -529,7 +535,7 @@
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
               chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
               goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS,
-              SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
+              defence: defence, SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportDistrict = api;
 })(typeof self !== 'undefined' ? self : this);

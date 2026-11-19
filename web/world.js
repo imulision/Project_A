@@ -95,7 +95,11 @@
     startCash: 2500,     // dirty $ the boss starts with
     moveInCost: 1000,    // dirty $ the boss pays to set a capo up in a new district
     foothold: { share: 15, men: 11, crews: 1, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
-    attackEvery: 6,      // months between two moves of a rival family
+    attackEvery: 6,      // months before a rival family moves, and before it comes back after drawing blood
+    attackAfterDefeat: 12, // months it takes to try again after being thrown back
+    rivalCap: 6,         // the boldest a rival family ever gets
+    rivalNerve: 0.5,     // what a rival family gains by drawing blood, and loses by being thrown back
+    rivalMood: 2,        // how far those gains and losses can add up
     rivalStrength: 3,    // what a district must put up to throw the rivals back
     rivalGrowth: 0.5,    // how much bolder the rivals get every year
     hitStreets: 8,       // streets lost to a successful attack
@@ -208,12 +212,11 @@
     w.underbosses[cityId] = capo;
   }
 
-  function defence(s) {
-    return s.guards * (0.5 + D.CAPOS[s.capo].muscle / 10) + s.crews;
-  }
+  function defence(s) { return D.defence(s); }
   function rivalStrength(w, cityId) {
     cityOf(cityId);
-    return RULES.rivalStrength + RULES.rivalGrowth * w.month / 12 - ((w.weakened || {})[cityId] > 0 ? RULES.jobs.hit.weakens : 0);
+    var base = Math.min(RULES.rivalCap, RULES.rivalStrength + RULES.rivalGrowth * w.month / 12 + ((w.rivalMood || {})[cityId] || 0));
+    return base - ((w.weakened || {})[cityId] > 0 ? RULES.jobs.hit.weakens : 0);
   }
 
   // --- capos who grow: what they practise, their rank, what they unlock ---
@@ -398,6 +401,7 @@
     s.lost += e.stolen;
     if (site) s.sites[site] -= 1;
     s.attacked = RULES.alarm;
+    s.threat = rivalStrength(w, c.id);
     e.label = 'The ' + c.rival + 's hit ' + s.name + ': ' + (site ? 'a ' + D.SITES[site].name.toLowerCase() + ' burns, ' : '') + '$' + Math.round(e.stolen) + ' gone';
     return e;
   }
@@ -440,14 +444,18 @@
     w.month += 1;
     runJobs(w, events);
     w.attacks = [];
-    if (w.month % RULES.attackEvery === 0) {
-      CITIES.forEach(function (c) {
-        var e = attack(w, c);
-        if (!e) return;
-        events.push(e);
-        w.attacks.push({ by: e.by, district: e.district, city: e.city, outcome: e.outcome, site: e.site });
-      });
-    }
+    w.rivalMood = w.rivalMood || {};
+    w.nextAttack = w.nextAttack || {};
+    CITIES.forEach(function (c) {
+      if (w.month < (w.nextAttack[c.id] || RULES.attackEvery)) return;
+      var e = attack(w, c);
+      w.nextAttack[c.id] = w.month + (e && e.outcome === 'repelled' ? RULES.attackAfterDefeat : RULES.attackEvery);
+      if (!e) return;
+      var mood = (w.rivalMood[c.id] || 0) + (e.outcome === 'hit' ? RULES.rivalNerve : -RULES.rivalNerve);
+      w.rivalMood[c.id] = Math.max(-RULES.rivalMood, Math.min(RULES.rivalMood, mood));
+      events.push(e);
+      w.attacks.push({ by: e.by, district: e.district, city: e.city, outcome: e.outcome, site: e.site });
+    });
     return events;
   }
 
