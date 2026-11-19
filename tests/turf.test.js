@@ -812,3 +812,43 @@ test('blood in the streets heats the city too', () => {
   assert.equal(quiet.c.heat, 0);
   assert.ok(loud.c.heat > 0);
 });
+
+// --- what the screen reads: one plain picture of the city, nothing to work out ---
+
+test('the view of a city gives the map everything it draws', () => {
+  const c = town(), f = family({ dirty: 9000, clean: 0 });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 2 });
+  T.open(c, 9, 3, { owner: 'Callahan', kind: 'key', key: 'port' });
+  T.open(c, 9, 1, { owner: 'Callahan', kind: 'still' });
+  T.stepMonth(c, f);
+  const v = T.view(c, f);
+  assert.equal(v.id, 'town'); assert.equal(v.w, 12); assert.equal(v.h, 6); assert.equal(v.month, 1);
+  assert.deepEqual(v.zones.map((z) => z.name), ['Lantern Row', 'The Works']);
+  assert.equal(v.blocks.length, 12 * 6, 'every block, row by row');
+  const b = v.blocks[2 * 12 + 3];
+  assert.deepEqual([b.x, b.y, b.grip], [3, 2, 'family']);
+  assert.ok(b.family > 0 && b.rival === 0);
+  assert.equal(v.blocks[3 * 12 + 9].grip, 'rival');
+  const bar = v.places.find((p) => p.x === 3 && p.y === 2);
+  assert.deepEqual(bar, { x: 3, y: 2, owner: 'family', kind: 'speakeasy', name: D.SITES.speakeasy.name, level: 2, capo: 'dutch' });
+  assert.equal(v.places.find((p) => p.kind === 'club').name, 'Social Club');
+  const port = v.places.find((p) => p.kind === 'key');
+  assert.equal(port.key, 'port'); assert.equal(port.name, 'The Port'); assert.equal(port.owner, 'Callahan');
+  assert.deepEqual(v.keys, T.keys(c));
+  assert.deepEqual(v.share, T.share(c));
+  const dutch = v.capos[0];
+  assert.deepEqual([dutch.id, dutch.name, dutch.rank, dutch.rankName, dutch.x, dutch.y], ['dutch', 'Dutch Keller', 0, 'Soldier', 2, 2]);
+  assert.equal(dutch.places, T.places(c, 'dutch').length - 1);
+  assert.equal(dutch.reach, T.RULES.reach[0]);
+  assert.deepEqual(dutch.plan, T.plan(c, f, 'dutch'));
+  assert.ok(dutch.income > 0 && typeof dutch.cash === 'number' && dutch.way === 'buy');
+  assert.deepEqual(v.money, { dirty: f.dirty, clean: f.clean, washed: T.washing(c).washed, washes: T.washing(c).most });
+  assert.equal(v.heat, c.heat);
+  assert.deepEqual(v.seats, T.seats(c));
+  assert.deepEqual(v.takes, T.takes(c)); assert.deepEqual(v.asks, T.asks(c)); assert.deepEqual(v.doors, T.doors(c, f));
+  assert.equal(v.rival, 'Callahan');
+  assert.doesNotThrow(() => JSON.stringify(v));
+  T.view(c, f).places[0].level = 9;
+  assert.notEqual(T.view(c, f).places[0].level, 9, 'the view is a copy: the screen cannot change the game through it');
+});
