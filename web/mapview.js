@@ -175,6 +175,18 @@
              districts: zones, lots: lots, blocks: blocks, capos: capos };
   }
 
+  // The whole map of the new game. `where` is AshportWorld.CITIES: where each city sits. The cities are far bigger than
+  // in the first game, so the map is stretched by SCALE to keep the country between them.
+  var SCALE = 2.6;
+  function planEmpire(view, where) {
+    var at = {}, index = {};
+    (where || []).forEach(function (c) { at[c.id] = c; });
+    var cities = view.cities.map(function (c, n) { var p = planTurf(c, n), w = at[c.id] || { x: 0, y: 200 }; index[c.id] = n; p.u = w.x * SCALE; p.v = w.y * SCALE; p.home = n === 0; p.present = !!c.held; return p; });
+    var routes = (view.routes || []).filter(function (r) { return index[r.from] !== undefined && index[r.to] !== undefined; })
+      .map(function (r) { return { a: index[r.from], b: index[r.to], kind: r.kind }; });
+    return { cities: cities, routes: routes, scale: SCALE };
+  }
+
   function plan(view) {
     var used = {}, index = {};
     var cities = view.cities.map(function (c, ci) { index[c.id] = ci; return planCity(c, ci, used); });
@@ -253,6 +265,42 @@
     return out;
   }
 
+  // ---- the cars and the events of the new game
+  // The lot that stands for a block: its place if it has one, else the lot a place would take.
+  function lotOfBlock(c, x, y) {
+    var first = (y * c.bx + x) * 6, spot = c.lots[first + SPOT];
+    for (var n = first; n < first + 6; n++) if (c.lots[n] && c.lots[n].site) return c.lots[n];
+    return spot || null;
+  }
+  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
+  // tripsTurf(plan, view): every trip the rules list in a city becomes a car between its two buildings. All of them run the whole month.
+  function tripsTurf(plan, view) {
+    var out = [];
+    view.cities.forEach(function (vc, ci) {
+      var c = plan.cities[ci]; if (!c) return;
+      (vc.trips || []).forEach(function (t, n) {
+        var a = lotOfBlock(c, t.from.x, t.from.y), b = lotOfBlock(c, t.to.x, t.to.y), look = HAUL[t.kind] || HAUL.takings; if (!a || !b || a === b) return;
+        out.push({ id: c.id + ':' + t.kind + ':' + t.from.x + '.' + t.from.y + '>' + t.to.x + '.' + t.to.y, kind: t.kind, city: c.id, loop: true, color: FLOW[look.flow], vehicle: look.vehicle, violent: t.kind === 'crew',
+                   path: route([a.i, a.j], [b.i, b.j]), cargo: t.cargo, load: {}, capo: t.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: t.kind === 'crew' ? t.cargo : null, target: null, n: n });
+      });
+    });
+    return out;
+  }
+  var FXOF = { burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
+  // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
+  function effectsTurf(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      var kind = e.type === 'taken' ? (e.way === 'force' ? 'gunfire' : 'promotion') : FXOF[e.type]; if (!kind) return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || plan.cities[0]; if (!c) return;
+      var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
+      if (!lot) { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
+      if (!lot) return;
+      out.push({ kind: kind, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by });
+    });
+    return out;
+  }
+
   // What a month's events look like on the map. With the plan, each one lands on the place it names.
   function effects(events, plan) {
     var out = [];
@@ -270,7 +318,7 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, planTurf: planTurf, route: route, trips: trips, effects: effects };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, effectsTurf: effectsTurf, route: route, trips: trips, effects: effects };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

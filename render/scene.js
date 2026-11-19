@@ -17,6 +17,8 @@ const Q = new URLSearchParams(location.search);
 // the page shows a loading bar: say which stage begins, then let it paint before the heavy work
 const stage = n => new Promise(done => { if (opt.onStage) opt.onStage(n); setTimeout(done, 0); });
 const PLAIN = Q.has('plain');
+// the region can be drawn larger than the first one: the new game has cities three times as wide. K stretches the land, the camera and the zoom steps together
+const K = P.scale || 1;
 
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -42,9 +44,9 @@ const world = new THREE.Group(), root = new THREE.Group(); scene.add(world, root
 
 // ---------- camera (true isometric, orthographic)
 let aspect = innerWidth / innerHeight;
-const VIEW = 195, OFF = new THREE.Vector3(160, 200, 160), CENTER = new THREE.Vector3(105, 0, 105);
-const cam = new THREE.OrthographicCamera(-VIEW * aspect, VIEW * aspect, VIEW, -VIEW, 0.1, 900);
-cam.zoom = +(Q.get('zoom') || 1); cam.updateProjectionMatrix();
+const VIEW = 195 * K, OFF = new THREE.Vector3(160, 200, 160).multiplyScalar(K), CENTER = new THREE.Vector3(105, 0, 105).multiplyScalar(K);
+const cam = new THREE.OrthographicCamera(-VIEW * aspect, VIEW * aspect, VIEW, -VIEW, 0.1, 900 * K);
+cam.zoom = +(Q.get('zoom') || 1) ; cam.updateProjectionMatrix();
 cam.position.set(+(Q.get('tx') || CENTER.x), 0, +(Q.get('tz') || CENTER.z)).add(OFF);
 cam.lookAt(cam.position.clone().sub(OFF));
 
@@ -241,20 +243,20 @@ const hsh = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; 
 function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, a = fx * fx * (3 - 2 * fx), b = fz * fz * (3 - 2 * fz); return lerp(lerp(hsh(i, j), hsh(i + 1, j), a), lerp(hsh(i, j + 1), hsh(i + 1, j + 1), a), b); }
 function fbm(x, z) { let s = 0, a = 0.5; for (let o = 0; o < 4; o++) { s += a * vnoise(x, z); x *= 2.03; z *= 2.03; a *= 0.5; } return s / 0.9375; }
 const WATER_Y = -0.45;
-function height(x, z) {
-  const u = x - z, v = x + z;
+function height(X, Z) {
+  const x = X / K, z = Z / K, u = x - z, v = x + z;
   let h = 0.35 + 2.6 * Math.max(0, fbm(x * 0.045, z * 0.045) - 0.42) * 2;                          // rolling ground
   const em = Math.hypot(u / 68, (v - 195) / 138) + 0.55 * (fbm(x * 0.012 + 9, z * 0.012) - 0.5);
   const m = sstep(2.0, 2.9, em);                                                                    // mountains ring the plain
   const ridge = 1 - Math.abs(2 * fbm(x * 0.021 + 3, z * 0.021) - 1);
   h += m * (5 + 34 * ridge * ridge) + m * 3 * fbm(x * 0.12, z * 0.12);
   h += 9 * sstep(0.6, 0.8, fbm(x * 0.016 + 11, z * 0.016 + 4));                                    // lone hills between the cities
-  h = lerp(0, h, sstep(1.5, 16, cityDist(x, z)));
-  h = lerp(0, h, sstep(1.2, 8, roadDist(x, z)));
+  h = lerp(0, h, sstep(1.5, 16, cityDist(X, Z)));
+  h = lerp(0, h, sstep(1.2, 8, roadDist(X, Z)));
   return h;
 }
 {
-  const U0 = -260, U1 = 260, V0 = -230, V1 = 640, S = 3, nu = Math.round((U1 - U0) / S), nv = Math.round((V1 - V0) / S);
+  const U0 = -260 * K, U1 = 260 * K, V0 = -230 * K, V1 = 640 * K, S = 3 * K, nu = Math.round((U1 - U0) / S), nv = Math.round((V1 - V0) / S);
   const pos = new Float32Array((nu + 1) * (nv + 1) * 3), col = new Float32Array(pos.length), idx = [];
   const C = (hex) => new THREE.Color(hex), sand = C(0x9a8566), grass = C(0x6f8454), grass2 = C(0x85905a), wood = C(0x4d6645), rock = C(0x8a7876), snow = C(0xd9c4c8), bed = C(0x2a2740), tmp = new THREE.Color();
   const hs = new Float32Array((nu + 1) * (nv + 1));
@@ -297,8 +299,8 @@ function height(x, z) {
   const cone = new THREE.ConeGeometry(1, 1, 5, 1); cone.translate(0, 0.5, 0);
   const trees = [], tc = [C(0x3d6144), C(0x4a6b4a), C(0x355543), C(0x587049)], mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
   seed = 99;
-  for (let k = 0; k < 14000 && trees.length < 4200; k++) {
-    const u = U0 + 40 + rnd() * (U1 - U0 - 80), v = V0 + 60 + rnd() * (V1 - V0 - 120), x = (v + u) / 2, z = (v - u) / 2, h = height(x, z);
+  for (let k = 0; k < 14000 * K && trees.length < 4200 * K; k++) {
+    const u = U0 + 40 * K + rnd() * (U1 - U0 - 80 * K), v = V0 + 60 * K + rnd() * (V1 - V0 - 120 * K), x = (v + u) / 2, z = (v - u) / 2, h = height(x, z);
     if (h < 0.3 || h > 15 || cityDist(x, z) < 3 || roadDist(x, z) < 2) continue;
     if (rnd() > 0.25 + 0.75 * sstep(0.45, 0.62, fbm(x * 0.05 + 7, z * 0.05)) + (h > 3 ? 0.3 : 0)) continue;
     const s = 0.7 + rnd() * 0.7, g2 = cone.clone(); e.set(0, rnd() * 6, 0); q.setFromEuler(e);
@@ -343,7 +345,7 @@ function plan(C) {
   }
   for (const l of C.p.lots) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site, hideout: l.hideout && l.ours, di: l.district });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: ERA.models[l.model].h * sy, lit: l.lit, tower: l.tower && !l.site, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop, ours: l.ours, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
   nBuildings += C.lots.length;
 }
@@ -354,6 +356,27 @@ function borders(C) {       // district frontiers, drawn on the streets like on 
       strip(ax, az, bx, bz, 0.16, borderMat(d.owner, 0), 0.135, 3); strip(ax, az, bx, bz, 1.4, borderMat(d.owner, 1), 0.13, 3);
     }
   }
+}
+// the new game has no districts: who holds each block shows on its streets, and the family's frontier is one bright line.
+// It is its own small group, redrawn alone when the streets change hands, so the buildings are not rebuilt for it.
+const gripKey = p => p.blocks.map(b => (b.grip ? b.grip[0] : '-') + Math.round(b.hold * 2)).join('');
+function turfGround(C) {
+  if (C.turf) { lods.remove(C.turf); dispose(C.turf); }
+  cur = new THREE.Group();
+  const bw = 4 * T, bd = 3 * T, at = (x, y) => (x < 0 || y < 0 || x >= C.bx || y >= C.by) ? null : C.p.blocks[y * C.bx + x];
+  for (const b of C.p.blocks) {
+    if (!b.grip) continue;
+    const ours = b.grip === 'family', x0 = C.ox + b.x * bw, z0 = C.oz + b.y * bd;
+    const col = new THREE.Color(ours ? FAMILY.family : b.grip === 'contested' ? 0xffffff : FAMILY[C.p.rival] || FAMILY.other);
+    const fill = new THREE.Mesh(UNIT, fxMat(null, col, ours ? 0.10 + 0.07 * Math.round(b.hold * 2) : b.grip === 'contested' ? 0.09 : 0.045));
+    fill.rotation.x = -Math.PI / 2; fill.position.set(x0 + bw / 2, 0.128, z0 + bd / 2); fill.scale.set(bw, bd, 1); fill.renderOrder = 3; cur.add(fill);
+    if (!ours) continue;
+    for (const [dx, dy, ax, az, ex, ez] of [[0, -1, x0, z0, x0 + bw, z0], [1, 0, x0 + bw, z0, x0 + bw, z0 + bd], [0, 1, x0, z0 + bd, x0 + bw, z0 + bd], [-1, 0, x0, z0, x0, z0 + bd]]) {
+      const n = at(b.x + dx, b.y + dy);
+      if (!n || n.grip !== 'family') { strip(ax, az, ex, ez, 0.2, borderMat('family', 0), 0.135, 3); strip(ax, az, ex, ez, 1.3, borderMat('family', 1), 0.13, 3); }
+    }
+  }
+  bake(cur); C.turf = cur; C.gripKey = gripKey(C.p); lods.add(cur);
 }
 // far version: plain coloured blocks and a few lights. A whole city is a few thousand triangles.
 const BOX = new THREE.BoxGeometry(1, 1, 1); BOX.translate(0, 0.5, 0); BOX.deleteAttribute('uv');
@@ -370,8 +393,9 @@ function buildFar(C) {
   for (const l of C.lots) if (l.shop && hsh(l.j, l.i) < 0.6) pool(l.x, l.z + 0.9, 3.2, l.ours ? 0xffc46a : 0xffa860, l.ours ? 0.6 : 0.3);
   for (const l of C.lots) if (l.site) pool(l.x, l.z + 0.9, 4.5, new THREE.Color(l.site.color), 0.8);     // the family's places show from afar
   bake(cur); C.farBody = new THREE.Group(); C.farBody.add(far, cur);
-  cur = new THREE.Group(); borders(C); bake(cur);
+  cur = new THREE.Group(); if (!C.p.turf) borders(C); bake(cur);
   G.add(C.farBody, cur); lods.add(G); C.far = G;
+  if (C.p.turf) turfGround(C);
 }
 // near version: the real models, one instanced draw call per model and light level
 function buildNear(C) {
@@ -476,7 +500,7 @@ function buildYear() {
 buildYear();
 
 // near or far? Only the cities in view, and only when close, get the full models. At most two are kept in memory.
-const NEAR_ZOOM = 3.6, tgt = new THREE.Vector3();
+const NEAR_ZOOM = 3.6 * K, tgt = new THREE.Vector3();
 function levelOfDetail(now) {
   tgt.copy(cam.position).sub(OFF);
   const reach = VIEW / cam.zoom * 1.7; let built = false;
@@ -553,8 +577,8 @@ renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0;
 const focus = (id, districtId) => {     // glide to the whole map, to a city, or to one of its districts
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
-  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 }
-    : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: c.home ? 5.4 : 6.2 };
+  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
+    : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: K > 1 ? 2.4 * K : c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
@@ -563,16 +587,21 @@ const labels = () => {
   const out = [], near = cam.zoom >= NEAR_ZOOM;
   CITIES.forEach(c => {
     if (!near) { const [x, y] = scr(c.ox - 2, c.oz - 2), k = c.p.held ? 'family' : c.p.rival, d = c.d.find(d => d.owner === k);
-      out.push({ id: 'c' + c.id, city: c.id, name: c.name, sub: c.p.held ? `you hold ${c.p.held} of ${c.p.total}` : (d ? d.ownerName : ''), color: COLORS[k], x, y }); }
+      out.push({ id: 'c' + c.id, city: c.id, name: c.name, sub: c.p.turf ? (c.p.present ? c.p.held + '% of the streets' : c.p.rivalName) : c.p.held ? `you hold ${c.p.held} of ${c.p.total}` : (d ? d.ownerName : ''), color: COLORS[c.p.turf ? (c.p.present ? 'family' : c.p.rival) : k], x, y }); }
     else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + (d.c0 + d.c1) * 2 * T, c.oz + (d.r0 + d.r1) * 1.5 * T);
-      out.push({ id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
+      out.push(c.p.turf ? { id: 'd' + d.id, small: true, ground: true, city: c.id, name: d.name, sub: '', color: '#ffffff', x, y }
+        : { id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
     // the capo is seen where he sits: over the hideout of his district
-    if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
+    if (near && c.near && c.near.visible && c.p.turf) for (const k of c.p.capos) { const l = c.lots.find(l => l.i === k.i && l.j === k.j); if (!l) continue;      // the new game: each capo over his social club, with what he is doing
+      const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + c.id + k.id, capo: k.id, city: c.id, move: k.move, kind: k.kind, way: k.way, progress: k.progress, waiting: k.waiting, x, y }); }
+    else if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
       const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + d.id, capo: d.capo, city: c.id, district: d.id, x, y }); });
   });
   // a mark over each place of the family, so that its trade is read at a glance
-  if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of c.lots) if (l.site) { const [x, y] = scr(l.x, l.z, l.h + 0.5);
-    out.push({ id: 's' + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, x, y }); } });
+  if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of c.lots) if (l.site) {
+    if (c.p.turf && l.site.owner !== 'family' && !l.site.key) continue;      // a rival's ordinary place is read by its sign alone; key places always carry a mark
+    const [x, y] = scr(l.x, l.z, l.h + 0.5); if (c.p.turf && (x < -40 || y < -40 || x > innerWidth + 40 || y > innerHeight + 40)) continue;
+    out.push({ id: 's' + (c.p.turf ? c.id : '') + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, owner: l.site.owner, key: l.site.key, capo: l.site.capo, city: c.id, bx: l.bx, by: l.by, x, y }); } });
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
   for (const [id, a] of agents) { if (!a.seen || shownCars >= MAXTAGS) continue; shownCars++;
@@ -585,7 +614,7 @@ const labels = () => {
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
     const C = CITIES[ci], changed = pc.key !== C.p.key; C.p = pc; C.d = pc.districts; C.held = pc.held;
-    if (!changed) return;
+    if (!changed) { if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); return; }
     if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null;
     nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true;
   });
@@ -602,7 +631,7 @@ function spawnFx(kind, x, z, h = 1) {
 function effects(list) {
   for (const e of list) {
     const C = CITIES.find(c => c.id === e.city); if (!C) continue;
-    const l = e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
+    const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
     spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1);
   }
 }
@@ -676,7 +705,8 @@ function pickAt(cx, cy) {
   const dir = OFF.clone().normalize().negate(), t = -_v.y / dir.y, x = _v.x + dir.x * t, z = _v.z + dir.z * t;
   for (const C of CITIES) if (x >= C.ox - 1 && x <= C.x1 + 1 && z >= C.oz - 1 && z <= C.z1 + 1) {
     const bi = (x - C.ox) / (4 * T), bj = (z - C.oz) / (3 * T), d = C.d.find(d => bi >= d.c0 && bi < d.c1 && bj >= d.r0 && bj < d.r1);
-    return { city: C.id, district: d ? d.id : null, near: cam.zoom >= NEAR_ZOOM };
+    const bx = Math.floor(bi), by = Math.floor(bj), lot = C.p.turf ? C.lots.find(l => l.site && l.bx === bx && l.by === by) : null;
+    return { city: C.id, district: d && !C.p.turf ? d.id : null, zone: d ? d.name : null, bx, by, site: lot ? lot.site : null, block: C.p.turf && C.p.blocks[by * C.bx + bx] || null, near: cam.zoom >= NEAR_ZOOM };
   }
   return null;
 }
@@ -710,7 +740,7 @@ function pan(dx, dy) {
   const k = (2 * VIEW / cam.zoom) / innerHeight;
   cam.position.add(right.clone().multiplyScalar(-dx * k)).add(fwd.clone().multiplyScalar(dy * k / 0.66));
 }
-function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.9, 24); cam.updateProjectionMatrix(); }
+function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.9, 24 * K); cam.updateProjectionMatrix(); }
 el.style.touchAction = 'none';
 let tap = null;
 el.addEventListener('pointerdown', e => { goal = null; tap = pts.size ? null : { x: e.clientX, y: e.clientY, t: performance.now() }; pts.set(e.pointerId, [e.clientX, e.clientY]); el.setPointerCapture(e.pointerId); pinch = 0; });

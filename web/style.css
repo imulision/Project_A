@@ -148,3 +148,18 @@ body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.
 #load small{font:400 12px var(--text);letter-spacing:.5px;color:var(--dim);text-align:center;min-height:1.4em}
 #load.bad .bar i{background:var(--bad)}
 #load button{margin-top:10px;pointer-events:auto}
+/* the new screen (city.html): requests, partings, shares of a city */
+.words{display:flex;flex-wrap:wrap;gap:4px;flex:1;justify-content:flex-end}.words span{font-size:.82em;padding:2px 6px;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
+.words .yes{color:var(--good)}.words .no{color:var(--bad);text-decoration:line-through}.words .ic{width:1em;height:1em}
+.short{display:block;color:var(--bad);margin:0 0 6px}
+.acts.col{flex-direction:column;margin-bottom:8px}.acts.col button{flex:none;text-transform:none;letter-spacing:.2px}
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:8px}.versus>div{text-align:center}.versus .slot{width:64px;height:64px;margin:0 auto 6px}
+.card.ask h3 .ic{color:var(--bad)}.card.ask .move{border-left:3px solid var(--c,var(--line))}
+button.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.shares{display:flex;height:10px;gap:2px;margin:0 0 10px}.shares i{display:block;min-width:3px}
+button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
+#heat{margin-left:10px;color:var(--bad);pointer-events:auto}#heat .ic{margin-right:3px}
+#alerts .pick{border-color:var(--accent);display:flex;gap:8px;align-items:center}#alerts .pick span{flex:1}#alerts .pick button{min-height:32px}
+#alerts div .ic.ok{color:var(--accent)}
+.lab.pin.theirs{background:#6b6f86;color:#fff}
+.lab.pin.club{display:none}
