@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const G = require('../web/game.js');
+const W = require('../web/world.js');
 const M = require('../web/mapview.js');
 
 const month = (g) => { const out = []; for (let i = 0; i < G.TICKS_PER_MONTH; i++) out.push(...G.tick(g)); return out; };
@@ -97,7 +98,7 @@ test('a district the family holds well is taller and better lit than one it bare
 test('the key of a city changes only when what it shows changes', () => {
   const g = fresh(), a = M.plan(G.view(g)), b = M.plan(G.view(g));
   a.cities.forEach((c, i) => assert.equal(c.key, b.cities[i].key));
-  assert.deepEqual(G.command(g, { type: 'claim', district: 'ashport-market', capo: 'mae' }), { ok: true });
+  W.claim(g.world, 'ashport-market', 'mae'); // set up at once: the boss's own way in is the takeover order
   const c = M.plan(G.view(g));
   assert.notEqual(city(c, 'ashport').key, city(a, 'ashport').key);
   assert.equal(city(c, 'vesper').key, city(a, 'vesper').key);

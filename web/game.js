@@ -73,7 +73,6 @@
       if (SPEEDS.indexOf(c.value) < 0) throw new Error('no such speed: ' + c.value);
       g.speed = c.value;
     },
-    claim: function (g, c) { W.claim(g.world, c.district, c.capo); },
     appoint: function (g, c) { W.appoint(g.world, c.district, c.capo); },
     seat: function (g, c) { W.seat(g.world, c.seat, c.capo); },
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
