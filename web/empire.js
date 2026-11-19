@@ -112,6 +112,13 @@
       record(g, { type: 'ruled', city: c.id, winner: r.winner, loser: r.loser,
                   label: 'You rule for ' + T.person(r.winner).name + '. ' + T.person(r.loser).name + ' will not forget it' }, g.month);
     },
+    // the boss parts with a capo: paid off, killed, or given to the police
+    part: function (g, o) {
+      var c = cityOf(g, o.city), name = T.person(o.capo) ? T.person(o.capo).name : o.capo, r = T.part(c, g.family, o.capo, o.way);
+      var said = { retire: 'You pay ' + name + ' off. He leaves the city', kill: name + ' is found in the river', jail: 'The police come for ' + name + ' at dawn' };
+      record(g, { type: 'parted', capo: o.capo, city: c.id, way: o.way, kept: r.kept, closed: r.closed,
+                  label: said[o.way] + (r.closed ? ': ' + r.closed + (r.closed > 1 ? ' places close' : ' place closes') : '') }, g.month);
+    },
     research: function (g, o) {
       T.research(g.family, o.building);
       record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + D.SITES[o.building].name }, g.month);

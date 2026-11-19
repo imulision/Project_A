@@ -1169,3 +1169,130 @@ test('a place the Callahans open later answers to the lieutenant next door', () 
   assert.ok(rivals(c).length > before || T.share(c).rival > 0);
   assert.ok(rivals(c).filter((p) => p.kind !== 'key').every((p) => lieutenants().includes(p.man)));
 });
+
+// --- parting with a capo ---
+// Dutch and Mae side by side in the west, Sal across town.
+const three = () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 1, 1); T.join(f, 'dutch');
+  T.settle(c, 'mae', 3, 1); T.join(f, 'mae');
+  T.settle(c, 'sal', 9, 3); T.join(f, 'sal');
+  T.open(c, 1, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  T.open(c, 1, 3, { owner: 'family', kind: 'still', capo: 'dutch', level: 2 });
+  T.open(c, 2, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 2, 4, { owner: 'family', kind: 'still', capo: 'dutch' });
+  return { c, f };
+};
+const kinds = (c, capo) => T.places(c, capo).filter((p) => p.kind !== 'club').map((p) => p.kind + p.level).sort();
+
+test('the boss parts with a capo three ways, and the city tells him what each costs', () => {
+  const { c, f } = three();
+  f.men.dutch.rank = 1;
+  const ways = T.partings(c, f, 'dutch');
+  assert.deepEqual(ways.map((w) => w.way), ['retire', 'kill', 'jail']);
+  assert.deepEqual(ways.map((w) => w.cost), [T.RULES.out.retire[1], 0, 0]);
+  assert.ok(ways.every((w) => w.name && w.gives));
+  assert.throws(() => T.part(c, f, 'vince', 'kill'), /is not one of yours/);
+  assert.throws(() => T.part(c, f, 'dutch', 'exile'), /no such way/);
+});
+
+test('the boss never parts with the last capo he has in a city', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 1, 1); T.join(f, 'dutch');
+  assert.deepEqual(T.partings(c, f, 'dutch'), []);
+  assert.throws(() => T.part(c, f, 'dutch', 'kill'), /last/);
+});
+
+test('paid off in clean money, he leaves in peace and the capo next door takes over all he ran', () => {
+  const { c, f } = three();
+  f.clean = T.RULES.out.retire[0] - 1;
+  assert.throws(() => T.part(c, f, 'dutch', 'retire'), /clean/);
+  f.clean = T.RULES.out.retire[0];
+  const heat = c.heat, out = T.part(c, f, 'dutch', 'retire');
+  assert.equal(f.clean, 0);
+  assert.equal(T.clubOf(c, 'dutch'), null);
+  assert.equal(f.men.dutch, undefined);
+  assert.deepEqual(kinds(c, 'mae'), ['speakeasy1', 'speakeasy3', 'still1', 'still2'], 'Mae is the nearest: she takes them all');
+  assert.deepEqual([out.kept, out.closed], [4, 0]);
+  assert.equal(c.heat, heat);
+  assert.equal(T.view(c, f).capos.filter((m) => m.sulks).length, 0);
+});
+
+test('nobody takes over more than his rank lets him run: what is left closes', () => {
+  const { c, f } = three();
+  f.clean = 5000;
+  for (let x = 4; x <= 6; x++) for (let y = 0; y <= 1; y++) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'rented', capo: 'mae' });
+  assert.equal(kinds(c, 'mae').length, 6, 'Mae runs all a Soldier can');
+  T.part(c, f, 'dutch', 'retire');
+  assert.equal(kinds(c, 'mae').length, 6);
+  assert.deepEqual(kinds(c, 'sal'), ['speakeasy1', 'speakeasy3', 'still1', 'still2'], 'so they go to Sal across town');
+});
+
+test('killed, he costs nothing: half of what he ran goes with him, the city heats, and the less loyal keep their money', () => {
+  const { c, f } = three();
+  const out = T.part(c, f, 'dutch', 'kill');
+  assert.equal(f.dirty, 20000);
+  assert.deepEqual([out.kept, out.closed], [2, 2]);
+  assert.deepEqual(kinds(c, 'mae'), ['speakeasy3', 'still2'], 'the two biggest stay');
+  assert.equal(c.heat, T.RULES.out.blood);
+  const sulks = Object.fromEntries(T.view(c, f).capos.map((m) => [m.id, m.sulks]));
+  assert.deepEqual(sulks, { mae: 0, sal: T.RULES.out.shaken }, 'Mae is loyal; Sal is not so sure any more');
+});
+
+test('given to the police, his places are padlocked and the heat falls', () => {
+  const { c, f } = three();
+  c.heat = 60;
+  const out = T.part(c, f, 'dutch', 'jail');
+  assert.deepEqual([out.kept, out.closed], [0, 4]);
+  assert.deepEqual(kinds(c, 'mae'), []);
+  assert.equal(c.heat, 60 - T.RULES.out.tip);
+  assert.equal(T.view(c, f).capos.filter((m) => m.sulks).length, 0);
+});
+
+test('two years later he is out, and burns the family\'s places nearest to where his club stood', () => {
+  const { c, f } = three();
+  f.men.dutch.rank = 1;
+  T.part(c, f, 'dutch', 'jail');
+  T.open(c, 2, 1, { owner: 'family', kind: 'rented', capo: 'mae', level: 3 });
+  T.open(c, 4, 1, { owner: 'family', kind: 'rented', capo: 'mae', level: 3 });
+  T.open(c, 4, 2, { owner: 'family', kind: 'rented', capo: 'mae', level: 3 });
+  T.open(c, 8, 3, { owner: 'family', kind: 'loans', capo: 'sal', level: 3 });
+  f.men.mae.cash = 0; f.men.sal.cash = 0;
+  const before = year(c, f, T.RULES.out.term - 1);
+  assert.ok(!before.some((e) => e.type === 'burnt'));
+  const fire = T.stepMonth(c, f).filter((e) => e.type === 'burnt');
+  assert.equal(fire.length, T.RULES.out.revenge + 1, 'two places, and one more for his rank');
+  assert.ok(fire.every((e) => e.by === 'dutch' && /Dutch is out/.test(e.label)));
+  assert.equal(T.at(c, 2, 1), null);
+  assert.ok(T.at(c, 8, 3), 'Sal\'s office is too far');
+  assert.ok(T.clubOf(c, 'mae'), 'a club does not burn');
+  assert.ok(!year(c, f, 24).some((e) => e.by === 'dutch'), 'once is enough');
+});
+
+test('a man the boss parted with frees his seat, takes his quarrels with him, and never knocks again', () => {
+  const { c, f } = three();
+  T.open(c, 5, 1, { owner: 'family', kind: 'gambling', capo: 'mae' });
+  T.open(c, 5, 2, { owner: 'family', kind: 'gambling', capo: 'mae' });
+  c.grudge['dutch|mae'] = 3;
+  assert.deepEqual(T.seats(c), { taken: 3, total: 3 });
+  f.clean = 5000;
+  T.part(c, f, 'dutch', 'retire');
+  assert.deepEqual(T.seats(c), { taken: 2, total: 3 });
+  assert.deepEqual(T.grudges(c), []);
+  assert.ok(coming(c, f).includes('danny'));
+  assert.ok(!coming(c, f).includes('dutch'), 'even with two bars to supply');
+});
+
+test('the second of a man the boss had killed never comes forward', () => {
+  const { c, f } = three();
+  const mentor = Object.keys(T.PEOPLE).find((id) => T.PEOPLE[id].mentor === 'mae');
+  for (let x = 4; x <= 6; x++) for (let y = 0; y <= 1; y++) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'rented', capo: 'mae' });
+  assert.ok(coming(c, f).includes(mentor));
+  f.clean = 5000;
+  T.part(c, f, 'sal', 'retire');
+  assert.ok(coming(c, f).includes(mentor));
+  const { c: c2, f: f2 } = three(), second = Object.keys(T.PEOPLE).find((id) => T.PEOPLE[id].mentor === 'dutch');
+  T.part(c2, f2, 'dutch', 'kill');
+  for (let x = 4; x <= 6; x++) for (let y = 0; y <= 1; y++) if (!T.at(c2, x, y)) T.open(c2, x, y, { owner: 'family', kind: 'rented', capo: 'mae' });
+  assert.ok(!coming(c2, f2).includes(second));
+});
