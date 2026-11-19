@@ -512,3 +512,117 @@ test('a capo whose district barely pays does not keep a roomful of idle men', ()
   const d = D.createDistrict({ capo: 'danny', men: 19, guards: 4, share: 20, dirty: 700, profit: 20, pulledBack: 3, collectors: 1, sites: { still: 1, speakeasy: 1, rented: 1, warehouse: 1 } });
   assert.equal(D.chooseProject(d).kind, 'trim');
 });
+
+// --- what moves on the streets: the trips of the month, for the map to show ---
+const ids = (d) => D.buildings(d).map((b) => b.id);
+const tripsOf = (d, kind) => D.trips(d).filter((t) => t.kind === kind);
+
+test('before the first month, nothing moves', () => {
+  assert.deepEqual(D.trips(D.createDistrict({ capo: 'sal' })), []);
+});
+
+test('a truck carries the month\'s liquor from a still to every speakeasy', () => {
+  const d = D.createDistrict({ capo: 'dutch' });
+  D.stepMonth(d);
+  const runs = tripsOf(d, 'liquor');
+  assert.equal(runs.length, d.sites.speakeasy);
+  for (const t of runs) {
+    assert.equal(t.vehicle, 'truck');
+    assert.match(t.from, /-still-\d+$/);
+    assert.match(t.to, /-speakeasy-\d+$/);
+    assert.ok(ids(d).includes(t.from) && ids(d).includes(t.to));
+  }
+  near(runs.reduce((n, t) => n + t.crates, 0), d.last.sold);
+});
+
+test('a car brings the takings of every place that earns back to the hideout', () => {
+  const d = D.createDistrict({ capo: 'dutch', sites: { gambling: 1 } });
+  D.stepMonth(d);
+  const from = tripsOf(d, 'takings').map((t) => t.from);
+  assert.ok(from.some((id) => /-speakeasy-1$/.test(id)) && from.some((id) => /-gambling-1$/.test(id)));
+  assert.ok(tripsOf(d, 'takings').every((t) => t.to === 'hideout' && t.vehicle === 'car'));
+});
+
+test('dirty money is driven to the laundry, and the boss\'s cut leaves the district', () => {
+  const d = D.createDistrict({ capo: 'mae', dirty: 3000, sites: { rented: 1 } });
+  D.stepMonth(d);
+  const wash = tripsOf(d, 'laundering');
+  assert.equal(wash.length, 1);
+  assert.match(wash[0].to, /-rented-1$/);
+  near(wash[0].amount, d.last.washed);
+  const cut = tripsOf(d, 'tribute');
+  assert.equal(cut.length, 1);
+  assert.equal(cut[0].to, 'boss');
+  near(cut[0].amount, d.last.owed - d.last.skim);
+});
+
+test('street crews and collectors go out, and those trips are marked as violent', () => {
+  const d = D.createDistrict({ capo: 'mae', crews: 2, collectors: 1, men: 30, heat: 0 });
+  D.stepMonth(d);
+  const crews = tripsOf(d, 'streets'), rounds = tripsOf(d, 'collection');
+  assert.equal(crews.length, d.crews);
+  assert.equal(rounds.length, d.collectors);
+  assert.ok(crews.concat(rounds).every((t) => t.violent && t.from === 'hideout' && t.men > 0));
+  assert.ok(crews.every((t) => t.to === 'streets') && rounds.every((t) => t.to === 'shops'));
+});
+
+test('opening a place sends a works truck to the new building, and a seizure sends armed men', () => {
+  const d = D.createDistrict({ capo: 'dutch', dirty: 1400, sites: { still: 1 } }); // dry speakeasies: he builds a still
+  assert.equal(D.stepMonth(d)[0].kind, 'still');
+  const works = tripsOf(d, 'works');
+  assert.equal(works.length, 1);
+  assert.match(works[0].to, /-still-2$/);
+  assert.equal(works[0].vehicle, 'truck');
+
+  const s = D.createDistrict({ capo: 'sal', dirty: 1400, collectors: 1, men: 20 });
+  s.dirty = 1400;
+  const first = D.stepMonth(s)[0];
+  assert.equal(first.kind, 'seize');
+  const taken = tripsOf(s, 'seizure');
+  assert.equal(taken.length, 1);
+  assert.ok(taken[0].violent);
+  assert.match(taken[0].to, /-warehouse-1$/);
+});
+
+test('a police raid shows as police cars driving to the place they shut', () => {
+  const d = D.createDistrict({ capo: 'sal', heat: 75 });
+  const raid = D.stepMonth(d).find((e) => e.type === 'raid');
+  assert.ok(raid);
+  const t = tripsOf(d, 'raid');
+  assert.equal(t.length, 1);
+  assert.equal(t[0].from, 'police');
+  assert.equal(t[0].vehicle, 'police');
+  assert.match(t[0].to, new RegExp('-' + raid.site + '-\\d+$'));
+});
+
+test('every trip says which flow it belongs to, so the map can colour it', () => {
+  const d = D.createDistrict({ capo: 'sal', heat: 75, crews: 2, collectors: 2, men: 30, dirty: 3000, sites: { rented: 1, gambling: 1 } });
+  D.stepMonth(d);
+  const flowOf = {};
+  for (const t of D.trips(d)) flowOf[t.kind] = t.flow;
+  assert.deepEqual([flowOf.liquor, flowOf.takings, flowOf.laundering, flowOf.tribute, flowOf.streets, flowOf.collection, flowOf.raid],
+    ['logistics', 'sales', 'money', 'money', 'violence', 'violence', 'violence']);
+  assert.ok(D.trips(d).every((t) => D.FLOWS.includes(t.flow)));
+});
+
+test('the takings carried from a place are what it earned that month', () => {
+  const d = D.createDistrict({ capo: 'dutch', sites: { gambling: 1 } });
+  D.stepMonth(d);
+  const total = tripsOf(d, 'takings').reduce((n, t) => n + t.amount, 0);
+  near(total, d.last.income, 1);
+});
+
+test('the flows of a district read as one chain: made, in the cellar, sold, earned, washed, sent up', () => {
+  const d = D.createDistrict({ capo: 'mae', dirty: 3000, sites: { rented: 1 } });
+  D.stepMonth(d);
+  const f = D.flows(d);
+  assert.ok(f.made > 0 && f.sold > 0 && f.sold <= f.made + 0.01);
+  near(f.stock, d.stock);
+  near(f.sold, d.last.sold);
+  assert.equal(f.seats, d.sites.speakeasy * D.SITES.speakeasy.seats);
+  near(f.income, d.last.income); near(f.costs, d.last.costs); near(f.profit, d.last.profit);
+  near(f.washed, d.last.washed);
+  near(f.tribute, d.last.owed - d.last.skim);
+  assert.ok(['stills', 'seats', 'drinkers'].includes(f.limit));
+  assert.equal(D.flows(D.createDistrict({ capo: 'mae' })).sold, 0);
+});
