@@ -103,7 +103,7 @@
         while ((mine[slot].site || mine[slot].hideout) && tries++ < mine.length) slot = (slot + 1) % mine.length;
         var lot = mine[slot];
         if (lot.site || lot.hideout) return;
-        lot.site = { id: b.id, type: b.type, name: b.name, level: b.level, staff: b.staff, sign: look.sign, color: look.color };
+        lot.site = { id: b.id, type: b.type, name: b.name, level: b.level, staff: b.staff, role: b.role || 'business', sign: look.sign, color: look.color };
         lot.model = look.model; lot.tall = MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = true; lot.lit = 3;
       });
     });
@@ -179,14 +179,16 @@
       var loop = ONCE.indexOf(t.kind) < 0, by = t.by ? ownerKey(t.by) : null, cars = CONVOY[t.kind] || 1;
       if (loop) { loops[t.district] = (loops[t.district] || 0) + 1; if (loops[t.district] > MAX_LOOPS) return; }
       var color = t.vehicle === 'police' ? POLICE : t.kind === 'attack' && by ? COLORS[by] : FLOW[t.flow] || FLOW.money;
+      var ti = -1; if (t.target) c.districts.forEach(function (d, k) { if (d.id === t.target) ti = k; });
       var load = {}; ['crates', 'amount', 'men'].forEach(function (f) { if (typeof t[f] === 'number') load[f] = t[f]; });
       for (var k = 0; k < cars; k++) {
         var a = pointOf(c, di, t.from, n * 7 + k, by), b = pointOf(c, di, t.to, n * 7 + k, by);
+        if (ti >= 0) b = hideout(c, ti) || someLot(c, ti, 61 + n) || b;      // men sent to take a district go into it
         if (!a || !b) continue;
         if (a === b) { a = someLot(c, di, 53 + n); if (!a || a === b) continue; }
         out.push({ id: loop ? t.district + ':' + t.kind + ':' + t.from + '>' + t.to : 'once:' + n + ':' + k, kind: t.kind, city: c.id, loop: loop, color: color,
                    vehicle: t.vehicle === 'truck' || t.vehicle === 'police' ? t.vehicle : 'car', violent: !!t.violent, path: route([a.i, a.j], [b.i, b.j]),
-                   district: t.district, cargo: t.kind, load: load, from: endOf(t.from), to: endOf(t.to), by: t.by || null });
+                   district: t.district, cargo: t.kind, load: load, from: endOf(t.from), to: endOf(t.to), by: t.by || null, way: t.way || null, target: t.target || null });
       }
     });
     return out;
@@ -203,6 +205,7 @@
       if (e.type === 'attack') { if (e.outcome === 'hit' && e.site) add('fire'); add('gunfire'); }
       else if (e.type === 'raid') add('police');
       else if (e.type === 'promotion') add('promotion');
+      else if (e.type === 'takeover') add(e.outcome === 'failed' ? 'police' : e.way === 'force' ? 'gunfire' : 'promotion');
       else if (e.type === 'job') { if (e.outcome === 'failed') add('police'); else if (e.kind === 'hit') add('gunfire'); }
     });
     return out;

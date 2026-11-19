@@ -550,6 +550,9 @@ const labels = () => {
     if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
       const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + d.id, capo: d.capo, city: c.id, district: d.id, x, y }); });
   });
+  // a mark over each place of the family, so that its trade is read at a glance
+  if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of c.lots) if (l.site) { const [x, y] = scr(l.x, l.z, l.h + 0.5);
+    out.push({ id: 's' + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, x, y }); } });
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
   for (const [id, a] of agents) { if (!a.o || !a.o.visible || shownCars >= MAXTAGS) continue; shownCars++;
