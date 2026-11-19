@@ -3,13 +3,15 @@ package com.ashport.game;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
-
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -23,7 +25,7 @@ import org.junit.Test;
 
 /** The whole check, against a small stand-in for GitHub on this machine. */
 public class UpdateCheckTest {
-    private HttpServer github;
+    private ServerSocket github;
     private String base;
     private File root;
     private String latest = "v0.1.12";
@@ -35,35 +37,57 @@ public class UpdateCheckTest {
     public void startGithub() throws IOException {
         root = Files.createTempDirectory("ashport").toFile();
         bundle = zip("index.html", "<p>from github</p>");
-        github = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        base = "http://127.0.0.1:" + github.getAddress().getPort();
-        github.createContext("/repos/o/r/releases/latest", x -> {
-            String json = "{\"tag_name\":\"" + latest + "\",\"assets\":[{\"url\":\"" + base
-                    + "/repos/o/r/releases/assets/502\",\"id\":502,\"name\":\"web.zip\"}]}";
-            answer(x, 200, json.getBytes(StandardCharsets.UTF_8));
+        github = new ServerSocket(0, 10, InetAddress.getByName("127.0.0.1"));
+        base = "http://127.0.0.1:" + github.getLocalPort();
+        Thread serving = new Thread(() -> {
+            while (!github.isClosed()) {
+                try (Socket s = github.accept()) {
+                    serve(s);
+                } catch (IOException closedOrBroken) {
+                    // the test is over, or the client went away
+                }
+            }
         });
-        // Like GitHub, the asset address only redirects to where the file is stored.
-        github.createContext("/repos/o/r/releases/assets/502", x -> {
-            downloadHeaders.add(String.valueOf(x.getRequestHeaders().getFirst("Accept")));
-            x.getResponseHeaders().add("Location", base + "/storage/web.zip");
-            answer(x, 302, new byte[0]);
-        });
-        github.createContext("/storage/web.zip", x -> {
-            storageHeaders.add("seen");
-            answer(x, 200, bundle);
-        });
-        github.start();
+        serving.setDaemon(true);
+        serving.start();
     }
 
     @After
-    public void stopGithub() {
-        github.stop(0);
+    public void stopGithub() throws IOException {
+        github.close();
     }
 
-    private static void answer(HttpExchange x, int status, byte[] body) throws IOException {
-        x.sendResponseHeaders(status, body.length == 0 ? -1 : body.length);
-        if (body.length > 0) x.getResponseBody().write(body);
-        x.close();
+    // One request per connection, which is all the check needs.
+    private void serve(Socket s) throws IOException {
+        BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.ISO_8859_1));
+        String request = in.readLine();
+        if (request == null) return;
+        String path = request.split(" ")[1];
+        String accept = "";
+        for (String line = in.readLine(); line != null && !line.isEmpty(); line = in.readLine()) {
+            if (line.toLowerCase().startsWith("accept:")) accept = line.substring(7).trim();
+        }
+        OutputStream out = s.getOutputStream();
+        if (path.equals("/repos/o/r/releases/latest")) {
+            String json = "{\"tag_name\":\"" + latest + "\",\"assets\":[{\"url\":\"" + base
+                    + "/repos/o/r/releases/assets/502\",\"id\":502,\"name\":\"web.zip\"}]}";
+            answer(out, "200 OK", "", json.getBytes(StandardCharsets.UTF_8));
+        } else if (path.equals("/repos/o/r/releases/assets/502")) {
+            // Like GitHub, the asset address only redirects to where the file is stored.
+            downloadHeaders.add(accept);
+            answer(out, "302 Found", "Location: " + base + "/storage/web.zip\r\n", new byte[0]);
+        } else if (path.equals("/storage/web.zip")) {
+            storageHeaders.add("seen");
+            answer(out, "200 OK", "", bundle);
+        } else {
+            answer(out, "404 Not Found", "", new byte[0]);
+        }
+    }
+
+    private static void answer(OutputStream out, String status, String headers, byte[] body) throws IOException {
+        out.write(("HTTP/1.1 " + status + "\r\n" + headers + "Content-Length: " + body.length + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
+        out.write(body);
+        out.flush();
     }
 
     private static byte[] zip(String name, String text) throws IOException {
@@ -121,8 +145,8 @@ public class UpdateCheckTest {
     }
 
     @Test
-    public void noNetworkChangesNothingAndDoesNotCrash() {
-        github.stop(0);
+    public void noNetworkChangesNothingAndDoesNotCrash() throws IOException {
+        github.close();
         assertNull(check("v0.1.3"));
         assertNull(GameBundle.installedVersion(root));
     }

@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId 'com.ashport.game'
-        minSdk 24
+        minSdk 26
         targetSdk 34
         // Set by the GitHub workflow so that each build installs over the last.
         versionCode((System.getenv('VERSION_CODE') ?: '1') as int)
