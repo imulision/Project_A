@@ -1110,7 +1110,7 @@ test('each bar is served by the nearest still, and a bar with no still gets no t
 
 // --- the fourth door: turning a rival's lieutenant ---
 
-const lieutenants = () => Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].lieutenant);
+const lieutenants = () => Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].lieutenant && T.PEOPLE[id].home === 'ashport');
 // Ashport with the Callahans in place and Dutch landed, the family rich.
 const rivalTown = () => {
   const c = ashport(), f = rich();

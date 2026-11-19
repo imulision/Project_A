@@ -204,3 +204,19 @@ test('twenty years of the six cities play in well under two seconds', () => {
   months(g, 240);
   assert.ok(Date.now() - t < 2000, 'took ' + (Date.now() - t) + ' ms');
 });
+
+test('every city has its own three lieutenants: no man answers for places in two cities', () => {
+  const g = E.createGame({ capo: 'dutch' }), v = E.view(g), seen = {};
+  for (const c of v.cities) {
+    assert.equal(c.lieutenants.length, 3, c.id);
+    for (const l of c.lieutenants) {
+      assert.equal(seen[l.id], undefined, l.name + ' is in ' + seen[l.id] + ' and ' + c.id);
+      seen[l.id] = c.id;
+      const p = T.PEOPLE[l.id];
+      assert.deepEqual([p.lieutenant, p.home], [c.rival, c.id]);
+      assert.ok(T.tradeOf(l.id) && l.places >= 3, l.name + ' holds a real zone');
+    }
+    assert.ok(c.places.filter((p) => p.owner === c.rival && p.kind !== 'key').every((p) => seen[p.man] === c.id));
+  }
+  assert.equal(new Set(Object.keys(seen).map((id) => T.PEOPLE[id].name)).size, 18, 'eighteen names, all different');
+});

@@ -113,9 +113,29 @@
     walt:    { key: 'depot', name: 'Walt Gorski', specialty: 'Union man', muscle: 6, business: 4, cunning: 4, charisma: 7, loyalty: 55, ambition: 45, likes: ['union', 'chopshop', 'loft'], refuses: [] },
     hugh:    { key: 'cityhall', name: 'Hugh Pryce', specialty: 'Alderman', muscle: 1, business: 6, cunning: 8, charisma: 8, loyalty: 40, ambition: 75, likes: ['front', 'rented', 'union'], refuses: ['brothel', 'loft', 'chopshop'] },
     // the lieutenants of the family in place: each runs a part of its places, and can be turned
-    finn:  { lieutenant: 'Callahan', name: 'Finn O\'Rourke', specialty: 'Enforcer', muscle: 7, business: 4, cunning: 4, charisma: 4, loyalty: 35, ambition: 75, likes: ['loans', 'speakeasy'], refuses: ['front'] },
-    nora:  { lieutenant: 'Callahan', name: 'Nora Callahan', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 8, charisma: 5, loyalty: 30, ambition: 85, likes: ['front', 'gambling', 'rented'], refuses: ['brothel'] },
-    sean:  { lieutenant: 'Callahan', name: 'Sean Brady', specialty: 'Bootlegger', muscle: 5, business: 6, cunning: 5, charisma: 7, loyalty: 40, ambition: 60, likes: ['still', 'speakeasy', 'warehouse'], refuses: [] },
+    finn:  { lieutenant: 'Callahan', home: 'ashport', name: 'Finn O\'Rourke', specialty: 'Enforcer', muscle: 7, business: 4, cunning: 4, charisma: 4, loyalty: 35, ambition: 75, likes: ['loans', 'speakeasy'], refuses: ['front'] },
+    nora:  { lieutenant: 'Callahan', home: 'ashport', name: 'Nora Callahan', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 8, charisma: 5, loyalty: 30, ambition: 85, likes: ['front', 'gambling', 'rented'], refuses: ['brothel'] },
+    sean:  { lieutenant: 'Callahan', home: 'ashport', name: 'Sean Brady', specialty: 'Bootlegger', muscle: 5, business: 6, cunning: 5, charisma: 7, loyalty: 40, ambition: 60, likes: ['still', 'speakeasy', 'warehouse'], refuses: [] },
+    // Calder Falls, the Northside: mills, foundries and union halls
+    aggie: { lieutenant: 'Northside', home: 'calder', name: 'Aggie Novak', specialty: 'Politician', muscle: 3, business: 5, cunning: 6, charisma: 8, loyalty: 40, ambition: 65, likes: ['union', 'speakeasy'], refuses: ['brothel'] },
+    stan:  { lieutenant: 'Northside', home: 'calder', name: 'Stan Wozniak', specialty: 'Enforcer', muscle: 8, business: 3, cunning: 3, charisma: 4, loyalty: 45, ambition: 60, likes: ['chopshop', 'loans'], refuses: ['front'] },
+    pete:  { lieutenant: 'Northside', home: 'calder', name: 'Pete Lindqvist', specialty: 'Bootlegger', muscle: 4, business: 7, cunning: 5, charisma: 4, loyalty: 35, ambition: 70, likes: ['still', 'warehouse'], refuses: ['loft'] },
+    // Marrow Bay, the Callahans' cousins: canneries, shipyards and night boats
+    declan: { lieutenant: 'Callahan', home: 'marrow', name: 'Declan Foley', specialty: 'Bootlegger', muscle: 5, business: 6, cunning: 6, charisma: 5, loyalty: 35, ambition: 70, likes: ['warehouse', 'still', 'fence'], refuses: [] },
+    bridie: { lieutenant: 'Callahan', home: 'marrow', name: 'Bridie Nolan', specialty: 'Gambler', muscle: 3, business: 7, cunning: 6, charisma: 7, loyalty: 30, ambition: 80, likes: ['gambling', 'speakeasy'], refuses: ['chopshop'] },
+    mick:   { lieutenant: 'Callahan', home: 'marrow', name: 'Mick Tierney', specialty: 'Enforcer', muscle: 8, business: 3, cunning: 4, charisma: 3, loyalty: 45, ambition: 55, likes: ['loans', 'fence'], refuses: ['front'] },
+    // Dunmore, the Kesslers: coal, rail and breweries
+    karl:  { lieutenant: 'Kessler', home: 'dunmore', name: 'Karl Kessler', specialty: 'Bootlegger', muscle: 5, business: 8, cunning: 5, charisma: 4, loyalty: 30, ambition: 85, likes: ['still', 'speakeasy', 'warehouse'], refuses: ['brothel'] },
+    greta: { lieutenant: 'Kessler', home: 'dunmore', name: 'Greta Voss', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 7, charisma: 5, loyalty: 40, ambition: 60, likes: ['front', 'rented', 'loans'], refuses: ['chopshop'] },
+    lutz:  { lieutenant: 'Kessler', home: 'dunmore', name: 'Lutz Brauer', specialty: 'Enforcer', muscle: 8, business: 4, cunning: 3, charisma: 3, loyalty: 50, ambition: 50, likes: ['union', 'chopshop'], refuses: ['gambling'] },
+    // Port Lorne, the Dockers: the sea port at the border
+    joe:   { lieutenant: 'Dockers', home: 'lorne', name: 'Joe Macready', specialty: 'Bootlegger', muscle: 6, business: 6, cunning: 5, charisma: 5, loyalty: 40, ambition: 65, likes: ['warehouse', 'fence', 'speakeasy'], refuses: [] },
+    tess:  { lieutenant: 'Dockers', home: 'lorne', name: 'Tess Ferreira', specialty: 'Pusher', muscle: 4, business: 6, cunning: 8, charisma: 5, loyalty: 30, ambition: 80, likes: ['loft', 'fence'], refuses: ['union'] },
+    harry: { lieutenant: 'Dockers', home: 'lorne', name: 'Harry Doak', specialty: 'Enforcer', muscle: 9, business: 3, cunning: 3, charisma: 4, loyalty: 45, ambition: 55, likes: ['union', 'loans'], refuses: ['front'] },
+    // Saint Vesper, the Callahans' old money: judges, bishops and private rooms
+    aidan: { lieutenant: 'Callahan', home: 'vesper', name: 'Aidan Roche', specialty: 'Politician', muscle: 2, business: 6, cunning: 7, charisma: 9, loyalty: 35, ambition: 75, likes: ['front', 'gambling', 'rented'], refuses: ['chopshop'] },
+    clara: { lieutenant: 'Callahan', home: 'vesper', name: 'Clara Devlin', specialty: 'Bookkeeper', muscle: 2, business: 9, cunning: 7, charisma: 5, loyalty: 40, ambition: 60, likes: ['loans', 'front'], refuses: ['brothel'] },
+    owen:  { lieutenant: 'Callahan', home: 'vesper', name: 'Owen Gallagher', specialty: 'Gambler', muscle: 5, business: 6, cunning: 5, charisma: 6, loyalty: 45, ambition: 65, likes: ['gambling', 'brothel', 'speakeasy'], refuses: ['union'] },
     mallory: { key: 'precinct', name: 'Ed Mallory', specialty: 'Police captain', muscle: 6, business: 4, cunning: 7, charisma: 4, loyalty: 40, ambition: 60, likes: ['loans', 'gambling', 'fence'], refuses: ['loft'] }
   };
   // What draws each big name to a family: places of a kind it runs, a key place it holds, or raids it has thrown back.
@@ -158,15 +178,18 @@
       placed += 1;
     }
     // its lieutenants share the places, from the west of the city to the east
-    var men = lieutenantsOf(name), theirs = places(c).filter(function (p) { return p.owner === name && p.kind !== 'key'; });
+    var men = lieutenantsOf(c), theirs = places(c).filter(function (p) { return p.owner === name && p.kind !== 'key'; });
     if (!men.length) return;
     theirs.sort(function (a, b) { return a.x - b.x || a.y - b.y; }).forEach(function (p, i) {
       at(c, p.x, p.y).man = men[Math.min(men.length - 1, Math.floor(i * men.length / theirs.length))];
     });
     changed(c);
   }
-  function lieutenantsOf(name) {
-    return Object.keys(PEOPLE).filter(function (id) { return PEOPLE[id].lieutenant === name; });
+  // The lieutenants of the family in place in this city. A city nobody was written for borrows the family's first three.
+  function lieutenantsOf(c) {
+    var all = Object.keys(PEOPLE).filter(function (id) { return PEOPLE[id].lieutenant === c.rival; });
+    var here = all.filter(function (id) { return PEOPLE[id].home === c.id; });
+    return here.length ? here : all.filter(function (id) { return PEOPLE[id].home === PEOPLE[all[0]].home; });
   }
   // The key places go to whoever was there first: each on the street that suits it best, well apart from the others.
   function crown(c, name) {
@@ -670,7 +693,7 @@
     });
     // a rival's lieutenant listens once the family weighs enough in the city
     var his = function (id) { return places(c).filter(function (p) { return p.man === id; }); };
-    if (c.rival && share(c).family >= RULES.turn) lieutenantsOf(c.rival).forEach(function (id) {
+    if (c.rival && share(c).family >= RULES.turn) lieutenantsOf(c).forEach(function (id) {
       if (free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
     });
     return out;
@@ -899,7 +922,7 @@
         p.name = p.kind === 'club' ? 'Social Club' : p.kind === 'key' ? KEYS[p.key].name : D.SITES[p.kind].name;
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo };
       }).map(function (p) { if (!p.key) delete p.key; if (!p.man) delete p.man; return p; }),
-      lieutenants: lieutenantsOf(c.rival).map(function (id) {
+      lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: places(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       keys: keys(c), share: share(c), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
