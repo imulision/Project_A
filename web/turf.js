@@ -45,6 +45,15 @@
     keyCost: 4000,      // dirty $ the boss pays for a key place, times the capo's way of taking it
     keyMonths: 2,       // a key place takes this many times longer than a rival's bar
     sulk: 24,           // months a capo lets a key place rest after the boss said no
+    wash: 500,          // dirty $ a month a front of level 1 can wash on a street made for it
+    cut: 0.2,           // share of what is washed that stays with the front
+    pay: [0, 100, 250, 500], // $ a month the boss owes a Soldier, a Capo, a Veteran and a Legend
+    stash: 3000,        // dirty $ the boss can keep without anybody noticing
+    hot: 4,             // heat a month while more than that sleeps in his safe
+    loud: 10,           // heat for every place burnt, raid thrown back or place taken by force
+    cools: 2,           // heat the city loses a month; twice that with the precinct
+    bust: 0.5,          // share of the dirty money the police seize when the heat reaches 100
+    afterBust: 40,      // where the heat falls back to after that
     seats: 3,           // capos a city carries; every key place the family holds there adds one
     doors: { rise: 1000, figure: 1500, name: 2500 }, // dirty $ the boss pays to set a man up, by the door he came through
     stand: 0.2,         // a capo of no Muscle holds this share of the family's press against a raid; each point adds a tenth
@@ -115,7 +124,7 @@
   function createCity(spec) {
     return { id: spec.id, w: spec.w, h: spec.h, zones: spec.zones.map(function (z) {
       return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
-    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, knocked: {} };
+    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, knocked: {}, heat: 0, washed: 0 };
   }
   // A throw of the city's own dice: the same city always plays out the same way.
   function roll(c, n) {
@@ -499,6 +508,39 @@
     } else c.refused[a.key] = c.month + RULES.sulk;
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }
+  // --- two kinds of money ---
+  // What the family's fronts in the city can wash a month, and what they washed last month.
+  function washing(c) {
+    var most = places(c).reduce(function (n, p) {
+      return n + (p.owner === 'family' && p.kind === 'front' ? RULES.wash * worth(c, p.x, p.y, 'front') * (1 + (p.level - 1) * 1.5) : 0);
+    }, 0);
+    return { washed: c.washed || 0, most: Math.round(most) };
+  }
+  function money(c, f, events) {
+    f.clean = f.clean || 0;
+    // every man in the city is paid by his rank
+    Object.keys(f.men).forEach(function (capo) {
+      if (!clubOf(c, capo)) return;
+      var due = RULES.pay[f.men[capo].rank], dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
+      f.dirty -= dirty; f.clean -= clean;
+      if (dirty + clean < due) events.push({ type: 'unpaid', capo: capo, city: c.id, due: due, label: first(capo) + ' has not been paid this month' });
+    });
+    // the fronts wash what they can of what is left
+    c.washed = Math.max(0, Math.min(f.dirty, washing(c).most));
+    f.dirty -= c.washed;
+    f.clean += c.washed * (1 - RULES.cut);
+    // money that sleeps and blood in the streets draw the police
+    var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
+    c.heat = (c.heat || 0) + (f.dirty > RULES.stash ? RULES.hot : 0) + loud * RULES.loud - RULES.cools * (held(c, 'shield') ? 2 : 1);
+    c.heat = Math.max(0, Math.min(100, c.heat));
+    if (c.heat >= 100) {
+      var seized = Math.round(Math.max(0, f.dirty) * RULES.bust);
+      f.dirty -= seized;
+      c.heat = RULES.afterBust;
+      events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
+    }
+  }
+
   // --- where capos come from ---
   // Who would join the family in this city today, and through which door.
   function doors(c, f) {
@@ -596,6 +638,7 @@
     });
     rivalGrows(c);
     rivalRaids(c, events);
+    money(c, f, events);
     doors(c, f).forEach(function (d) {
       if (c.knocked[d.capo]) return;
       c.knocked[d.capo] = true;
@@ -604,7 +647,7 @@
     return events;
   }
 
-  var api = { seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

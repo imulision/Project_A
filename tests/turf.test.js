@@ -713,3 +713,102 @@ test('twenty years of saying yes to everyone: the family grows man by man, key p
     assert.ok(keys[keys.length - 1] - keys[0] >= 60, start + ': the key places fall over many years');
   }
 });
+
+// --- two kinds of money: dirty money must be washed, and it draws the police while it sleeps ---
+
+// Mae with her club and one front on the best street for it, and a family that opens nothing new.
+const laundry = (level) => {
+  const c = town(), f = family({ tech: {}, clean: 0 });
+  T.settle(c, 'mae', 2, 2); T.join(f, 'mae').cash = 0;
+  if (level) T.open(c, 3, 2, { owner: 'family', kind: 'front', capo: 'mae', level });
+  return { c, f };
+};
+
+test('a front washes the boss\'s dirty money into clean money, for a cut', () => {
+  const { c, f } = laundry(1);
+  f.dirty = 200;
+  T.stepMonth(c, f);
+  const tribute = f.dirty + f.clean / (1 - T.RULES.cut) - 200; // what Mae sent up this month, all still dirty or washed
+  assert.ok(f.clean > 0, 'some money came out clean');
+  assert.ok(f.dirty < 200 + tribute, 'and left the dirty pile');
+  assert.ok(Math.abs(T.washing(c).washed * (1 - T.RULES.cut) - f.clean) < 0.01, 'the cut stays with the front');
+});
+
+test('a front only washes so much a month, and a bigger front washes more', () => {
+  const small = laundry(1), big = laundry(3);
+  small.f.dirty = big.f.dirty = 50000;
+  T.stepMonth(small.c, small.f); T.stepMonth(big.c, big.f);
+  assert.equal(T.washing(small.c).washed, T.washing(small.c).most);
+  assert.ok(T.washing(big.c).most > T.washing(small.c).most * 2);
+  assert.ok(big.f.clean > small.f.clean);
+});
+
+test('without a front nothing is washed', () => {
+  const { c, f } = laundry(0);
+  f.dirty = 5000;
+  T.stepMonth(c, f);
+  assert.equal(f.clean, 0);
+  assert.deepEqual(T.washing(c), { washed: 0, most: 0 });
+});
+
+test('a man is paid by his rank: dirty money first, clean money if it must, and he says so when there is neither', () => {
+  const { c, f } = laundry(0);
+  f.men.mae.rank = 2;
+  const pay = T.RULES.pay[2];
+  f.dirty = pay; f.clean = pay;
+  let events = T.stepMonth(c, f);
+  assert.ok(f.dirty < pay && f.clean === pay, 'paid in dirty money');
+  assert.ok(!events.some((e) => e.type === 'unpaid'));
+  f.dirty = 0; f.clean = pay;
+  events = T.stepMonth(c, f);
+  assert.ok(f.clean < pay, 'then in clean');
+  f.dirty = 0; f.clean = 0; f.men.mae.cash = -1e6; // her club's tribute cannot cover it
+  events = T.stepMonth(c, f);
+  assert.ok(events.some((e) => e.type === 'unpaid' && e.capo === 'mae'));
+  assert.equal(T.RULES.pay[0], 0, 'a Soldier lives off his streets');
+});
+
+test('dirty money that sleeps in the boss\'s safe heats the city; an empty safe lets it cool', () => {
+  const { c, f } = laundry(0);
+  f.dirty = T.RULES.stash * 3;
+  T.stepMonth(c, f); T.stepMonth(c, f);
+  const hot = c.heat;
+  assert.ok(hot > 0);
+  f.dirty = 0;
+  T.stepMonth(c, f);
+  assert.ok(c.heat < hot);
+  for (let i = 0; i < 100; i++) { f.dirty = 0; T.stepMonth(c, f); }
+  assert.equal(c.heat, 0);
+});
+
+test('when the heat boils over the police seize half the dirty money', () => {
+  const { c, f } = laundry(0);
+  let bust = null, before = 0;
+  for (let i = 0; i < 200 && !bust; i++) {
+    f.dirty = T.RULES.stash * 10; before = f.dirty;
+    bust = T.stepMonth(c, f).find((e) => e.type === 'bust');
+  }
+  assert.ok(bust, 'it comes');
+  assert.ok(Math.abs(bust.seized - f.dirty) < before * 0.1, 'about half is gone');
+  assert.ok(f.dirty < before * 0.6);
+  assert.ok(c.heat < 100 && c.heat > 0, 'and the city cools, for a while');
+});
+
+test('with the precinct in its pocket the family cools the city twice as fast', () => {
+  const cool = (bought) => {
+    const { c, f } = laundry(0);
+    if (bought) T.open(c, 11, 5, { owner: 'family', kind: 'key', key: 'precinct', capo: 'mae' });
+    c.heat = 50; f.dirty = 0;
+    T.stepMonth(c, f);
+    return 50 - c.heat;
+  };
+  assert.equal(cool(true), cool(false) * 2);
+});
+
+test('blood in the streets heats the city too', () => {
+  const quiet = laundry(1), loud = laundry(1);
+  T.open(loud.c, 4, 2, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+  for (let i = 0; i < T.RULES.rivalEvery; i++) { quiet.f.dirty = loud.f.dirty = 0; T.stepMonth(quiet.c, quiet.f); T.stepMonth(loud.c, loud.f); }
+  assert.equal(quiet.c.heat, 0);
+  assert.ok(loud.c.heat > 0);
+});
