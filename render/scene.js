@@ -699,6 +699,17 @@ function animateFx(dt, now) {
     f.m.scale.set(s, s, 1); f.m.material.opacity = o * fade;
   }
 }
+// The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
+let spotG = null, nSpots = 0;
+const spotMat = fxMat(null, new THREE.Color(0x8fe6ff), 0.5);
+function spots(cityId, list) {
+  if (spotG) { lods.remove(spotG); dispose(spotG); spotG = null; nSpots = 0; }
+  const C = CITIES.find(c => c.id === cityId); if (!C || !list || !list.length) return;
+  spotG = new THREE.Group();
+  const bw = 4 * T, bd = 3 * T;
+  for (const b of list) { const m = new THREE.Mesh(UNIT, spotMat); m.rotation.x = -Math.PI / 2; m.position.set(C.ox + b.x * bw + bw / 2, 0.14, C.oz + b.y * bd + bd / 2); m.scale.set(bw - 0.5, bd - 0.5, 1); m.renderOrder = 4; spotG.add(m); }
+  nSpots = list.length; bake(spotG); lods.add(spotG);
+}
 // which city and district is under a point of the screen
 function pickAt(cx, cy) {
   _v.set(cx / innerWidth * 2 - 1, 1 - cy / innerHeight * 2, 0).unproject(cam);
@@ -729,6 +740,7 @@ function frame(now) {
   }
   if (frames === 3) { window.__ready = true; if (opt.onStage) opt.onStage(4); }
   window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
+  if (spotG) spotMat.opacity = 0.42 + 0.2 * Math.sin(performance.now() / 260);      // the streets on offer breathe
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -761,5 +773,5 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true;
 });
 
-  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal }) };     // counted now, not at the last frame drawn; moving while the camera glides
+  return { update, effects, traffic, labels, focus, pickAt, spots, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
