@@ -201,6 +201,10 @@
 
   // The still or the speakeasy a district cannot do without, if it has none.
   function missing(d) { return d.sites.still === 0 ? 'still' : d.sites.speakeasy === 0 ? 'speakeasy' : null; }
+  // What a district that loses money lacks to pay its way again: a still or a room, whichever holds the liquor back.
+  function lacking(d) {
+    return missing(d) || (d.profit >= 0 ? null : wantsLiquor(d) ? 'still' : wantsSeats(d) ? 'speakeasy' : null);
+  }
   function open(kind) {
     return function (d) { d.sites[kind] += 1; };
   }
@@ -324,18 +328,18 @@
       need: function (d) { return d.crews === 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit ? 4 : 0; },
       apply: function (d) { d.crews -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'standdown', label: 'Sends 2 guards home', why: 'the district cannot pay for men who stand at doors', cost: 0, cur: 'dirty', men: 0,
-      need: function (d) { return d.profit < 0 && d.guards > 2 && d.attacked === 0 ? 7 : 0; },
+      need: function (d) { return d.guards <= 2 || d.attacked > 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit && d.share >= RULES.lastStand ? 4 : 0; },
       apply: function (d) { d.guards -= 2; } },
     { kind: 'ease', label: 'Takes a collector off the shops', why: 'the street has turned against him', cost: 0, cur: 'dirty', men: 0,
       need: function (d) { return d.goodwill < RULES.hated && d.collectors > 0 && d.profit >= RULES.thinProfit ? 5 : 0; },
       apply: function (d) { d.collectors -= 1; d.pulledBack = RULES.pullBack; } },
-    { kind: 'restart', label: 'Starts again with his own money', why: 'the district has nothing left to sell', cost: 0, cur: 'dirty', men: 0,
+    { kind: 'restart', label: 'Starts again with his own money', why: 'the district cannot pay its way and has nothing left to build with', cost: 0, cur: 'dirty', men: 0,
       need: function (d) {
-        var k = missing(d);
+        var k = lacking(d);
         return k && d.dirty < SITES[k].cost ? 11 : 0;
       },
       apply: function (d) {
-        var k = missing(d);
+        var k = lacking(d);
         d.sites[k] += 1;
         d.men = Math.max(d.men, busyMen(d)); // he brings the men it takes
       } },
@@ -372,7 +376,7 @@
     wanted.sort(function (a, b) { return b.weight - a.weight || a.order - b.order; });
     for (var i = 0; i < wanted.length; i++) {
       var p = wanted[i].p, hire = 0;
-      if (free < p.men) {
+      if (p.men > 0 && free < p.men) {
         // he brings in a whole crew if he can pay for it, otherwise just the men the job needs
         hire = canHire(d, p, Math.max(2 + Math.floor(c.charisma / 3), p.men - free), wages) || canHire(d, p, p.men - free, wages);
         if (!hire) { shortOfMen = true; continue; }
