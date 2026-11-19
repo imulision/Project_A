@@ -739,3 +739,87 @@ test('a takeover needs the money for its way, and a district within reach', () =
   assert.throws(() => W.takeover(w, 'lorne-harbour', 'force', 'mae'), /out of reach/);
   assert.throws(() => W.takeover(w, 'ashport-market', 'charm', 'mae'), /no such way/);
 });
+
+// --- ranks: the boss promotes, pays, and has only so many places ---
+const untilReady = (w, max = 60) => { for (let i = 0; i < max && !W.promotions(w).length; i++) W.stepMonth(w); return W.promotions(w)[0]; };
+
+test('a man ready to rise waits for the boss, who picks one of two abilities for him', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const offer = untilReady(w);
+  assert.deepEqual([offer.capo, offer.rank, offer.rankName], ['dutch', 1, 'Capo']);
+  assert.equal(offer.options.length, 2);
+  assert.notEqual(offer.options[0].sector, offer.options[1].sector);
+  assert.equal(offer.pay, W.RANKS[1].pay);
+  assert.equal(W.person(w, 'dutch').rank, 0, 'nothing changes until the boss speaks');
+  const e = W.promote(w, 'dutch', offer.options[1].id);
+  assert.equal(e.type, 'promotion');
+  assert.equal(e.ability, offer.options[1].id);
+  assert.deepEqual(W.person(w, 'dutch').abilities, [offer.options[1].id]);
+  assert.equal(W.person(w, 'dutch').rank, 1);
+  assert.deepEqual(W.promotions(w), []);
+  assert.throws(() => W.promote(w, 'dutch', offer.options[0].id), /not waiting/);
+});
+
+test('the boss cannot give an ability that was not on offer', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  untilReady(w);
+  assert.throws(() => W.promote(w, 'dutch', 'death-squad'), /not on offer/);
+});
+
+test('left without an answer for three months, he takes what he has practised most', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const offer = untilReady(w);
+  const events = play(w, W.RULES.promotionWait + 1);
+  const up = events.find((e) => e.type === 'promotion');
+  assert.equal(up.ability, offer.options[0].id);
+  assert.equal(W.person(w, 'dutch').rank, 1);
+});
+
+test('a rank is a wage the boss pays every month, street money first', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const offer = untilReady(w);
+  W.promote(w, 'dutch', offer.options[0].id);
+  w.treasury.dirty = 40; w.treasury.clean = 5000;
+  W.stepMonth(w);
+  assert.equal(w.lastMonth.wages, W.RANKS[1].pay);
+  assert.deepEqual(w.lastMonth.wagesFrom, { dirty: 40, clean: W.RANKS[1].pay - 40 }, 'clean money covers what the street money cannot');
+  assert.equal(W.district(w, W.HOME).state.paid, true);
+});
+
+test('a man the boss cannot pay holds it against him', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const offer = untilReady(w);
+  W.promote(w, 'dutch', offer.options[0].id);
+  const s = W.district(w, W.HOME).state;
+  w.treasury.dirty = 0; w.treasury.clean = 0;
+  s.boss.dirty = s.boss.clean = 0;
+  const events = [];
+  for (let i = 0; i < 2; i++) { w.treasury.dirty = 0; w.treasury.clean = 0; events.push(...W.stepMonth(w)); }
+  assert.equal(s.paid, false);
+  assert.ok(events.some((e) => e.type === 'unpaid-wage' && e.capo === 'dutch'));
+});
+
+test('the family has only so many places at each rank, and more as it grows', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  w.treasury.dirty = 50000;
+  const one = W.ranks(w);
+  assert.deepEqual(one.map((r) => r.name), ['Soldier', 'Capo', 'Veteran', 'Legend']);
+  assert.equal(one[0].places, null, 'anyone can be a soldier');
+  assert.ok(one[1].places >= 1 && one[2].places <= one[1].places && one[3].places <= one[2].places);
+  W.claim(w, 'ashport-market', 'mae'); W.claim(w, 'ashport-docks', 'sal'); W.claim(w, 'ashport-canal', 'tommy');
+  W.claim(w, 'ashport-uptown', 'vince'); W.claim(w, 'ashport-station', 'danny');
+  const six = W.ranks(w);
+  assert.ok(six[1].places > one[1].places);
+  assert.ok(six[0].men.includes('dutch'));
+});
+
+test('with every place of a rank taken, a man who has earned it waits', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  W.RULES.places[1] = { base: 0, every: 3 }; // no Capo place for a family of one district
+  try {
+    play(w, 48);
+    assert.deepEqual(W.promotions(w), []);
+    assert.equal(W.person(w, 'dutch').rank, 0);
+    assert.deepEqual(W.ranks(w)[1].waiting, ['dutch']);
+  } finally { W.RULES.places[1] = { base: 2, every: 3 }; }
+});

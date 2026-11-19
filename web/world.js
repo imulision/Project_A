@@ -106,6 +106,9 @@
     hitLoot: 0.2,        // share of the stash the rivals carry off
     alarm: 6,            // months a capo stays on his guard after a hit
     grace: 12,           // months the rivals leave a new foothold alone
+    promotionWait: 3,    // months a man waits for the boss's word before he takes his rank himself
+    // Places at each rank: so many to start with, and one more for every so many districts held.
+    places: { 1: { base: 2, every: 3 }, 2: { base: 1, every: 6 }, 3: { base: 0, every: 8 } },
     // The three ways into a district. None is cheap, quick or sure.
     takeover: {
       step: 0.25,        // every district the family holds makes the next one this much dearer
@@ -375,7 +378,8 @@
   }
 
   // --- capos who grow: what they practise, their rank, what they unlock ---
-  var RANKS = [{ name: 'Soldier', xp: 0 }, { name: 'Capo', xp: 60 }, { name: 'Veteran', xp: 220 }, { name: 'Legend', xp: 600 }];
+  // pay is what the boss owes a man of that rank every month.
+  var RANKS = [{ name: 'Soldier', xp: 0, pay: 0 }, { name: 'Capo', xp: 60, pay: 100 }, { name: 'Veteran', xp: 220, pay: 250 }, { name: 'Legend', xp: 600, pay: 500 }];
 
   function record(w, id) {
     if (!D.CAPOS[id]) throw new Error('unknown capo: ' + id);
@@ -399,21 +403,109 @@
     x.state.skills = r.abilities.slice();
     x.state.rank = r.rank;
   }
-  // A month in post: he learns what his district did, and may rise.
+  // A month in post: he learns what his district did. Once he has earned the
+  // next rank and a place is free, he waits for the boss to choose his ability.
   function learn(w, x, events) {
-    var r = record(w, x.state.capo), did = D.practice(x.state), total = 0;
-    D.SECTORS.forEach(function (k) { r.xp[k] += did[k]; total += r.xp[k]; });
-    if (r.rank >= RANKS.length - 1 || total < RANKS[r.rank + 1].xp) return;
-    r.rank += 1;
-    // the next ability of the sector he has practised most, among those he has not finished
+    var id = x.state.capo, r = record(w, id), did = D.practice(x.state);
+    D.SECTORS.forEach(function (k) { r.xp[k] += did[k]; });
+    w.offers = w.offers || {};
+    var offer = w.offers[id];
+    if (offer) {
+      if (w.month - offer.month >= RULES.promotionWait) events.push(promote(w, id, offer.options[0]));
+      return;
+    }
+    if (!earned(r) || placesLeft(w, r.rank + 1) <= 0) return;
+    // the next ability of the two sectors he has practised most, among those he has not finished
     var open = D.SECTORS.filter(function (k) { return nextRing(r, k) < D.WHEEL[k].length; });
-    var best = open.reduce(function (a, b) { return r.xp[b] > r.xp[a] ? b : a; });
-    var ability = D.WHEEL[best][nextRing(r, best)], c = D.CAPOS[x.state.capo];
-    r.abilities.push(ability.id);
-    brief(w, x);
-    events.push({ type: 'promotion', capo: x.state.capo, rank: r.rank, rankName: RANKS[r.rank].name, ability: ability.id, sector: best,
-                  district: x.id, city: x.city,
-                  label: c.name + ' is now a ' + RANKS[r.rank].name + ': ' + ability.name + ' (' + ability.text.toLowerCase() + ')' });
+    open.sort(function (a, b) { return r.xp[b] - r.xp[a] || D.SECTORS.indexOf(a) - D.SECTORS.indexOf(b); });
+    w.offers[id] = { capo: id, rank: r.rank + 1, month: w.month, district: x.id,
+                     options: open.slice(0, 2).map(function (k) { return D.WHEEL[k][nextRing(r, k)].id; }) };
+    events.push({ type: 'ready', capo: id, rank: r.rank + 1, rankName: RANKS[r.rank + 1].name, district: x.id, city: x.city,
+                  label: D.CAPOS[id].name + ' has earned the rank of ' + RANKS[r.rank + 1].name + ' and waits for your word' });
+  }
+  function earned(r) {
+    var total = 0;
+    D.SECTORS.forEach(function (k) { total += r.xp[k] || 0; });
+    return r.rank < RANKS.length - 1 && total >= RANKS[r.rank + 1].xp;
+  }
+  function placesAt(w, rank) {
+    var p = RULES.places[rank];
+    return p ? p.base + Math.floor(familyDistricts(w).length / p.every) : null;
+  }
+  function holders(w, rank) {
+    var seen = {}, list = [];
+    posts(w).forEach(function (n) {
+      if (seen[n.capo]) return;
+      seen[n.capo] = true;
+      if (person(w, n.capo).rank === rank) list.push(n.capo);
+    });
+    return list;
+  }
+  function placesLeft(w, rank) {
+    var promised = Object.keys(w.offers || {}).filter(function (id) { return w.offers[id].rank === rank; }).length;
+    return placesAt(w, rank) - holders(w, rank).length - promised;
+  }
+  // The men who wait for the boss's word, each with the two abilities he can be given.
+  function promotions(w) {
+    return Object.keys(w.offers || {}).map(function (id) {
+      var o = w.offers[id];
+      return { capo: id, rank: o.rank, rankName: RANKS[o.rank].name, pay: RANKS[o.rank].pay, district: o.district,
+               monthsLeft: Math.max(0, RULES.promotionWait - (w.month - o.month)),
+               options: o.options.map(function (a) {
+                 var x = D.ABILITIES[a];
+                 return { id: a, sector: x.sector, name: x.ability.name, text: x.ability.text };
+               }) };
+    });
+  }
+  // The boss's word: the man rises and takes the ability chosen for him.
+  function promote(w, id, abilityId) {
+    var o = (w.offers || {})[id];
+    if (!o) throw new Error(id + ' is not waiting for a promotion');
+    if (o.options.indexOf(abilityId) < 0) throw new Error(abilityId + ' is not on offer to ' + id);
+    var r = record(w, id), ability = D.ABILITIES[abilityId].ability, c = D.CAPOS[id];
+    r.rank = o.rank;
+    r.abilities.push(abilityId);
+    delete w.offers[id];
+    var x = familyDistricts(w).filter(function (d) { return d.state.capo === id; })[0];
+    if (x) brief(w, x);
+    return { type: 'promotion', capo: id, rank: r.rank, rankName: RANKS[r.rank].name, ability: abilityId, sector: D.ABILITIES[abilityId].sector,
+             district: x ? x.id : o.district, city: w.districts[x ? x.id : o.district].city,
+             label: c.name + ' is now a ' + RANKS[r.rank].name + ': ' + ability.name + ' (' + ability.text.toLowerCase() + ')' };
+  }
+  // The family rank by rank: its pay, its places, who holds it and who waits for one.
+  function ranks(w) {
+    return RANKS.map(function (k, rank) {
+      var waiting = [];
+      if (rank > 0) posts(w).forEach(function (n) {
+        var r = (w.people || {})[n.capo];
+        if (r && r.rank === rank - 1 && earned(r) && !(w.offers || {})[n.capo] && waiting.indexOf(n.capo) < 0) waiting.push(n.capo);
+      });
+      return { rank: rank, name: k.name, pay: k.pay, places: placesAt(w, rank), men: holders(w, rank), waiting: waiting };
+    });
+  }
+  // Every man with a rank is owed his pay. One the boss cannot pay holds it against him.
+  function payWages(w, events) {
+    var seen = {};
+    posts(w).forEach(function (n) {
+      if (seen[n.capo]) return;
+      seen[n.capo] = true;
+      var pay = RANKS[person(w, n.capo).rank].pay, x = w.districts[n.post];
+      var paid = pay === 0 || canPay(w, 'dirty', pay);
+      if (pay > 0 && paid) {
+        var street = Math.min(w.treasury.dirty, pay);
+        pay2(w, street, pay - street);
+      }
+      if (x && x.state) x.state.paid = paid;
+      if (!paid && x) events.push({ type: 'unpaid-wage', capo: n.capo, district: x.id, city: x.city,
+                                    label: D.CAPOS[n.capo].name + ' has not been paid: he will take it out of your share' });
+    });
+  }
+  function pay2(w, street, clean) {
+    w.treasury.dirty -= street;
+    w.treasury.clean -= clean;
+    w.lastMonth.wages += street + clean;
+    w.lastMonth.wagesFrom.dirty += street;
+    w.lastMonth.wagesFrom.clean += clean;
   }
   function nextRing(r, sector) {
     return r.abilities.filter(function (id) { return D.ABILITIES[id].sector === sector; }).length;
@@ -611,7 +703,8 @@
   // One month everywhere. Returns what happened, tagged with its place.
   function stepMonth(w) {
     var events = [];
-    w.lastMonth = { dirty: 0, clean: 0 };
+    w.lastMonth = { dirty: 0, clean: 0, wages: 0, wagesFrom: { dirty: 0, clean: 0 } };
+    payWages(w, events);
     familyDistricts(w).forEach(function (x) {
       var before = { dirty: x.state.boss.dirty, clean: x.state.boss.clean };
       brief(w, x);
@@ -719,7 +812,7 @@
 
   CITIES.forEach(function (c) { c.districts.forEach(makeLocal); });
 
-  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, promotions: promotions, promote: promote, ranks: ranks, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,
