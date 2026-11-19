@@ -323,7 +323,7 @@
   }
 
   var api = { CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
-              rivalStrength: rivalStrength, posts: posts, createWorld: createWorld, district: district, districts: districts,
+              rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
