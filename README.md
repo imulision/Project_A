@@ -7,6 +7,7 @@ lieutenants run which districts, and they act their own way.
 ## Layout
 
 - `web/sim.js` holds the rules of the game: months, districts, lieutenants, money, events. It knows nothing about the screen.
+- `web/district.js` holds the rules of the next version, where the boss only names a capo and the capo runs his district (hiring, places, crews, laundering, police). The page does not use it yet. `npm run simulate` plays every capo over five years and prints a report. Tests are in `tests/district.test.js`.
 - `web/index.html` is the page. It draws the state held by `sim.js` and passes the player's answers back to it. There is no build step: open the file in a browser to play.
 - `tests/sim.test.js` holds the unit tests of the rules. They run without a browser.
 - `tests/playthrough.mjs` is the integration test: it plays a full in-game year in a real browser.
