@@ -87,6 +87,7 @@ await page.evaluate(() => document.querySelector('.lab.tag').click());      // b
 assert.match(await page.textContent('#tip.on'), /crates|\$|men/, 'touching a car says what it carries');
 await shot('7-street');
 // the budget of the street view: cars and headlights are drawn in lots, so the count of draw calls stays low however busy the streets
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 60000 });      // counted once the camera has arrived, however slow the machine
 await page.waitForTimeout(600);
 const near = await page.evaluate(() => window.__ashport.map().stats());
 assert.ok(near.calls <= 220, 'the street view is drawn in at most 220 draw calls (' + near.calls + ')');

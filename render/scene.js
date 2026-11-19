@@ -723,5 +723,5 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true;
 });
 
-  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings }) };     // counted now, not at the last frame drawn
+  return { update, effects, traffic, labels, focus, pickAt, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
