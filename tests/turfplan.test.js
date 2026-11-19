@@ -105,3 +105,40 @@ test('the whole map: six big cities where the world puts them, stretched apart, 
   const box = (c) => { const cx = (c.v + c.u) / 2, cz = (c.v - c.u) / 2, hw = c.bx * 4, hd = c.by * 3; return [cx - hw, cx + hw, cz - hd, cz + hd]; };
   for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) { const A = box(p.cities[a]), B = box(p.cities[b]); assert.ok(A[1] < B[0] || B[1] < A[0] || A[3] < B[2] || B[3] < A[2], p.cities[a].id + ' and ' + p.cities[b].id + ' overlap'); }
 });
+
+// ---- the cars of the new game
+const carsOf = (g) => { const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES); return { v, p, cars: M.tripsTurf(p, v) }; };
+
+test('every trip of the rules is a car between the very buildings it names, along the streets', () => {
+  const { v, p, cars } = carsOf(play(30)), c = v.cities[0], pc = p.cities[0];
+  assert.ok(c.trips.length > 0); assert.equal(cars.length, c.trips.length);
+  const siteAt = (x, y) => pc.lots.find((l) => l.site && l.bx === x && l.by === y);
+  cars.forEach((car, n) => {
+    const t = c.trips[n], a = siteAt(t.from.x, t.from.y), b = siteAt(t.to.x, t.to.y), path = car.path;
+    assert.deepEqual(path[0], [a.i, a.j]); assert.deepEqual(path[path.length - 1], [b.i, b.j]);
+    path.slice(1, -1).forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0, 'a car keeps to the streets'));
+    assert.equal(car.city, 'ashport'); assert.equal(car.capo, t.capo);
+  });
+});
+
+test('a car says what it carries and looks the part: a truck for liquor, a car for money', () => {
+  const { cars } = carsOf(play(30)), liquor = cars.find((c) => c.cargo === 'liquor'), cash = cars.find((c) => c.cargo === 'cash');
+  assert.equal(liquor.vehicle, 'truck'); assert.equal(liquor.loop, true); assert.equal(liquor.from, 'still'); assert.equal(liquor.to, 'speakeasy');
+  assert.equal(cash.vehicle, 'car'); assert.equal(cash.to, 'club');
+  assert.notEqual(liquor.color, cash.color);
+});
+
+test('the same month gives the same cars, so a car already on the road is kept', () => {
+  const g = play(30);
+  assert.deepEqual(carsOf(g).cars.map((c) => c.id), carsOf(g).cars.map((c) => c.id));
+  assert.equal(new Set(carsOf(g).cars.map((c) => c.id)).size, carsOf(g).cars.length);
+});
+
+test('what happens in a city lands on the block it names: fire where a place burns, gunfire where one is taken', () => {
+  const p = M.planEmpire(E.view(play(30)), global.AshportWorld.CITIES);
+  const fx = M.effectsTurf([{ type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'repelled', city: 'ashport', x: 3, y: 10 }, { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'force' },
+    { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'bribe' }, { type: 'opened', city: 'ashport', x: 5, y: 10 }, { type: 'bust', city: 'ashport' }, { type: 'rank', city: 'ashport', capo: 'sal' }], p);
+  assert.deepEqual(fx.map((f) => f.kind), ['fire', 'gunfire', 'gunfire', 'promotion', 'promotion', 'police', 'promotion']);
+  assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].city, 'ashport');
+  fx.forEach((f) => assert.ok(typeof f.i === 'number' && typeof f.j === 'number', 'each effect has a lot to stand on'));
+});

@@ -631,7 +631,7 @@ function spawnFx(kind, x, z, h = 1) {
 function effects(list) {
   for (const e of list) {
     const C = CITIES.find(c => c.id === e.city); if (!C) continue;
-    const l = e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
+    const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
     spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1);
   }
 }
