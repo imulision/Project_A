@@ -142,3 +142,13 @@ test('what happens in a city lands on the block it names: fire where a place bur
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].city, 'ashport');
   fx.forEach((f) => assert.ok(typeof f.i === 'number' && typeof f.j === 'number', 'each effect has a lot to stand on'));
 });
+
+test('a route runs along the streets, from one lot to another, with no diagonal', () => {
+  const p = M.planTurf(cityOf(play(1))), a = p.lots[0], b = p.lots[p.lots.length - 1];
+  const onStreet = (q) => q[0] % 4 === 0 || q[1] % 3 === 0;
+  const path = M.route([a.i, a.j], [b.i, b.j]);
+  assert.deepEqual(path[0], [a.i, a.j]);
+  assert.deepEqual(path[path.length - 1], [b.i, b.j]);
+  path.slice(1, -1).forEach((q) => assert.ok(onStreet(q), q + ' is on a street'));
+  for (let k = 1; k < path.length; k++) assert.ok(path[k][0] === path[k - 1][0] || path[k][1] === path[k - 1][1], 'no diagonal');
+});
