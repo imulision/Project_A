@@ -318,14 +318,15 @@
     var cost = price(w, id, way);
     if (!canPay(w, t.cur, cost)) throw new Error('the boss cannot afford to ' + way + ' his way into ' + id);
     pay(w, t.cur, cost);
-    var op = { district: id, city: x.city, way: way, capo: capo, by: by, month: w.month, months: t.months, cost: cost };
+    var op = { district: id, city: x.city, way: way, capo: capo, by: by, month: w.month, months: t.months, cost: cost,
+               odds: odds(w, id, way, capo).odds }; // settled on what the boss was shown, whatever happens meanwhile
     (w.takeovers = w.takeovers || []).push(op);
     return { district: id, way: way, capo: capo, months: t.months, cost: cost };
   }
   function takeovers(w) {
     return (w.takeovers || []).map(function (o) {
       var base = baseFor(w, o.city);
-      return { district: o.district, city: o.city, way: o.way, capo: o.capo, months: o.months, cost: o.cost,
+      return { district: o.district, city: o.city, way: o.way, capo: o.capo, months: o.months, cost: o.cost, odds: o.odds || odds(w, o.district, o.way, o.capo).odds,
                monthsLeft: Math.max(0, o.months - (w.month - o.month)), from: base ? base.id : null };
     });
   }
@@ -333,7 +334,7 @@
     var t = RULES.takeover[o.way], p = placeOf(o.district), c = D.CAPOS[o.capo], rival = cityOf(o.city).rival;
     var who = c.name.split(' ')[0], base = baseFor(w, o.city);
     var e = { type: 'takeover', way: o.way, district: o.district, city: o.city, capo: o.capo };
-    if (odds(w, o.district, o.way, o.capo).odds === 'good') {
+    if ((o.odds || odds(w, o.district, o.way, o.capo).odds) === 'good') {
       install(w, o.district, o.capo, o.by, t.start);
       e.outcome = 'done';
       e.label = o.way === 'force' ? who + '\'s men take ' + p.name + ' from the ' + rival + 's, gun in hand'
