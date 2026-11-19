@@ -115,6 +115,40 @@
     }
   };
   var HOME = 'ashport-hillside';
+  // The men a rival family leans on. Each killing the boss allows takes one of them.
+  var LIEUTENANTS = {
+    Callahan: ['Red Doyle', 'Mickey Flynn', 'Old Brennan'],
+    Northside: ['Stan Wojcik', 'Karl Nowak', 'Leo "the Pole" Baran'],
+    Kessler: ['Otto Kessler', 'Hans Voss', 'Emil Brandt'],
+    Dockers: ['Big Jim Tully', 'Pat Shaughnessy', 'Ned Garrity']
+  };
+  var HISTORY = 24; // months of figures kept for each district
+
+  // --- local men: every district has one the boss can raise to capo there ---
+  var FIRST = ['Frank', 'Joe', 'Pete', 'Lou', 'Eddie', 'Mike', 'Nick', 'Ray', 'Sam', 'Walt', 'Gus', 'Benny', 'Carl', 'Jack', 'Tony', 'Al'];
+  var LAST = ['Russo', 'Malone', 'Novak', 'Ferraro', 'Quinn', 'Schmidt', 'Marino', 'Dolan', 'Kovac', 'Barone', 'Hayes', 'Weiss', 'Conti', 'Brody', 'Lang', 'Greco', 'Walsh', 'Sorel', 'Dunn'];
+  var TASTES = { nightlife: ['speakeasy', 'gambling'], industry: ['still', 'union'], port: ['warehouse', 'fence'], wealth: ['gambling', 'loans'] };
+  function hash(text) {
+    var h = 7;
+    for (var i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) % 104729;
+    return h;
+  }
+  function localId(districtId) { return 'local-' + districtId; }
+  // He knows his streets and nothing else: middling at everything, loyal enough.
+  function makeLocal(p, n) {
+    var h = hash(p.id), top = 'nightlife';
+    Object.keys(p.traits).forEach(function (k) { if (p.traits[k] > p.traits[top]) top = k; });
+    var roll = function (shift, low, span) { return low + Math.floor(h / shift) % span; };
+    return D.addCapo(localId(p.id), {
+      id: localId(p.id), local: p.id, name: FIRST[(h + n) % FIRST.length] + ' ' + LAST[(h * 7 + n) % LAST.length], specialty: 'Local man',
+      muscle: roll(1, 3, 3), business: roll(3, 3, 3), cunning: roll(9, 2, 4), charisma: roll(27, 3, 3),
+      loyalty: roll(81, 55, 20), ambition: roll(243, 30, 30), likes: TASTES[top], refuses: []
+    });
+  }
+  function local(districtId) {
+    if (!placeOf(districtId)) throw new Error('no such district: ' + districtId);
+    return D.CAPOS[localId(districtId)];
+  }
 
   function cityOf(id) {
     for (var i = 0; i < CITIES.length; i++) if (CITIES[i].id === id) return CITIES[i];
@@ -149,8 +183,10 @@
   function named(w) {
     return posts(w).filter(function (n) { return n.by === 'boss'; }).map(function (n) { return { capo: n.capo, post: n.post }; });
   }
-  function mustBeFree(w, capo) {
+  function mustBeFree(w, capo, districtId) {
     if (!D.CAPOS[capo]) throw new Error('unknown capo: ' + capo);
+    var home = D.CAPOS[capo].local;
+    if (home && home !== districtId) throw new Error(D.CAPOS[capo].name + ' only knows ' + placeOf(home).name);
     posts(w).forEach(function (n) { if (n.capo === capo) throw new Error(capo + ' already holds ' + n.post); });
   }
   // The underboss's choice: the free capo whose tastes suit the district
@@ -167,8 +203,7 @@
       });
       if (score > bestScore) { best = key; bestScore = score; }
     });
-    if (!best) throw new Error('nobody left to name in ' + id);
-    return best;
+    return best || localId(id); // no big name left: he raises the local man
   }
   function tableSupport(w) {
     return { bookkeeper: !!w.table.bookkeeper, routes: !!w.table.routes, fixer: !!w.table.fixer };
@@ -190,14 +225,17 @@
   function claim(w, id, capo) {
     var x = district(w, id), p = placeOf(id), underboss = w.underbosses[x.city], by = 'boss';
     if (x.owner === 'family') throw new Error(id + ' is already the family\'s');
-    if (capo) mustBeFree(w, capo);
+    if (capo) mustBeFree(w, capo, id);
     else if (!underboss) throw new Error('name a capo for ' + id + ': the family has no underboss in that city');
     if (!reachable(w, id)) throw new Error(id + ' is out of reach: the family holds nothing next to it');
-    if (w.treasury.dirty < RULES.moveInCost) throw new Error('the boss cannot afford to move into ' + id);
+    if (w.treasury.dirty + w.treasury.clean < RULES.moveInCost) throw new Error('the boss cannot afford to move into ' + id);
     if (!capo) { capo = pickCapo(w, id, underboss); by = underboss; }
     var start = { capo: capo, name: p.name, traits: p.traits, support: tableSupport(w) };
     Object.keys(RULES.foothold).forEach(function (k) { start[k] = RULES.foothold[k]; });
-    w.treasury.dirty -= RULES.moveInCost;
+    // street money first; clean money is good anywhere and covers the rest
+    var street = Math.min(w.treasury.dirty, RULES.moveInCost);
+    w.treasury.dirty -= street;
+    w.treasury.clean -= RULES.moveInCost - street;
     x.owner = 'family';
     x.state = D.createDistrict(start);
     x.appointedBy = by === 'boss' ? null : by;
@@ -216,7 +254,8 @@
   function rivalStrength(w, cityId) {
     cityOf(cityId);
     var base = Math.min(RULES.rivalCap, RULES.rivalStrength + RULES.rivalGrowth * w.month / 12 + ((w.rivalMood || {})[cityId] || 0));
-    return base - ((w.weakened || {})[cityId] > 0 ? RULES.jobs.hit.weakens : 0);
+    var broken = !nextLieutenant(w, cityOf(cityId).rival); // a family with no lieutenant left never recovers
+    return base - (broken || (w.weakened || {})[cityId] > 0 ? RULES.jobs.hit.weakens : 0);
   }
 
   // --- capos who grow: what they practise, their rank, what they unlock ---
@@ -283,16 +322,25 @@
   // --- the violent jobs: a capo proposes, the boss rules ---
   function proposals(w) { return (w.proposals || []).filter(function (p) { return !p.approved; }); }
 
+  function dead(w, family) { return (w.rivalDead || {})[family] || 0; }
+  function nextLieutenant(w, family) { return LIEUTENANTS[family][dead(w, family)] || null; }
   // What the capo of that district would ask leave for this month, if anything.
   function wants(w, x) {
-    var s = x.state, c = D.CAPOS[s.capo], J = RULES.jobs, rival = cityOf(x.city).rival;
-    if (c.muscle >= J.hit.muscle && (s.attacked > 0 || s.share >= D.RULES.rivalWall)) {
-      return { kind: 'hit', target: rival, label: 'Wants to have a ' + rival + ' lieutenant killed',
-               why: s.attacked > 0 ? 'they hit ' + s.name + ' and must answer for it' : 'they hold the streets he wants' };
+    var s = x.state, c = D.CAPOS[s.capo], J = RULES.jobs, rival = cityOf(x.city).rival, man = nextLieutenant(w, rival);
+    if (man && c.muscle >= J.hit.muscle && (s.attacked > 0 || s.share >= D.RULES.rivalWall)) {
+      var left = LIEUTENANTS[rival].length - dead(w, rival);
+      return { kind: 'hit', target: man, family: rival, label: 'Wants ' + man + ' killed, a lieutenant of the ' + rival + 's',
+               why: s.attacked > 0 ? 'they hit ' + s.name + ' and must answer for it' : 'they hold the streets he wants',
+               gain: 'The ' + rival + 's are weaker for ' + J.hit.lasts + ' months' + (left === 1 ? ', and with their last lieutenant gone they never recover' : '; ' + (left - 1) + ' lieutenants left after him'),
+               risk: 'Heat +' + J.hit.heat + ' in ' + s.name + '. If it fails: ' + J.hit.dead + ' of his men dead and the ' + rival + 's strike back',
+               odds: c.muscle + 2 * s.crews >= rivalStrength(w, x.city) + J.hit.edge ? 'good' : 'poor' };
     }
     if (c.ambition >= J.kidnap.ambition && s.traits.wealth >= J.kidnap.wealth && s.profit < J.kidnap.poor) {
       return { kind: 'kidnap', target: 'a rich family of ' + s.name, label: 'Wants to kidnap a rich man\'s son for ransom',
-               why: s.name + ' pays too little and there is money on the hill' };
+               why: s.name + ' pays too little and there is money on the hill',
+               gain: 'A ransom of $' + Math.round(J.kidnap.ransom * s.traits.wealth) + ' in dirty money',
+               risk: 'Heat +' + J.kidnap.heat + ' and Goodwill -' + J.kidnap.goodwill + ' in ' + s.name + '. If it fails: ' + J.kidnap.arrested + ' men arrested and Heat +' + J.kidnap.botchedHeat,
+               odds: c.cunning + c.muscle >= J.kidnap.skill ? 'good' : 'poor' };
     }
     return null;
   }
@@ -305,7 +353,8 @@
       if (!ask) return;
       w.nextProposal = (w.nextProposal || 0) + 1;
       var p = { id: 'p' + w.nextProposal, kind: ask.kind, district: x.id, city: x.city, capo: x.state.capo, target: ask.target,
-                label: ask.label, why: ask.why, month: w.month, approved: false };
+                family: ask.family, label: ask.label, why: ask.why,
+                gain: ask.gain, risk: ask.risk, odds: ask.odds, month: w.month, approved: false };
       w.proposals.push(p);
       events.push({ type: 'proposal', id: p.id, kind: p.kind, district: p.district, city: p.city, capo: p.capo, label: p.label, why: p.why });
     });
@@ -331,15 +380,20 @@
       if (c.muscle + 2 * s.crews >= rivalStrength(w, p.city) + J.edge) {
         e.outcome = 'done';
         w.weakened[p.city] = J.lasts;
+        w.rivalDead = w.rivalDead || {};
+        w.rivalDead[p.family] = dead(w, p.family) + 1;
         s.heat = Math.min(100, s.heat + J.heat);
-        e.label = who + ' gun down a ' + p.target + ' lieutenant';
+        e.label = who + ' gun down ' + p.target;
+        e.effects = [nextLieutenant(w, p.family) ? 'The ' + p.family + 's are weaker for ' + J.lasts + ' months' : 'The ' + p.family + 's have no lieutenant left: they are broken for good',
+                     'Heat +' + J.heat + ' in ' + s.name];
       } else {
         e.outcome = 'failed';
         e.dead = Math.min(J.dead, s.men);
         s.men -= e.dead;
         s.heat = Math.min(100, s.heat + J.botchedHeat);
         s.attacked = RULES.alarm;
-        e.label = who + ' walk into a trap: ' + e.dead + ' dead, and the ' + p.target + 's are coming';
+        e.label = who + ' walk into a trap set by ' + p.target + ': ' + e.dead + ' dead, and the ' + p.family + 's are coming';
+        e.effects = [e.dead + ' men dead', 'Heat +' + J.botchedHeat + ' in ' + s.name, 'The ' + p.family + 's strike back'];
       }
     } else {
       if (c.cunning + c.muscle >= J.skill) {
@@ -349,12 +403,14 @@
         s.heat = Math.min(100, s.heat + J.heat);
         s.goodwill = Math.max(0, s.goodwill - J.goodwill);
         e.label = who + ' take a rich man\'s son: $' + Math.round(e.ransom) + ' paid for his return';
+        e.effects = ['$' + Math.round(e.ransom) + ' of dirty money for ' + s.name, 'Heat +' + J.heat, 'Goodwill -' + J.goodwill];
       } else {
         e.outcome = 'failed';
         e.arrested = Math.min(J.arrested, s.men);
         s.men -= e.arrested;
         s.heat = Math.min(100, s.heat + J.botchedHeat);
         e.label = who + ' bungle a kidnapping: ' + e.arrested + ' arrested, the papers are full of it';
+        e.effects = [e.arrested + ' men arrested', 'Heat +' + J.botchedHeat + ' in ' + s.name];
       }
     }
     return e;
@@ -410,7 +466,7 @@
   function appoint(w, id, capo) {
     var x = district(w, id);
     if (x.owner !== 'family') throw new Error(id + ' is not the family\'s');
-    mustBeFree(w, capo);
+    mustBeFree(w, capo, id);
     x.state.capo = capo;
   }
 
@@ -426,9 +482,20 @@
     shareSupport(w);
   }
 
+  // The figures of the month, kept for the curves of the screen.
+  function remember(w, x, toBoss) {
+    var s = x.state, m = s.last;
+    x.history = x.history || [];
+    x.history.push({ month: w.month, share: s.share, heat: s.heat, goodwill: s.goodwill, men: s.men,
+                     income: m.income, profit: m.profit, toBoss: toBoss });
+    if (x.history.length > HISTORY) x.history.shift();
+  }
+  function history(w, id) { return (district(w, id).history || []).slice(); }
+
   // One month everywhere. Returns what happened, tagged with its place.
   function stepMonth(w) {
     var events = [];
+    w.lastMonth = { dirty: 0, clean: 0 };
     familyDistricts(w).forEach(function (x) {
       var before = { dirty: x.state.boss.dirty, clean: x.state.boss.clean };
       brief(w, x);
@@ -439,6 +506,9 @@
       });
       w.treasury.dirty += x.state.boss.dirty - before.dirty;
       w.treasury.clean += x.state.boss.clean - before.clean;
+      w.lastMonth.dirty += x.state.boss.dirty - before.dirty;
+      w.lastMonth.clean += x.state.boss.clean - before.clean;
+      remember(w, x, x.state.boss.dirty - before.dirty + x.state.boss.clean - before.clean);
       learn(w, x, events);
     });
     w.month += 1;
@@ -518,12 +588,15 @@
       c.districts.forEach(function (p) { w.districts[p.id] = { id: p.id, city: c.id, owner: c.rival, state: null, appointedBy: null }; });
     });
     var home = placeOf(HOME);
+    w.rivalDead = {};
     w.districts[HOME].owner = 'family';
     w.districts[HOME].state = D.createDistrict({ capo: o.capo, name: home.name, traits: home.traits });
     return w;
   }
 
-  var api = { HOME: HOME, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  CITIES.forEach(function (c) { c.districts.forEach(makeLocal); });
+
+  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,

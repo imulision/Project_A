@@ -143,6 +143,11 @@
   function price(d) { return RULES.crate * (1 + gain(d, 'crate')); }
 
   function capoOf(d) { return CAPOS[d.capo]; }
+  // A lesser man joins the table of capos without joining the list of big names.
+  function addCapo(id, card) {
+    if (!CAPOS[id]) Object.defineProperty(CAPOS, id, { value: card, enumerable: false });
+    return CAPOS[id];
+  }
   // The Heat at which a capo stops making noise. The ambitious go past the raid line.
   function nerve(c) { return 30 + c.ambition / 2; }
   function clamp(v) { return Math.max(0, Math.min(100, v)); }
@@ -347,6 +352,25 @@
       return { kind: p.kind, label: p.label, why: p.why, cost: costOf(p, d), cur: p.cur, men: p.men, hire: hire };
     }
     return hold(shortOfMen ? 'wants more men but cannot pay them' : 'nothing worth the money this month');
+  }
+
+  // What the capo is after, for the screen: this month's move if he can make
+  // one, otherwise the thing he wants most and how far his money is from it.
+  function plan(d) {
+    var pick = chooseProject(d), c = capoOf(d), wages = payroll(d), best = null;
+    if (pick.kind !== 'hold') return { kind: pick.kind, label: pick.label, why: pick.why, cost: pick.cost, saved: pick.cost, progress: 1, waiting: null };
+    PROJECTS.forEach(function (p) {
+      if (c.refuses.indexOf(p.like || p.kind) >= 0) return;
+      var weight = p.need(d, c) * (c.likes.indexOf(p.like || p.kind) >= 0 ? RULES.likes : 1);
+      if (weight >= RULES.minNeed && (!best || weight > best.weight)) best = { p: p, weight: weight };
+    });
+    if (!best) return { kind: 'hold', label: pick.label, why: pick.why, cost: 0, saved: 0, progress: 1, waiting: null };
+    var p = best.p, cost = costOf(p, d), hot = !!p.hot && (d.watched > 0 || d.heat > nerve(c));
+    var reserve = p.cur !== 'dirty' || (p.saves && d.profit < RULES.thinProfit) ? 0 : wages;
+    var saved = Math.max(0, Math.min(cost, d[p.cur] - reserve));
+    var short = cost > 0 && saved < cost;
+    return { kind: p.kind, label: p.label, why: p.why, cost: cost, saved: saved, progress: short ? saved / cost : 1,
+             waiting: hot ? 'heat' : short ? 'money' : 'men' };
   }
 
   function projectOf(kind) {
@@ -589,7 +613,7 @@
   }
 
   var api = { RULES: RULES, SITES: SITES, CAPOS: CAPOS, PROJECTS: PROJECTS, createDistrict: createDistrict,
-              chooseProject: chooseProject, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
+              chooseProject: chooseProject, plan: plan, addCapo: addCapo, stepMonth: stepMonth, buildings: buildings, busyMen: busyMen, nerve: nerve, income: income, sideIncome: sideIncome, RACKETS: RACKETS,
               goodwillChange: goodwillChange, streetsChange: streetsChange, trips: trips, flows: flows, FLOWS: FLOWS,
               defence: defence, SECTORS: SECTORS, WHEEL: WHEEL, ABILITIES: ABILITIES, practice: practice };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
