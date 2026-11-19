@@ -357,6 +357,27 @@ function borders(C) {       // district frontiers, drawn on the streets like on 
     }
   }
 }
+// the new game has no districts: who holds each block shows on its streets, and the family's frontier is one bright line.
+// It is its own small group, redrawn alone when the streets change hands, so the buildings are not rebuilt for it.
+const gripKey = p => p.blocks.map(b => (b.grip ? b.grip[0] : '-') + Math.round(b.hold * 2)).join('');
+function turfGround(C) {
+  if (C.turf) { lods.remove(C.turf); dispose(C.turf); }
+  cur = new THREE.Group();
+  const bw = 4 * T, bd = 3 * T, at = (x, y) => (x < 0 || y < 0 || x >= C.bx || y >= C.by) ? null : C.p.blocks[y * C.bx + x];
+  for (const b of C.p.blocks) {
+    if (!b.grip) continue;
+    const ours = b.grip === 'family', x0 = C.ox + b.x * bw, z0 = C.oz + b.y * bd;
+    const col = new THREE.Color(ours ? FAMILY.family : b.grip === 'contested' ? 0xffffff : FAMILY[C.p.rival] || FAMILY.other);
+    const fill = new THREE.Mesh(UNIT, fxMat(null, col, ours ? 0.10 + 0.07 * Math.round(b.hold * 2) : b.grip === 'contested' ? 0.09 : 0.045));
+    fill.rotation.x = -Math.PI / 2; fill.position.set(x0 + bw / 2, 0.128, z0 + bd / 2); fill.scale.set(bw, bd, 1); fill.renderOrder = 3; cur.add(fill);
+    if (!ours) continue;
+    for (const [dx, dy, ax, az, ex, ez] of [[0, -1, x0, z0, x0 + bw, z0], [1, 0, x0 + bw, z0, x0 + bw, z0 + bd], [0, 1, x0, z0 + bd, x0 + bw, z0 + bd], [-1, 0, x0, z0, x0, z0 + bd]]) {
+      const n = at(b.x + dx, b.y + dy);
+      if (!n || n.grip !== 'family') { strip(ax, az, ex, ez, 0.2, borderMat('family', 0), 0.135, 3); strip(ax, az, ex, ez, 1.3, borderMat('family', 1), 0.13, 3); }
+    }
+  }
+  bake(cur); C.turf = cur; C.gripKey = gripKey(C.p); lods.add(cur);
+}
 // far version: plain coloured blocks and a few lights. A whole city is a few thousand triangles.
 const BOX = new THREE.BoxGeometry(1, 1, 1); BOX.translate(0, 0.5, 0); BOX.deleteAttribute('uv');
 const FARMAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
@@ -372,8 +393,9 @@ function buildFar(C) {
   for (const l of C.lots) if (l.shop && hsh(l.j, l.i) < 0.6) pool(l.x, l.z + 0.9, 3.2, l.ours ? 0xffc46a : 0xffa860, l.ours ? 0.6 : 0.3);
   for (const l of C.lots) if (l.site) pool(l.x, l.z + 0.9, 4.5, new THREE.Color(l.site.color), 0.8);     // the family's places show from afar
   bake(cur); C.farBody = new THREE.Group(); C.farBody.add(far, cur);
-  cur = new THREE.Group(); borders(C); bake(cur);
+  cur = new THREE.Group(); if (!C.p.turf) borders(C); bake(cur);
   G.add(C.farBody, cur); lods.add(G); C.far = G;
+  if (C.p.turf) turfGround(C);
 }
 // near version: the real models, one instanced draw call per model and light level
 function buildNear(C) {
@@ -587,7 +609,7 @@ const labels = () => {
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
     const C = CITIES[ci], changed = pc.key !== C.p.key; C.p = pc; C.d = pc.districts; C.held = pc.held;
-    if (!changed) return;
+    if (!changed) { if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); return; }
     if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null;
     nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true;
   });
