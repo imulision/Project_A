@@ -106,6 +106,8 @@
     hitLoot: 0.2,        // share of the stash the rivals carry off
     alarm: 6,            // months a capo stays on his guard after a hit
     grace: 12,           // months the rivals leave a new foothold alone
+    // Teaching the whole family what one man knows: clean $ and months, by ring of the wheel.
+    research: { cost: [3000, 8000, 20000], months: [6, 9, 12] },
     promotionWait: 3,    // months a man waits for the boss's word before he takes his rank himself
     // Places at each rank: so many to start with, and one more for every so many districts held.
     places: { 1: { base: 2, every: 3 }, 2: { base: 1, every: 6 }, 3: { base: 0, every: 8 } },
@@ -401,6 +403,7 @@
   function brief(w, x) {
     var r = record(w, x.state.capo);
     x.state.skills = r.abilities.slice();
+    (w.shared || []).forEach(function (a) { if (x.state.skills.indexOf(a) < 0) x.state.skills.push(a); });
     x.state.rank = r.rank;
   }
   // A month in post: he learns what his district did. Once he has earned the
@@ -511,6 +514,39 @@
     return r.abilities.filter(function (id) { return D.ABILITIES[id].sector === sector; }).length;
   }
 
+  // --- research: the boss pays for the whole family to learn what one man knows ---
+  function ringOf(abilityId) {
+    var x = D.ABILITIES[abilityId];
+    if (!x) throw new Error('no such ability: ' + abilityId);
+    return D.WHEEL[x.sector].map(function (a) { return a.id; }).indexOf(abilityId);
+  }
+  function knownBy(w, abilityId) {
+    return posts(w).filter(function (n) { return person(w, n.capo).abilities.indexOf(abilityId) >= 0; }).map(function (n) { return n.capo; });
+  }
+  function researching(w) {
+    var r = w.research;
+    return r ? { id: r.id, months: r.months, monthsLeft: Math.max(0, r.months - (w.month - r.month)), cost: r.cost } : null;
+  }
+  function research(w, abilityId) {
+    var ring = ringOf(abilityId), cost = RULES.research.cost[ring];
+    if (w.research) throw new Error('the family is already learning ' + w.research.id);
+    if ((w.shared || []).indexOf(abilityId) >= 0) throw new Error('the family already knows ' + abilityId);
+    if (!knownBy(w, abilityId).length) throw new Error('nobody in the family knows ' + abilityId + ' yet');
+    if (w.treasury.clean < cost) throw new Error('research is paid in clean money: $' + cost + ' needed');
+    w.treasury.clean -= cost;
+    w.research = { id: abilityId, month: w.month, months: RULES.research.months[ring], cost: cost };
+  }
+  function runResearch(w, events) {
+    var r = w.research;
+    if (!r || w.month - r.month < r.months) return;
+    w.shared = w.shared || [];
+    w.shared.push(r.id);
+    w.research = null;
+    var a = D.ABILITIES[r.id].ability;
+    events.push({ type: 'research', ability: r.id, sector: D.ABILITIES[r.id].sector, district: HOME, city: w.districts[HOME].city,
+                  label: 'The whole family now knows ' + a.name + ': ' + a.text.toLowerCase() + ', in every district' });
+  }
+
   // The family's wheel: every ability, lit when a man in post holds it.
   function wheel(w) {
     var holders = {}, lit = 0;
@@ -518,10 +554,14 @@
       person(w, n.capo).abilities.forEach(function (id) { (holders[id] = holders[id] || []).push(n.capo); });
     });
     var sectors = D.SECTORS.map(function (k) {
-      return { id: k, name: k.charAt(0).toUpperCase() + k.slice(1), rings: D.WHEEL[k].map(function (a) {
+      return { id: k, name: k.charAt(0).toUpperCase() + k.slice(1), rings: D.WHEEL[k].map(function (a, ring) {
         var by = holders[a.id] || [];
         if (by.length) lit += 1;
-        return { id: a.id, name: a.name, text: a.text, lit: by.length > 0, by: by };
+        var shared = (w.shared || []).indexOf(a.id) >= 0, now = w.research && w.research.id === a.id ? researching(w) : null;
+        if (shared && !by.length) lit += 1;
+        return { id: a.id, name: a.name, text: a.text, lit: by.length > 0 || shared, by: by, shared: shared,
+                 research: { cost: RULES.research.cost[ring], months: RULES.research.months[ring],
+                             open: by.length > 0 && !shared && !w.research, monthsLeft: now ? now.monthsLeft : null } };
       }) };
     });
     return { sectors: sectors, lit: lit, of: D.SECTORS.length * 3 };
@@ -726,6 +766,7 @@
     w.rivalMood = w.rivalMood || {};
     w.nextAttack = w.nextAttack || {};
     runTakeovers(w, events);
+    runResearch(w, events);
     CITIES.forEach(function (c) {
       if (w.month < (w.nextAttack[c.id] || RULES.attackEvery)) return;
       var e = attack(w, c);
@@ -812,7 +853,7 @@
 
   CITIES.forEach(function (c) { c.districts.forEach(makeLocal); });
 
-  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, promotions: promotions, promote: promote, ranks: ranks, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, LIEUTENANTS: LIEUTENANTS, HISTORY: HISTORY, local: local, history: history, research: research, researching: researching, promotions: promotions, promote: promote, ranks: ranks, WAYS: WAYS, price: price, odds: odds, takeover: takeover, takeovers: takeovers, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view, trips: trips, proposals: proposals, rule: rule,

@@ -77,6 +77,7 @@
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
     underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); },
     takeover: function (g, c) { W.takeover(g.world, c.district, c.way, c.capo); },
+    research: function (g, c) { W.research(g.world, c.ability); },
     promote: function (g, c) { record(g, W.promote(g.world, c.capo, c.ability), g.world.month); },
     approve: function (g, c) { W.rule(g.world, c.id, true); },
     refuse: function (g, c) { W.rule(g.world, c.id, false); }
@@ -184,6 +185,15 @@
                monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
     });
   }
+  // What the family is learning now, with its bar, or null.
+  function research(g) {
+    var r = g.world && W.researching(g.world);
+    if (!r) return null;
+    var a = D.ABILITIES[r.id];
+    r.sector = a.sector; r.name = a.ability.name; r.text = a.ability.text;
+    r.progress = Math.min(1, (r.months - r.monthsLeft + g.ticks / TICKS_PER_MONTH) / r.months);
+    return r;
+  }
   // The men who have earned a rank and wait for the boss to choose their ability.
   function promotions(g) {
     if (!g.world) return [];
@@ -252,7 +262,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, promotions: promotions, ranks: ranks, research: research, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);
