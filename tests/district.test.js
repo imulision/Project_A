@@ -341,8 +341,8 @@ test('on the docks a bootlegger ends up fencing what comes off the ships', () =>
 test('a capo sorts out the liquor before he branches out', () => {
   const d = D.createDistrict({ capo: 'danny', dirty: 3000, share: 80, sites: { still: 1, speakeasy: 2 }, ...DOCKS });
   assert.ok(!D.RACKETS.includes(D.chooseProject(d).kind));
-  d.sites.still = 5; d.sites.speakeasy = 5; // now the liquor flows
-  d.sites.gambling = 5; d.sites.loft = 2; d.sites.warehouse = 2; d.crews = 4; d.collectors = 3; d.men = 80;
+  d.sites.still = 7; d.sites.speakeasy = 5; // now the liquor flows
+  d.sites.gambling = 5; d.sites.loft = 2; d.sites.warehouse = 2; d.dirty = 6000; d.crews = 4; d.collectors = 3; d.men = 80;
   assert.ok(D.RACKETS.includes(D.chooseProject(d).kind), D.chooseProject(d).kind);
 });
 
