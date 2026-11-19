@@ -790,3 +790,45 @@ test('a capo left with no still and no money starts again with his own men and h
   D.stepMonth(d);
   assert.ok(d.last.sold > 0);
 });
+
+// --- buildings grow: a capo enlarges his places instead of always opening another ---
+test('every place starts at level 1, and the map is told the level of each building', () => {
+  const d = D.createDistrict({ capo: 'dutch', levels: { still: 2 } });
+  assert.deepEqual([d.levels.still, d.levels.speakeasy], [2, 1]);
+  const b = D.buildings(d);
+  assert.ok(b.filter((x) => x.type === 'still').every((x) => x.level === 2));
+  assert.ok(b.filter((x) => x.type === 'speakeasy').every((x) => x.level === 1));
+});
+
+test('bigger stills make more and bigger speakeasies seat more', () => {
+  const small = D.createDistrict({ capo: 'dutch' }), big = D.createDistrict({ capo: 'dutch', levels: { still: 2, speakeasy: 3 } });
+  D.stepMonth(small); D.stepMonth(big);
+  near(D.flows(big).made, D.flows(small).made * 1.5);
+  near(D.flows(big).seats, D.flows(small).seats * 2);
+});
+
+test('a capo with three stills enlarges them rather than squeeze in a fourth', () => {
+  const d = D.createDistrict({ capo: 'dutch', share: 90, men: 30, dirty: 4000, trucks: 8, cars: 8, sites: { still: 3, speakeasy: 5 } });
+  const pick = D.chooseProject(d);
+  assert.deepEqual([pick.kind, pick.men], ['enlarge-still', 0]);
+  const before = d.dirty;
+  const e = D.stepMonth(d)[0];
+  assert.equal(e.kind, 'enlarge-still');
+  assert.deepEqual([d.levels.still, d.sites.still], [2, 3]);
+  assert.ok(before - d.dirty > 0 || d.last.profit > 0);
+});
+
+test('with only two stills he still opens a third, and nothing grows past level 3', () => {
+  const few = D.createDistrict({ capo: 'dutch', share: 90, men: 30, dirty: 4000, trucks: 8, cars: 8, sites: { still: 2, speakeasy: 5 } });
+  assert.equal(D.chooseProject(few).kind, 'still');
+  const top = D.createDistrict({ capo: 'dutch', share: 100, men: 60, dirty: 4000, trucks: 20, cars: 20, sites: { still: 3, speakeasy: 9 }, levels: { still: 3, speakeasy: 3 } });
+  assert.equal(D.chooseProject(top).kind, 'still');
+});
+
+test('when the last place of a kind is lost, what is rebuilt starts small again', () => {
+  const d = D.createDistrict({ capo: 'sal', heat: 90, sites: { still: 1, speakeasy: 1 }, levels: { still: 3 } });
+  const raid = D.stepMonth(d).find((e) => e.type === 'raid');
+  assert.equal(raid.site, 'still');
+  assert.equal(d.sites.still, 0);
+  assert.equal(d.levels.still, 1);
+});
