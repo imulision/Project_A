@@ -275,8 +275,12 @@
   }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
-    var g = JSON.parse(text);
+    var g;
+    try { g = JSON.parse(text); } catch (e) { throw new Error('this saved game cannot be read'); }
+    if (!g || typeof g !== 'object') throw new Error('this saved game cannot be read');
     if (g.version !== VERSION) throw new Error('this game was saved by another version');
+    // saves made before the building tree carry the same version number, and nothing they lack can be guessed
+    if (g.world && !g.world.tree) throw new Error('this game was saved by an older version of Ashport and cannot be continued');
     return g;
   }
 
