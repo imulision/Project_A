@@ -237,16 +237,18 @@
     w.sectors.forEach(function (s, i) {
       var a0 = i * step + 2, a1 = (i + 1) * step - 2, mid = (a0 + a1) / 2, t = (mid - 90) * Math.PI / 180, c = TRADE[s.id] || '#e8c463';
       s.rings.forEach(function (r, k) {
-        out += '<path data-skill="' + i + ':' + k + '" d="' + arc(a0, a1, 46 + k * 35, 78 + k * 35) + '" fill="' + c + '"' + (r.lit ? ' filter="url(#lit)"' : ' fill-opacity="' + (0.2 - k * 0.04) + '"') + '/>';
+        out += '<path data-skill="' + i + ':' + k + '" d="' + arc(a0, a1, 46 + k * 35, 78 + k * 35) + '" fill="' + c + '"' + (r.lit ? ' filter="url(#lit)"' : ' fill-opacity="' + (0.2 - k * 0.04) + '"') + (r.shared ? ' class="shared"' : r.research && r.research.monthsLeft != null ? ' class="learning"' : '') + '/>';
       });
       out += '<text x="' + (167 * Math.cos(t)).toFixed(1) + '" y="' + (167 * Math.sin(t) + 4).toFixed(1) + '" fill="' + c + '" style="fill:' + c + '">' + esc(s.name) + '</text>';
     });
     return out + '<circle r="38" fill="#0e0e15" stroke="#e8c463" stroke-width="2"/><text class="boss" y="-1">Boss</text><text class="count" y="15">' + w.lit + ' / ' + w.of + '</text></svg>';
   }
   function skillText(w, key) {
-    var p = key.split(':'), s = w.sectors[+p[0]], r = s.rings[+p[1]];
+    var p = key.split(':'), s = w.sectors[+p[0]], r = s.rings[+p[1]], rs = r.research;
     return '<b style="color:' + TRADE[s.id] + '">' + esc(s.name) + ' · ' + esc(r.name) + '</b>' + esc(r.text) + '<br><small style="color:var(--dim)">' +
-      (r.lit ? 'Brought by ' + esc(r.by.map(capoName).join(', ')) : 'Not yet. A capo of yours has to rise in this trade.') + '</small>';
+      (r.shared ? 'Known to the whole family' : r.lit ? 'Brought by ' + esc(r.by.map(capoName).join(', ')) + ': only his district has it' : 'Not yet. A capo of yours has to rise in this trade.') + '</small>' +
+      (rs && rs.monthsLeft != null ? '<div class="move"><span class="gauge">' + I.ring(1 - rs.monthsLeft / rs.months, 'time') + '</span><span>The family is learning it: ' + rs.monthsLeft + ' month' + (rs.monthsLeft > 1 ? 's' : '') + ' left</span></div>'
+        : rs && rs.open && !r.shared ? '<button class="go" data-act="research" data-ability="' + esc(r.id) + '" data-key="' + key + '"' + (G.hud(g).clean >= rs.cost ? '' : ' disabled') + '>' + I.icon('clean') + ' Teach the whole family · ' + money(rs.cost) + ' · ' + rs.months + ' months</button>' : '');
   }
   function men() {      // everyone the family counts on, each named once
     var ids = [], v = G.view(g), add = function (id) { if (id && ids.indexOf(id) < 0) ids.push(id); };
@@ -282,6 +284,7 @@
     if (act === 'close') close();
     else if (act === 'start') { if (order({ type: 'start', capo: b.dataset.capo })) { close(); map.focus('ashport'); toast(capoName(b.dataset.capo) + ' holds Hillside. Tap a district to see it.'); } }
     else if (act === 'pick') sheetPick(b.dataset.order, b.dataset.district, b.dataset.way);
+    else if (act === 'research') { if (order({ type: 'research', ability: b.dataset.ability })) { sheetFamily(); $('skill').innerHTML = skillText(G.wheel(g), b.dataset.key); } }
     else if (act === 'promote') { if (order({ type: 'promote', capo: b.dataset.capo, ability: b.dataset.ability })) sheetPromotions(); }
     else if (act === 'new') { forget(); location.reload(); }
     else if (act === 'approve' || act === 'refuse') { if (order({ type: act, id: b.dataset.id })) sheetProposals(); }

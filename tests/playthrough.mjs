@@ -103,6 +103,9 @@ await page.click('#family');
 assert.equal(await page.locator('#sheet .wheel path').count(), 18, 'the wheel has 18 parts');
 await page.locator('#sheet .wheel path').first().click();
 assert.match(await page.textContent('#skill'), /Liquor/, 'touching a part says what it brings');
+// a trade one man knows can be taught to the whole family, for clean money and months
+const known = await page.evaluate(() => { const w = AshportGame.wheel(window.__ashport.game()); let key = null; w.sectors.forEach((s, i) => s.rings.forEach((r, k) => { if (r.lit && !r.shared && !key) key = i + ':' + k; })); return key; });
+if (known) { await page.locator('#sheet .wheel path[data-skill="' + known + '"]').click(); assert.equal(await page.locator('#skill [data-act=research]').count(), 1, 'what one capo knows can be taught to the family'); }
 assert.ok(await page.locator('#sheet .card').count() >= 2, 'the men of the family are listed with their rank');
 assert.ok(await page.locator('#sheet .pyr .slot').count() >= 3, 'the family is drawn as a pyramid, free places included');
 await shot('6-family');
