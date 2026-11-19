@@ -66,6 +66,16 @@ test('what the boss cannot pay cannot be pressed, and the sheet says what is mis
   assert.match(html, /short/i);
 });
 
+test('a city with every seat taken cannot take the man in, and says what would open a seat', () => {
+  const { g, v } = play(some('doors'));
+  const city = v.cities.find((c) => c.doors.length);
+  city.seats = { taken: 3, total: 3 };
+  const html = C.requests(v, Object.assign({}, E.hud(g), { dirty: 99999 }));
+  assert.match(acts(html, 'seat')[0], /disabled/);
+  assert.match(html, /No seat left in /);
+  assert.match(html, /key place/);
+});
+
 test('two capos at odds: both faces, one button each', () => {
   const { g, v } = play(some('feuds'));
   const city = v.cities.find((c) => c.feuds.length), f = city.feuds[0];
