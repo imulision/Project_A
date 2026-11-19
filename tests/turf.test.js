@@ -703,6 +703,7 @@ const yesMan = (start, months = 240) => {
       if (e.type === 'learned') seen.learned.push(m);
     }
     for (const a of T.asks(c)) if (T.funds(f) >= a.cost) T.answer(c, f, a.id, true);
+    for (const q of T.feuds(c)) T.rule(c, f, q.id, f.men[q.a].rank >= f.men[q.b].rank ? q.a : q.b);
     for (const d of T.doors(c, f)) {
       const s = T.seats(c), spot = T.spots(c).find((q) => T.grip(c, q.x, q.y) === null) || T.spots(c)[0];
       if (T.funds(f) >= d.cost && s.taken < s.total && spot) { T.welcome(c, f, d.capo, spot.x, spot.y); seen.men.push(m); }
@@ -725,7 +726,7 @@ test('twenty years of saying yes, whoever the first capo is: slow at first, neve
     assert.ok(g.share[20] >= g.share[5], start + ': it grows');
     assert.ok(g.men.length >= 2, start + ': ' + g.men.length + ' men joined');
     assert.ok(g.men[0] >= 12, start + ': nobody joins in the first year');
-    assert.ok(g.learned.length >= 3, start + ': ' + g.learned.length + ' trades learned');
+    assert.ok(g.learned.length >= 2, start + ': ' + g.learned.length + ' trades learned');
     assert.ok(!g.keys.length || g.keys[0] >= 60, start + ': no key place falls in the first five years');
   }
 });
@@ -995,4 +996,176 @@ test('clean money pays for anything dirty money pays for, once the dirty runs ou
   s.f.dirty = 0; s.f.clean = ask.cost + 1;
   T.answer(s.c, s.f, ask.id, true);
   assert.equal(s.f.clean, 1);
+});
+
+// --- capos who share a city step on each other's toes ---
+
+// Dutch and Danny with their clubs side by side or far apart, and money to open places.
+const neighbours = (gap, cash = 3000) => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch').cash = cash;
+  T.settle(c, 'danny', 2 + gap, 2); T.join(f, 'danny').cash = cash;
+  return { c, f };
+};
+const grudge = (c, f) => (T.grudges(c, f)[0] || { level: 0 }).level;
+
+test('two capos far apart never rub', () => {
+  const { c, f } = neighbours(9);
+  year(c, f, 6);
+  assert.deepEqual(T.grudges(c, f), []);
+  assert.deepEqual(T.feuds(c), []);
+});
+
+test('a capo who opens a place on a neighbour\'s doorstep leaves a grudge between them', () => {
+  const { c, f } = neighbours(2);
+  const events = year(c, f, 3);
+  assert.ok(events.some((e) => e.type === 'opened'));
+  const g = T.grudges(c, f)[0];
+  assert.deepEqual([g.a, g.b].sort(), ['danny', 'dutch']);
+  assert.ok(g.level >= 1 && g.level < T.RULES.feud);
+  assert.equal(g.feud, T.RULES.feud);
+});
+
+test('a grudge cools when they leave each other alone', () => {
+  const { c, f } = neighbours(9);
+  c.grudge = { 'danny|dutch': 3 };
+  f.tech = {};
+  year(c, f, T.RULES.cool);
+  assert.equal(grudge(c, f), 2);
+  year(c, f, T.RULES.cool * 3);
+  assert.deepEqual(T.grudges(c, f), []);
+});
+
+test('enough of it and a feud breaks out: both men send the boss half of what they owe until he rules', () => {
+  const calm = neighbours(9, 0), sour = neighbours(9, 0);
+  calm.f.tech = {}; sour.f.tech = {};
+  sour.c.grudge = { 'danny|dutch': T.RULES.feud };
+  const events = T.stepMonth(sour.c, sour.f); T.stepMonth(calm.c, calm.f);
+  const e = events.find((q) => q.type === 'feud');
+  assert.deepEqual([e.a, e.b].sort(), ['danny', 'dutch']);
+  assert.ok(e.label);
+  const feud = T.feuds(sour.c)[0];
+  assert.deepEqual([feud.a, feud.b].sort(), ['danny', 'dutch']);
+  const s0 = sour.f.dirty, c0 = calm.f.dirty;
+  const next = T.stepMonth(sour.c, sour.f); T.stepMonth(calm.c, calm.f);
+  assert.ok(calm.f.dirty - c0 > 0);
+  assert.ok(Math.abs((sour.f.dirty - s0) - (calm.f.dirty - c0) / 2) < 0.01, 'half the tribute');
+  assert.ok(!next.some((q) => q.type === 'feud'), 'told once');
+});
+
+test('the boss rules for one man: the feud ends, and the other keeps his money to himself for a year', () => {
+  const { c, f } = neighbours(9, 0);
+  f.tech = {};
+  c.grudge = { 'danny|dutch': T.RULES.feud };
+  T.stepMonth(c, f);
+  const feud = T.feuds(c)[0];
+  assert.throws(() => T.rule(c, f, feud.id, 'sal'), /not part of/);
+  assert.throws(() => T.rule(c, f, 'nothing', 'dutch'), /no such feud/);
+  T.rule(c, f, feud.id, 'dutch');
+  assert.deepEqual(T.feuds(c), []);
+  assert.deepEqual(T.grudges(c, f), []);
+  const before = f.dirty, cash = f.men.danny.cash;
+  T.stepMonth(c, f);
+  const fromDutch = f.dirty - before;
+  assert.ok(fromDutch > 0, 'Dutch pays in full');
+  assert.ok(Math.abs((f.men.danny.cash - cash) - T.RULES.club) < 0.01, 'Danny keeps all his club makes');
+  assert.equal(T.view(c, f).capos.find((k) => k.id === 'danny').sulks, T.RULES.sulks - 1);
+  year(c, f, T.RULES.sulks);
+  const d = f.dirty; T.stepMonth(c, f);
+  assert.ok(f.dirty - d >= 2 * T.RULES.club * T.RULES.tribute - 0.01, 'then both pay again');
+});
+
+// --- what moves in the streets this month, for the map ---
+
+test('the trips of a city: liquor from the stills to the bars, takings to the club, dirty money to the laundry, crews to what they take', () => {
+  const c = town(), f = family({ dirty: 5000 });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 3, 3, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  T.open(c, 10, 4, { owner: 'Callahan', kind: 'speakeasy' });
+  c.ops.push({ capo: 'dutch', x: 10, y: 4, way: 'buy', kind: 'speakeasy', cost: 1, month: 0, months: 3 });
+  const trips = T.trips(c, f), of = (kind) => trips.filter((t) => t.kind === kind);
+  assert.deepEqual(of('liquor'), [{ kind: 'liquor', cargo: 'liquor', capo: 'dutch', from: { x: 8, y: 2 }, to: { x: 3, y: 2 } }]);
+  assert.deepEqual(of('takings').map((t) => [t.from.x, t.from.y, t.to.x, t.to.y, t.cargo]).sort(), [[3, 2, 2, 2, 'cash'], [3, 3, 2, 2, 'cash'], [8, 2, 2, 2, 'cash']]);
+  assert.deepEqual(of('wash'), [{ kind: 'wash', cargo: 'cash', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 3 } }]);
+  assert.deepEqual(of('crew'), [{ kind: 'crew', cargo: 'buy', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 10, y: 4 } }]);
+  f.dirty = 0;
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'wash'), [], 'nothing to wash, nobody drives to the laundry');
+  assert.deepEqual(T.view(c, f).trips, T.trips(c, f));
+});
+
+test('each bar is served by the nearest still, and a bar with no still gets no truck', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 5, 2); T.join(f, 'dutch');
+  T.open(c, 1, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'liquor'), []);
+  T.open(c, 0, 4, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 10, 1, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.open(c, 9, 4, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  const from = (x, y) => T.trips(c, f).find((t) => t.kind === 'liquor' && t.to.x === x && t.to.y === y).from;
+  assert.deepEqual(from(1, 1), { x: 0, y: 4 });
+  assert.deepEqual(from(9, 4), { x: 10, y: 1 });
+});
+
+// --- the fourth door: turning a rival's lieutenant ---
+
+const lieutenants = () => Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].lieutenant);
+// Ashport with the Callahans in place and Dutch landed, the family rich.
+const rivalTown = () => {
+  const c = ashport(), f = rich();
+  T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+  const l = T.landing(c); T.settle(c, 'dutch', l.x, l.y); T.join(f, 'dutch');
+  return { c, f };
+};
+
+test('the family in place has three lieutenants, and every one of its places but the key places answers to one of them', () => {
+  const { c } = rivalTown();
+  assert.equal(lieutenants().length, 3);
+  assert.ok(lieutenants().every((id) => T.PEOPLE[id].lieutenant === 'Callahan' && T.tradeOf(id)));
+  const theirs = rivals(c).filter((p) => p.kind !== 'key');
+  assert.ok(theirs.every((p) => lieutenants().includes(p.man)));
+  for (const id of lieutenants()) assert.ok(theirs.filter((p) => p.man === id).length >= 3, id + ' holds a real zone');
+  assert.ok(rivals(c).filter((p) => p.kind === 'key').every((p) => !p.man));
+  assert.deepEqual(T.view(c, T.createFamily()).lieutenants.map((l) => l.id).sort(), lieutenants().sort());
+});
+
+test('a lieutenant listens only once the family holds a real share of the city, and he costs a fortune', () => {
+  const { c, f } = rivalTown();
+  assert.ok(!T.doors(c, f).some((d) => d.door === 'poach'));
+  for (let x = 0; x < 20; x += 2) for (let y = 0; y < 12; y += 3) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  assert.ok(T.share(c).family >= T.RULES.turn);
+  const d = T.doors(c, f).filter((q) => q.door === 'poach');
+  assert.ok(d.length >= 1);
+  assert.equal(d[0].by, 'Callahan');
+  assert.equal(d[0].cost, T.RULES.doors.poach);
+  assert.ok(d[0].cost > T.RULES.doors.name * 2);
+  assert.ok(d[0].places >= 1, 'the card says what he brings');
+});
+
+test('turned, he crosses with every place he ran: his best one becomes his club', () => {
+  const { c, f } = rivalTown();
+  for (let x = 0; x < 20; x += 2) for (let y = 0; y < 12; y += 3) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  const d = T.doors(c, f).find((q) => q.door === 'poach');
+  const his = rivals(c).filter((p) => p.man === d.capo), before = T.hold(c, his[0].x, his[0].y);
+  T.welcome(c, f, d.capo);
+  assert.equal(f.dirty, 20000 - d.cost);
+  const now = T.places(c, d.capo);
+  assert.equal(now.length, his.length);
+  assert.ok(now.every((p) => p.owner === 'family'));
+  assert.equal(now.filter((p) => p.kind === 'club').length, 1);
+  const after = T.hold(c, his[0].x, his[0].y);
+  assert.ok(after.family > before.family && after.rival < before.rival, 'his streets change hands');
+  assert.ok(f.men[d.capo]);
+  assert.ok(!T.doors(c, f).some((q) => q.capo === d.capo));
+  assert.ok(!rivals(c).some((p) => p.man === d.capo));
+  assert.doesNotThrow(() => year(c, f, 12));
+});
+
+test('a place the Callahans open later answers to the lieutenant next door', () => {
+  const { c, f } = rivalTown();
+  const before = rivals(c).length;
+  year(c, f, T.RULES.rivalGrows * 2);
+  assert.ok(rivals(c).length > before || T.share(c).rival > 0);
+  assert.ok(rivals(c).filter((p) => p.kind !== 'key').every((p) => lieutenants().includes(p.man)));
 });

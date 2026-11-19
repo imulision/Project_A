@@ -20,7 +20,7 @@
   var BLOCK = { w: 5, h: 6 }; // blocks under each street name
   var RIVAL_PLACES = 30;      // places the family in place holds on top of the key places
   var NAMES = ['sal', 'mae', 'dutch', 'tommy', 'vince', 'danny']; // the six a boss can start with
-  var STOPS = { asks: true, knocks: true }; // what waits for the boss's word stops the clock
+  var STOPS = { asks: true, knocks: true, feud: true }; // what waits for the boss's word stops the clock
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   function dateOf(month) { return MONTHS[month % 12] + ' ' + (FIRST_YEAR + Math.floor(month / 12)); }
@@ -106,6 +106,12 @@
       record(g, { type: 'welcomed', capo: o.capo, city: c.id, x: o.x, y: o.y,
                   label: T.person(o.capo).name + ' joins the family and opens his club in ' + T.zoneOf(c, o.x, o.y).name }, g.month);
     },
+    // two capos are at each other's throats: the boss rules for one of them
+    rule: function (g, o) {
+      var c = cityOf(g, o.city), r = T.rule(c, g.family, o.id, o.winner);
+      record(g, { type: 'ruled', city: c.id, winner: r.winner, loser: r.loser,
+                  label: 'You rule for ' + T.person(r.winner).name + '. ' + T.person(r.loser).name + ' will not forget it' }, g.month);
+    },
     research: function (g, o) {
       T.research(g.family, o.building);
       record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + D.SITES[o.building].name }, g.month);
@@ -144,7 +150,7 @@
     g.cities.forEach(function (c) {
       var s = T.share(c), n = c.w * c.h, k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
-      pending += T.asks(c).length + T.doors(c, g.family).length;
+      pending += T.asks(c).length + T.doors(c, g.family).length + T.feuds(c).length;
       seats.taken += k.taken; seats.total += k.total;
     });
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
