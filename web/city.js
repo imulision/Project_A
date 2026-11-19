@@ -51,7 +51,7 @@
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
     $('sub').textContent = picking ? 'Choose a street' : h.paused ? (h.pending ? 'Waiting for your word' : 'Paused') : 'Your capos are at work';
-    $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club. Not a street the rivals hold.</span><button data-unpick="1">Cancel</button></div>'
+    $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club: one of the lit streets.</span><button data-unpick="1">Cancel</button></div>'
       : h.pending ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word</div>' : '';
   }
   function toast(text, bad) {
@@ -84,7 +84,14 @@
   }
   document.addEventListener('click', function (e) { var el = e.target.closest('[data-tip]'); if (el) tip(el); else $('tip').classList.remove('on'); }, true);
 
-  function pick(from, city, capo) { picking = { from: from, city: city, capo: capo }; close(); map.focus(city); showHud(); }
+  // While a club is being placed, the streets where it can open are lit on the ground.
+  function spotsOf(city) { var raw = g.cities.filter(function (q) { return q.id === city; })[0]; return raw ? T.spots(raw) : []; }
+  function pick(from, city, capo) { picking = { from: from, city: city, capo: capo }; close();
+    var list = spotsOf(city), c = view.cities.filter(function (q) { return q.id === city; })[0], k = c && c.capos[0], best = null;
+    // the camera goes to the lit streets nearest the family's first club; in a city where it has nobody, to the whole city
+    if (k) list.forEach(function (s) { var d = Math.abs(s.x - k.x) + Math.abs(s.y - k.y); if (!best || d < best.d) best = { d: d, s: s }; });
+    map.spots(city, list); if (best) map.focus(city, zoneId(city, best.s.x, best.s.y)); else map.focus(city); showHud(); }
+  function unpick() { picking = null; map.spots(); }
   $('sheet').addEventListener('click', function (e) {
     var face = e.target.closest('[data-face]');
     if (face) { [].forEach.call($('sheet').querySelectorAll('.facebtn'), function (x) { x.classList.toggle('on', x === face); });
@@ -110,7 +117,7 @@
     else if (act === 'new') { forget(); location.reload(); }
   });
   $('veil').addEventListener('click', function (e) { if (e.target === $('veil') && g.started) close(); });
-  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-unpick]')) { picking = null; showHud(); requests(); } else if (e.target.closest('[data-requests]')) requests(); });
+  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-unpick]')) { unpick(); showHud(); requests(); } else if (e.target.closest('[data-requests]')) requests(); });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
   $('speed').onclick = function () { if (!g.started) return; var s = E.SPEEDS; E.command(g, { type: 'speed', speed: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
@@ -131,10 +138,9 @@
     var c = view.cities.filter(function (q) { return q.id === hit.city; })[0], inside = c && hit.bx >= 0 && hit.by >= 0 && hit.bx < c.w && hit.by < c.h;
     if (picking) {
       if (hit.city !== picking.city || !hit.near || !inside) return map.focus(picking.city, inside && hit.city === picking.city ? zoneId(hit.city, hit.bx, hit.by) : undefined);
-      var raw = g.cities.filter(function (q) { return q.id === picking.city; })[0];
-      if (!T.spots(raw).some(function (s) { return s.x === hit.bx && s.y === hit.by; })) return toast('He cannot open there: pick an empty street the rivals do not hold.', true);
+      if (!spotsOf(picking.city).some(function (s) { return s.x === hit.bx && s.y === hit.by; })) return toast('He cannot open there: pick one of the lit streets.', true);
       var who = picking.capo;
-      if (order({ type: 'welcome', city: picking.city, from: picking.from, capo: who, x: hit.bx, y: hit.by })) { picking = null; toast(g.journal[g.journal.length - 1].label + '.'); answered(); }
+      if (order({ type: 'welcome', city: picking.city, from: picking.from, capo: who, x: hit.bx, y: hit.by })) { unpick(); toast(g.journal[g.journal.length - 1].label + '.'); answered(); }
       return;
     }
     if (!hit.near || !inside) return map.focus(hit.city, inside ? zoneId(hit.city, hit.bx, hit.by) : undefined);

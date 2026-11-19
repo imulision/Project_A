@@ -31,10 +31,11 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
       else if (rule) { seen.rule++; rule.click(); }
       else if (seat) {
         seat.click();
+        seen.lit = A.map().stats().spots;      // the streets on offer are lit while he chooses
         const p = A.picking(), raw = A.game().cities.find((c) => c.id === p.city), club = A.view().cities.find((c) => c.id === p.city).capos[0];
         const spot = AshportTurf.spots(raw).sort((a, b) => Math.abs(a.x - club.x) + Math.abs(a.y - club.y) - Math.abs(b.x - club.x) - Math.abs(b.y - club.y))[2];
         A.tap({ city: p.city, bx: spot.x, by: spot.y, near: true });
-        if (!A.picking()) seen.seat++;
+        if (!A.picking()) seen.seat++; seen.out = A.map().stats().spots;
       }
       else { seen.waited++; q('[data-act=close]').click(); if (A.game().paused) document.getElementById('pause').click(); }
     }
@@ -75,6 +76,7 @@ await months(240, 'seat');
 const seen = await page.evaluate(() => window.__seen);
 assert.ok(seen.seat >= 1, 'a man at the door was given a street (' + JSON.stringify(seen) + ')');
 assert.match(await hud(), / \| 2 \/ \d+$/, 'the family has two capos');
+assert.ok(seen.lit > 0 && seen.out === 0, 'the streets where a club can open are lit during the choice, and put out after (' + seen.lit + ', ' + seen.out + ')');
 await months(6);
 await still();
 await shot('c3-two-capos');
