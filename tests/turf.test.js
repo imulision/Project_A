@@ -228,3 +228,109 @@ test('a capo with nothing but his club and empty pockets still gets started', ()
   const opened = year(c, f, 24).filter((e) => e.type === 'opened');
   assert.ok(opened.length >= 1, 'his club pays for a first place within two years');
 });
+
+// --- the rivals: they were there first, they grow, and they answer ---
+const ashport = () => T.createCity({ id: 'ashport', w: 20, h: 12, zones: [
+  ['Uptown', 1.2, 0, 0, 1.5], ['Hillside', 1, 0.4, 0, 1.2], ['Market Street', 1.5, 0.5, 0, 1], ['Union Station', 0.8, 1, 0.8, 0.8],
+  ['Little Calabria', 1.2, 0.5, 0, 0.5], ['Canal Street', 1, 1, 0.8, 0.5], ['Stockyards', 0.5, 1.5, 0.5, 0.5], ['The Docks', 0.8, 1.2, 1.5, 0.5],
+].map((z, i) => ({ name: z[0], x0: (i % 4) * 5, y0: Math.floor(i / 4) * 6, x1: (i % 4) * 5 + 4, y1: Math.floor(i / 4) * 6 + 5,
+                   traits: { nightlife: z[1], industry: z[2], port: z[3], wealth: z[4] } })) });
+const rivals = (c) => T.places(c).filter((p) => p.owner !== 'family');
+
+test('a rival family is seeded across the city, the same way every time', () => {
+  const a = ashport(), b = ashport();
+  T.seed(a, 'Callahan', 30); T.seed(b, 'Callahan', 30);
+  assert.equal(rivals(a).length, 30);
+  assert.deepEqual(rivals(a), rivals(b));
+  assert.ok(rivals(a).every((p) => p.owner === 'Callahan' && T.TERRAIN[p.kind]));
+  assert.ok(T.share(a).rival > 40, 'they hold much of the city: ' + Math.round(T.share(a).rival));
+  assert.equal(a.rival, 'Callahan');
+});
+
+test('left alone, the rivals keep opening places on the streets they hold, up to a point', () => {
+  const c = ashport(), f = family();
+  T.seed(c, 'Callahan', 20);
+  year(c, f, 60);
+  const five = rivals(c).length;
+  assert.ok(five > 20, five + ' places after five years');
+  year(c, f, 600);
+  assert.ok(rivals(c).length <= T.RULES.rivalMost * 240 / 100 + 1, 'they never fill the whole city');
+});
+
+test('the rivals burn out a place opened on their streets, and leave alone one deep in the family\'s', () => {
+  const c = ashport(), f = family();
+  T.seed(c, 'Callahan', 30);
+  const theirs = rivals(c)[0];
+  const spot = [[1, 0], [0, 1], [-1, 0], [0, -1]].map(([dx, dy]) => [theirs.x + dx, theirs.y + dy]).find(([x, y]) => x >= 0 && y >= 0 && x < 20 && y < 12 && !T.at(c, x, y));
+  T.join(f, 'mae');
+  T.open(c, spot[0], spot[1], { owner: 'family', kind: 'rented', capo: 'mae' });
+  const events = year(c, f, T.RULES.rivalEvery + 1);
+  const burnt = events.find((e) => e.type === 'burnt');
+  assert.ok(burnt, 'they come for it');
+  assert.deepEqual([burnt.x, burnt.y, burnt.capo, burnt.by], [spot[0], spot[1], 'mae', 'Callahan']);
+  assert.equal(T.at(c, spot[0], spot[1]), null);
+
+  const quiet = town(), g = family();
+  T.settle(quiet, 'mae', 2, 3); T.join(g, 'mae');
+  T.open(quiet, 11, 0, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.equal(year(quiet, g, 36).filter((e) => e.type === 'burnt').length, 0, 'too far to bother');
+});
+
+test('a hard man holds a street where a bookkeeper loses it', () => {
+  const front = (capo) => {
+    const c = town(), f = family();
+    T.settle(c, capo, 3, 3); T.join(f, capo);
+    f.men[capo].cash = -100000; // he opens nothing: we watch one place
+    T.open(c, 5, 3, { owner: 'family', kind: 'still', capo });
+    T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+    return year(c, f, 24);
+  };
+  assert.ok(front('mae').some((e) => e.type === 'burnt'));
+  assert.ok(!front('sal').some((e) => e.type === 'burnt'));
+  assert.ok(front('sal').some((e) => e.type === 'repelled'), 'Sal\'s men throw them back, and it shows');
+});
+
+test('each capo takes a rival\'s place his own way', () => {
+  assert.equal(T.wayOf('sal'), 'force');
+  assert.equal(T.wayOf('vince'), 'force');
+  assert.equal(T.wayOf('tommy'), 'bribe');
+  assert.equal(T.wayOf('mae'), 'buy');
+  assert.equal(T.wayOf('dutch'), 'buy');
+});
+
+test('hemmed in, a capo goes for the rival\'s place next door, and it takes months', () => {
+  const c = town(), f = family();
+  T.settle(c, 'sal', 0, 0); T.join(f, 'sal');
+  // every free block around him is taken by his own places: only the rival's bar is left to go for
+  for (const [x, y] of [[1, 0], [0, 1], [1, 1], [2, 0], [0, 2]]) T.open(c, x, y, { owner: 'family', kind: 'loans', capo: 'sal' });
+  for (const [x, y] of [[2, 1], [1, 2], [3, 0], [3, 1], [0, 3], [1, 3], [3, 2], [2, 3], [3, 3]]) T.open(c, x, y, { owner: 'Callahan', kind: 'speakeasy' });
+  T.open(c, 2, 2, { owner: 'Callahan', kind: 'speakeasy' });
+  f.men.sal.cash = 50000; f.men.sal.rank = 3;
+  const w = T.wants(c, 'sal', { rank: 3, tech: ALL() });
+  assert.equal(w.move, 'take');
+  assert.equal(w.way, 'force');
+  assert.equal(T.at(c, w.x, w.y).owner, 'Callahan');
+  const first = T.stepMonth(c, f);
+  assert.ok(first.some((e) => e.type === 'moving' && e.way === 'force'));
+  assert.equal(T.takes(c).length, 1);
+  assert.deepEqual(Object.keys(T.takes(c)[0]).sort(), ['capo', 'cost', 'months', 'monthsLeft', 'way', 'x', 'y']);
+  const later = year(c, f, T.RULES.take.force.months);
+  const taken = later.find((e) => e.type === 'taken');
+  assert.ok(taken);
+  assert.deepEqual([T.at(c, taken.x, taken.y).owner, T.at(c, taken.x, taken.y).capo], ['family', 'sal']);
+});
+
+test('ten years in Ashport against the Callahans: a real foothold, never the whole city', () => {
+  const c = ashport(), f = family();
+  T.seed(c, 'Callahan', 30);
+  const spot = T.landing(c);
+  T.settle(c, 'dutch', spot.x, spot.y); T.join(f, 'dutch');
+  const first = year(c, f, 12);
+  const opened = first.filter((e) => e.type === 'opened').length;
+  assert.ok(opened >= 2 && opened <= 5, opened + ' places opened the first year');
+  const rest = year(c, f, 108);
+  const s = T.share(c);
+  assert.ok(s.family >= 8 && s.family <= 35, 'the family holds ' + Math.round(s.family) + '% after ten years');
+  assert.ok(s.rival >= 30, 'the Callahans still hold ' + Math.round(s.rival) + '%');
+  assert.ok(first.concat(rest).some((e) => e.type === 'burnt' || e.type === 'repelled'), 'and there was a fight');
+});
