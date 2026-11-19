@@ -36,7 +36,7 @@
     v.cities.forEach(function (c) { total += c.districts.length; held += c.held; });
     $('held').textContent = held + ' / ' + total;
     $('sub').textContent = h.paused ? 'Paused' : 'Your capos are at work';
-    $('alerts').innerHTML = h.alerts.slice(0, 2).map(function (a) { return '<div data-district="' + esc(a.district) + '">' + esc(a.text) + '</div>'; }).join('');
+    $('alerts').innerHTML = (h.pending ? '<div data-requests="1" style="border-color:var(--accent)">' + h.pending + (h.pending > 1 ? ' capos wait' : ' capo waits') + ' for your answer</div>' : '') + h.alerts.slice(0, 2).map(function (a) { return '<div data-district="' + esc(a.district) + '">' + esc(a.text) + '</div>'; }).join('');
   }
   function toast(text, bad) {
     var e = document.createElement('div'); e.textContent = text; if (bad) e.className = 'bad';
@@ -100,6 +100,15 @@
       (list.length ? list.map(function (c) { return card(c, orderType + ':' + id, 'Name ' + c.name.split(' ')[0]); }).join('') : '<p>Every man you trust already has a post.</p>') +
       '<div class="acts"><button data-act="close">Cancel</button></div>');
   }
+  // The capos propose, the boss decides: a killing or a kidnapping never happens without his word.
+  function sheetProposals() {
+    var list = G.proposals(g); if (!list.length) return close();
+    open('<h2>Your word is needed</h2>' + list.map(function (p) {
+      return '<div class="card"><h3>' + esc(p.capoName) + '</h3><div class="who">' + esc(p.place) + '</div><div class="mv">' + esc(p.label) + '</div>' +
+        '<div class="st">Why: ' + esc(p.why) + '<br>Target: ' + esc(p.target) + '<br>He waits ' + p.monthsLeft + ' more month' + (p.monthsLeft > 1 ? 's' : '') + ' for an answer.</div>' +
+        '<div class="acts"><button class="go" data-act="approve" data-id="' + esc(p.id) + '">Approve</button><button data-act="refuse" data-id="' + esc(p.id) + '">Refuse</button></div></div>'; }).join('') +
+      '<div class="acts"><button data-act="close">Decide later</button></div>');
+  }
   function sheetJournal() {
     open('<h2>Journal</h2><ul class="list">' + (g.journal.length ? g.journal.slice(0, 40).map(function (e) {
       return '<li>' + esc(e.label) + '<small>' + esc(e.date) + ' · ' + esc(e.place) + (e.why ? ' · ' + esc(e.why) : '') + '</small></li>'; }).join('') : '<li>Nothing has happened yet</li>') +
@@ -113,10 +122,12 @@
     else if (act === 'start') { if (order({ type: 'start', capo: b.dataset.capo })) { close(); map.focus('ashport'); toast(capoName(b.dataset.capo) + ' holds Hillside. Tap a district to see it.'); } }
     else if (act === 'pick') sheetPick(b.dataset.order, b.dataset.district);
     else if (act === 'new') { forget(); location.reload(); }
+    else if (act === 'approve' || act === 'refuse') { if (order({ type: act, id: b.dataset.id })) sheetProposals(); }
     else { var parts = act.split(':'); if (order({ type: parts[0], district: parts[1], capo: b.dataset.capo })) { close(); toast(capoName(b.dataset.capo) + (parts[0] === 'claim' ? ' moves in.' : ' takes over.')); } }
   });
   $('veil').addEventListener('click', function (e) { if (e.target === $('veil') && g.started) close(); });
-  $('alerts').addEventListener('click', function (e) { var a = e.target.closest('[data-district]'); if (a) { map.focus(a.dataset.district.split('-')[0], a.dataset.district); sheetDistrict(a.dataset.district); } });
+  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-requests]')) return sheetProposals();
+    var a = e.target.closest('[data-district]'); if (a) { map.focus(a.dataset.district.split('-')[0], a.dataset.district); sheetDistrict(a.dataset.district); } });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
@@ -148,8 +159,9 @@
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.world.month, events = G.tick(g);
     if (g.world.month === before) return;
-    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid') toast(e.label, true); });
+    events.forEach(function (e) { if (e.type === 'attack' || e.type === 'raid' || e.type === 'job') toast(e.label, e.type !== 'job' || e.outcome === 'failed'); });
     showMap(events); showHud(); store();
+    if (events.some(function (e) { return e.type === 'proposal'; })) sheetProposals();      // time waits for the boss's word
   }
 
   // ---- start

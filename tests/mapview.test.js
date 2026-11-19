@@ -203,3 +203,9 @@ test('fire and police lights land on the place that was hit, whatever name the r
   const fx = M.effects([{ type: 'attack', outcome: 'hit', site: 'still', district: 'ashport-hillside', city: 'ashport', label: 'x' }], p);
   assert.equal(fx[0].kind, 'fire'); assert.equal(ash.lots.find((l) => l.site && l.site.id === fx[0].site).site.type, 'still');
 });
+
+test('a job the boss approved is seen where it was done', () => {
+  const fx = M.effects([{ type: 'job', kind: 'hit', outcome: 'done', district: 'ashport-hillside', city: 'ashport', label: 'x' },
+    { type: 'job', kind: 'kidnap', outcome: 'failed', district: 'ashport-hillside', city: 'ashport', label: 'x' }]);
+  assert.deepEqual(fx.map((f) => f.kind), ['gunfire', 'police'], 'a killing is gunfire, a job gone wrong brings the police');
+});
