@@ -401,6 +401,13 @@ test('a lively district gives its capo something to do for years', () => {
   assert.ok(lively.d.boss.dirty + lively.d.boss.clean > dull.d.boss.dirty + dull.d.boss.clean);
 });
 
+test('a capo who has just been attacked posts guards before anything else', () => {
+  const d = D.createDistrict({ capo: 'mae', dirty: 3000, attacked: 4 });
+  assert.equal(D.chooseProject(d).kind, 'guard');
+  for (let i = 0; i < 4; i++) D.stepMonth(d);
+  assert.equal(d.attacked, 0);
+});
+
 // --- integration: a whole year, the boss touching nothing but the name ---
 
 test('a year under Sal: streets taken by force, then the police and a hated name', () => {
