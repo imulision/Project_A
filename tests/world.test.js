@@ -429,3 +429,85 @@ test('after a job or a refusal, the same capo waits a year before asking again',
     assert.equal(W.stepMonth(w).filter((e) => e.type === 'proposal').length, 0);
   }
 });
+
+// --- capos who grow: ranks and abilities ---
+const play = (w, months) => { const out = []; for (let i = 0; i < months; i++) out.push(...W.stepMonth(w)); return out; };
+
+test('every capo starts as a soldier with nothing learned', () => {
+  const w = W.createWorld({ capo: 'sal' });
+  const p = W.person(w, 'sal');
+  assert.deepEqual([p.rank, p.rankName, p.abilities.length], [0, 'Soldier', 0]);
+  assert.deepEqual(W.RANKS.map((r) => r.name), ['Soldier', 'Capo', 'Veteran', 'Legend']);
+  assert.equal(W.person(w, 'mae').rank, 0);
+});
+
+test('a capo in post learns month after month, and a man without a post learns nothing', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  play(w, 6);
+  const dutch = W.person(w, 'dutch');
+  assert.ok(dutch.xp.liquor > 5);
+  assert.ok(dutch.total > 10);
+  assert.equal(W.person(w, 'mae').total, 0);
+});
+
+test('with time a capo is promoted and unlocks an ability of what he has practised most', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  const events = play(w, 36);
+  const up = events.filter((e) => e.type === 'promotion');
+  assert.ok(up.length >= 1, 'promoted within three years');
+  assert.deepEqual([up[0].capo, up[0].rank, up[0].rankName, up[0].district], ['dutch', 1, 'Capo', W.HOME]);
+  const p = W.person(w, 'dutch');
+  assert.equal(p.abilities.length, p.rank);
+  const best = up[0].sector;
+  assert.ok(D.WHEEL[best].some((a) => a.id === up[0].ability), `${up[0].ability} is a ${best} ability`);
+  assert.match(up[0].label, /Dutch/);
+  assert.deepEqual(W.district(w, W.HOME).state.skills, p.abilities, 'his district works with what he knows');
+});
+
+test('two capos who run their districts differently do not learn the same things', () => {
+  const a = W.createWorld({ capo: 'sal' }), b = W.createWorld({ capo: 'mae' });
+  play(a, 60); play(b, 60);
+  const sal = W.person(a, 'sal'), mae = W.person(b, 'mae');
+  assert.ok(sal.rank >= 1 && mae.rank >= 1);
+  assert.notDeepEqual(sal.abilities, mae.abilities);
+});
+
+test('what a capo knows goes with him: his old district loses it, his new one gains it', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  play(w, 36);
+  const known = W.person(w, 'dutch').abilities;
+  assert.ok(known.length > 0);
+  W.appoint(w, W.HOME, 'tommy');
+  W.stepMonth(w);
+  assert.deepEqual(W.district(w, W.HOME).state.skills, []);
+  W.claim(w, 'ashport-market', 'dutch');
+  W.stepMonth(w);
+  assert.deepEqual(W.district(w, 'ashport-market').state.skills, known);
+  assert.deepEqual(W.person(w, 'dutch').abilities, known);
+});
+
+test('the family\'s wheel lights the abilities of the men in post, and says who holds them', () => {
+  const w = W.createWorld({ capo: 'dutch' });
+  assert.equal(W.wheel(w).lit, 0);
+  play(w, 36);
+  const wheel = W.wheel(w);
+  assert.equal(wheel.sectors.length, 6);
+  assert.equal(wheel.sectors[0].rings.length, 3);
+  const lit = wheel.sectors.flatMap((s) => s.rings).filter((r) => r.lit);
+  assert.equal(lit.length, wheel.lit);
+  assert.ok(lit.length >= 1);
+  assert.deepEqual(lit[0].by, ['dutch']);
+  W.appoint(w, W.HOME, 'tommy');
+  assert.equal(W.wheel(w).lit, 0, 'out of a post, his knowledge leaves the wheel');
+});
+
+test('a capo whose question was left to drop does not ask again the month after', () => {
+  const w = W.createWorld({ capo: 'vince' });
+  const s = W.district(w, W.HOME).state;
+  let asked = 0;
+  for (let i = 0; i < W.RULES.jobs.every; i++) {
+    s.profit = 50; s.sites.still = 0;
+    asked += W.stepMonth(w).filter((e) => e.type === 'proposal').length;
+  }
+  assert.equal(asked, 1);
+});
