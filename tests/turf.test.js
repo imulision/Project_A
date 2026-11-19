@@ -561,3 +561,155 @@ test('the streets follow every change at once: a place enlarged, taken or burnt'
   assert.deepEqual(T.share(again), T.share(c), 'a city saved and loaded holds the same streets');
   assert.deepEqual(Object.keys(c).sort(), Object.keys(T.createCity({ id: 'x', w: 1, h: 1, zones: [] })).sort(), 'and nothing extra is saved with it');
 });
+
+// --- where capos come from: nobody is picked from a list, each arrives by a door ---
+
+const rich = () => family({ dirty: 20000 });
+const coming = (c, f) => T.doors(c, f).map((d) => d.capo).sort();
+
+test('beyond the six big names there are seconds and the men of the key places, each a full capo', () => {
+  const seconds = Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].mentor), figures = Object.keys(T.PEOPLE).filter((id) => T.PEOPLE[id].key);
+  assert.deepEqual(seconds.map((id) => T.PEOPLE[id].mentor).sort(), Object.keys(D.CAPOS).sort(), 'one second per big name');
+  assert.deepEqual(figures.map((id) => T.PEOPLE[id].key).sort(), Object.keys(T.KEYS).sort(), 'one man per key place');
+  for (const id of Object.keys(T.PEOPLE)) {
+    const p = T.person(id);
+    assert.ok(p.name && p.muscle >= 1 && p.cunning >= 1 && p.charisma >= 1, id);
+    assert.ok(T.tradeOf(id), id + ' has a trade');
+    const c = town();
+    T.settle(c, id, 2, 2);
+    assert.ok(T.wants(c, id, { rank: 0, tech: ALL() }), id + ' knows what to do with a club');
+  }
+  assert.equal(T.person('sal').name, D.CAPOS.sal.name);
+  assert.throws(() => T.person('nobody'), /unknown/);
+});
+
+test('nobody knocks on the door of a family that has nothing to show', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  assert.deepEqual(T.doors(c, f), []);
+});
+
+test('a big name comes when the family has what draws him', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  assert.deepEqual(coming(c, f), ['danny']);
+  const d = T.doors(c, f)[0];
+  assert.equal(d.door, 'name');
+  assert.equal(d.name, D.CAPOS.danny.name);
+  assert.ok(d.cost > 0 && d.why);
+  T.open(c, 8, 2, { owner: 'family', kind: 'key', key: 'cityhall', capo: 'dutch' });
+  assert.ok(coming(c, f).includes('tommy'));
+});
+
+test('Sal comes to a family that has thrown a raid back', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'vince', 2, 2); T.join(f, 'vince');
+  T.open(c, 3, 2, { owner: 'family', kind: 'chopshop', capo: 'vince' });
+  T.open(c, 5, 2, { owner: 'Callahan', kind: 'speakeasy' });
+  f.tech = {};
+  assert.ok(!coming(c, f).includes('sal'));
+  const events = year(c, f, T.RULES.rivalEvery);
+  assert.ok(events.some((e) => e.type === 'repelled'));
+  assert.ok(coming(c, f).includes('sal'));
+  assert.ok(events.some((e) => e.type === 'knocks' && e.capo === 'sal'), 'and the boss is told once');
+  assert.ok(!year(c, f, 3).some((e) => e.type === 'knocks' && e.capo === 'sal'));
+});
+
+test('a capo who runs all his rank allows brings his second forward', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  const second = Object.keys(T.PEOPLE).find((id) => T.PEOPLE[id].mentor === 'dutch');
+  for (let i = 0; i < T.RULES.reach[0] - 1; i++) T.open(c, i, 4, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.ok(!coming(c, f).includes(second));
+  T.open(c, 5, 4, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  const d = T.doors(c, f).find((q) => q.capo === second);
+  assert.equal(d.door, 'rise');
+  assert.equal(d.by, 'dutch');
+  assert.equal(T.tradeOf(second), T.tradeOf('dutch'), 'he learned his mentor\'s trade');
+});
+
+test('the man of a key place comes with it', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'sal', 2, 2); T.join(f, 'sal');
+  const docker = Object.keys(T.PEOPLE).find((id) => T.PEOPLE[id].key === 'port');
+  T.open(c, 9, 3, { owner: 'Callahan', kind: 'key', key: 'port' });
+  assert.ok(!coming(c, f).includes(docker));
+  T.at(c, 9, 3).owner = 'family'; T.at(c, 9, 3).capo = 'sal';
+  const again = JSON.parse(JSON.stringify(c));
+  const d = T.doors(again, f).find((q) => q.capo === docker);
+  assert.equal(d.door, 'figure');
+  assert.equal(d.by, 'port');
+});
+
+test('the boss says yes and picks the street: the man plants his club there and goes to work', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  const d = T.doors(c, f)[0];
+  assert.throws(() => T.welcome(c, f, 'mae', 8, 3), /is not at the door/);
+  assert.throws(() => T.welcome(c, f, 'danny', 3, 2), /already a place/);
+  T.open(c, 10, 1, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.throws(() => T.welcome(c, f, 'danny', 10, 2), /Callahan/);
+  f.dirty = d.cost - 1;
+  assert.throws(() => T.welcome(c, f, 'danny', 7, 4), /cannot pay/);
+  f.dirty = d.cost;
+  T.welcome(c, f, 'danny', 7, 4);
+  assert.equal(f.dirty, 0);
+  assert.deepEqual(T.clubOf(c, 'danny'), { x: 7, y: 4 });
+  assert.equal(f.men.danny.rank, 0);
+  assert.ok(!coming(c, f).includes('danny'));
+  f.dirty = 0;
+  assert.ok(year(c, f, 12).some((e) => e.type === 'opened' && e.capo === 'danny'));
+});
+
+test('the city says where a newcomer may plant his club: any free block the rivals do not hold', () => {
+  const c = town();
+  T.settle(c, 'dutch', 2, 2);
+  T.open(c, 10, 1, { owner: 'Callahan', kind: 'speakeasy' });
+  const spots = T.spots(c), has = (x, y) => spots.some((s) => s.x === x && s.y === y);
+  assert.ok(has(7, 4) && has(3, 2));
+  assert.ok(!has(2, 2) && !has(10, 1) && !has(10, 2));
+  assert.equal(spots.length, 12 * 6 - 2 - 15, 'all but the two places and the fifteen blocks around the Callahans');
+});
+
+test('a city carries three capos, and one more for every key place the family holds there', () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  assert.deepEqual(T.seats(c), { taken: 1, total: 3 });
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  T.open(c, 3, 3, { owner: 'family', kind: 'loft', capo: 'dutch' });
+  T.open(c, 3, 4, { owner: 'family', kind: 'front', capo: 'dutch' });
+  assert.deepEqual(coming(c, f), ['danny', 'mae', 'vince']);
+  T.welcome(c, f, 'danny', 7, 4);
+  T.welcome(c, f, 'mae', 7, 2);
+  assert.deepEqual(T.seats(c), { taken: 3, total: 3 });
+  assert.throws(() => T.welcome(c, f, 'vince', 9, 4), /no seat/);
+  assert.ok(coming(c, f).includes('vince'), 'he still waits at the door');
+  T.open(c, 10, 0, { owner: 'family', kind: 'key', key: 'depot', capo: 'dutch' });
+  assert.deepEqual(T.seats(c), { taken: 3, total: 4 });
+  T.welcome(c, f, 'vince', 9, 4);
+  assert.equal(T.seats(c).taken, 4);
+});
+
+test('twenty years of saying yes to everyone: the family grows man by man, key place by key place', () => {
+  for (const start of ['dutch', 'mae', 'tommy']) {
+    const c = ashport(), f = family();
+    T.crown(c, 'Callahan'); T.seed(c, 'Callahan', 30);
+    const l = T.landing(c); T.settle(c, start, l.x, l.y); T.join(f, start);
+    const men = [], keys = [];
+    for (let m = 1; m <= 240; m++) {
+      for (const e of T.stepMonth(c, f)) if (e.type === 'taken' && e.key) keys.push(m);
+      for (const a of T.asks(c)) if (f.dirty >= a.cost) T.answer(c, f, a.id, true);
+      for (const d of T.doors(c, f)) {
+        const s = T.seats(c), spot = T.spots(c).find((q) => T.grip(c, q.x, q.y) === null) || T.spots(c)[0];
+        if (f.dirty >= d.cost && s.taken < s.total && spot) { T.welcome(c, f, d.capo, spot.x, spot.y); men.push(m); }
+      }
+    }
+    assert.ok(men.length >= 4 && men.length <= 8, start + ': ' + men.length + ' men joined');
+    assert.ok(men[0] >= 12, start + ': nobody joins in the first year (month ' + men[0] + ')');
+    assert.ok(keys.length >= 2, start + ': ' + keys.length + ' key places taken');
+    assert.ok(keys[0] >= 36, start + ': no key place falls in the first three years (month ' + keys[0] + ')');
+    assert.ok(keys[keys.length - 1] - keys[0] >= 60, start + ': the key places fall over many years');
+  }
+});
