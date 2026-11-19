@@ -638,3 +638,104 @@ test('a request says what there is to gain, what is risked and how it looks; the
   for (let i = 0; i < 80 && !W.proposals(weak).some((q) => q.kind === 'hit'); i++) { v.attacked = 1; v.crews = 0; W.stepMonth(weak); }
   assert.equal(W.proposals(weak).find((q) => q.kind === 'hit').odds, 'poor');
 });
+
+// --- taking a district: by force, by bribery or by buying it. Never easy. ---
+const rich = (extra) => { const w = W.createWorld({ capo: 'sal' }); Object.assign(w.treasury, { dirty: 20000, clean: 50000 }, extra); return w; };
+const run = (w, n) => { const out = []; for (let i = 0; i < n; i++) out.push(...W.stepMonth(w)); return out; };
+
+test('buying a district takes clean money and time, then the capo is in', () => {
+  const w = rich();
+  const cost = W.price(w, 'ashport-market', 'buy');
+  const op = W.takeover(w, 'ashport-market', 'buy', 'mae');
+  assert.equal(w.treasury.clean, 50000 - cost);
+  assert.equal(w.treasury.dirty, 20000);
+  assert.equal(W.district(w, 'ashport-market').owner, 'Callahan');
+  assert.throws(() => W.seat(w, 'bookkeeper', 'mae'), /already holds/);
+  const events = run(w, op.months);
+  assert.equal(W.district(w, 'ashport-market').owner, 'family');
+  assert.equal(W.district(w, 'ashport-market').state.capo, 'mae');
+  const done = events.find((e) => e.type === 'takeover' && e.outcome === 'done');
+  assert.equal(done.district, 'ashport-market');
+  assert.ok(done.effects.length >= 1);
+  assert.deepEqual(W.takeovers(w), []);
+});
+
+test('a takeover under way says how far it is', () => {
+  const w = rich();
+  const op = W.takeover(w, 'ashport-market', 'buy', 'mae');
+  run(w, 1);
+  const t = W.takeovers(w)[0];
+  assert.equal(t.district, 'ashport-market');
+  assert.equal(t.way, 'buy');
+  assert.equal(t.monthsLeft, op.months - 1);
+  assert.throws(() => W.takeover(w, 'ashport-market', 'bribe', 'tommy'), /already/);
+});
+
+test('every district the family holds makes the next one dearer, whatever the way', () => {
+  const w = rich();
+  for (const way of ['force', 'bribe', 'buy']) {
+    const first = W.price(w, 'ashport-docks', way);
+    const two = rich(); W.claim(two, 'ashport-market', 'mae');
+    assert.ok(W.price(two, 'ashport-docks', way) > first, way);
+  }
+  assert.ok(W.price(w, 'ashport-uptown', 'buy') > W.price(w, 'ashport-docks', 'buy'), 'a rich district costs more to buy');
+});
+
+test('force without the men for it fails: money and men lost, and the capo said so beforehand', () => {
+  const w = rich();
+  const home = W.district(w, W.HOME).state;
+  home.crews = 0;
+  assert.equal(W.odds(w, 'ashport-market', 'force', 'mae').odds, 'poor');
+  const men = home.men;
+  const op = W.takeover(w, 'ashport-market', 'force', 'mae');
+  home.crews = 0;
+  let events = [];
+  for (let i = 0; i < op.months; i++) { home.crews = 0; events.push(...W.stepMonth(w)); }
+  const failed = events.find((e) => e.type === 'takeover');
+  assert.equal(failed.outcome, 'failed');
+  assert.equal(W.district(w, 'ashport-market').owner, 'Callahan');
+  assert.ok(failed.effects.some((t) => /dead/.test(t)));
+  assert.ok(w.treasury.dirty < 20000);
+  W.seat(w, 'bookkeeper', 'mae'); // she is free again
+});
+
+test('force works with crews behind a hard man, and better once the rivals have lost a lieutenant', () => {
+  const w = rich();
+  const home = W.district(w, W.HOME).state;
+  home.crews = 1;
+  const before = W.odds(w, 'ashport-market', 'force', 'vince');
+  w.weakened = { ashport: 12 };
+  const after = W.odds(w, 'ashport-market', 'force', 'vince');
+  assert.ok(after.power - after.needed > before.power - before.needed);
+  home.crews = 4;
+  assert.equal(W.odds(w, 'ashport-market', 'force', 'vince').odds, 'good');
+});
+
+test('bribery is for men with a tongue and a head, or for a family with a fixer', () => {
+  const w = rich();
+  assert.equal(W.odds(w, 'ashport-market', 'bribe', 'tommy').odds, 'good');
+  const local = W.local('ashport-market').id;
+  assert.equal(W.odds(w, 'ashport-market', 'bribe', local).odds, 'poor');
+  assert.equal(W.odds(w, 'ashport-market', 'bribe', 'dutch').odds, 'poor');
+  W.seat(w, 'fixer', 'danny');
+  assert.equal(W.odds(w, 'ashport-market', 'bribe', 'dutch').odds, 'good');
+  assert.equal(W.odds(w, 'ashport-market', 'buy', local).odds, 'good');
+});
+
+test('a bribe that fails costs the money and warns the police', () => {
+  const w = rich();
+  const op = W.takeover(w, 'ashport-market', 'bribe', 'dutch');
+  assert.equal(w.treasury.dirty, 20000 - op.cost);
+  const events = run(w, op.months);
+  const failed = events.find((e) => e.type === 'takeover');
+  assert.equal(failed.outcome, 'failed');
+  assert.equal(W.district(w, 'ashport-market').owner, 'Callahan');
+  assert.ok(failed.effects.some((t) => /Heat \+/.test(t)));
+});
+
+test('a takeover needs the money for its way, and a district within reach', () => {
+  const w = rich({ clean: 0 });
+  assert.throws(() => W.takeover(w, 'ashport-market', 'buy', 'mae'), /afford/);
+  assert.throws(() => W.takeover(w, 'lorne-harbour', 'force', 'mae'), /out of reach/);
+  assert.throws(() => W.takeover(w, 'ashport-market', 'charm', 'mae'), /no such way/);
+});

@@ -42,6 +42,7 @@
     if (e.why) entry.why = e.why;
     if (e.kind) entry.kind = e.kind;
     if (e.outcome) entry.outcome = e.outcome;
+    if (e.effects) entry.effects = e.effects;
     g.journal.unshift(entry);
     if (g.journal.length > JOURNAL_SIZE) g.journal.length = JOURNAL_SIZE;
   }
@@ -74,6 +75,7 @@
     seat: function (g, c) { W.seat(g.world, c.seat, c.capo); },
     unseat: function (g, c) { W.unseat(g.world, c.seat); },
     underboss: function (g, c) { W.setUnderboss(g.world, c.city, c.capo); },
+    takeover: function (g, c) { W.takeover(g.world, c.district, c.way, c.capo); },
     approve: function (g, c) { W.rule(g.world, c.id, true); },
     refuse: function (g, c) { W.rule(g.world, c.id, false); }
   };
@@ -109,23 +111,32 @@
     var ids = Object.keys(D.CAPOS);
     // the local man of the district comes last: always there, never the best
     if (g.world && districtId && W.district(world, districtId).owner !== 'family') ids.push(W.local(districtId).id);
+    var rival = !!g.world && !!districtId && W.district(world, districtId).owner !== 'family';
     return ids.filter(function (id) { return !taken[id]; }).map(function (id) {
-      var c = D.CAPOS[id];
+      var c = D.CAPOS[id], chances = null;
+      if (rival) { chances = {}; W.WAYS.forEach(function (way) { chances[way] = W.odds(world, districtId, way, id).odds; }); }
       var who = W.person(world, id);
       return { id: id, name: c.name, specialty: c.specialty, local: !!c.local, rank: who.rank, rankName: who.rankName,
                stats: { muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma, loyalty: c.loyalty, ambition: c.ambition },
                likes: words(c.likes), refuses: words(c.refuses),
+               odds: chances, // how each way into this district looks for him: 'good' or 'poor'
                firstMove: districtId ? firstMove(world, districtId, id) : '' };
     });
   }
 
   // The districts the family can move into now.
   function openings(g) {
-    var cash = g.world.treasury.dirty + g.world.treasury.clean;
+    var cash = g.world.treasury.dirty + g.world.treasury.clean, clean = g.world.treasury.clean;
+    var busy = {};
+    W.takeovers(g.world).forEach(function (t) { busy[t.district] = true; });
     return W.districts(g.world).filter(function (x) { return x.owner !== 'family' && W.reachable(g.world, x.id); }).map(function (x) {
       var p = W.placeOf(x.id);
       return { district: x.id, name: p.name, city: W.cityOf(x.city).name, rival: x.owner, traits: p.traits,
-               cost: W.RULES.moveInCost, affordable: cash >= W.RULES.moveInCost };
+               cost: W.RULES.moveInCost, affordable: cash >= W.RULES.moveInCost, underWay: !!busy[x.id],
+               ways: busy[x.id] ? [] : W.WAYS.map(function (way) {
+                 var t = W.RULES.takeover[way], cost = W.price(g.world, x.id, way);
+                 return { way: way, cur: t.cur, cost: cost, months: t.months, affordable: (t.cur === 'clean' ? clean : cash) >= cost };
+               }) };
     });
   }
 
@@ -171,6 +182,16 @@
                monthsLeft: W.RULES.jobs.expires - (g.world.month - p.month) };
     });
   }
+  // The takeovers under way, each with its man and how far it is.
+  function takeovers(g) {
+    if (!g.world) return [];
+    return W.takeovers(g.world).map(function (t) {
+      t.capoName = D.CAPOS[t.capo].name;
+      t.place = W.placeOf(t.district).name + ', ' + W.cityOf(t.city).name;
+      t.progress = Math.min(1, (t.months - t.monthsLeft + g.ticks / TICKS_PER_MONTH) / t.months);
+      return t;
+    });
+  }
   // The last two years of a district, oldest first, for its curves.
   function history(g, districtId) {
     if (!g.world) return [];
@@ -211,7 +232,7 @@
   }
 
   var api = { TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, createGame: createGame, tick: tick,
-              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, wheel: wheel, person: person, save: save, load: load };
+              command: command, candidates: candidates, openings: openings, hud: hud, view: view, trips: trips, flows: flows, proposals: proposals, history: history, intent: intent, takeovers: takeovers, wheel: wheel, person: person, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportGame = api;
 })(typeof self !== 'undefined' ? self : this);
