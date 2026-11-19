@@ -18,6 +18,7 @@
   var JOURNAL_SIZE = 200;
   var FIRST_YEAR = 1926;
   var BLOCK = { w: 5, h: 6 }; // blocks under each street name
+  var START_CASH = 2500;      // dirty $ the boss starts with: what it takes to set up the first man who knocks
   var RIVAL_PLACES = 30;      // places the family in place holds on top of the key places
   var NAMES = ['sal', 'mae', 'dutch', 'tommy', 'vince', 'danny']; // the six a boss can start with
   var STOPS = { asks: true, knocks: true, feud: true }; // what waits for the boss's word stops the clock
@@ -56,6 +57,7 @@
     });
     var home = g.cities[0], spot = T.landing(home);
     g.family = T.createFamily();
+    g.family.dirty = START_CASH;
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
     g.started = true;
@@ -196,7 +198,7 @@
     return g;
   }
 
-  var api = { VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, NAMES: NAMES,
+  var api = { START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, NAMES: NAMES,
               createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
