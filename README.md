@@ -11,6 +11,8 @@ lieutenants run which districts, and they act their own way.
 - `tests/sim.test.js` holds the unit tests of the rules. They run without a browser.
 - `tests/playthrough.mjs` is the integration test: it plays a full in-game year in a real browser.
 - `.github/workflows/test.yml` runs both on every push to `main` and on every pull request.
+- `android/` is the Android app: one screen that shows `web/`. It holds no game code.
+- `.github/workflows/apk.yml` builds the APK on every pull request, and publishes it as a release on every push to `main`.
 
 ## Working on the game
 
@@ -27,4 +29,12 @@ A rule never goes into `index.html`.
 Playable prototype of one in-game year (1926): isometric city map, lieutenants
 with a quality, a flaw and a plan, monthly income, scripted events.
 
-An Android APK built from the same code is planned.
+## Android app
+
+Every push to `main` publishes `ashport.apk` in the Releases of this repository.
+Install it once on the phone, and later releases install over it.
+
+All builds are signed with `android/prototype.keystore`, whose password is in
+`android/app/build.gradle`. That is deliberate: Android refuses an update signed
+with a different key, and this key protects nothing but a private prototype.
+Replace it with a secret key before the game is given to anyone else.
