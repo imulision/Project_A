@@ -13,6 +13,10 @@
   var RULES = {
     wage: 40,               // dirty $ per man per month
     upkeep: 50,             // dirty $ per place per month
+    levelGain: 0.5,         // what each level above the first adds to what a still makes or a speakeasy seats
+    maxLevel: 3,
+    enlargeFrom: 3,         // with this many places of a kind, a capo enlarges them rather than open another
+    enlargeCost: 200,       // dirty $ per place and per level already reached
     truckLoad: 30,          // crates one truck hauls from the stills to the speakeasies in a month
     truckCost: 300,
     carLoad: 1500,          // dirty $ one car brings back from the tills in a month
@@ -146,10 +150,11 @@
   function craft(c) { return 0.6 + 0.05 * c.cunning; }
   function payroll(d) { return d.men * RULES.wage; }
   function stashRoom(d) { return (RULES.stash + RULES.stashPerWarehouse * d.sites.warehouse) * (1 + gain(d, 'stash')); }
-  function made(d) { return d.sites.still * SITES.still.crates * trade(capoOf(d)) * (1 + gain(d, 'stills')); }
+  function sizeOf(d, k) { return 1 + RULES.levelGain * ((d.levels[k] || 1) - 1); }
+  function made(d) { return d.sites.still * SITES.still.crates * sizeOf(d, 'still') * trade(capoOf(d)) * (1 + gain(d, 'stills')); }
   function hauling(d) { return d.trucks * RULES.truckLoad; }
   function carrying(d) { return d.cars * RULES.carLoad; }
-  function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats; }
+  function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats * sizeOf(d, 'speakeasy'); }
   function thirst(d) { return RULES.demand * d.share / 100; }
   function washing(d) {
     return (d.sites.rented * SITES.rented.wash + d.sites.front * SITES.front.wash) * craft(capoOf(d)) * (1 + gain(d, 'wash'))
@@ -198,6 +203,17 @@
     return { kind: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind),
              saves: kind === 'still' || kind === 'speakeasy' };
   }
+  function wantsLiquor(d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8; }
+  function wantsSeats(d) { return seats(d) < Math.min(thirst(d), made(d) + 10) - 8; }
+  function canEnlarge(d, kind) { return d.sites[kind] >= RULES.enlargeFrom && d.levels[kind] < RULES.maxLevel; }
+  // Every place of that kind grows one level: no new men, no new address.
+  function enlarge(kind, label, why, wants) {
+    return { kind: 'enlarge-' + kind, like: kind, label: label, why: why, cur: 'dirty', men: 0, hot: false, saves: true,
+             price: function (d) { return RULES.enlargeCost * d.sites[kind] * d.levels[kind]; },
+             need: function (d) { return canEnlarge(d, kind) && wants(d) ? 6 : 0; },
+             apply: function (d) { d.levels[kind] += 1; } };
+  }
+  function costOf(p, d) { return p.price ? p.price(d) : p.cost; }
   function racket(kind, label, why) {
     var site = SITES[kind];
     return build(kind, label, why, function (d) {
@@ -236,9 +252,11 @@
       },
       apply: function (d) { d.cars += 1; } },
     build('still', 'Sets up a cellar still', 'the speakeasies run dry',
-      function (d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8 ? 6 : 0; }),
+      function (d) { return wantsLiquor(d) && !canEnlarge(d, 'still') ? 6 : 0; }),
     build('speakeasy', 'Turns a shop into a speakeasy', 'more drinkers than seats',
-      function (d) { return seats(d) < Math.min(thirst(d), made(d) + 10) - 8 ? 6 : 0; }),
+      function (d) { return wantsSeats(d) && !canEnlarge(d, 'speakeasy') ? 6 : 0; }),
+    enlarge('still', 'Enlarges his stills', 'bigger stills rather than one more cellar', wantsLiquor),
+    enlarge('speakeasy', 'Enlarges his speakeasies', 'bigger rooms rather than one more door', wantsSeats),
     build('gambling', 'Opens a gambling room', 'a back room sits empty',
       function (d, c) { return d.sites.gambling < d.sites.speakeasy ? 3 + c.business / 4 : 0; }),
     build('loft', 'Installs a cannabis loft', 'easy margin while the street is quiet',
@@ -297,7 +315,7 @@
   ];
 
   function canHire(d, p, n, wages) {
-    var spent = (p.cur === 'dirty' ? p.cost : 0) + n * RULES.hireFee;
+    var spent = (p.cur === 'dirty' ? costOf(p, d) : 0) + n * RULES.hireFee;
     if (p.saves && d.profit < RULES.thinProfit) return n <= p.men && d.dirty - spent >= 0 ? n : 0; // just the men it takes to save the district
     return d.profit > n * RULES.wage && d.dirty - spent >= wages ? n : 0;
   }
@@ -309,12 +327,13 @@
   function chooseProject(d) {
     var c = capoOf(d), wages = payroll(d), free = d.men - busyMen(d), wanted = [], shortOfMen = false;
     PROJECTS.forEach(function (p, order) {
-      if (c.refuses.indexOf(p.kind) >= 0) return;
+      if (c.refuses.indexOf(p.like || p.kind) >= 0) return;
       if (p.hot && (d.watched > 0 || d.heat > nerve(c))) return;
-      var weight = p.need(d, c) * (c.likes.indexOf(p.kind) >= 0 ? RULES.likes : 1);
+      var weight = p.need(d, c) * (c.likes.indexOf(p.like || p.kind) >= 0 ? RULES.likes : 1);
       // the payroll is never spent on a project, except to save a district that barely pays
       var reserve = p.cur !== 'dirty' || (p.saves && d.profit < RULES.thinProfit) ? 0 : wages;
-      var affordable = p.cost === 0 || d[p.cur] - p.cost >= reserve;
+      var cost = costOf(p, d);
+      var affordable = cost === 0 || d[p.cur] - cost >= reserve;
       if (weight >= RULES.minNeed && affordable) wanted.push({ p: p, weight: weight, order: order });
     });
     wanted.sort(function (a, b) { return b.weight - a.weight || a.order - b.order; });
@@ -325,7 +344,7 @@
         hire = canHire(d, p, Math.max(2 + Math.floor(c.charisma / 3), p.men - free), wages) || canHire(d, p, p.men - free, wages);
         if (!hire) { shortOfMen = true; continue; }
       }
-      return { kind: p.kind, label: p.label, why: p.why, cost: p.cost, cur: p.cur, men: p.men, hire: hire };
+      return { kind: p.kind, label: p.label, why: p.why, cost: costOf(p, d), cur: p.cur, men: p.men, hire: hire };
     }
     return hold(shortOfMen ? 'wants more men but cannot pay them' : 'nothing worth the money this month');
   }
@@ -451,6 +470,8 @@
     d.goodwill = clamp(d.goodwill + goodwillChange(d));
     d.share = clamp(d.share + streetsChange(d));
 
+    // what is rebuilt after the last place of a kind is lost starts small again
+    Object.keys(d.levels).forEach(function (k) { if (d.sites[k] === 0) d.levels[k] = 1; });
     if (d.pulledBack > 0) d.pulledBack -= 1;
     if (d.attacked > 0) d.attacked -= 1;
     if (d.watched > 0) d.watched -= 1;
@@ -467,7 +488,7 @@
     var d = {
       name: 'Hillside', capo: o.capo, month: 0,
       men: 14, guards: 2, crews: 0, collectors: 0, trucks: 2, cars: 2,
-      sites: {},
+      sites: {}, levels: { still: 1, speakeasy: 1 },
       traits: { nightlife: 1, industry: 0.4, port: 0, wealth: 1.2 }, // a hill of houses above the city
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
       dirty: 800, clean: 300, profit: 800, stock: 0, secrets: 0,
@@ -477,7 +498,7 @@
     SITE_KEYS.forEach(function (k) { d.sites[k] = 0; });
     d.sites.still = 2; d.sites.speakeasy = 2;
     Object.keys(o).forEach(function (k) {
-      if (k === 'sites' || k === 'traits' || k === 'support') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
+      if (k === 'sites' || k === 'traits' || k === 'support' || k === 'levels') Object.keys(o[k]).forEach(function (s) { d[k][s] = o[k][s]; });
       else if (k === 'skills') d.skills = o.skills.slice();
       else if (k in d) d[k] = o[k];
     });
@@ -561,7 +582,7 @@
     var list = [], slug = slugOf(d);
     SITE_KEYS.forEach(function (k) {
       for (var i = 1; i <= d.sites[k]; i++) {
-        list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, staff: SITES[k].staff, level: 1 });
+        list.push({ id: slug + '-' + k + '-' + i, district: d.name, capo: d.capo, type: k, name: SITES[k].name, staff: SITES[k].staff, level: d.levels[k] || 1 });
       }
     });
     return list;
