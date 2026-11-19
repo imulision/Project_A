@@ -23,7 +23,7 @@
     spillHeat: 400,         // overflow $ per point of Heat
     cellar: 40,             // crates kept without a warehouse
     cellarPerWarehouse: 150,
-    washReserve: 600,       // dirty $ kept at hand on top of the payroll
+    washReserve: 900,       // dirty $ kept at hand on top of the payroll
     raidHeat: 60,
     raidSeizure: 500,
     raidCooling: 18,
@@ -31,6 +31,7 @@
     thinProfit: 150,        // below this monthly profit, conquest is a luxury
     cooling: 3,             // Heat lost every month on its own
     rivalPush: 1.0,         // streets the rivals take back every month
+    rivalNotice: 30,        // below this share, the rivals push back less and less
     rivalWall: 60,          // above this share, every street is fought for
     rivalWallStep: 5,       // one more street lost per month for each of these points above the wall
     lastStand: 25,          // below this share, a capo posts guards
@@ -39,6 +40,8 @@
     goodwillPull: 0.08,     // share of the gap to 50 that Goodwill closes by itself every month
     pullBack: 6,            // months a capo waits before sending out men he has just called back
     crewReach: 0.2,         // streets gained per street crew per point of Muscle
+    crewMuscle: 4,          // a crew's own worth, under a capo with less Muscle than that
+    idleMen: 3,             // more idle men than this are sent home when the district barely pays
     hireFee: 60,
     likes: 1.5,             // a project the capo likes counts this much more
     minNeed: 3,             // below this, a project is not worth a month
@@ -126,7 +129,10 @@
   function income(d) {
     return Math.min(d.stock + made(d), seats(d), thirst(d)) * RULES.crate + sideIncome(d);
   }
-  function rivalPush(d) { return RULES.rivalPush + Math.max(0, d.share - RULES.rivalWall) / RULES.rivalWallStep; }
+  // The rivals do not bother with a family that holds only a few streets.
+  function rivalPush(d) {
+    return RULES.rivalPush * Math.min(1, d.share / RULES.rivalNotice) + Math.max(0, d.share - RULES.rivalWall) / RULES.rivalWallStep;
+  }
   function siteCount(d) { return SITE_KEYS.reduce(function (n, k) { return n + d.sites[k]; }, 0); }
 
   function busyMen(d) {
@@ -170,7 +176,7 @@
       need: function (d) { return d.collectors < Math.min(3, d.crews + 1) ? 5 : 0; },
       apply: function (d) { d.collectors += 1; } },
     build('still', 'Sets up a cellar still', 'the speakeasies run dry',
-      function (d) { return made(d) < Math.min(thirst(d), seats(d)) - 8 ? 6 : 0; }),
+      function (d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8 ? 6 : 0; }),
     build('speakeasy', 'Turns a shop into a speakeasy', 'more drinkers than seats',
       function (d) { return seats(d) < Math.min(thirst(d), made(d) + 10) - 8 ? 6 : 0; }),
     build('gambling', 'Opens a gambling room', 'a back room sits empty',
@@ -197,7 +203,7 @@
     { kind: 'guard', label: 'Posts 2 more guards', why: 'the rivals are at his door', cost: 0, cur: 'dirty', men: 2,
       need: function (d) {
         if (d.attacked > 0 && d.guards < 6) return 9; // he has just been hit
-        return d.share < RULES.lastStand && d.guards < 8 ? 5 : 0;
+        return d.share < RULES.lastStand && streetsChange(d) < 0 && d.guards < 8 ? 5 : 0;
       },
       apply: function (d) { d.guards += 2; } },
     { kind: 'lielow', label: 'Pulls men off the street', why: 'the police are watching', cost: 0, cur: 'dirty', men: 0,
@@ -207,9 +213,17 @@
       need: function (d) { return d.crews === 0 ? 0 : d.profit < 0 ? 7 : d.profit < RULES.thinProfit ? 4 : 0; },
       apply: function (d) { d.crews -= 1; d.pulledBack = RULES.pullBack; } },
     { kind: 'trim', label: 'Lets idle men go', why: 'the district loses money', cost: 0, cur: 'dirty', men: 0,
-      need: function (d) { return d.profit < 0 && d.men > busyMen(d) ? 8 : 0; },
+      need: function (d) {
+        var idle = d.men - busyMen(d);
+        return idle > 0 && d.profit < 0 ? 8 : idle > RULES.idleMen && d.profit < RULES.thinProfit ? 3 : 0;
+      },
       apply: function (d) { d.men -= Math.ceil((d.men - busyMen(d)) / 2); } }
   ];
+
+  function canHire(d, p, n, wages) {
+    var spent = (p.cur === 'dirty' ? p.cost : 0) + n * RULES.hireFee;
+    return d.profit > n * RULES.wage && d.dirty - spent >= wages ? n : 0;
+  }
 
   function hold(why) { return { kind: 'hold', label: 'Holds steady', why: why, cost: 0, cur: 'dirty', men: 0, hire: 0 }; }
 
@@ -228,9 +242,9 @@
     for (var i = 0; i < wanted.length; i++) {
       var p = wanted[i].p, hire = 0;
       if (free < p.men) {
-        hire = 2 + Math.floor(c.charisma / 3);
-        var spent = (p.cur === 'dirty' ? p.cost : 0) + hire * RULES.hireFee;
-        if (d.profit <= hire * RULES.wage || d.dirty - spent < wages || free + hire < p.men) { shortOfMen = true; continue; }
+        // he brings in a whole crew if he can pay for it, otherwise just the men the job needs
+        hire = canHire(d, p, Math.max(2 + Math.floor(c.charisma / 3), p.men - free), wages) || canHire(d, p, p.men - free, wages);
+        if (!hire) { shortOfMen = true; continue; }
       }
       return { kind: p.kind, label: p.label, why: p.why, cost: p.cost, cur: p.cur, men: p.men, hire: hire };
     }
@@ -300,7 +314,7 @@
   // Streets gained or lost this month, in points of the district.
   function streetsChange(d) {
     var c = capoOf(d);
-    return d.crews * c.muscle * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
+    return d.crews * Math.max(c.muscle, RULES.crewMuscle) * RULES.crewReach + (d.goodwill - 50) / 30 - rivalPush(d)
       + d.guards * RULES.guardHold * (0.5 + c.muscle / 10);
   }
 

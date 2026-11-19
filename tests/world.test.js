@@ -182,8 +182,9 @@ test('moving into a district costs the boss money and starts with a few streets'
   W.claim(w, 'ashport-docks', 'dutch');
   assert.equal(cash - w.treasury.dirty, W.RULES.moveInCost);
   const docks = W.district(w, 'ashport-docks').state;
-  assert.equal(docks.share, 5);
-  assert.equal(docks.men, 8);
+  assert.equal(docks.share, 15);
+  assert.equal(docks.men, 11);
+  assert.equal(docks.crews, 1); // the men who took the first streets
   assert.ok(docks.share < W.district(w, 'ashport-hillside').state.share);
 });
 
@@ -271,4 +272,17 @@ test('the rivals give a new foothold a year before they come for it', () => {
   assert.ok(events.filter((e) => e.type === 'attack').every((e) => e.district !== 'ashport-docks'));
   for (let i = 0; i < 6; i++) events.push(...W.stepMonth(w));
   assert.ok(W.RULES.grace === 12);
+});
+
+test('a foothold pays its way and grows, whoever is sent there', () => {
+  const D = require('../web/district.js');
+  for (const capo of Object.keys(D.CAPOS)) {
+    const w = W.createWorld({ capo: capo === 'sal' ? 'mae' : 'sal' });
+    W.claim(w, 'ashport-market', capo);
+    const s = W.district(w, 'ashport-market').state;
+    let losing = 0;
+    for (let i = 0; i < 24; i++) { W.stepMonth(w); if (s.profit < 0) losing++; }
+    assert.ok(losing <= 3, `${capo}: ${losing} months at a loss`);
+    assert.ok(s.share > 15, `${capo}: ${Math.round(s.share)}% of the streets after two years`);
+  }
 });

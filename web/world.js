@@ -94,7 +94,7 @@
   var RULES = {
     startCash: 2500,     // dirty $ the boss starts with
     moveInCost: 1000,    // dirty $ the boss pays to set a capo up in a new district
-    foothold: { share: 5, men: 8, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
+    foothold: { share: 15, men: 11, crews: 1, dirty: 500, clean: 0, heat: 20, goodwill: 40, sites: { still: 1, speakeasy: 1 } },
     attackEvery: 6,      // months between two moves of a rival family
     rivalStrength: 3,    // what a district must put up to throw the rivals back
     rivalGrowth: 0.5,    // how much bolder the rivals get every year
@@ -322,7 +322,7 @@
     return w;
   }
 
-  var api = { CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
+  var api = { HOME: HOME, CITIES: CITIES, ROUTES: ROUTES, SEATS: SEATS, RULES: RULES, setUnderboss: setUnderboss, defence: defence,
               rivalStrength: rivalStrength, posts: posts, reachable: reachable, cityOf: cityOf, placeOf: placeOf, createWorld: createWorld, district: district, districts: districts,
               claim: claim, appoint: appoint, seat: seat, unseat: unseat, named: named, stepMonth: stepMonth,
               cityReport: cityReport, view: view };

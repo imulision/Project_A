@@ -6,13 +6,10 @@ lieutenants run which districts, and they act their own way.
 
 ## Layout
 
-- `web/sim.js` holds the rules of the game: months, districts, lieutenants, money, events. It knows nothing about the screen.
-- `web/district.js` holds the rules of the next version, where the boss only names a capo and the capo runs his district (hiring, places, crews, laundering, police). It covers liquor, gambling, cannabis, brothels, chop shops, fences, loan offices, union locals and laundering. `web/world.js` holds the map: six cities, their districts, the routes between them, the three seats at the boss's table, underbosses who name the capos of their city, rival families that attack the weakest district, and `view(world)` for the future map. `web/game.js` is what a screen talks to: `tick` for time (with pause and speed), `command` for the boss's orders, `hud`, `view`, `journal`, `candidates` and `openings` to draw, `save` and `load`. In a page, load `district.js`, `world.js` and `game.js` in that order. `npm run simulate` plays every capo over five years and prints a report. Tests are in `tests/district.test.js` and `tests/world.test.js`.
+- `web/district.js` holds the rules of a district: the boss only names a capo and the capo runs his district (hiring, places, crews, laundering, police). It covers liquor, gambling, cannabis, brothels, chop shops, fences, loan offices, union locals and laundering. `web/world.js` holds the map: six cities, their districts, the routes between them, the three seats at the boss's table, underbosses who name the capos of their city, rival families that attack the weakest district, and `view(world)` for the future map. `web/game.js` is what a screen talks to: `tick` for time (with pause and speed), `command` for the boss's orders, `hud`, `view`, `journal`, `candidates` and `openings` to draw, `save` and `load`. In a page, load `district.js`, `world.js` and `game.js` in that order. `npm run simulate` plays every capo over five years and prints a report. Tests are in `tests/district.test.js`, `tests/world.test.js` and `tests/game.test.js`; they run without a browser.
 - `web/index.html` and `web/ui.js` are the page: the top bar, the sheets and the journal. They show what `game.js` says and pass the boss's orders back. No rule lives there.
 - `web/mapview.js` works out what the 3D map has to draw from the state of the game: cities made of blocks, districts, a building on every lot, the family's places with their signs, and fire, gunfire and police lights for the month's events. It draws nothing, so it is tested without a browser in `tests/mapview.test.js`.
 - `render/` is the 3D map itself (Three.js): `scene.js` draws the plan made by `mapview.js`, `era.js` builds the 1920s buildings by code, `models.js` holds the few free models still in use (KayKit City Builder Bits, CC0). `npm run build` bundles it into `web/render.js`, which is committed so that the page still opens straight from the file and the Android app needs no build. Run it after any change in `render/`; the tests fail if the bundle is stale.
-- `web/sim.js` is the first prototype's rules. The page no longer uses it.
-- `tests/sim.test.js` holds the unit tests of the rules. They run without a browser.
 - `tests/playthrough.mjs` is the integration test: in a real browser it names the first capo, plays two years, moves into a second district by touching the map, and reloads the saved game. `node tests/playthrough.mjs some/folder` also keeps a screenshot of each step.
 - `.github/workflows/test.yml` runs both on every push to `main` and on every pull request.
 - `android/` is the Android app: one screen that shows `web/`. It holds no game code.
@@ -20,8 +17,8 @@ lieutenants run which districts, and they act their own way.
 
 ## Working on the game
 
-Rules are written test first: add a failing test to `tests/sim.test.js` that
-describes the new rule, watch it fail, then change `web/sim.js` until it passes.
+Rules are written test first: add a failing test to the matching file in `tests/`
+that describes the new rule, watch it fail, then change the rule file until it passes.
 A rule never goes into `index.html`.
 
     npm install
