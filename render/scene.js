@@ -411,14 +411,29 @@ function buildNear(C) {
   const n = Math.round(C.lots.length / 14 * (0.6 + 0.25 * C.held));
   for (let k = 0; k < n; k++) {
     const alongX = rnd() < 0.5, dir = rnd() < 0.5 ? 1 : -1;
-    const o = new THREE.Mesh(GEO[pick(['car_sedan', 'car_stationwagon', 'car_sedan', 'car_hatchback'])], pick(CARMATS)); o.position.y = 0.17;
-    const hl = new THREE.Mesh(UNIT, fxMat(GLOW_SOFT, 0xfff0c8, 0.7)); hl.rotation.x = -Math.PI / 2; hl.scale.set(1.7, 1.7, 1); hl.renderOrder = 2;
-    G.add(o, hl);
+    const geo = GEO[pick(['car_sedan', 'car_stationwagon', 'car_sedan', 'car_hatchback'])], mat = pick(CARMATS);
     const line = alongX ? C.oz + 3 * Math.floor(rnd() * (C.by + 1)) * T : C.ox + 4 * Math.floor(rnd() * (C.bx + 1)) * T;
     const min = alongX ? C.ox : C.oz, max = alongX ? C.x1 : C.z1;
-    C.cars.push({ o, hl, alongX, dir, min, max, p: min + rnd() * (max - min), lane: line + (alongX ? -dir : dir) * 0.42, speed: 1.2 + rnd() });
+    C.cars.push({ geo, mat, y: 0.17, s: 1, hl: fxMat(GLOW_SOFT, 0xfff0c8, 0.7), hs: 1.7, alongX, dir, min, max, p: min + rnd() * (max - min), lane: line + (alongX ? -dir : dir) * 0.42, speed: 1.2 + rnd() });
   }
   details.add(G); C.near = G; C.nearAt = performance.now();
+}
+// Everything that moves is drawn in lots: one draw call per kind of car and one for all headlights,
+// however many are on the road. Each frame empties the lots and fills them again.
+const batches = new Map(), _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _bs = new THREE.Vector3(), _bp = new THREE.Vector3();
+const UPY = new THREE.Vector3(0, 1, 0), QFLAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+function batch(geo, mat, order) {
+  const k = geo.uuid + mat.uuid; let b = batches.get(k);
+  if (!b) { b = new THREE.InstancedMesh(geo, mat, 384); b.count = 0; b.frustumCulled = false; b.castShadow = false; if (order) b.renderOrder = order; scene.add(b); batches.set(k, b); }
+  return b;
+}
+function putCar(geo, mat, x, y, z, rot, scale) {
+  const b = batch(geo, mat); if (b.count >= 384) return;
+  _bm.compose(_bp.set(x, y, z), _bq.setFromAxisAngle(UPY, rot), _bs.set(scale, scale, scale)); b.setMatrixAt(b.count++, _bm);
+}
+function putLight(mat, x, z, size) {
+  const b = batch(UNIT, mat, 2); if (b.count >= 384) return;
+  _bm.compose(_bp.set(x, 0.125, z), QFLAT, _bs.set(size, size, 1)); b.setMatrixAt(b.count++, _bm);
 }
 function moveCars(list, dt) {
   for (const c of list) {
@@ -433,13 +448,12 @@ function moveCars(list, dt) {
       c.p += c.dir * c.speed * dt; if (c.p > c.max + 1) c.p = c.min - 1; if (c.p < c.min - 1) c.p = c.max + 1;
       x = c.alongX ? c.p : c.lane; z = c.alongX ? c.lane : c.p; fx = c.alongX ? c.dir : 0; fz = c.alongX ? 0 : c.dir;
     }
-    c.o.position.x = x; c.o.position.z = z; c.o.rotation.y = Math.atan2(fx, fz);
-    c.hl.position.set(x + fx * 1.2, 0.125, z + fz * 1.2);
+    putCar(c.geo, c.mat, x, c.y, z, Math.atan2(fx, fz), c.s); putLight(c.hl, x + fx * 1.2, z + fz * 1.2, c.hs);
   }
 }
 function buildYear() {
   for (const C of CITIES) { if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null; }
-  for (const t of trucks) { t.o.removeFromParent(); t.hl.removeFromParent(); } trucks.length = 0;
+  trucks.length = 0;
   nBuildings = 0;
   CITIES.forEach(C => { plan(C); buildFar(C); });
   seed = 31;
@@ -447,9 +461,7 @@ function buildYear() {
     const busy = Math.min(4, 1 + ((CITIES[r.a].held + CITIES[r.b].held) >> 1));
     const [p0, p1, p2] = r.pts, len = Math.abs(p1[0] - p0[0]) + Math.abs(p1[1] - p0[1]) + Math.abs(p2[0] - p1[0]) + Math.abs(p2[1] - p1[1]);
     for (let k = 0; k < busy; k++) {
-      const o = new THREE.Mesh(GEO.car_stationwagon, pick(CARMATS)); o.position.y = 0.2; o.scale.setScalar(1.3);
-      const hl = new THREE.Mesh(UNIT, fxMat(GLOW_SOFT, 0xfff0c8, 0.8)); hl.rotation.x = -Math.PI / 2; hl.scale.set(2.6, 2.6, 1); hl.renderOrder = 2;
-      root.add(o, hl); trucks.push({ o, hl, path: r.pts, len, p: rnd() * len, dir: rnd() < 0.5 ? 1 : -1, speed: 2 + rnd() * 1.5 });
+      trucks.push({ geo: GEO.car_stationwagon, mat: pick(CARMATS), y: 0.2, s: 1.3, hl: fxMat(GLOW_SOFT, 0xfff0c8, 0.8), hs: 2.6, path: r.pts, len, p: rnd() * len, dir: rnd() < 0.5 ? 1 : -1, speed: 2 + rnd() * 1.5 });
     }
   }
   shadowDirty = true;
@@ -555,8 +567,8 @@ const labels = () => {
     out.push({ id: 's' + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, x, y }); } });
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
-  for (const [id, a] of agents) { if (!a.o || !a.o.visible || shownCars >= MAXTAGS) continue; shownCars++;
-    const [x, y] = scr(a.o.position.x, a.o.position.z, 1.1); out.push({ id: 'v' + id, car: a.tag, x, y }); }
+  for (const [id, a] of agents) { if (!a.seen || shownCars >= MAXTAGS) continue; shownCars++;
+    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
   for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
@@ -600,6 +612,7 @@ function agentFor(t) {
   if (!L) return null;
   // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
   return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0, sig: t.path.join(';'), leaving: false,
+           geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
            tag: { cargo: t.cargo, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
 }
 function traffic(trips) {
@@ -620,18 +633,18 @@ function moveAgents(dt) {
     else {
       a.p += a.dir * a.speed * dt;
       if (a.p >= a.L) {
-        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
-        if (a.leaving) { if (a.o) a.o.removeFromParent(); agents.delete(id); continue; }
+        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); agents.delete(id); continue; }
+        if (a.leaving) { agents.delete(id); continue; }
         a.p = a.L; a.dir = -1; a.wait = 1.5;
-      } else if (a.p <= 0) { if (a.leaving) { if (a.o) a.o.removeFromParent(); agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
+      } else if (a.p <= 0) { if (a.leaving) { agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
     }
     let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
     const p0 = a.pts[k], p1 = a.pts[k + 1], s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
-    if (a.C.near && a.C.near.visible) {
-      if (!a.o) { a.o = new THREE.Mesh(GEO[a.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], a.vehicle === 'police' ? POLICEMAT : a.violent ? MUSCLEMAT : a.vehicle === 'truck' ? CARMATS[3] : CARMATS[0]); if (a.vehicle === 'truck') a.o.scale.setScalar(1.2); a.o.position.y = 0.17; a.o.castShadow = false; scene.add(a.o); }
-      const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir;
-      a.o.visible = true; a.o.position.x = x; a.o.position.z = z; if (fx || fz) a.o.rotation.y = Math.atan2(fx, fz);
-    } else if (a.o) a.o.visible = false;
+    a.seen = !!(a.C.near && a.C.near.visible); a.x = x; a.z = z;
+    if (a.seen) {
+      const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir; if (fx || fz) a.rot = Math.atan2(fx, fz);
+      putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.vehicle === 'truck' ? 1.2 : 1);
+    }
     if (n < MAXDOTS) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
   }
   dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
@@ -663,8 +676,10 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   levelOfDetail(now);
+  for (const b of batches.values()) b.count = 0;
   moveCars(trucks, dt); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, dt);
   moveAgents(dt); animateFx(dt, now);
+  for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
   grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
   renderer.info.reset(); composer.render(); frames++; fpsN++;
   if (now - fpsT > 1000) {

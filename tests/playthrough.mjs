@@ -86,6 +86,11 @@ assert.ok(await page.locator('.lab.tag').count() > 0, 'the cars on the road show
 await page.evaluate(() => document.querySelector('.lab.tag').click());      // by the element itself: another badge may lie over it on the screen
 assert.match(await page.textContent('#tip.on'), /crates|\$|men/, 'touching a car says what it carries');
 await shot('7-street');
+// the budget of the street view: cars and headlights are drawn in lots, so the count of draw calls stays low however busy the streets
+await page.waitForTimeout(600);
+const near = await page.evaluate(() => window.__ashport.map().stats());
+assert.ok(near.calls <= 220, 'the street view is drawn in at most 220 draw calls (' + near.calls + ')');
+assert.ok(await page.locator('.lab').count() <= 90, 'and carries at most 90 labels');
 // the money view: the map goes grey and every place says what it took in, the laundries what they washed
 await page.click('#money');
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.pin b')].some((b) => /^\$/.test(b.textContent)));
