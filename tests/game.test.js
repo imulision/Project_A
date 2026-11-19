@@ -341,3 +341,20 @@ test('the boss reads who waits for a promotion, promotes him, and sees the famil
   assert.equal(ranks[1].men[0].name, 'Dutch Keller');
   assert.equal(ranks[1].pay, W.RANKS[1].pay);
 });
+
+test('the boss orders a research from the wheel and watches its bar', () => {
+  const g = G.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 60 && !G.promotions(g).length; i++) month(g);
+  const ability = G.promotions(g)[0].options[0].id;
+  G.command(g, { type: 'promote', capo: 'dutch', ability });
+  assert.equal(G.research(g), null);
+  g.world.treasury.clean = 50000;
+  assert.deepEqual(G.command(g, { type: 'research', ability }), { ok: true });
+  month(g);
+  const r = G.research(g);
+  assert.equal(r.id, ability);
+  assert.ok(r.name && r.progress > 0 && r.progress < 1);
+  for (let i = 0; i < r.months; i++) month(g);
+  assert.equal(G.research(g), null);
+  assert.ok(g.journal.some((e) => e.type === 'research'));
+});
