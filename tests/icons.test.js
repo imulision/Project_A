@@ -45,3 +45,15 @@ test('a round gauge fills with the part done, and never past full', () => {
 test('a bar of pips shows a stat out of ten', () => {
   assert.equal((I.pips(7, 10).match(/class="on"/g) || []).length, 7);
 });
+
+test('everybody the rules can name has a face of his own, never the stranger in the hat', () => {
+  const T = require('../web/turf.js');
+  const strip = (svg) => svg.replace(/id="[^"]+"|url\(#[^)]+\)/g, '');      // the drawing without its own name in it
+  const stranger = strip(I.portrait('nobody-we-know')), seen = new Map();
+  for (const id of Object.keys(T.PEOPLE).concat(Object.keys(D.CAPOS))) {
+    const face = strip(I.portrait(id));
+    assert.notEqual(face, stranger, id + ' has no face');
+    if (seen.has(face) && seen.get(face) !== id) assert.fail(id + ' has the face of ' + seen.get(face));
+    seen.set(face, id);
+  }
+});

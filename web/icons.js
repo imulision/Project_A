@@ -76,7 +76,40 @@
     dutch: { skin: '#d3a585', tone: '#ffb347', hat: 'cap', felt: '#4a4034', jaw: 16, beard: true, tie: null },
     tommy: { skin: '#dcb497', tone: '#6aa6ff', hat: null, jaw: 14.500, hair: '#b9b4ae', collar: true },
     vince: { skin: '#bf9478', tone: '#b98cff', hat: 'fedora', felt: '#1d2230', jaw: 13.500, scar: true, tilt: -7, tie: '#39304f' },
-    danny: { skin: '#cf9d76', tone: '#ffe06a', hat: null, jaw: 14.500, hair: '#1c1614', bow: true, grin: true }
+    danny: { skin: '#cf9d76', tone: '#ffe06a', hat: null, jaw: 14.500, hair: '#1c1614', bow: true, grin: true, quiff: true },
+    // the men and women they bring up
+    rocco: { skin: '#b98a66', tone: '#e8744f', hat: 'cap', felt: '#2f2a2a', jaw: 17.500, scar: true, tie: null },
+    ida:   { skin: '#e6c2a6', tone: '#7fe08a', hat: 'cloche', felt: '#2d3a34', jaw: 13, lips: true, hair: '#6b4a2e', glasses: true },
+    otto:  { skin: '#d9ad8c', tone: '#ffb347', hat: null, jaw: 16.500, hair: '#8a6a45', beard: true, moustache: true, tie: null },
+    frank: { skin: '#e0b79a', tone: '#6aa6ff', hat: 'fedora', felt: '#4a4a52', jaw: 14, glasses: true, tie: '#2e4470' },
+    lena:  { skin: '#e9c9b3', tone: '#b98cff', hat: 'cloche', felt: '#191a24', jaw: 13.500, lips: true, hair: '#d8c28a', scar: true },
+    ray:   { skin: '#c4946c', tone: '#ffe06a', hat: 'fedora', felt: '#5a4a2c', jaw: 14.500, moustache: true, grin: true, bow: true, tilt: 6 },
+    // those who hold a key place
+    gus:    { skin: '#dcae90', tone: '#d9a05a', hat: 'cap', felt: '#5b4a3a', jaw: 17, moustache: true, beard: true, tie: null },
+    vivian: { skin: '#edd0bb', tone: '#ff8fb0', hat: 'cloche', felt: '#5a1f33', jaw: 13, lips: true, hair: '#1a1416', pearls: true },
+    jim:    { skin: '#b8875f', tone: '#ff6a5a', hat: 'cap', felt: '#1f2a36', jaw: 18, cigar: true, tie: null },
+    walt:   { skin: '#cfa27e', tone: '#c8d0ff', hat: null, jaw: 16.500, hair: '#3a2f2a', moustache: true, tie: null },
+    hugh:   { skin: '#e3bfa6', tone: '#e8c463', hat: null, jaw: 14, hair: '#d9d5cf', glasses: true, bow: true },
+    mallory: { skin: '#d2a684', tone: '#5a8dff', hat: 'cap', felt: '#16203a', jaw: 16, moustache: true, tie: '#16203a' },
+    // the lieutenants of the other families, each under his family's colour
+    finn:   { skin: '#d8a988', tone: '#4fd07a', hat: 'cap', felt: '#26352b', jaw: 17.500, scar: true, tie: null },
+    nora:   { skin: '#ecc9b0', tone: '#4fd07a', hat: 'cloche', felt: '#1f3a2a', jaw: 13, lips: true, hair: '#a6532a', glasses: true },
+    sean:   { skin: '#e0b494', tone: '#4fd07a', hat: null, jaw: 15, hair: '#a6532a', grin: true, tie: '#1f5a36', quiff: true },
+    declan: { skin: '#d6a784', tone: '#4fd07a', hat: 'fedora', felt: '#24382c', jaw: 15, beard: true, tie: '#1f5a36' },
+    bridie: { skin: '#eccdb6', tone: '#4fd07a', hat: 'cloche', felt: '#3a2a1c', jaw: 13.500, lips: true, hair: '#1c1614', pearls: true },
+    mick:   { skin: '#c99670', tone: '#4fd07a', hat: null, jaw: 18, hair: '#2a201c', moustache: true, cigar: true, tie: null },
+    aidan:  { skin: '#e6c0a4', tone: '#4fd07a', hat: null, jaw: 14, hair: '#c9c4bc', collar: true, glasses: true },
+    clara:  { skin: '#e9c6ac', tone: '#4fd07a', hat: 'cloche', felt: '#22242c', jaw: 12.500, lips: true, hair: '#8a6a45' },
+    owen:   { skin: '#d2a17c', tone: '#4fd07a', hat: 'fedora', felt: '#3c3a2a', jaw: 14.500, grin: true, bow: true, tilt: -5 },
+    aggie:  { skin: '#eac8b0', tone: '#5aa2ff', hat: 'cloche', felt: '#1c2a44', jaw: 13.500, lips: true, hair: '#c9c4bc', pearls: true },
+    stan:   { skin: '#c9997a', tone: '#5aa2ff', hat: 'cap', felt: '#232b3a', jaw: 18, moustache: true, scar: true, tie: null },
+    pete:   { skin: '#e8c4a8', tone: '#5aa2ff', hat: null, jaw: 15, hair: '#e0cf9a', beard: true, tie: null },
+    karl:   { skin: '#dcb090', tone: '#b88cff', hat: 'fedora', felt: '#2a2238', jaw: 16, moustache: true, glasses: true, tie: '#4a3a70' },
+    greta:  { skin: '#efd2bd', tone: '#b88cff', hat: 'cloche', felt: '#2e2440', jaw: 13, lips: true, hair: '#e0cf9a', glasses: true },
+    lutz:   { skin: '#c79872', tone: '#b88cff', hat: null, jaw: 18, hair: '#141218', scar: true, tie: null },
+    joe:    { skin: '#b98a66', tone: '#ff6a5a', hat: 'cap', felt: '#3a2622', jaw: 16.500, beard: true, cigar: true, tie: null },
+    tess:   { skin: '#c99670', tone: '#ff6a5a', hat: 'cloche', felt: '#3a1c1c', jaw: 13.500, lips: true, hair: '#141218', scar: true },
+    harry:  { skin: '#cfa27e', tone: '#ff6a5a', hat: null, jaw: 18.500, hair: '#5a3a22', moustache: true, beard: true, tie: null }
   };
   var ANON = { skin: '#8d8790', tone: '#a39fb0', hat: 'fedora', felt: '#26252d', jaw: 15 };
 
@@ -114,7 +147,7 @@
     if (f.hat === 'fedora') top = '<path d="M24 31q1-17 16-17t16 17z" fill="' + f.felt + '"/><path d="M33 16q7 4 14 0" fill="none" stroke="rgba(0,0,0,.4)" stroke-width="2"/><path d="M24 27.500h32V32H24z" fill="#0d0c11"/><path d="M12 33q28-9 56 0-28 7-56 0z" fill="' + f.felt + '"/><path d="M12 33q28 7 56 0-28 11-56 0z" fill="rgba(0,0,0,.45)"/>';
     else if (f.hat === 'cap') top = '<path d="M22 33q0-16 19-16t19 14l-2 3z" fill="' + f.felt + '"/><path d="M22 32q14-4 40 2l6 4q-24-3-46-2z" fill="#2c261f"/><path d="M30 21l4 11M41 18v13M51 21l-3 11" stroke="rgba(0,0,0,.25)" stroke-width="1"/>';
     else if (f.hat === 'cloche') top = '<path d="M' + (37 - j) + ' 40q-2-25 19-25t19 25q-4-5-9-6H' + (46 - j) + 'q-5 1-9 6z" fill="' + f.felt + '"/><path d="M' + (39 - j) + ' 31q17-5 ' + (2 * j + 2) + ' 0v3.500q-17-5-' + (2 * j + 2) + ' 0z" fill="' + f.tone + '" fill-opacity=".8"/>';
-    else top = id === 'danny' ? '<path d="M' + (40 - j) + ' 39q-3-22 14-23 16 0 ' + (j + 1) + ' 22-2-9-8-10-12 4-' + (j + 6) + ' 2-2 3-1 9z" fill="' + f.hair + '"/>'
+    else top = f.quiff ? '<path d="M' + (40 - j) + ' 39q-3-22 14-23 16 0 ' + (j + 1) + ' 22-2-9-8-10-12 4-' + (j + 6) + ' 2-2 3-1 9z" fill="' + f.hair + '"/>'
                              : '<path d="M' + (40 - j) + ' 38q-2-20 15-20t15 20q-3-10-8-11-9 3-17 0-4 3-5 11z" fill="' + f.hair + '"/>';
     s += (f.tilt ? '<g transform="rotate(' + f.tilt + ' 40 32)">' + top + '</g>' : top);
     return s + '</svg>';
