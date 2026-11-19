@@ -9,7 +9,7 @@
   var money = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
   var capoName = function (id) { return id && CAPOS[id] ? CAPOS[id].name : 'Nobody'; };
 
-  var g = null, map = null, labs = {}, marks = {}, taking = {};
+  var g = null, map = null, labs = {}, marks = {}, taking = {}, tills = {};
 
   function stored() { try { var t = localStorage.getItem(SAVE); return t ? G.load(t) : null; } catch (e) { return null; } }
   function store() { try { localStorage.setItem(SAVE, G.save(g)); } catch (e) { /* no storage: the game still plays */ } }
@@ -24,9 +24,14 @@
     var asks = {}; G.proposals(g).forEach(function (q) { asks[q.district] = q; }); marks = {}; taking = {};
     (G.takeovers ? G.takeovers(g) : []).forEach(function (t) { taking[t.district] = { sig: t.capo + ':' + t.monthsLeft, sub: first(t.capoName) + ': ' + t.monthsLeft + ' month' + (t.monthsLeft > 1 ? 's' : '') + ' left',
       html: '<span style="color:' + WAY[t.way].color + '">' + I.ring(t.progress, WAY[t.way].icon) + '</span>' }; });
+    // the money view: what each place took in or washed last month, and what the capo keeps at his club
+    tills = {};
     p.cities.forEach(function (c) { c.districts.forEach(function (d) { if (!d.capo) return;
+      var held = { dirty: 0, clean: 0 };
+      (G.cash ? G.cash(g, d.id) : []).forEach(function (x) { if (x.at === 'hideout') held[x.kind] = x.amount; else if (x.amount > 0 && (x.kind === 'washing' || !tills[x.at])) tills[x.at] = { kind: x.kind, text: money(x.amount) }; });
       var n = intentOf(d.id), q = asks[d.id];
-      marks[d.id] = { ask: !!q, html: I.ring(q ? q.monthsLeft / (q.waits || q.monthsLeft) : n && n.progress != null ? n.progress : 0) + '<span class="pf">' + I.portrait(d.capo) + '</span><span class="do">' + I.icon(q ? q.kind : n ? moveIcon(n.kind) : 'time') + '</span>',
+      marks[d.id] = { ask: !!q, html: I.ring(q ? q.monthsLeft / (q.waits || q.monthsLeft) : n && n.progress != null ? n.progress : 0) + '<span class="pf">' + I.portrait(d.capo) + '</span><span class="do">' + I.icon(q ? q.kind : n ? moveIcon(n.kind) : 'time') + '</span>' +
+                        '<span class="till"><b class="dirty">' + money(held.dirty) + '</b><b class="clean">' + money(held.clean) + '</b></span>',
                       tip: q ? q.capoName + ': ' + q.label : n ? capoName(d.capo) + ': ' + n.label : capoName(d.capo) }; }); });
   }
   function previewPlan() { return M.plan(G.view(G.createGame({ capo: Object.keys(CAPOS)[0] }))); }
@@ -139,9 +144,10 @@
   }
   function intentHtml(id) {
     var n = intentOf(id); if (!n) return '';
-    var wait = { money: 'saving for it', men: 'short of men', heat: 'waiting for the police to look away' }[n.waiting];
+    var wait = { money: 'saving for it', men: 'short of men', heat: 'waiting for the police to look away', research: 'waiting for the family to learn it' }[n.waiting];
     return '<div class="intent">' + '<span class="gauge">' + I.ring(n.progress == null ? 1 : n.progress, moveIcon(n.kind)) + '</span><div><b>' + esc(n.label) + '</b><small>' +
-      esc([n.why, wait, n.cost ? money(n.saved || 0) + ' of ' + money(n.cost) : ''].filter(Boolean).join(' · ')) + '</small></div></div>';
+      esc([n.why, wait, n.cost ? money(n.saved || 0) + ' of ' + money(n.cost) : ''].filter(Boolean).join(' · ')) + '</small></div></div>' +
+      (n.wish ? '<div class="intent wish"><span class="gauge">' + I.ring(0, moveIcon(n.wish.site)) + '</span><div><b>He asks for: ' + esc(WORD[n.wish.site] || n.wish.site) + '</b><small>' + esc(n.wish.why) + ' · the family does not know this trade yet (Family sheet)</small></div></div>' : '');
   }
   function chainHtml(f) {
     var node = function (icon, value, tipText, bad) { return '<div class="node' + (bad ? ' bad' : '') + '" data-tip="' + esc(tipText + (bad ? '. This is what holds sales back' : '')) + '">' + I.icon(icon) + '<b>' + value + '</b></div>'; };
@@ -205,6 +211,24 @@
         '<div class="choose">' + p.options.map(function (o) { return '<button data-act="promote" data-capo="' + esc(p.capo) + '" data-ability="' + esc(o.id) + '" style="--c:' + TRADE[o.sector] + '">' + I.icon(SECTOR[o.sector] || 'ambition') + '<b>' + esc(o.name) + '</b><span>' + esc(o.text) + '</span></button>'; }).join('') + '</div></div>'; }).join('') +
       '<div class="acts"><button data-act="close">Decide later</button></div>');
   }
+  // What the family knows how to run: every kind of place, closed, open, or grown to its second and third size.
+  function treeHtml() {
+    if (!G.tree) return '';
+    return '<h2 class="sub2">Places the family can run</h2><div class="tree">' + G.tree(g).map(function (t) {
+      var busy = t.monthsLeft != null;
+      return '<button class="know' + (t.tier ? '' : ' shut') + (busy ? ' busy' : '') + (t.role === 'laundering' ? ' wash' : '') + '" data-know="' + esc(t.id) + '">' +
+        (busy ? '<span class="gauge">' + I.ring(t.progress || 0, t.id) + '</span>' : I.icon(t.id)) +
+        '<span class="lv">' + [1, 2, 3].map(function (k) { return '<i' + (k <= t.tier ? ' class="on"' : '') + '></i>'; }).join('') + '</span>' +
+        (t.wantedBy.length ? '<span class="want">' + I.portrait(t.wantedBy[0].id) + '</span>' : '') + '</button>'; }).join('') + '</div><div id="know">Touch a place to see what opening or enlarging it takes.</div>';
+  }
+  function knowText(id) {
+    var t = G.tree(g).filter(function (x) { return x.id === id; })[0], n = t.next, faces = function (list) { return list.map(function (m) { return '<span class="slot sm" data-tip="' + esc(m.name) + '">' + I.portrait(m.id) + '</span>'; }).join(''); };
+    return '<b>' + esc(t.name) + ' · ' + (t.tier ? 'size ' + 'I'.repeat(t.tier) : 'not known yet') + '</b>' + esc(ROLE[t.role] ? 'A place that ' + ROLE[t.role] : '') +
+      (t.wantedBy.length ? '<div class="move">' + faces(t.wantedBy) + '<span>' + esc(t.wantedBy.map(function (m) { return first(m.name); }).join(', ')) + (t.wantedBy.length > 1 ? ' ask' : ' asks') + ' for it</span></div>' : '') +
+      (t.likedBy.length ? '<div class="move yes">' + faces(t.likedBy) + '<span>His trade: learnt in half the time</span></div>' : '') +
+      (t.monthsLeft != null ? '<div class="move"><span class="gauge">' + I.ring(t.progress || 0, 'time') + '</span><span>Being learnt: ' + t.monthsLeft + ' month' + (t.monthsLeft > 1 ? 's' : '') + ' left</span></div>'
+        : n ? '<button class="go" data-act="learn" data-building="' + esc(t.id) + '"' + (n.affordable ? '' : ' disabled') + '>' + I.icon('clean') + ' ' + (t.tier ? 'Enlarge to size ' + 'I'.repeat(n.tier) : 'Open this trade') + ' · ' + money(n.cost) + ' · ' + n.months + ' months</button>' : '<div class="move yes">' + I.icon('yes') + '<span>As large as it gets</span></div>');
+  }
   // The family as a pyramid: few places at the top, and a man waits when the rank above is full.
   function pyramidHtml() {
     if (!G.ranks) return '';
@@ -259,7 +283,7 @@
   function sheetFamily() {
     var w = G.wheel(g);
     open('<h2>The family</h2><p>Six trades around you. Your men light them as they rise in rank, and what they bring serves the whole family.</p>' + wheelSvg(w) +
-      '<div id="skill">Touch a part of the wheel to see what it brings.</div>' + pyramidHtml() +
+      '<div id="skill">Touch a part of the wheel to see what it brings.</div>' + pyramidHtml() + treeHtml() +
       men().map(function (m) {
         return '<div class="card"><div class="head"><div class="mini">' + I.portrait(m.id) + '</div><div><h3>' + esc(m.name) + '</h3><div class="who">' + esc(m.rankName) + ' · ' + esc(m.specialty) + '</div></div></div>' +
           '<div class="bar"><i style="width:' + Math.min(100, Math.round(100 * m.total / (m.nextRankAt || m.total || 1))) + '%"></i></div>' +
@@ -276,6 +300,8 @@
   $('sheet').addEventListener('click', function (e) {
     var seg = e.target.closest('[data-skill]');
     if (seg) { [].forEach.call($('sheet').querySelectorAll('.sel'), function (x) { x.classList.remove('sel'); }); seg.classList.add('sel'); $('skill').innerHTML = skillText(G.wheel(g), seg.dataset.skill); return; }
+    var know = e.target.closest('[data-know]');
+    if (know) { [].forEach.call($('sheet').querySelectorAll('.know'), function (x) { x.classList.toggle('sel', x === know); }); $('know').innerHTML = knowText(know.dataset.know); return; }
     var face = e.target.closest('[data-face]');
     if (face && picking) { [].forEach.call($('sheet').querySelectorAll('.facebtn'), function (x) { x.classList.toggle('on', x === face); });
       $('who').innerHTML = manHtml(picking.list.filter(function (c) { return c.id === face.dataset.face; })[0], picking.action, picking.label); return; }
@@ -285,6 +311,7 @@
     else if (act === 'start') { if (order({ type: 'start', capo: b.dataset.capo })) { close(); map.focus('ashport'); toast(capoName(b.dataset.capo) + ' holds Hillside. Tap a district to see it.'); } }
     else if (act === 'pick') sheetPick(b.dataset.order, b.dataset.district, b.dataset.way);
     else if (act === 'research') { if (order({ type: 'research', ability: b.dataset.ability })) { sheetFamily(); $('skill').innerHTML = skillText(G.wheel(g), b.dataset.key); } }
+    else if (act === 'learn') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: b.dataset.building })) { sheetFamily(); $('know').innerHTML = knowText(b.dataset.building); $('sheet').scrollTop = top; } }
     else if (act === 'promote') { if (order({ type: 'promote', capo: b.dataset.capo, ability: b.dataset.ability })) sheetPromotions(); }
     else if (act === 'new') { forget(); location.reload(); }
     else if (act === 'approve' || act === 'refuse') { if (order({ type: act, id: b.dataset.id })) sheetProposals(); }
@@ -296,6 +323,8 @@
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (g.started) { G.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); } };
   $('speed').onclick = function () { var s = G.SPEEDS; G.command(g, { type: 'speed', value: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
+  $('money').onclick = function () { var on = document.body.classList.toggle('money'); $('money').classList.toggle('on', on);
+    if (on) toast('Money view: what each place took in last month, in blue what the laundries washed, and what each capo keeps at his club.'); };
   $('family').onclick = function () { if (g.started) sheetFamily(); };
   $('journal').onclick = function () { if (g.started) sheetJournal(); };
 
@@ -321,9 +350,9 @@
         if (!e) {
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
-          else if (l.car) { var k = CARGO[l.car.cargo] || { icon: l.car.vehicle, color: '#e8c463' }; e.className = 'lab tag'; e.style.setProperty('--c', k.color); e.innerHTML = I.icon(k.icon); }
+          else if (l.car) { var k = CARGO[l.car.cargo] || { icon: l.car.vehicle, color: '#e8c463' }; e.className = 'lab tag' + (/takings|laundering|tribute/.test(l.car.cargo) ? ' m' : ''); e.style.setProperty('--c', k.color); e.innerHTML = I.icon(k.icon); }
           else if (l.capo) e.className = 'lab capo';
-          else if (l.site) { e.className = 'lab pin' + (l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(l.site); e.dataset.tip = l.name + ': ' + (ROLE[l.role] || '') + (l.level > 1 ? ', level ' + l.level : ''); }
+          else if (l.site) { e.className = 'lab pin' + (l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(l.site) + '<b></b>'; e.dataset.tip = l.name + ': ' + (ROLE[l.role] || '') + (l.level > 1 ? ', level ' + l.level : ''); }
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<i class="tkr"></i><b></b><span></span>'; e.r = e.firstChild; e.b = e.children[1]; e.s = e.lastChild; }
           if (!l.fx) e.onclick = function (ev) { ev.stopPropagation(); tapLabel(e.l, e); };
           $('labels').appendChild(e);
@@ -331,6 +360,7 @@
         e.l = l; e.style.left = Math.round(l.x) + 'px'; e.style.top = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120 }[l.fx] || 0) : 0)) + 'px';
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.capo) { var m = marks[l.district]; if (m && e.mark !== m.html) { e.mark = m.html; e.innerHTML = m.html; e.classList.toggle('ask', m.ask); } }
+        else if (l.site) { var c = tills[l.id.slice(1)], sig = c ? c.kind + c.text : ''; if (e.sig !== sig) { e.sig = sig; e.lastChild.textContent = c ? c.text : ''; e.classList.toggle('washing', !!c && c.kind === 'washing'); e.classList.toggle('dry', !c); } }
         else if (!l.car && !l.site) { var t = l.district && taking[l.district]; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = t ? t.sub : l.sub;
           if ((t ? t.sig : '') !== (e.tk || '')) { e.tk = t ? t.sig : ''; e.r.innerHTML = t ? t.html : ''; e.classList.toggle('tk', !!t); } }
       });

@@ -86,6 +86,12 @@ assert.ok(await page.locator('.lab.tag').count() > 0, 'the cars on the road show
 await page.evaluate(() => document.querySelector('.lab.tag').click());      // by the element itself: another badge may lie over it on the screen
 assert.match(await page.textContent('#tip.on'), /crates|\$|men/, 'touching a car says what it carries');
 await shot('7-street');
+// the money view: the map goes grey and every place says what it took in, the laundries what they washed
+await page.click('#money');
+await page.waitForFunction(() => [...document.querySelectorAll('.lab.pin b')].some((b) => /^\$/.test(b.textContent)));
+assert.match(await page.textContent('.lab.capo .till'), /\$/, 'and the capo shows what he keeps at his club');
+await shot('11-money');
+await page.click('#money');
 await page.evaluate(() => document.querySelector('.lab.capo').click());
 await page.waitForSelector('#veil.on .tiles');
 assert.equal(await page.textContent('#sheet h2'), 'Hillside', 'touching the capo opens his district');
@@ -108,6 +114,11 @@ const known = await page.evaluate(() => { const w = AshportGame.wheel(window.__a
 if (known) { await page.locator('#sheet .wheel path[data-skill="' + known + '"]').click(); assert.equal(await page.locator('#skill [data-act=research]').count(), 1, 'what one capo knows can be taught to the family'); }
 assert.ok(await page.locator('#sheet .card').count() >= 2, 'the men of the family are listed with their rank');
 assert.ok(await page.locator('#sheet .pyr .slot').count() >= 3, 'the family is drawn as a pyramid, free places included');
+// the places the family can run: some known, some closed until the family pays to learn them
+assert.ok(await page.locator('#sheet .know').count() >= 8, 'every kind of place is pictured');
+assert.ok(await page.locator('#sheet .know.shut').count() >= 1, 'a new family does not know every trade');
+await page.locator('#sheet .know.shut').first().click();
+assert.match(await page.textContent('#know'), /Open this trade/, 'touching a closed trade says what opening it takes');
 await shot('6-family');
 await page.click('#sheet [data-act=close]');
 await page.click('#journal');

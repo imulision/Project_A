@@ -28,7 +28,8 @@ h1::after{content:"";display:block;width:44px;height:3px;background:var(--accent
 .lab.promotion{color:#ffd76a}.lab.fire{color:#ff7a3a}.lab.gunfire{color:#ff5a3a}.lab.police{color:#6a9bff}
 @keyframes pulse{from{opacity:1}to{opacity:.55}}
 .bot{position:fixed;left:0;right:0;bottom:0;padding:26px 12px 12px;background:linear-gradient(#07080b00,#07080be0 45%);z-index:2;display:flex;gap:6px;align-items:center}
-button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 10px;min-height:42px}
+button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 9px;min-height:42px}
+.bot{gap:5px}#money{font:500 18px var(--title);min-width:40px}
 button.on,button.go{background:var(--accent);border-color:var(--accent);color:#15110b}
 button:disabled{opacity:.4}
 .grow{flex:1}
@@ -124,6 +125,26 @@ button:disabled{opacity:.4}
 .slot.empty{border-style:dashed;border-color:#ffffff40;opacity:.35;filter:grayscale(1)}.slot.wait{border-color:var(--bad);opacity:.75}.slot.none{border:0;height:6px}
 .wheel path.shared{stroke:#fff;stroke-width:2.5}.wheel path.learning{animation:pulse .7s infinite alternate}
 #skill .go{width:100%;margin-top:8px}#skill .move{margin:8px 0 0}#skill .gauge{width:30px;height:30px}
+canvas{transition:filter .3s}body.money canvas{filter:grayscale(.85) brightness(.62) contrast(1.1)}
+.lab.pin b{display:none}.till{display:none}
+body.money .lab.pin{width:auto;height:auto;padding:2px 6px 2px 4px;display:flex;gap:4px;align-items:center;background:#0b0b10f2;color:#e8c463;border:1px solid #e8c463;border-radius:2px}
+body.money .lab.pin b{display:block;font:500 13px var(--title);letter-spacing:.3px}body.money .lab.pin.washing{color:#6ad0e0;border-color:#6ad0e0}body.money .lab.pin.dry{opacity:.45}
+body.money .lab.pin::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:14px;background:currentColor;opacity:.7}
+body.money .till{display:flex;gap:4px;position:absolute;left:50%;top:-20px;transform:translateX(-50%);white-space:nowrap}
+.till b{font:500 12px var(--title);padding:1px 5px;background:#0b0b10f2;border:1px solid}.till .dirty{color:#e8c463}.till .clean{color:#8fbf97}
+body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.sm,body.money .lab.fx{opacity:.5}
+.bot button{padding:0 7px;font-size:.93em}body.money .lab.tag:not(.m){display:none}
+.sub2{font-size:17px!important;margin:6px 0 8px!important;color:var(--dim)}
+.tree{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.know{position:relative;display:block;padding:9px 4px 7px;min-height:0;border-top:2px solid var(--accent);background:#ffffff0d}
+.know>.ic{display:block;margin:0 auto 5px;width:28px;height:28px;color:var(--accent)}.know .gauge{margin:0 auto 5px;width:34px;height:34px}
+.know .lv i{width:12px;height:4px;background:#ffffff26}.know .lv i.on{background:var(--accent)}
+.know.shut{border-top-color:#ffffff30;border-style:dashed}.know.shut>.ic{color:var(--dim);opacity:.55}
+.know.wash{border-top-color:#6ad0e0}.know.wash>.ic{color:#6ad0e0}.know.sel{outline:2px solid var(--ink)}
+.know .want{position:absolute;right:-3px;top:-6px;width:22px;height:22px;border-radius:50%;overflow:hidden;border:1.5px solid var(--bad)}
+#know{min-height:58px;border-left:3px solid var(--accent);background:#ffffff0d;padding:7px 10px;margin:0 0 12px}#know>b{font:500 15px var(--title);letter-spacing:.4px;display:block}
+#know .go{width:100%;margin-top:8px}#know .move{margin:8px 0 0}#know .gauge{width:30px;height:30px}
+.slot.sm{width:28px;height:28px;border-width:1.5px;flex:none}.intent.wish{border-left-color:var(--bad)}.intent.wish .gauge{color:var(--bad)}
 #load{position:fixed;inset:0;display:grid;place-items:center;background:#191a22;z-index:6;font:500 24px var(--title);letter-spacing:3px}
 </style></head><body>
 <div id="load">ASHPORT</div>
@@ -142,7 +163,7 @@ button:disabled{opacity:.4}
 <div id="toast"></div>
 <div id="tip"></div>
 <div class="bot">
-  <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button>
+  <button id="map">Map</button><button id="pause">Pause</button><button id="speed">1x</button><button id="money">$</button>
   <span class="grow"></span>
   <button id="family">Family</button><button id="journal">Journal</button>
 </div>
