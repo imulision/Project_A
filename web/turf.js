@@ -60,7 +60,7 @@
     cool: 6,            // months for one grudge to be forgotten
     sulks: 12,          // months the man the boss ruled against keeps his money to himself
     seats: 3,           // capos a city carries; every key place the family holds there adds one
-    doors: { rise: 1000, figure: 1500, name: 2500, need: 1000, poach: 6000 },
+    doors: { rise: 1000, figure: 1500, name: 2500, need: 1000, poach: 6000, road: 2000 }, // road: what it costs on top to send the man to another city
     // parting with a capo: clean $ to pay him off by rank; heat a killing brings, months the less loyal keep their money
     // and the loyalty that keeps a man steady; heat the police forget for a man handed over, months before he is out,
     // and the places he burns then (one more for each rank he had)
@@ -671,9 +671,11 @@
     return out;
   }
   // Where a newcomer may plant his club: any free block the rivals do not hold.
+  // In a city where the family has nothing yet, nobody knows him: any free block will do.
+  function known(c) { return memo(c).places.some(function (p) { return p.owner === 'family'; }); }
   function spots(c) {
-    var out = [];
-    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (!at(c, x, y) && grip(c, x, y) !== 'rival') out.push({ x: x, y: y });
+    var out = [], here = known(c);
+    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (!at(c, x, y) && (!here || grip(c, x, y) !== 'rival')) out.push({ x: x, y: y });
     return out;
   }
   // How many capos the city carries, and how many are there.
@@ -683,29 +685,33 @@
              total: RULES.seats + ours.filter(function (p) { return p.kind === 'key'; }).length };
   }
   // The boss says yes and picks the street where the man plants his club.
-  function welcome(c, f, capo, x, y) {
-    var d = doors(c, f).filter(function (q) { return q.capo === capo; })[0];
+  function welcome(c, f, capo, x, y) { send(c, c, f, capo, x, y); }
+  // Or he sends him to plant it in another city: the man knocked in `from`, and opens `to`. The road has its price.
+  function send(from, to, f, capo, x, y) {
+    var d = doors(from, f).filter(function (q) { return q.capo === capo; })[0];
     if (!d) throw new Error(capo + ' is not at the door');
-    var s = seats(c);
-    if (s.taken >= s.total) throw new Error('no seat left in ' + c.id + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
+    var away = to !== from, cost = d.cost + (away ? RULES.doors.road : 0);
+    if (away && d.door === 'poach') throw new Error(first(capo) + ' stays where his places are');
+    var s = seats(to);
+    if (s.taken >= s.total) throw new Error('no seat left in ' + to.id + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
     if (d.door === 'poach') {
-      if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' ' + first(capo) + ' asks to cross');
-      spend(f, d.cost);
+      if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' ' + first(capo) + ' asks to cross');
+      spend(f, cost);
       // he crosses with every place he ran: the best one becomes his club
-      var mine = places(c).filter(function (p) { return p.man === capo; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
+      var mine = places(to).filter(function (p) { return p.man === capo; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
       mine.forEach(function (p, i) {
-        c.blocks[key(p.x, p.y)] = { owner: 'family', kind: i ? p.kind : 'club', level: i ? p.level : Math.max(p.level, RULES.clubLevel), capo: capo };
+        to.blocks[key(p.x, p.y)] = { owner: 'family', kind: i ? p.kind : 'club', level: i ? p.level : Math.max(p.level, RULES.clubLevel), capo: capo };
       });
-      changed(c);
+      changed(to);
       join(f, capo);
       return;
     }
-    if (!inside(c, x, y)) throw new Error(x + ',' + y + ' is outside ' + c.id);
-    if (at(c, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
-    if (grip(c, x, y) === 'rival') throw new Error('these are the ' + (c.rival || places(c).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
-    if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' it takes to set ' + first(capo) + ' up');
-    spend(f, d.cost);
-    settle(c, capo, x, y);
+    if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + to.id);
+    if (at(to, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
+    if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
+    if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' it takes to set ' + first(capo) + ' up');
+    spend(f, cost);
+    settle(to, capo, x, y);
     join(f, capo);
   }
   // --- parting with a capo ---
@@ -957,7 +963,7 @@
     return events;
   }
 
-  var api = { partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
