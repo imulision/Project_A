@@ -195,3 +195,22 @@ test('names with quotes and brackets never break a sheet', () => {
   const html = C.journal([{ date: 'May 1926', type: 'opened', label: 'A <b> "place"' }]);
   assert.doesNotMatch(html, /<b> "place"/);
 });
+
+test('labels that would sit on one another: the more important one stays, the other hides', () => {
+  const box = (id, rank, x, y, w, h) => ({ id, rank, x, y, w: w || 22, h: h || 22 });
+  const hidden = C.crowded([box('pinA', 3, 100, 100), box('name', 1, 105, 100, 120, 24), box('capo', 0, 400, 400, 46, 46), box('pinB', 3, 410, 410), box('pinC', 3, 700, 100), box('pinD', 3, 710, 105), box('far', 3, 50, 600)]);
+  assert.deepEqual(Object.keys(hidden).sort(), ['pinA', 'pinB', 'pinD'], 'a name beats a pin, a capo beats a pin, and of two equal pins the first by name stays');
+  assert.deepEqual(C.crowded([]), {});
+});
+
+test('the same labels always give the same answer, whatever order they come in', () => {
+  const a = { id: 'a', rank: 2, x: 0, y: 0, w: 20, h: 20 }, b = { id: 'b', rank: 2, x: 5, y: 5, w: 20, h: 20 };
+  assert.deepEqual(C.crowded([a, b]), C.crowded([b, a]));
+});
+
+test('every key place has a picture of its own kind, never the unknown mark', () => {
+  const T = require('../web/turf.js'), I = require('../web/icons.js');
+  Object.keys(T.KEYS).forEach((k) => { assert.ok(I.has(C.iconName(k)), k); assert.notEqual(C.iconName(k), 'unknown', k); });
+  assert.equal(C.iconName('club'), 'hideout');
+  assert.equal(C.iconName('speakeasy'), 'speakeasy');
+});

@@ -190,6 +190,18 @@
       '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
 
+  // ---- labels over the map that would sit on one another
+  // crowded(boxes): each box is { id, rank, x, y, w, h } with x, y its top left corner on the screen. The lower the rank,
+  // the more it matters. Returns the ids to hide: a box gives way to any more important one it touches.
+  function crowded(boxes) {
+    var kept = [], hidden = {};
+    boxes.slice().sort(function (a, b) { return a.rank - b.rank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); }).forEach(function (b) {
+      for (var i = 0; i < kept.length; i++) { var k = kept[i]; if (b.x < k.x + k.w && k.x < b.x + b.w && b.y < k.y + k.h && k.y < b.y + b.h) { hidden[b.id] = true; return; } }
+      kept.push(b);
+    });
+    return hidden;
+  }
+
   // ---- the journal, newest first
   function journal(lines) {
     var last = lines.slice(-60).reverse();
@@ -199,5 +211,5 @@
   }
 
   return { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD,
-           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, planWord: planWord };
+           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, crowded: crowded, iconName: iconName, planWord: planWord };
 });

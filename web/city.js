@@ -50,7 +50,7 @@
     $('share').textContent = h.share + '%'; $('cities').textContent = h.cities.held + ' / ' + h.cities.total;
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
-    $('sub').textContent = picking ? 'Choose a street' : h.pending ? 'Waiting for your word' : h.paused ? 'Paused' : 'Your capos are at work';
+    $('sub').textContent = picking ? 'Choose a street' : h.paused ? (h.pending ? 'Waiting for your word' : 'Paused') : 'Your capos are at work';
     $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club. Not a street the rivals hold.</span><button data-unpick="1">Cancel</button></div>'
       : h.pending ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word</div>' : '';
   }
@@ -153,14 +153,14 @@
   var MOVE = 'translate' in document.documentElement.style;
   function drawLabels() {
     if (map) {
-      var seen = {};
+      var seen = {}, boxes = [];
       map.labels().forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
           else if (l.car) { var h = C.HAUL[l.car.kind] || C.HAUL.takings; e.className = 'lab tag'; e.style.setProperty('--c', h[1]); e.innerHTML = I.icon(h[0]); }
-          else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(I.has(l.key || l.site) ? l.key || l.site : l.key ? 'unknown' : 'hideout'); }
+          else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
           else if (l.capo) e.className = 'lab capo';
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<b></b><span></span>'; e.b = e.firstChild; e.s = e.lastChild; }
           if (!l.fx) e.onclick = function (ev) { ev.stopPropagation(); tapLabel(e.l, e); };
@@ -172,8 +172,15 @@
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); } }
-        else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; } }
+        else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
+        // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
+        if (l.fx || l.role === 'club') return;
+        var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.site || l.car ? 22 : 46, h = name ? e.h : w;
+        boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
+      // a label that would sit on a more important one steps aside
+      var off = C.crowded(boxes);
+      boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
     requestAnimationFrame(drawLabels);

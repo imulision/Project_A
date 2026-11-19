@@ -163,3 +163,4 @@ button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
 #alerts div .ic.ok{color:var(--accent)}
 .lab.pin.theirs{background:#6b6f86;color:#fff}
 .lab.pin.club{display:none}
+.lab.off{visibility:hidden;pointer-events:none}
