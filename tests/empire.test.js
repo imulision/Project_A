@@ -220,3 +220,39 @@ test('every city has its own three lieutenants: no man answers for places in two
   }
   assert.equal(new Set(Object.keys(seen).map((id) => T.PEOPLE[id].name)).size, 18, 'eighteen names, all different');
 });
+
+// A boss who says yes to everything and sends every newcomer down the road when he can, through orders alone.
+const spreader = (start, years = 20) => {
+  const g = E.createGame({ capo: start }), f = g.family;
+  const order = (o) => { try { E.command(g, o); return true; } catch (e) { if (!/no seat|cannot pay|not at the door|clean money/.test(e.message)) throw e; return false; } };
+  for (let m = 1; m <= years * 12; m++) {
+    months(g, 1);
+    for (const c of E.view(g).cities) {
+      for (const a of c.asks) order({ type: 'answer', city: c.id, id: a.id, yes: T.funds(f) >= a.cost });
+      for (const q of c.feuds) order({ type: 'rule', city: c.id, id: q.id, winner: q.a });
+      for (const d of c.doors) {
+        const now = E.view(g).cities, road = d.roads.find((r) => !now.find((q) => q.id === r.city).held) || d.roads[0];
+        const to = g.cities.find((q) => q.id === (road ? road.city : c.id));
+        const quiet = T.landing(to), spot = T.spots(to).find((q) => q.x === quiet.x && q.y === quiet.y) || T.spots(to)[0]; // where the rivals press least
+        if (spot && !(road && order({ type: 'welcome', city: to.id, from: c.id, capo: d.capo, x: spot.x, y: spot.y }))) {
+          const here = T.spots(g.cities.find((q) => q.id === c.id))[0];
+          if (here) order({ type: 'welcome', city: c.id, capo: d.capo, x: here.x, y: here.y });
+        }
+      }
+    }
+    const t = E.view(g).tree.filter((q) => q.next).sort((x, y) => x.tier - y.tier)[0];
+    if (!f.study && t && f.clean >= t.next.cost) order({ type: 'research', building: t.kind });
+  }
+  return g;
+};
+
+test('twenty years of sending men down the road: several cities, never the whole map, and money that still counts', () => {
+  for (const start of ['sal', 'dutch', 'tommy']) {
+    const g = spreader(start), h = E.hud(g), v = E.view(g);
+    assert.ok(h.cities.held >= 3, start + ' is in ' + h.cities.held + ' cities');
+    assert.ok(h.share >= 12 && h.share <= 60, start + ' holds ' + h.share + ' % of the map');
+    assert.ok(v.cities.filter((c) => c.share.family >= 25).length >= 2, start + ' really holds two cities');
+    assert.ok(h.clean < 600000, start + ' sits on $' + h.clean);
+    assert.ok(h.men >= 8, start + ' has ' + h.men + ' men');
+  }
+});

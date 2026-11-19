@@ -1391,3 +1391,23 @@ test('the bigger the man, the more he keeps: what a Soldier cannot use all goes 
   assert.deepEqual([0, 1, 2, 3].map((r) => Math.round(up(r).sent)), [0, 1, 2, 3].map((r) => Math.round(spare * (1 - T.RULES.keeps[r]))));
   assert.equal(up(3).kept, up(0).kept, 'what he keeps he spends on himself: it does not pile up in his club');
 });
+
+test('nobody knows the first man in a new city: the rivals leave the family alone there for two years', () => {
+  const quiet = (sent) => {
+    const a = town(), b = ashport(), f = rich();
+    b.id = 'next';
+    T.crown(b, 'Kessler'); T.seed(b, 'Kessler', 30);
+    T.settle(a, 'dutch', 2, 2); T.join(f, 'dutch');
+    T.open(a, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+    const l = T.landing(b);
+    if (sent) T.send(a, b, f, 'danny', l.x, l.y); else { T.settle(b, 'danny', l.x, l.y); T.join(f, 'danny'); }
+    const raids = [];
+    for (let m = 1; m <= 48; m++) for (const e of T.stepMonth(b, f)) if (e.type === 'burnt' || e.type === 'repelled') raids.push(m);
+    return raids;
+  };
+  const known = quiet(false), fresh = quiet(true);
+  assert.ok(known.length && known[0] <= T.RULES.respite, 'a man the city knows is raided within two years: month ' + known[0]);
+  assert.ok(fresh.length, 'the peace does not last');
+  assert.ok(fresh[0] > T.RULES.respite, 'first raid in month ' + fresh[0]);
+  assert.equal(T.RULES.respite, 24);
+});

@@ -66,6 +66,7 @@
     // and the places he burns then (one more for each rank he had)
     out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2 },
     keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
+    respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -161,7 +162,7 @@
   function createCity(spec) {
     return { id: spec.id, w: spec.w, h: spec.h, zones: spec.zones.map(function (z) {
       return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
-    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], heat: 0, washed: 0 };
+    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0 };
   }
   // A throw of the city's own dice: the same city always plays out the same way.
   function roll(c, n) {
@@ -510,7 +511,7 @@
   }
   // Now and then they come for the family's place they press on hardest. A capo's Muscle decides if it stands.
   function rivalRaids(c, events) {
-    if (c.month % RULES.rivalEvery !== 0) return;
+    if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
     var target = null;
     places(c).forEach(function (p) {
       if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key') return;
@@ -739,6 +740,7 @@
     if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
     if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' it takes to set ' + first(capo) + ' up');
     spend(f, cost);
+    if (away && !known(to)) to.quiet = to.month + RULES.respite;
     settle(to, capo, x, y);
     join(f, capo);
   }
