@@ -15,61 +15,80 @@
     return { id: id, name: name, traits: { nightlife: nightlife, industry: industry, port: port, wealth: wealth } };
   }
 
-  // terrain is for the map; character says what the city is good for;
+  // x, y and terrain are for the map (the same list is read by the 3D view);
+  // character says what the city is good for;
   // rival is the family that holds it at the start.
   var CITIES = [
-    { id: 'ashport', name: 'Ashport', terrain: 'lake', character: 'The big lake port. Everything passes through it.', rival: 'Callahan',
+    { id: 'ashport', name: 'Ashport', x: -70, y: 95, terrain: 'plain', character: 'The big city. Everything passes through it.', rival: 'Callahan',
       districts: [
+        place('ashport-uptown', 'Uptown', 1.2, 0, 0, 1.5),
         place('ashport-hillside', 'Hillside', 1, 0.4, 0, 1.2),
-        place('ashport-docks', 'The Docks', 0.8, 1.2, 1.5, 0.5),
         place('ashport-market', 'Market Street', 1.5, 0.5, 0, 1),
+        place('ashport-station', 'Union Station', 0.8, 1, 0.8, 0.8),
+        place('ashport-calabria', 'Little Calabria', 1.2, 0.5, 0, 0.5),
+        place('ashport-canal', 'Canal Street', 1, 1, 0.8, 0.5),
         place('ashport-stockyards', 'Stockyards', 0.5, 1.5, 0.5, 0.5),
-        place('ashport-uptown', 'Uptown', 1.2, 0, 0, 1.5)
+        place('ashport-docks', 'The Docks', 0.8, 1.2, 1.5, 0.5)
       ] },
-    { id: 'calder', name: 'Calder Falls', terrain: 'mountains', character: 'A mill town in the hills. Unions and timber.', rival: 'Novak',
+    { id: 'calder', name: 'Calder Falls', x: 30, y: 20, terrain: 'mountains', character: 'A mill town in the hills. Foundries, quarries and unions.', rival: 'Northside',
       districts: [
         place('calder-millrace', 'Millrace', 0.5, 1.5, 0, 0.5),
-        place('calder-highstreet', 'High Street', 1, 0.5, 0, 1),
-        place('calder-sawyers', 'Sawyers Row', 0.8, 1.2, 0, 0.5),
-        place('calder-heights', 'The Heights', 0.5, 0, 0, 1.5)
+        place('calder-highstreet', 'High Street', 1.2, 0.5, 0, 1.2),
+        place('calder-landing', 'The Landing', 1, 0.8, 0.8, 0.5),
+        place('calder-quarry', 'Quarry Row', 0.5, 1.2, 0, 0.5),
+        place('calder-foundry', 'Foundry', 0.5, 1.5, 0, 0.5),
+        place('calder-northgate', 'Northgate', 0.8, 0.5, 0, 1.2),
+        place('calder-ironbridge', 'Iron Bridge', 1, 1, 0.5, 0.8)
       ] },
-    { id: 'laurent', name: 'Port Laurent', terrain: 'river', character: 'The border town on the river. Whisky comes in here.', rival: 'Duval',
+    { id: 'marrow', name: 'Marrow Bay', x: 75, y: 150, terrain: 'coast', character: 'A bay of canneries, shipyards and night boats.', rival: 'Callahan',
       districts: [
-        place('laurent-landing', 'The Landing', 1, 0.5, 1.5, 0.5),
-        place('laurent-customs', 'Customs Row', 0.5, 0.5, 1.2, 1),
-        place('laurent-frenchtown', 'Frenchtown', 1.5, 0.5, 0.5, 0.8),
-        place('laurent-ferry', 'Ferry Point', 0.8, 1, 1, 0.5)
+        place('marrow-oldtown', 'Old Town', 1.5, 0.5, 0, 1),
+        place('marrow-cannery', 'Cannery Row', 0.5, 1.5, 1, 0.5),
+        place('marrow-bayside', 'Bayside', 1.2, 0, 0.5, 1.5),
+        place('marrow-flats', 'The Flats', 0.8, 1, 0, 0.5),
+        place('marrow-lantern', 'Lantern Row', 1.5, 0, 0, 0.8),
+        place('marrow-shipwrights', 'Shipwrights', 0.5, 1.2, 1.5, 0.5)
       ] },
-    { id: 'adele', name: 'Saint Adele', terrain: 'plain', character: 'The state capital. Judges, senators and old money.', rival: 'Whitcombe',
+    { id: 'dunmore', name: 'Dunmore', x: -15, y: 235, terrain: 'hills', character: 'Coal, rail and breweries. Hard men and company stores.', rival: 'Kessler',
       districts: [
-        place('adele-capitol', 'Capitol Hill', 0.8, 0, 0, 1.5),
-        place('adele-oldquarter', 'Old Quarter', 1.5, 0.5, 0, 1),
-        place('adele-southside', 'Southside', 1, 1, 0, 0.5),
-        place('adele-fairgrounds', 'Fairgrounds', 1.2, 0.5, 0, 0.8)
+        place('dunmore-depot', 'Depot', 0.8, 1.2, 0.8, 0.5),
+        place('dunmore-coalhill', 'Coal Hill', 0.5, 1.5, 0, 0.5),
+        place('dunmore-main', 'Main Street', 1.2, 0.5, 0, 1.2),
+        place('dunmore-brewers', 'Brewers Yard', 1, 1.2, 0, 0.8),
+        place('dunmore-pitrow', 'Pit Row', 0.5, 1.5, 0, 0.5),
+        place('dunmore-gallows', 'Gallows Corner', 1.5, 0.5, 0, 0.5)
       ] },
-    { id: 'blackwater', name: 'Blackwater', terrain: 'mountains', character: 'Coal and rail. Hard men and company stores.', rival: 'Kessler',
+    { id: 'lorne', name: 'Port Lorne', x: 50, y: 370, terrain: 'coast', character: 'The sea port at the border. Whisky comes in here.', rival: 'Dockers',
       districts: [
-        place('blackwater-pithead', 'Pithead', 0.5, 1.5, 0, 0.5),
-        place('blackwater-junction', 'The Junction', 1, 1.2, 0.5, 0.5),
-        place('blackwater-company', 'Company Town', 0.5, 1, 0, 0.8),
-        place('blackwater-ridge', 'Ridge Road', 0.8, 0.5, 0, 1.2)
+        place('lorne-harbour', 'Harbour', 1, 0.8, 1.5, 0.5),
+        place('lorne-saltworks', 'Saltworks', 0.5, 1.5, 0.5, 0.5),
+        place('lorne-chapel', 'Chapel Hill', 0.5, 0, 0, 1.5),
+        place('lorne-netmakers', 'Netmakers', 0.8, 1, 1, 0.5),
+        place('lorne-customs', 'Customs House', 0.5, 0.5, 1.5, 1.2),
+        place('lorne-ropewalk', 'Rope Walk', 1.5, 0.5, 0.8, 0.5),
+        place('lorne-breakwater', 'Breakwater', 0.8, 0.5, 1.2, 0.5)
       ] },
-    { id: 'marrow', name: 'Marrow Bay', terrain: 'coast', character: 'A seaside resort. Casinos, hotels and night boats.', rival: 'Santoro',
+    { id: 'vesper', name: 'Saint Vesper', x: -85, y: 300, terrain: 'plain', character: 'The cathedral city. Judges, bishops and old money.', rival: 'Callahan',
       districts: [
-        place('marrow-boardwalk', 'The Boardwalk', 1.5, 0, 0.5, 1.2),
-        place('marrow-harbor', 'Harbor Side', 1, 0.5, 1.5, 0.5),
-        place('marrow-grand', 'Grand Avenue', 1.2, 0, 0, 1.5),
-        place('marrow-cannery', 'Cannery Flats', 0.5, 1.2, 1, 0.5)
+        place('vesper-cathedral', 'Cathedral', 0.5, 0, 0, 1.5),
+        place('vesper-tannery', 'Tannery', 0.5, 1.5, 0, 0.5),
+        place('vesper-hill', 'Vesper Hill', 0.8, 0, 0, 1.5),
+        place('vesper-lowgate', 'Lowgate', 1.5, 0.5, 0, 0.5),
+        place('vesper-bishops', 'Bishops Court', 1, 0, 0, 1.5),
+        place('vesper-slaughter', 'Slaughter Lane', 1, 1.2, 0, 0.5),
+        place('vesper-paupers', 'Paupers Field', 0.8, 0.8, 0, 0.5)
       ] }
   ];
   var ROUTES = [
     { from: 'ashport', to: 'calder', kind: 'rail' },
-    { from: 'ashport', to: 'laurent', kind: 'river' },
-    { from: 'ashport', to: 'adele', kind: 'road' },
-    { from: 'adele', to: 'blackwater', kind: 'rail' },
-    { from: 'calder', to: 'blackwater', kind: 'road' },
-    { from: 'adele', to: 'marrow', kind: 'rail' },
-    { from: 'laurent', to: 'marrow', kind: 'sea' }
+    { from: 'ashport', to: 'marrow', kind: 'road' },
+    { from: 'ashport', to: 'dunmore', kind: 'rail' },
+    { from: 'calder', to: 'marrow', kind: 'road' },
+    { from: 'marrow', to: 'dunmore', kind: 'road' },
+    { from: 'dunmore', to: 'vesper', kind: 'road' },
+    { from: 'dunmore', to: 'lorne', kind: 'rail' },
+    { from: 'vesper', to: 'lorne', kind: 'road' },
+    { from: 'marrow', to: 'lorne', kind: 'sea' }
   ];
   var SEATS = ['bookkeeper', 'routes', 'fixer'];
   var HOME = 'ashport-hillside';
@@ -187,7 +206,7 @@
       cities: CITIES.map(function (c) {
         var report = cityReport(w, c.id);
         return {
-          id: c.id, name: c.name, terrain: c.terrain, character: c.character, held: report.held, share: report.share, heat: report.heat,
+          id: c.id, name: c.name, x: c.x, y: c.y, terrain: c.terrain, character: c.character, held: report.held, share: report.share, heat: report.heat,
           districts: c.districts.map(function (p) {
             var x = w.districts[p.id], s = x.state;
             return { id: p.id, name: p.name, traits: p.traits, owner: x.owner, capo: s ? s.capo : null,

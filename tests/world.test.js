@@ -7,11 +7,14 @@ const D = require('../web/district.js');
 
 const held = (w) => W.districts(w).filter((x) => x.owner === 'family');
 
-test('the map has six cities of several districts, each with its own character', () => {
+test('the map has six cities of six to eight districts, each with its own character', () => {
   assert.equal(W.CITIES.length, 6);
+  assert.equal(W.CITIES.reduce((n, c) => n + c.districts.length, 0), 41);
+  assert.equal(W.CITIES.find((c) => c.id === 'ashport').districts.length, 8);
   const ids = new Set();
   for (const city of W.CITIES) {
-    assert.ok(city.districts.length >= 4, city.name);
+    assert.ok(city.districts.length >= 6 && city.districts.length <= 8, city.name);
+    assert.ok(Number.isFinite(city.x) && Number.isFinite(city.y), city.name + ' has no place on the map');
     assert.ok(city.terrain && city.character, city.name);
     for (const d of city.districts) {
       assert.ok(!ids.has(d.id), d.id);
@@ -39,7 +42,7 @@ test('the family starts with one district of one city, the rest belongs to rival
   assert.equal(held(w)[0].id, 'ashport-hillside');
   assert.equal(held(w)[0].state.capo, 'sal');
   assert.equal(held(w)[0].state.name, 'Hillside');
-  assert.ok(W.districts(w).length >= 24);
+  assert.equal(W.districts(w).length, 41);
   for (const x of W.districts(w)) if (x.owner !== 'family') assert.ok(typeof x.owner === 'string' && x.state === null);
 });
 
@@ -53,7 +56,7 @@ test('a district keeps the character of its place on the map', () => {
 
 test('the family can only move into a district next to what it holds', () => {
   const w = W.createWorld({ capo: 'sal' });
-  assert.throws(() => W.claim(w, 'blackwater-pithead', 'mae'), /out of reach/);
+  assert.throws(() => W.claim(w, 'lorne-harbour', 'mae'), /out of reach/);
   W.claim(w, 'ashport-docks', 'mae'); // same city
   const linked = W.ROUTES.find((r) => r.from === 'ashport' || r.to === 'ashport');
   const next = linked.from === 'ashport' ? linked.to : linked.from;
@@ -126,8 +129,8 @@ test('a city reports how much of it the family holds and how hot it runs', () =>
   assert.equal(ashport.held, 1);
   assert.ok(Math.abs(ashport.share - 35 / n) < 0.01);
   assert.equal(ashport.heat, 30);
-  assert.equal(W.cityReport(w, 'blackwater').held, 0);
-  assert.equal(W.cityReport(w, 'blackwater').share, 0);
+  assert.equal(W.cityReport(w, 'lorne').held, 0);
+  assert.equal(W.cityReport(w, 'lorne').share, 0);
 });
 
 test('the map can draw the whole world from one plain object', () => {
@@ -136,12 +139,14 @@ test('the map can draw the whole world from one plain object', () => {
   const v = JSON.parse(JSON.stringify(W.view(w)));
   assert.equal(v.cities.length, 6);
   assert.ok(v.routes.length >= 5);
-  const hillside = v.cities[0].districts.find((x) => x.id === 'ashport-hillside');
+  const ashport = v.cities.find((c) => c.id === 'ashport');
+  assert.ok(Number.isFinite(ashport.x) && Number.isFinite(ashport.y));
+  const hillside = ashport.districts.find((x) => x.id === 'ashport-hillside');
   assert.equal(hillside.owner, 'family');
   assert.equal(hillside.capo, 'mae');
   assert.ok(hillside.buildings.length >= 4);
   assert.ok(hillside.buildings.every((b) => b.district === 'Hillside' && D.SITES[b.type]));
-  const rival = v.cities[0].districts.find((x) => x.owner !== 'family');
+  const rival = ashport.districts.find((x) => x.owner !== 'family');
   assert.equal(rival.capo, null);
   assert.deepEqual(rival.buildings, []);
 });
