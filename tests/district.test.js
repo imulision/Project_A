@@ -73,7 +73,7 @@ test('a project that needs more hands makes the capo hire, by his charisma', () 
 });
 
 test('a capo who cannot pay new men holds steady and says why', () => {
-  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 30 });
+  const d = D.createDistrict({ capo: 'sal', dirty: 1400, profit: 30, men: 16, sites: { still: 3 } });
   d.guards = 4;
   const pick = D.chooseProject(d);
   assert.equal(pick.kind, 'hold');
@@ -173,7 +173,7 @@ test('every building of the district can be listed for the map', () => {
 });
 
 test('a capo who cannot man his first choice falls back on one he can do alone', () => {
-  const d = D.createDistrict({ capo: 'dutch', dirty: 1400, heat: 50, profit: 30 });
+  const d = D.createDistrict({ capo: 'dutch', dirty: 1400, heat: 50, profit: 30, men: 16, sites: { still: 3 } });
   d.guards = 4; // nobody free and no profit to hire: the warehouse he would seize is out of reach
   assert.equal(D.chooseProject(d).kind, 'bribe');
 });
@@ -213,9 +213,9 @@ test('after a raid the district is watched and the capo lies low for six months'
 });
 
 test('a capo whose district barely pays stops sending men after new streets', () => {
-  const d = D.createDistrict({ capo: 'vince', profit: 60, share: 50, dirty: 900 });
+  const d = D.createDistrict({ capo: 'vince', profit: 60, share: 50, dirty: 900, men: 22, sites: { still: 5, speakeasy: 3 } });
   assert.notEqual(D.chooseProject(d).kind, 'push');
-  d.crews = 3; d.collectors = 3; d.men = 29;
+  d.crews = 3; d.collectors = 3; d.men = 36;
   assert.equal(D.chooseProject(d).kind, 'recall');
 });
 
@@ -282,7 +282,7 @@ test('the same guards hold more streets under a capo with muscle', () => {
 });
 
 test('a capo who has just pulled men back does not send them out again for six months', () => {
-  const d = D.createDistrict({ capo: 'danny', profit: 60, share: 50, dirty: 900, men: 29 });
+  const d = D.createDistrict({ capo: 'danny', profit: 60, share: 50, dirty: 900, men: 40, sites: { still: 4, speakeasy: 3 } });
   d.crews = 3; d.collectors = 3;
   assert.equal(D.stepMonth(d)[0].kind, 'recall');
   for (let i = 0; i < 5; i++) {
@@ -343,6 +343,7 @@ test('a capo sorts out the liquor before he branches out', () => {
   assert.ok(!D.RACKETS.includes(D.chooseProject(d).kind));
   d.sites.still = 7; d.sites.speakeasy = 5; // now the liquor flows
   d.sites.gambling = 5; d.sites.loft = 2; d.sites.warehouse = 2; d.sites.front = 6; d.dirty = 6000; d.crews = 4; d.collectors = 3; d.men = 80;
+  d.trucks = 8; d.cars = 12; // and it is carried
   assert.ok(D.RACKETS.includes(D.chooseProject(d).kind), D.chooseProject(d).kind);
 });
 
@@ -429,29 +430,30 @@ test('a year under Sal: streets taken by force, then the police and a hated name
   assert.equal(raids.length, 1);
   assert.equal(raids[0].site, 'speakeasy');
   assert.equal(raids[0].arrested, 3);
-  assert.equal(d.men, 23);
-  near(d.share, 50);
+  assert.equal(d.men, 20);
+  near(d.share, 52);
   near(d.heat, 53);
   near(d.goodwill, 26);
-  near(d.boss.dirty, 1455);
-  near(d.boss.clean, 130);
+  near(d.boss.dirty, 1328);
+  near(d.boss.clean, 112);
   assert.deepEqual(places(d), { still: 2, speakeasy: 1, rented: 1, warehouse: 2 });
   const kinds = events.filter((e) => e.type === 'decision').map((e) => e.kind);
-  assert.deepEqual(kinds.slice(0, 8), ['protection', 'seize', 'seize', 'push', 'protection', 'push', 'protection', 'push']);
+  assert.deepEqual(kinds.slice(0, 8), ['protection', 'seize', 'push', 'seize', 'protection', 'push', 'protection', 'push']);
   assert.ok(kinds.slice(8).includes('lielow'));
 });
 
 test('a year under Mae: clean money and quiet, and not one street gained', () => {
   const { d, events } = year('mae');
-  assert.equal(d.men, 29);
+  assert.equal(d.men, 26);
   near(d.share, 29);
-  near(d.heat, 36);
-  near(d.goodwill, 53);
+  near(d.heat, 37);
+  near(d.goodwill, 54);
   assert.equal(d.raids, 0);
   assert.equal(events.filter((e) => e.type === 'raid').length, 0);
-  near(d.boss.clean, 2397);
-  near(d.boss.dirty, 1746);
-  assert.deepEqual(places(d), { still: 3, speakeasy: 2, gambling: 2, rented: 3, front: 1, warehouse: 1, loans: 2 });
+  near(d.boss.clean, 1859);
+  near(d.boss.dirty, 1862);
+  assert.deepEqual(places(d), { still: 3, speakeasy: 2, gambling: 2, rented: 3, front: 1, loans: 2 });
+  assert.equal(d.cars, 3, 'she bought a car when the money outgrew two');
 });
 
 test('naming the capo is enough to get two different districts', () => {
@@ -459,7 +461,7 @@ test('naming the capo is enough to get two different districts', () => {
   assert.ok(sal.share > mae.share + 10);
   assert.ok(sal.heat > mae.heat + 10);
   assert.ok(mae.goodwill > sal.goodwill + 20);
-  assert.ok(mae.boss.clean > 2000 && sal.boss.clean < 200);
+  assert.ok(mae.boss.clean > 1500 && sal.boss.clean < 200);
   assert.ok(sal.raids > mae.raids);
 });
 
@@ -509,7 +511,7 @@ test('a capo who holds few streets but is gaining ground does not hide behind gu
 });
 
 test('a capo whose district barely pays does not keep a roomful of idle men', () => {
-  const d = D.createDistrict({ capo: 'danny', men: 19, guards: 4, share: 20, dirty: 700, profit: 20, pulledBack: 3, collectors: 1, sites: { still: 1, speakeasy: 1, rented: 1, warehouse: 1 } });
+  const d = D.createDistrict({ capo: 'danny', men: 21, guards: 4, share: 20, dirty: 700, profit: 20, pulledBack: 3, collectors: 1, sites: { still: 2, speakeasy: 1, rented: 1, warehouse: 1 } });
   assert.equal(D.chooseProject(d).kind, 'trim');
 });
 
@@ -519,20 +521,6 @@ const tripsOf = (d, kind) => D.trips(d).filter((t) => t.kind === kind);
 
 test('before the first month, nothing moves', () => {
   assert.deepEqual(D.trips(D.createDistrict({ capo: 'sal' })), []);
-});
-
-test('a truck carries the month\'s liquor from a still to every speakeasy', () => {
-  const d = D.createDistrict({ capo: 'dutch' });
-  D.stepMonth(d);
-  const runs = tripsOf(d, 'liquor');
-  assert.equal(runs.length, d.sites.speakeasy);
-  for (const t of runs) {
-    assert.equal(t.vehicle, 'truck');
-    assert.match(t.from, /-still-\d+$/);
-    assert.match(t.to, /-speakeasy-\d+$/);
-    assert.ok(ids(d).includes(t.from) && ids(d).includes(t.to));
-  }
-  near(runs.reduce((n, t) => n + t.crates, 0), d.last.sold);
 });
 
 test('a car brings the takings of every place that earns back to the hideout', () => {
@@ -721,4 +709,84 @@ test('a capo who has been hit posts guards until he can stand up to what hit him
 test('hired guns make every guard count for more when the rivals come', () => {
   const a = D.createDistrict({ capo: 'mae', guards: 4 }), b = D.createDistrict({ capo: 'mae', guards: 4, skills: ['hired-guns'] });
   assert.ok(D.defence(b) > D.defence(a) * 1.4);
+});
+
+// --- vehicles are a real resource: trucks haul crates, cars carry money ---
+test('a district starts with two trucks and two cars, and they cost upkeep', () => {
+  const d = D.createDistrict({ capo: 'dutch' }), none = D.createDistrict({ capo: 'dutch', trucks: 0, cars: 0 });
+  assert.deepEqual([d.trucks, d.cars], [2, 2]);
+  D.stepMonth(d); D.stepMonth(none);
+  assert.ok(d.last.costs > none.last.costs);
+});
+
+test('liquor that no truck can carry stays in the cellar', () => {
+  const d = D.createDistrict({ capo: 'dutch', trucks: 1, share: 60, dirty: 0, sites: { still: 4, speakeasy: 4 } });
+  D.stepMonth(d);
+  near(d.last.sold, D.RULES.truckLoad);
+  assert.equal(D.flows(d).limit, 'trucks');
+  assert.equal(D.flows(d).hauling, D.RULES.truckLoad);
+  assert.ok(d.stock > 0);
+});
+
+test('money that no car comes for is left in the tills and lost', () => {
+  const few = D.createDistrict({ capo: 'dutch', cars: 1, share: 60, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 });
+  const enough = D.createDistrict({ capo: 'dutch', cars: 6, share: 60, sites: { still: 4, speakeasy: 4, gambling: 3 }, trucks: 6 });
+  D.stepMonth(few); D.stepMonth(enough);
+  near(few.last.income, D.RULES.carLoad);
+  assert.ok(enough.last.income > few.last.income + 500);
+  assert.ok(few.last.uncollected > 500);
+  assert.equal(enough.last.uncollected, 0);
+});
+
+test('a capo buys a truck when hauling is what holds his sales back, and a car when money is left behind', () => {
+  const dry = D.createDistrict({ capo: 'dutch', trucks: 1, share: 60, dirty: 2000, sites: { still: 4, speakeasy: 4 } });
+  const pick = D.chooseProject(dry);
+  assert.equal(pick.kind, 'truck');
+  D.stepMonth(dry);
+  assert.equal(dry.trucks, 2);
+
+  const rich = D.createDistrict({ capo: 'mae', cars: 1, trucks: 6, men: 40, share: 60, dirty: 2000, sites: { still: 4, speakeasy: 4, gambling: 3 } });
+  assert.equal(D.chooseProject(rich).kind, 'car');
+});
+
+test('one liquor run per truck on the road, none carrying more than a truck holds', () => {
+  const d = D.createDistrict({ capo: 'dutch', trucks: 3, share: 60, sites: { still: 4, speakeasy: 4 } });
+  D.stepMonth(d);
+  const runs = tripsOf(d, 'liquor');
+  assert.equal(runs.length, Math.ceil(d.last.sold / D.RULES.truckLoad));
+  assert.ok(runs.length <= d.trucks);
+  assert.ok(runs.every((t) => t.crates <= D.RULES.truckLoad + 0.01 && /-still-\d+$/.test(t.from) && /-speakeasy-\d+$/.test(t.to)));
+  near(runs.reduce((n, t) => n + t.crates, 0), d.last.sold);
+});
+
+test('a capo who needs the money keeps his collectors on the shops, hated or not', () => {
+  const d = D.createDistrict({ capo: 'danny', collectors: 3, men: 20, goodwill: 9, share: 40, pulledBack: 3, profit: 40 });
+  assert.notEqual(D.chooseProject(d).kind, 'ease');
+});
+
+test('a capo who loses money lets every idle man go at once', () => {
+  const d = D.createDistrict({ capo: 'vince', men: 30, profit: -200, dirty: 900 });
+  const idle = d.men - D.busyMen(d);
+  assert.ok(idle > 10);
+  assert.equal(D.chooseProject(d).kind, 'trim');
+  D.stepMonth(d);
+  assert.equal(d.men - D.busyMen(d), 0);
+});
+
+test('a capo whose district barely pays puts the payroll money into the still or the speakeasy that would save it', () => {
+  const d = D.createDistrict({ capo: 'sal', men: 10, share: 60, dirty: 700, profit: -100, sites: { still: 1, speakeasy: 2 } });
+  assert.equal(D.chooseProject(d).kind, 'still');
+  const fine = D.createDistrict({ capo: 'mae', men: 13, share: 60, dirty: 700, profit: 600, sites: { still: 1, speakeasy: 2 } });
+  assert.notEqual(D.chooseProject(fine).kind, 'still', 'not while the district pays: the payroll comes first');
+});
+
+test('a capo left with no still and no money starts again with his own men and his own money', () => {
+  const d = D.createDistrict({ capo: 'sal', men: 4, guards: 2, share: 40, dirty: 0, profit: -300, sites: { still: 0, speakeasy: 0, warehouse: 2 } });
+  assert.equal(D.chooseProject(d).kind, 'restart');
+  D.stepMonth(d);
+  D.stepMonth(d);
+  assert.deepEqual([d.sites.still, d.sites.speakeasy], [1, 1]);
+  assert.ok(d.men >= D.busyMen(d));
+  D.stepMonth(d);
+  assert.ok(d.last.sold > 0);
 });

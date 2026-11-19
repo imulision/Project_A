@@ -13,6 +13,11 @@
   var RULES = {
     wage: 40,               // dirty $ per man per month
     upkeep: 50,             // dirty $ per place per month
+    truckLoad: 30,          // crates one truck hauls from the stills to the speakeasies in a month
+    truckCost: 300,
+    carLoad: 1500,          // dirty $ one car brings back from the tills in a month
+    carCost: 200,
+    vehicleUpkeep: 20,      // dirty $ per truck or car per month
     crate: 40,              // $ per crate sold in a speakeasy
     demand: 170,            // crates a month the whole district can drink
     tribute: 0.30,          // share of the month's profit owed to the boss
@@ -142,6 +147,8 @@
   function payroll(d) { return d.men * RULES.wage; }
   function stashRoom(d) { return (RULES.stash + RULES.stashPerWarehouse * d.sites.warehouse) * (1 + gain(d, 'stash')); }
   function made(d) { return d.sites.still * SITES.still.crates * trade(capoOf(d)) * (1 + gain(d, 'stills')); }
+  function hauling(d) { return d.trucks * RULES.truckLoad; }
+  function carrying(d) { return d.cars * RULES.carLoad; }
   function seats(d) { return d.sites.speakeasy * SITES.speakeasy.seats; }
   function thirst(d) { return RULES.demand * d.share / 100; }
   function washing(d) {
@@ -168,7 +175,7 @@
   }
   // What the district would bring in this month, liquor included, without changing it.
   function income(d) {
-    return Math.min(d.stock + made(d), seats(d), thirst(d)) * price(d) + sideIncome(d);
+    return Math.min(Math.min(d.stock + made(d), seats(d), thirst(d), hauling(d)) * price(d) + sideIncome(d), carrying(d));
   }
   // The rivals do not bother with a family that holds only a few streets.
   function rivalPush(d) {
@@ -182,11 +189,14 @@
     return n;
   }
 
+  // The still or the speakeasy a district cannot do without, if it has none.
+  function missing(d) { return d.sites.still === 0 ? 'still' : d.sites.speakeasy === 0 ? 'speakeasy' : null; }
   function open(kind) {
     return function (d) { d.sites[kind] += 1; };
   }
   function build(kind, label, why, need) {
-    return { kind: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind) };
+    return { kind: kind, label: label, why: why, cost: SITES[kind].cost, cur: SITES[kind].cur, men: SITES[kind].staff, hot: SITES[kind].heat > 0, need: need, apply: open(kind),
+             saves: kind === 'still' || kind === 'speakeasy' };
   }
   function racket(kind, label, why) {
     var site = SITES[kind];
@@ -216,6 +226,15 @@
     { kind: 'protection', label: 'Puts 2 men on protection', why: 'the shops on his streets pay nothing yet', cost: 0, cur: 'dirty', men: CREW.protection.men, hot: true,
       need: function (d) { return d.share >= RULES.shopsWorth && d.collectors < Math.min(3, d.crews + 1) ? 5 : 0; },
       apply: function (d) { d.collectors += 1; } },
+    { kind: 'truck', label: 'Buys a truck', why: 'liquor sits in the cellar for want of a truck', cost: RULES.truckCost, cur: 'dirty', men: 0,
+      need: function (d) { return hauling(d) < Math.min(d.stock + made(d), seats(d), thirst(d)) - 4 ? 10 : 0; },
+      apply: function (d) { d.trucks += 1; } },
+    { kind: 'car', label: 'Buys a car', why: 'money is left in the tills for want of a car', cost: RULES.carCost, cur: 'dirty', men: 0,
+      need: function (d) {
+        var earned = Math.min(d.stock + made(d), seats(d), thirst(d), hauling(d)) * price(d) + sideIncome(d);
+        return earned > carrying(d) + 100 ? 10 : 0;
+      },
+      apply: function (d) { d.cars += 1; } },
     build('still', 'Sets up a cellar still', 'the speakeasies run dry',
       function (d) { return made(d) < Math.min(thirst(d), seats(d) + 10) - 8 ? 6 : 0; }),
     build('speakeasy', 'Turns a shop into a speakeasy', 'more drinkers than seats',
@@ -257,18 +276,29 @@
       need: function (d) { return d.profit < 0 && d.guards > 2 && d.attacked === 0 ? 7 : 0; },
       apply: function (d) { d.guards -= 2; } },
     { kind: 'ease', label: 'Takes a collector off the shops', why: 'the street has turned against him', cost: 0, cur: 'dirty', men: 0,
-      need: function (d) { return d.goodwill < RULES.hated && d.collectors > 0 ? 5 : 0; },
+      need: function (d) { return d.goodwill < RULES.hated && d.collectors > 0 && d.profit >= RULES.thinProfit ? 5 : 0; },
       apply: function (d) { d.collectors -= 1; d.pulledBack = RULES.pullBack; } },
+    { kind: 'restart', label: 'Starts again with his own money', why: 'the district has nothing left to sell', cost: 0, cur: 'dirty', men: 0,
+      need: function (d) {
+        var k = missing(d);
+        return k && d.dirty < SITES[k].cost ? 11 : 0;
+      },
+      apply: function (d) {
+        var k = missing(d);
+        d.sites[k] += 1;
+        d.men = Math.max(d.men, busyMen(d)); // he brings the men it takes
+      } },
     { kind: 'trim', label: 'Lets idle men go', why: 'the district loses money', cost: 0, cur: 'dirty', men: 0,
       need: function (d) {
         var idle = d.men - busyMen(d);
         return idle > 0 && d.profit < 0 ? 8 : idle > RULES.idleMen && d.profit < RULES.thinProfit ? 3 : 0;
       },
-      apply: function (d) { d.men -= Math.ceil((d.men - busyMen(d)) / 2); } }
+      apply: function (d) { var idle = d.men - busyMen(d); d.men -= d.profit < 0 ? idle : Math.ceil(idle / 2); } }
   ];
 
   function canHire(d, p, n, wages) {
     var spent = (p.cur === 'dirty' ? p.cost : 0) + n * RULES.hireFee;
+    if (p.saves && d.profit < RULES.thinProfit) return n <= p.men && d.dirty - spent >= 0 ? n : 0; // just the men it takes to save the district
     return d.profit > n * RULES.wage && d.dirty - spent >= wages ? n : 0;
   }
 
@@ -282,7 +312,9 @@
       if (c.refuses.indexOf(p.kind) >= 0) return;
       if (p.hot && (d.watched > 0 || d.heat > nerve(c))) return;
       var weight = p.need(d, c) * (c.likes.indexOf(p.kind) >= 0 ? RULES.likes : 1);
-      var affordable = p.cost === 0 || d[p.cur] - p.cost >= (p.cur === 'dirty' ? wages : 0);
+      // the payroll is never spent on a project, except to save a district that barely pays
+      var reserve = p.cur !== 'dirty' || (p.saves && d.profit < RULES.thinProfit) ? 0 : wages;
+      var affordable = p.cost === 0 || d[p.cur] - p.cost >= reserve;
       if (weight >= RULES.minNeed && affordable) wanted.push({ p: p, weight: weight, order: order });
     });
     wanted.sort(function (a, b) { return b.weight - a.weight || a.order - b.order; });
@@ -316,11 +348,12 @@
 
   function sell(d, c) {
     d.stock += made(d);
-    var sold = Math.min(d.stock, seats(d), thirst(d));
+    var sold = Math.min(d.stock, seats(d), thirst(d), hauling(d)); // what no truck carries stays in the cellar
     d.stock = Math.min(d.stock - sold, RULES.cellar + RULES.cellarPerWarehouse * d.sites.warehouse);
-    var income = sold * price(d) + sideIncome(d);
-    var costs = payroll(d) + siteCount(d) * RULES.upkeep + d.sites.rented * RULES.rent + (d.bribing ? RULES.bribe : 0);
-    return { sold: sold, income: income, costs: costs, profit: income - costs };
+    var earned = sold * price(d) + sideIncome(d);
+    var income = Math.min(earned, carrying(d)); // what no car comes for is left in the tills
+    var costs = payroll(d) + siteCount(d) * RULES.upkeep + (d.trucks + d.cars) * RULES.vehicleUpkeep + d.sites.rented * RULES.rent + (d.bribing ? RULES.bribe : 0);
+    return { sold: sold, income: income, uncollected: earned - income, costs: costs, profit: income - costs };
   }
 
   function launder(d, c) {
@@ -394,7 +427,7 @@
     var overflow = Math.max(0, d.dirty - stashRoom(d));
     var spilled = overflow * RULES.spill;
     d.dirty -= spilled;
-    d.lost += spilled + skim + w.washLoss;
+    d.lost += spilled + skim + w.washLoss + m.uncollected;
 
     // men who are not paid walk away
     if (d.dirty < 0) {
@@ -422,7 +455,7 @@
     if (d.attacked > 0) d.attacked -= 1;
     if (d.watched > 0) d.watched -= 1;
     d.month += 1;
-    d.last = { sold: m.sold, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
+    d.last = { sold: m.sold, uncollected: m.uncollected, income: m.income, costs: m.costs, profit: m.profit, owed: owed, skim: skim,
                washed: w.washed, washLoss: w.washLoss, overflow: overflow, spilled: spilled,
                decision: events[0].kind, raid: raided ? raided.site || 'none' : null };
     return events;
@@ -433,7 +466,7 @@
     if (!CAPOS[o.capo]) throw new Error('unknown capo: ' + o.capo);
     var d = {
       name: 'Hillside', capo: o.capo, month: 0,
-      men: 14, guards: 2, crews: 0, collectors: 0,
+      men: 14, guards: 2, crews: 0, collectors: 0, trucks: 2, cars: 2,
       sites: {},
       traits: { nightlife: 1, industry: 0.4, port: 0, wealth: 1.2 }, // a hill of houses above the city
       support: { bookkeeper: false, routes: false, fixer: false },   // what the family's table does for him
@@ -460,9 +493,11 @@
   // Last month's chain in figures: what was made, what waits in the cellar,
   // what was sold and what held sales back, then where the money went.
   function flows(d) {
-    var m = d.last || { sold: 0, income: 0, costs: 0, profit: 0, washed: 0, owed: 0, skim: 0, spilled: 0 };
+    var m = d.last || { sold: 0, uncollected: 0, income: 0, costs: 0, profit: 0, washed: 0, owed: 0, skim: 0, spilled: 0 };
     var limit = thirst(d) <= seats(d) && thirst(d) <= d.stock + made(d) ? 'drinkers' : seats(d) <= d.stock + made(d) ? 'seats' : 'stills';
+    if (hauling(d) < Math.min(thirst(d), seats(d), d.stock + made(d))) limit = 'trucks';
     return { made: d.last ? made(d) : 0, stock: d.stock, sold: m.sold, seats: seats(d), drinkers: thirst(d), limit: limit,
+             trucks: d.trucks, hauling: hauling(d), cars: d.cars, carrying: carrying(d), uncollected: m.uncollected || 0,
              income: m.income, costs: m.costs, profit: m.profit, washed: m.washed, tribute: m.owed - m.skim, kept: m.skim, spilled: m.spilled };
   }
 
@@ -496,10 +531,10 @@
       list.push(t);
     };
     var i, bars = d.sites.speakeasy;
-    if (m.sold > 0) {
-      for (i = 1; i <= bars; i++) {
-        add('liquor', d.sites.still ? id('still', (i - 1) % d.sites.still + 1) : 'hideout', id('speakeasy', i), 'truck', { crates: m.sold / bars });
-      }
+    // one run per truck on the road, each with what a truck holds
+    for (i = 0; bars > 0 && i * RULES.truckLoad < m.sold - 0.001; i++) {
+      add('liquor', d.sites.still ? id('still', i % d.sites.still + 1) : 'hideout', id('speakeasy', i % bars + 1), 'truck',
+          { crates: Math.min(RULES.truckLoad, m.sold - i * RULES.truckLoad) });
     }
     SITE_KEYS.forEach(function (k) {
       if (k !== 'speakeasy' && !SITES[k].income) return;
