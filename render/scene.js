@@ -17,6 +17,8 @@ const Q = new URLSearchParams(location.search);
 // the page shows a loading bar: say which stage begins, then let it paint before the heavy work
 const stage = n => new Promise(done => { if (opt.onStage) opt.onStage(n); setTimeout(done, 0); });
 const PLAIN = Q.has('plain');
+// the region can be drawn larger than the first one: the new game has cities three times as wide. K stretches the land, the camera and the zoom steps together
+const K = P.scale || 1;
 
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -42,9 +44,9 @@ const world = new THREE.Group(), root = new THREE.Group(); scene.add(world, root
 
 // ---------- camera (true isometric, orthographic)
 let aspect = innerWidth / innerHeight;
-const VIEW = 195, OFF = new THREE.Vector3(160, 200, 160), CENTER = new THREE.Vector3(105, 0, 105);
-const cam = new THREE.OrthographicCamera(-VIEW * aspect, VIEW * aspect, VIEW, -VIEW, 0.1, 900);
-cam.zoom = +(Q.get('zoom') || 1); cam.updateProjectionMatrix();
+const VIEW = 195 * K, OFF = new THREE.Vector3(160, 200, 160).multiplyScalar(K), CENTER = new THREE.Vector3(105, 0, 105).multiplyScalar(K);
+const cam = new THREE.OrthographicCamera(-VIEW * aspect, VIEW * aspect, VIEW, -VIEW, 0.1, 900 * K);
+cam.zoom = +(Q.get('zoom') || 1) ; cam.updateProjectionMatrix();
 cam.position.set(+(Q.get('tx') || CENTER.x), 0, +(Q.get('tz') || CENTER.z)).add(OFF);
 cam.lookAt(cam.position.clone().sub(OFF));
 
@@ -241,20 +243,20 @@ const hsh = (i, j) => { const n = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; 
 function vnoise(x, z) { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, a = fx * fx * (3 - 2 * fx), b = fz * fz * (3 - 2 * fz); return lerp(lerp(hsh(i, j), hsh(i + 1, j), a), lerp(hsh(i, j + 1), hsh(i + 1, j + 1), a), b); }
 function fbm(x, z) { let s = 0, a = 0.5; for (let o = 0; o < 4; o++) { s += a * vnoise(x, z); x *= 2.03; z *= 2.03; a *= 0.5; } return s / 0.9375; }
 const WATER_Y = -0.45;
-function height(x, z) {
-  const u = x - z, v = x + z;
+function height(X, Z) {
+  const x = X / K, z = Z / K, u = x - z, v = x + z;
   let h = 0.35 + 2.6 * Math.max(0, fbm(x * 0.045, z * 0.045) - 0.42) * 2;                          // rolling ground
   const em = Math.hypot(u / 68, (v - 195) / 138) + 0.55 * (fbm(x * 0.012 + 9, z * 0.012) - 0.5);
   const m = sstep(2.0, 2.9, em);                                                                    // mountains ring the plain
   const ridge = 1 - Math.abs(2 * fbm(x * 0.021 + 3, z * 0.021) - 1);
   h += m * (5 + 34 * ridge * ridge) + m * 3 * fbm(x * 0.12, z * 0.12);
   h += 9 * sstep(0.6, 0.8, fbm(x * 0.016 + 11, z * 0.016 + 4));                                    // lone hills between the cities
-  h = lerp(0, h, sstep(1.5, 16, cityDist(x, z)));
-  h = lerp(0, h, sstep(1.2, 8, roadDist(x, z)));
+  h = lerp(0, h, sstep(1.5, 16, cityDist(X, Z)));
+  h = lerp(0, h, sstep(1.2, 8, roadDist(X, Z)));
   return h;
 }
 {
-  const U0 = -260, U1 = 260, V0 = -230, V1 = 640, S = 3, nu = Math.round((U1 - U0) / S), nv = Math.round((V1 - V0) / S);
+  const U0 = -260 * K, U1 = 260 * K, V0 = -230 * K, V1 = 640 * K, S = 3 * K, nu = Math.round((U1 - U0) / S), nv = Math.round((V1 - V0) / S);
   const pos = new Float32Array((nu + 1) * (nv + 1) * 3), col = new Float32Array(pos.length), idx = [];
   const C = (hex) => new THREE.Color(hex), sand = C(0x9a8566), grass = C(0x6f8454), grass2 = C(0x85905a), wood = C(0x4d6645), rock = C(0x8a7876), snow = C(0xd9c4c8), bed = C(0x2a2740), tmp = new THREE.Color();
   const hs = new Float32Array((nu + 1) * (nv + 1));
@@ -297,8 +299,8 @@ function height(x, z) {
   const cone = new THREE.ConeGeometry(1, 1, 5, 1); cone.translate(0, 0.5, 0);
   const trees = [], tc = [C(0x3d6144), C(0x4a6b4a), C(0x355543), C(0x587049)], mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
   seed = 99;
-  for (let k = 0; k < 14000 && trees.length < 4200; k++) {
-    const u = U0 + 40 + rnd() * (U1 - U0 - 80), v = V0 + 60 + rnd() * (V1 - V0 - 120), x = (v + u) / 2, z = (v - u) / 2, h = height(x, z);
+  for (let k = 0; k < 14000 * K && trees.length < 4200 * K; k++) {
+    const u = U0 + 40 * K + rnd() * (U1 - U0 - 80 * K), v = V0 + 60 * K + rnd() * (V1 - V0 - 120 * K), x = (v + u) / 2, z = (v - u) / 2, h = height(x, z);
     if (h < 0.3 || h > 15 || cityDist(x, z) < 3 || roadDist(x, z) < 2) continue;
     if (rnd() > 0.25 + 0.75 * sstep(0.45, 0.62, fbm(x * 0.05 + 7, z * 0.05)) + (h > 3 ? 0.3 : 0)) continue;
     const s = 0.7 + rnd() * 0.7, g2 = cone.clone(); e.set(0, rnd() * 6, 0); q.setFromEuler(e);
@@ -476,7 +478,7 @@ function buildYear() {
 buildYear();
 
 // near or far? Only the cities in view, and only when close, get the full models. At most two are kept in memory.
-const NEAR_ZOOM = 3.6, tgt = new THREE.Vector3();
+const NEAR_ZOOM = 3.6 * K, tgt = new THREE.Vector3();
 function levelOfDetail(now) {
   tgt.copy(cam.position).sub(OFF);
   const reach = VIEW / cam.zoom * 1.7; let built = false;
@@ -553,8 +555,8 @@ renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0;
 const focus = (id, districtId) => {     // glide to the whole map, to a city, or to one of its districts
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
-  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 }
-    : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: c.home ? 5.4 : 6.2 };
+  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
+    : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: K > 1 ? 2.4 * K : c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
@@ -710,7 +712,7 @@ function pan(dx, dy) {
   const k = (2 * VIEW / cam.zoom) / innerHeight;
   cam.position.add(right.clone().multiplyScalar(-dx * k)).add(fwd.clone().multiplyScalar(dy * k / 0.66));
 }
-function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.9, 24); cam.updateProjectionMatrix(); }
+function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.9, 24 * K); cam.updateProjectionMatrix(); }
 el.style.touchAction = 'none';
 let tap = null;
 el.addEventListener('pointerdown', e => { goal = null; tap = pts.size ? null : { x: e.clientX, y: e.clientY, t: performance.now() }; pts.set(e.pointerId, [e.clientX, e.clientY]); el.setPointerCapture(e.pointerId); pinch = 0; });

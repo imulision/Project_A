@@ -93,3 +93,15 @@ test('the buildings are rebuilt only when a place or the look of a block changes
   const c = cityOf(g); c.places = c.places.slice(1);
   assert.notEqual(M.planTurf(c).key, a.key);
 });
+
+test('the whole map: six big cities where the world puts them, stretched apart, with their routes', () => {
+  const W = global.AshportWorld, v = E.view(play(1)), p = M.planEmpire(v, W.CITIES);
+  assert.equal(p.cities.length, 6); assert.ok(p.scale > 1);
+  p.cities.forEach((c, n) => { const w = W.CITIES.find((x) => x.id === c.id); assert.deepEqual([c.u, c.v], [w.x * p.scale, w.y * p.scale]); assert.equal(c.home, n === 0); });
+  assert.equal(p.cities[0].present, true); assert.equal(p.cities[1].present, false);
+  assert.equal(p.routes.length, v.routes.length);
+  p.routes.forEach((r) => assert.ok(p.cities[r.a] && p.cities[r.b]));
+  // no two cities overlap on the ground: a tile is 2 units, a block 4 tiles by 3
+  const box = (c) => { const cx = (c.v + c.u) / 2, cz = (c.v - c.u) / 2, hw = c.bx * 4, hd = c.by * 3; return [cx - hw, cx + hw, cz - hd, cz + hd]; };
+  for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) { const A = box(p.cities[a]), B = box(p.cities[b]); assert.ok(A[1] < B[0] || B[1] < A[0] || A[3] < B[2] || B[3] < A[2], p.cities[a].id + ' and ' + p.cities[b].id + ' overlap'); }
+});

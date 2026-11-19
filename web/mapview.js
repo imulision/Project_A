@@ -175,6 +175,18 @@
              districts: zones, lots: lots, blocks: blocks, capos: capos };
   }
 
+  // The whole map of the new game. `where` is AshportWorld.CITIES: where each city sits. The cities are far bigger than
+  // in the first game, so the map is stretched by SCALE to keep the country between them.
+  var SCALE = 2.6;
+  function planEmpire(view, where) {
+    var at = {}, index = {};
+    (where || []).forEach(function (c) { at[c.id] = c; });
+    var cities = view.cities.map(function (c, n) { var p = planTurf(c, n), w = at[c.id] || { x: 0, y: 200 }; index[c.id] = n; p.u = w.x * SCALE; p.v = w.y * SCALE; p.home = n === 0; p.present = !!c.held; return p; });
+    var routes = (view.routes || []).filter(function (r) { return index[r.from] !== undefined && index[r.to] !== undefined; })
+      .map(function (r) { return { a: index[r.from], b: index[r.to], kind: r.kind }; });
+    return { cities: cities, routes: routes, scale: SCALE };
+  }
+
   function plan(view) {
     var used = {}, index = {};
     var cities = view.cities.map(function (c, ci) { index[c.id] = ci; return planCity(c, ci, used); });
@@ -270,7 +282,7 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, planTurf: planTurf, route: route, trips: trips, effects: effects };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, plan: plan, planTurf: planTurf, planEmpire: planEmpire, route: route, trips: trips, effects: effects };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);
