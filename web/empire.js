@@ -185,6 +185,11 @@
       T.underboss(c, g.family, o.capo);
       record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
     },
+    // the boss buys something that lasts, in clean money
+    buy: function (g, o) {
+      var b = T.buy(g.family, o.holding);
+      record(g, { type: 'bought', holding: b.id, level: b.level, cost: b.cost, label: 'You buy ' + (b.level > 1 ? 'more of ' : '') + 'the ' + b.name }, g.month);
+    },
     // the boss sets how much he takes in a city: light, normal or heavy
     cut: function (g, o) {
       var c = cityOf(g, o.city);
@@ -245,7 +250,7 @@
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [] };
-    return { date: dateOf(g.month), month: g.month, history: g.history || [], tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    return { date: dateOf(g.month), month: g.month, history: g.history || [], holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
