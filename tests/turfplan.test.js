@@ -152,3 +152,24 @@ test('a route runs along the streets, from one lot to another, with no diagonal'
   path.slice(1, -1).forEach((q) => assert.ok(onStreet(q), q + ' is on a street'));
   for (let k = 1; k < path.length; k++) assert.ok(path[k][0] === path[k - 1][0] || path[k][1] === path[k - 1][1], 'no diagonal');
 });
+
+test('a car that carries cash knows how much, and whose it is', () => {
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const { v, cars } = carsOf(g), cash = cars.filter((c) => c.kind === 'takings');
+  assert.ok(cash.length > 0);
+  const t = v.cities[0].trips.filter((x) => x.kind === 'takings')[0];
+  assert.equal(cash[0].amount, t.amount);
+  assert.ok(cash[0].amount > 0);
+  assert.equal(cash[0].capo, 'sal');
+});
+
+test('two loads on the same way are two cars, the second one leaving after the first', () => {
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const { v, p } = carsOf(g), c = v.cities[0], t = c.trips.filter((x) => x.kind === 'takings')[0];
+  c.trips = [t, Object.assign({}, t), Object.assign({}, t)];
+  const cars = M.tripsTurf(p, v);
+  assert.equal(cars.length, 3);
+  assert.equal(new Set(cars.map((x) => x.id)).size, 3, 'each has its own name');
+  assert.deepEqual(cars.map((x) => x.delay > 0), [false, true, true]);
+  assert.ok(cars[2].delay > cars[1].delay);
+});

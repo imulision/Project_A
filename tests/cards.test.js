@@ -222,3 +222,20 @@ test('dirty cash has one picture everywhere: on the top bar, on the cars that ca
   assert.notEqual(C.HAUL.wash[1], C.HAUL.takings[1], 'the colour still tells the two trips apart');
   assert.notEqual(I.icon('dirty'), I.icon('clean'));
 });
+
+test('money that can be followed: the month\'s change beside a total, the amount a car carries, what a capo sent up', () => {
+  assert.equal(C.change(52), '+$52');
+  assert.equal(C.change(-1300), '−$1,300');
+  assert.equal(C.change(0), '');
+  assert.equal(C.change(undefined), '');
+  assert.equal(C.carLoad({ kind: 'takings', amount: 142 }), '$142');
+  assert.equal(C.carLoad({ kind: 'wash', amount: 80 }), '$80');
+  assert.equal(C.carLoad({ kind: 'takings', amount: 0 }), '');
+  assert.equal(C.carLoad({ kind: 'liquor', amount: 30 }), '', 'only cash is counted in dollars');
+  assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /\$142 on board/);
+  assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /Sal/);
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const v = E.view(g), k = v.cities[0].capos[0];
+  assert.ok(k.sent > 0, 'he sent something up');
+  assert.match(C.capo(v, v.cities[0].id, k.id), new RegExp('SENT UP</small><b>\\' + C.money(k.sent).replace(',', ',')));
+});
