@@ -328,7 +328,7 @@ test('a place that chokes says so: on its bubble, on its page, and in the list t
   assert.match(C.blockTip(w, c.id, p.x, p.y), /The till is full/);
   assert.match(C.block(w, c.id, p.x, p.y), /The till is full[\s\S]*Not enough liquor to sell/);
   assert.deepEqual(C.strains(w)[c.id + ':' + p.x + ',' + p.y], ['cash', 'dry']);
-  assert.deepEqual(C.strains(v), {}, 'nothing to show while all runs well');
+  assert.deepEqual(C.strains({ cities: [{ id: 'a', places: [{ x: 1, y: 1 }, { x: 2, y: 1, strains: [] }] }] }), {}, 'nothing to show while all runs well');
   assert.match(C.strainBadge(['cash', 'dry']), /<i[^>]*>.*<i/s, 'one mark for each kind');
   assert.equal(C.strainBadge(undefined), '');
 });
