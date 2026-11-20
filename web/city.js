@@ -28,11 +28,13 @@
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
   var lastPlan = null;
+  var strainAt = {};      // the family's places that choke, by city and block: the map marks them
   function refresh(events) {
     view = E.view(g);
     if (!g.started) return;
     waits = {};
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
+    strainAt = C.strains(view);
     if (!map) return;
     var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p))); map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -89,13 +91,21 @@
   }
   function requests() { show(C.requests(view, E.hud(g))); }
 
-  function tip(el, html) {
-    var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = html || C.esc(el.dataset.tip); t.classList.add('on');
+  // A bubble beside what was touched. With `more`, a touch on the bubble itself opens the whole page.
+  function tip(el, html, more) {
+    var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = (html || C.esc(el.dataset.tip)) + (more ? '<i class="more">\u203a</i>' : ''); t.classList.add('on'); t.classList.toggle('more', !!more); tip.more = more || null;
     var w = t.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - t.offsetHeight - 8;
     t.style.left = x + 'px'; t.style.top = (y < 8 ? r.bottom + 8 : y) + 'px';
-    clearTimeout(tip.t); tip.t = setTimeout(function () { t.classList.remove('on'); }, 3200);
+    tip.at = Date.now(); clearTimeout(tip.t); tip.t = setTimeout(untip, more ? 6000 : 3200);
   }
-  document.addEventListener('click', function (e) { var el = e.target.closest('[data-tip]'); if (el) tip(el); else $('tip').classList.remove('on'); }, true);
+  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; }
+  function at(x, y) { return { getBoundingClientRect: function () { return { left: x, top: y - 16, width: 0, height: 32, bottom: y + 16 }; } }; }
+  function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
+  }, true);
+  document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
 
   // While a club is being placed, the streets where it can open are lit on the ground.
   function spotsOf(city) { var raw = g.cities.filter(function (q) { return q.id === city; })[0]; return raw ? T.spots(raw) : []; }
@@ -163,7 +173,7 @@
   function tap(hit, x, y) {
     if (!g.started) return;
     var e = x == null ? null : labelAt(x, y);
-    if (e && !(picking && !e.l.car)) return tapLabel(e.l, e);
+    if (e && !(picking && !e.l.car && !e.l.fx)) return tapLabel(e.l, e);
     if (!hit) return;
     var c = view.cities.filter(function (q) { return q.id === hit.city; })[0], inside = c && hit.bx >= 0 && hit.by >= 0 && hit.bx < c.w && hit.by < c.h;
     if (picking) {
@@ -174,15 +184,18 @@
       return;
     }
     if (!hit.near || !inside) return map.focus(hit.city, inside ? zoneId(hit.city, hit.bx, hit.by) : undefined);
-    show(C.block(view, hit.city, hit.bx, hit.by));
+    said(hit.city, hit.bx, hit.by, at(x == null ? innerWidth / 2 : x, y == null ? innerHeight / 2 : y));
   }
+  // a touched street or place answers with a bubble; the bubble leads to its page
+  function said(city, bx, by, el) { var h = C.blockTip(view, city, bx, by); if (h) tip(el, h, function () { show(C.block(view, city, bx, by)); }); }
 
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
-  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'] };
+  var FX = C.FX;
   function tapLabel(l, e) {
-    if (l.car) tip(e, C.carTip(l.car));
+    if (l.fx) tip(e, C.fxTip(l.fx, l.say));
+    else if (l.car) tip(e, C.carTip(l.car));
     else if (picking) return;
-    else if (l.site) show(C.block(view, l.city, l.bx, l.by));
+    else if (l.site) said(l.city, l.bx, l.by, e);
     else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo)); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
@@ -193,7 +206,7 @@
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn;
-      var seen = {}, boxes = [];
+      var seen = {}, boxes = [], badges = [];
       map.labels().forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
@@ -209,19 +222,21 @@
         var px = Math.round(l.x), py = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120 }[l.fx] || 0) : 0));
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
+        else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); } }
         else if (l.car) { var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!cash && l.back); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
-        if (l.fx || l.role === 'club') return;
+        if (l.role === 'club') return;
+        if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
       // a label that would sit on a more important one steps aside
       var off = C.crowded(boxes, hiddenLabs); hiddenLabs = off;
       boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
-      shown = boxes.filter(function (b) { return !off[b.id]; });
+      shown = boxes.filter(function (b) { return !off[b.id]; }).concat(badges);
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
     requestAnimationFrame(drawLabels);

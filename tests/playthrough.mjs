@@ -81,15 +81,31 @@ await page.waitForSelector('#veil.on');
 assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
 await page.click('#sheet [data-act=close]');
-// the same with a real finger: the sheet stays open (the click a phone sends after a touch must not close it)
-// (a building's sheet is short: the finger is over the dark veil when it lifts, not over the sheet)
+// a real finger on a building: a small bubble beside it, the map stays in full view and time goes on
 await page.touchscreen.tap(moved.x + moved.width / 2, moved.y + moved.height + 12);
 await page.waitForTimeout(600);
-assert.equal(await page.locator('#veil.on').count(), 1, 'a sheet opened by a finger stays open');
+assert.equal(await page.locator('#tip.on.more').count(), 1, 'the bubble stays after the click a phone sends');
+assert.equal(await page.locator('#veil.on').count(), 0, 'no sheet over the map for a detail');
+// a touch on the bubble opens the whole page, and it stays open
+const bub = await page.locator('#tip').boundingBox();
+await page.touchscreen.tap(bub.x + bub.width / 2, bub.y + bub.height / 2);
+await page.waitForTimeout(600);
+assert.equal(await page.locator('#veil.on').count(), 1, 'the bubble leads to the page');
+assert.equal(await page.locator('#tip.on').count(), 0);
 assert.doesNotMatch(await page.textContent('#sheet h2'), /Dutch/);
 await page.touchscreen.tap(195, 30);      // and a touch beside the sheet closes it
 await page.waitForTimeout(400);
 assert.equal(await page.locator('#veil.on').count(), 0, 'a touch beside the sheet closes it');
+
+// a badge that lights up over the map (gunfire, fire, police) answers the finger and says what happened
+await page.evaluate(() => { const a = window.__ashport, lab = a.map().labels().find((l) => l.site && l.owner === 'family'); a.map().effects([{ kind: 'gunfire', city: lab.city, site: lab.id.slice(1 + lab.city.length), say: 'Shots in the street' }]); });
+await page.waitForSelector('.lab.fx.gunfire');
+const badge = await page.locator('.lab.fx.gunfire').first().boundingBox();
+await page.touchscreen.tap(badge.x + badge.width / 2, badge.y + badge.height / 2);
+await page.waitForTimeout(500);
+assert.equal(await page.locator('#tip.on').count(), 1, 'a touched badge says what it is');
+assert.match(await page.textContent('#tip'), /Gunfire.*Shots in the street/s);
+assert.equal(await page.locator('#veil.on').count(), 0, 'and no sheet opens behind it');
 
 // money can be followed: every car of cash says how much it carries, and each total says what last month did to it
 await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat(); });
@@ -135,8 +151,12 @@ await shot('c3-two-capos');
 
 // a touch on a street up close names it and says what stands there
 const place = await page.evaluate(() => { const c = window.__ashport.view().cities[0], p = c.places.find((p) => p.owner === 'family' && p.kind !== 'club'); window.__ashport.tap({ city: c.id, bx: p.x, by: p.y, near: true }); return p; });
+assert.match(await page.textContent('#tip'), new RegExp(place.name));
+assert.match(await page.textContent('#tip'), /runs it/);
+await shot('c3-bubble');
+await page.evaluate((p) => window.__ashport.tap({ city: 'ashport', bx: p.x, by: p.y, near: true }), place);      // (the bubble goes away by itself after a few seconds)
+await page.click('#tip');
 assert.match(await page.textContent('#sheet'), new RegExp(place.name));
-assert.match(await page.textContent('#sheet'), /runs it/);
 await page.click('#sheet [data-act=city]');
 assert.equal(await page.textContent('#sheet h2'), 'Ashport');
 await shot('c4-city-sheet');

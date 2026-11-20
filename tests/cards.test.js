@@ -296,3 +296,49 @@ test('a label at the edge of another does not blink: once hidden it comes back o
   // with no memory given, the plain rule stands
   assert.deepEqual(C.crowded([capo, name(145)]), { name: true });
 });
+
+test('a badge over the map says what just happened there', () => {
+  const t = C.fxTip('gunfire', "Rocco's men take the Northsides' place in The Landing, gun in hand");
+  assert.match(t, /Gunfire/); assert.match(t, /Rocco&#39;s men take|Rocco's men take/);
+  assert.match(C.fxTip('fire'), /Fire/);
+  assert.match(C.fxTip('unknown'), /unknown/);
+  assert.equal(C.FX.police[1], 'Police');
+});
+
+test('a touched street answers with a few words beside the finger, not a sheet', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club'), key = city.keys[0];
+  const mine = C.blockTip(v, 'ashport', ours.x, ours.y);
+  assert.match(mine, new RegExp(ours.name)); assert.match(mine, /Sal runs it/);
+  assert.doesNotMatch(mine, /<button|<h2/, 'no button, no title: it is a word, not a page');
+  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 90, 'short');
+  assert.match(C.blockTip(v, 'ashport', key.x, key.y), new RegExp(key.name));
+  const p = { ...ours, till: 90 }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) };
+  assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 in the till/);
+  let empty = null; for (let y = 0; y < city.h && !empty; y++) for (let x = 0; x < city.w; x++) if (!city.places.some((q) => q.x === x && q.y === y)) { empty = C.blockTip(v, 'ashport', x, y); break; }
+  assert.match(empty, /street|holds/i); assert.doesNotMatch(empty, /Nothing of note/);
+  assert.equal(C.blockTip(v, 'nowhere', 0, 0), null);
+});
+
+test('a place that chokes says so: on its bubble, on its page, and in the list the map reads', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club');
+  const p = { ...ours, strains: [{ kind: 'cash', label: 'The till is full: no car comes often enough' }, { kind: 'dry', label: 'Not enough liquor to sell' }] };
+  const c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] };
+  assert.match(C.blockTip(w, c.id, p.x, p.y), /The till is full/);
+  assert.match(C.block(w, c.id, p.x, p.y), /The till is full[\s\S]*Not enough liquor to sell/);
+  assert.deepEqual(C.strains(w)[c.id + ':' + p.x + ',' + p.y], ['cash', 'dry']);
+  assert.deepEqual(C.strains({ cities: [{ id: 'a', places: [{ x: 1, y: 1 }, { x: 2, y: 1, strains: [] }] }] }), {}, 'nothing to show while all runs well');
+  assert.match(C.strainBadge(['cash', 'dry']), /<i[^>]*>.*<i/s, 'one mark for each kind');
+  assert.equal(C.strainBadge(undefined), '');
+});
+
+test('what the family knows: bigger cars are a line like the trades, with what a tier gives', () => {
+  const { v } = play((v) => v.month >= 2);
+  const tree = v.tree.filter((t) => t.kind !== 'cars').concat([{ kind: 'cars', name: 'Cars', street: null, tier: 1, wanted: [], gives: 'A car carries $150 a run', studying: 0, next: { tier: 2, cost: 2000, months: 4, gives: 'A car carries $300 a run' } }]);
+  const w = { ...v, tree };
+  assert.match(C.family(w, { clean: 0 }), /data-know="cars"/);
+  assert.ok(require('../web/icons.js').has('cars'), 'it has its own picture');
+  const k = C.know(w, 'cars', { clean: 5000 });
+  assert.match(k, /A car carries \$150 a run/); assert.match(k, /A car carries \$300 a run/);
+});

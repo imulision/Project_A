@@ -63,6 +63,7 @@
   P.streetsCrew = P.streets; P.seizure = P.seize;
   P.raid = P.heat;
 
+  P.cars = P.car;
   P.dirty = P.takings;      // dirty cash has one picture everywhere: the bag, on the top bar, on the cars and in the sheets
   function has(name) { return Object.prototype.hasOwnProperty.call(P, name) && name !== 'unknown'; }
   function icon(name, title) {

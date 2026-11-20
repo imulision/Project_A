@@ -615,7 +615,7 @@ const labels = () => {
   for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
     const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, back: a.dir < 0, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
-  for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, part: Math.min(1, f.t / f.life), x, y }); }
+  for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
 };
 // the state of the game changed: rebuild only the cities that look different
@@ -630,17 +630,17 @@ function update(P2) {
 // fire, gunfire and police lights where something just happened
 const fxList = []; let fxN = 0;
 const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12] };
-function spawnFx(kind, x, z, h = 1) {
+function spawnFx(kind, x, z, h = 1, say) {
   const look = FXLOOK[kind]; if (!look) return;
   const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
   m.quaternion.copy(cam.quaternion); m.position.set(x, h + 0.6, z); m.renderOrder = 6; scene.add(m);
-  fxList.push({ n: fxN++, kind, x, z, m, t: 0, life: look[1] });
+  fxList.push({ n: fxN++, kind, x, z, m, say, t: 0, life: look[1] });
 }
 function effects(list) {
   for (const e of list) {
     const C = CITIES.find(c => c.id === e.city); if (!C) continue;
     const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
-    spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1);
+    spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1, e.say);
   }
 }
 // the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
