@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 const shots = process.argv[2];
 const page_url = 'file://' + path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../web/index.html') + '?fixed&manual';   // fixed resolution, and time beaten by hand
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|ERR_INTERNET|ERR_NAME|Failed to load resource/.test(m.text())) errors.push(m.text()); });
@@ -77,6 +77,15 @@ await page.waitForSelector('#veil.on');
 assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
 await page.click('#sheet [data-act=close]');
+// the same with a real finger: the sheet stays open (the click a phone sends after a touch must not close it)
+// (a building's sheet is short: the finger is over the dark veil when it lifts, not over the sheet)
+await page.touchscreen.tap(moved.x + moved.width / 2, moved.y + moved.height + 12);
+await page.waitForTimeout(600);
+assert.equal(await page.locator('#veil.on').count(), 1, 'a sheet opened by a finger stays open');
+assert.doesNotMatch(await page.textContent('#sheet h2'), /Dutch/);
+await page.touchscreen.tap(195, 30);      // and a touch beside the sheet closes it
+await page.waitForTimeout(400);
+assert.equal(await page.locator('#veil.on').count(), 0, 'a touch beside the sheet closes it');
 
 // time runs at full speed until a second capo has his club, placed by a touch on the map
 await page.click('#speed'); await page.click('#speed');
