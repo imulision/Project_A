@@ -93,9 +93,9 @@
     var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = html || C.esc(el.dataset.tip); t.classList.add('on');
     var w = t.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - t.offsetHeight - 8;
     t.style.left = x + 'px'; t.style.top = (y < 8 ? r.bottom + 8 : y) + 'px';
-    clearTimeout(tip.t); tip.t = setTimeout(function () { t.classList.remove('on'); }, 3200);
+    tip.at = Date.now(); clearTimeout(tip.t); tip.t = setTimeout(function () { t.classList.remove('on'); }, 3200);
   }
-  document.addEventListener('click', function (e) { var el = e.target.closest('[data-tip]'); if (el) tip(el); else $('tip').classList.remove('on'); }, true);
+  document.addEventListener('click', function (e) { var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (Date.now() - (tip.at || 0) > 450) $('tip').classList.remove('on'); }, true);      // the click a phone sends after a touch does not close what that touch opened
 
   // While a club is being placed, the streets where it can open are lit on the ground.
   function spotsOf(city) { var raw = g.cities.filter(function (q) { return q.id === city; })[0]; return raw ? T.spots(raw) : []; }
@@ -163,7 +163,7 @@
   function tap(hit, x, y) {
     if (!g.started) return;
     var e = x == null ? null : labelAt(x, y);
-    if (e && !(picking && !e.l.car)) return tapLabel(e.l, e);
+    if (e && !(picking && !e.l.car && !e.l.fx)) return tapLabel(e.l, e);
     if (!hit) return;
     var c = view.cities.filter(function (q) { return q.id === hit.city; })[0], inside = c && hit.bx >= 0 && hit.by >= 0 && hit.bx < c.w && hit.by < c.h;
     if (picking) {
@@ -178,9 +178,10 @@
   }
 
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
-  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'] };
+  var FX = C.FX;
   function tapLabel(l, e) {
-    if (l.car) tip(e, C.carTip(l.car));
+    if (l.fx) tip(e, C.fxTip(l.fx, l.say));
+    else if (l.car) tip(e, C.carTip(l.car));
     else if (picking) return;
     else if (l.site) show(C.block(view, l.city, l.bx, l.by));
     else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo)); }
@@ -193,7 +194,7 @@
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn;
-      var seen = {}, boxes = [];
+      var seen = {}, boxes = [], badges = [];
       map.labels().forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
@@ -214,14 +215,15 @@
         else if (l.car) { var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!cash && l.back); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
-        if (l.fx || l.role === 'club') return;
+        if (l.role === 'club') return;
+        if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
       // a label that would sit on a more important one steps aside
       var off = C.crowded(boxes, hiddenLabs); hiddenLabs = off;
       boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
-      shown = boxes.filter(function (b) { return !off[b.id]; });
+      shown = boxes.filter(function (b) { return !off[b.id]; }).concat(badges);
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
     requestAnimationFrame(drawLabels);

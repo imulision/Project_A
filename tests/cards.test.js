@@ -296,3 +296,11 @@ test('a label at the edge of another does not blink: once hidden it comes back o
   // with no memory given, the plain rule stands
   assert.deepEqual(C.crowded([capo, name(145)]), { name: true });
 });
+
+test('a badge over the map says what just happened there', () => {
+  const t = C.fxTip('gunfire', "Rocco's men take the Northsides' place in The Landing, gun in hand");
+  assert.match(t, /Gunfire/); assert.match(t, /Rocco&#39;s men take|Rocco's men take/);
+  assert.match(C.fxTip('fire'), /Fire/);
+  assert.match(C.fxTip('unknown'), /unknown/);
+  assert.equal(C.FX.police[1], 'Police');
+});

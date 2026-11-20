@@ -182,7 +182,7 @@
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
       if (!lot) { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
       if (!lot) return;
-      out.push({ kind: kind, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by });
+      out.push({ kind: kind, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label });
     });
     return out;
   }

@@ -91,6 +91,16 @@ await page.touchscreen.tap(195, 30);      // and a touch beside the sheet closes
 await page.waitForTimeout(400);
 assert.equal(await page.locator('#veil.on').count(), 0, 'a touch beside the sheet closes it');
 
+// a badge that lights up over the map (gunfire, fire, police) answers the finger and says what happened
+await page.evaluate(() => { const a = window.__ashport, lab = a.map().labels().find((l) => l.site && l.owner === 'family'); a.map().effects([{ kind: 'gunfire', city: lab.city, site: lab.id.slice(1 + lab.city.length), say: 'Shots in the street' }]); });
+await page.waitForSelector('.lab.fx.gunfire');
+const badge = await page.locator('.lab.fx.gunfire').first().boundingBox();
+await page.touchscreen.tap(badge.x + badge.width / 2, badge.y + badge.height / 2);
+await page.waitForTimeout(500);
+assert.equal(await page.locator('#tip.on').count(), 1, 'a touched badge says what it is');
+assert.match(await page.textContent('#tip'), /Gunfire.*Shots in the street/s);
+assert.equal(await page.locator('#veil.on').count(), 0, 'and no sheet opens behind it');
+
 // money can be followed: every car of cash says how much it carries, and each total says what last month did to it
 await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat(); });
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
