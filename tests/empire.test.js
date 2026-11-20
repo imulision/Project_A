@@ -332,3 +332,29 @@ test('a man who can only be sent down the road counts as one the boss can answer
   g.family.dirty = road.cost;
   assert.equal(E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).open, true);
 });
+
+// --- the boss's table, from the game ---
+test('the boss gives a man at the door a chair at the table, and takes it back', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 20000; });
+  const door = E.view(g).cities.find((c) => c.id === knock.city).doors.find((d) => d.capo === knock.capo);
+  assert.deepEqual(door.chairs, ['bookkeeper', 'routes', 'fixer'], 'the door says which chairs are free');
+  assert.deepEqual(E.view(g).table.map((s) => s.capo), [null, null, null]);
+  E.command(g, { type: 'seat', city: knock.city, capo: knock.capo, post: 'fixer' });
+  assert.equal(E.view(g).table[2].capo, knock.capo);
+  const said = g.journal[g.journal.length - 1];
+  assert.deepEqual([said.type, said.capo, said.post], ['seated', knock.capo, 'fixer']);
+  assert.equal(said.label, T.person(knock.capo).name + ' takes the Fixer\'s chair at the table');
+  assert.ok(!E.view(g).cities.some((c) => c.doors.some((d) => d.capo === knock.capo)));
+  E.command(g, { type: 'unseat', post: 'fixer' });
+  assert.equal(E.view(g).table[2].capo, null);
+  assert.equal(g.journal[g.journal.length - 1].label, T.person(knock.capo).name + ' leaves the table, and the family');
+});
+
+test('the door lists only the chairs still free', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 20000; });
+  const door = () => E.view(g).cities.find((q) => q.id === knock.city).doors.find((d) => d.capo === knock.capo);
+  const others = ['gus', 'jim', 'walt'].filter((id) => id !== knock.capo);
+  g.family.table = { bookkeeper: others[0], routes: others[1] };
+  assert.deepEqual(door().chairs, ['fixer']);
+  assert.throws(() => E.command(g, { type: 'seat', city: knock.city, capo: knock.capo, post: 'routes' }), /the Routes's chair is taken/);
+});
