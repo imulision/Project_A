@@ -342,3 +342,15 @@ test('what the family knows: bigger cars are a line like the trades, with what a
   const k = C.know(w, 'cars', { clean: 5000 });
   assert.match(k, /A car carries \$150 a run/); assert.match(k, /A car carries \$300 a run/);
 });
+
+test('a truck says what it hauls: liquor, crates, stolen cars or weed, each with its picture and its count', () => {
+  const pic = (car) => C.haul(car)[0];
+  assert.equal(pic({ kind: 'liquor', cargo: 'liquor' }), 'liquor');
+  assert.equal(new Set([pic({ kind: 'goods', cargo: 'goods' }), pic({ kind: 'goods', cargo: 'cars' }), pic({ kind: 'goods', cargo: 'weed' }), pic({ kind: 'liquor' }), pic({ kind: 'takings' })]).size, 5, 'no two alike');
+  assert.equal(pic({ kind: 'something new' }), 'takings');
+  assert.match(C.carTip({ kind: 'goods', cargo: 'goods', amount: 20, capo: 'sal' }), /20 crates on board/);
+  assert.match(C.carTip({ kind: 'goods', cargo: 'cars', amount: 4, capo: 'sal' }), /4 cars on board/);
+  assert.match(C.carTip({ kind: 'goods', cargo: 'weed', amount: 10, capo: 'sal' }), /10 bags on board/);
+  assert.match(C.carTip({ kind: 'liquor', cargo: 'liquor', amount: 20, capo: 'sal' }), /20 cases on board/);
+  assert.match(C.carTip({ kind: 'takings', cargo: 'cash', amount: 142, capo: 'sal' }, true), /Empty/, 'on its way out, it says it is empty');
+});

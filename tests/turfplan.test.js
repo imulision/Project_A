@@ -107,25 +107,32 @@ test('the whole map: six big cities where the world puts them, stretched apart, 
 });
 
 // ---- the cars of the new game
-const carsOf = (g) => { const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES); return { v, p, cars: M.tripsTurf(p, v) }; };
+const carsOf = (g) => { const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES); return { v, p, cars: M.tripsTurf(p, v).filter((t) => !t.parked) }; };      // (the vehicles waiting by the club are told further down)
 
-test('every trip of the rules is a car between the very buildings it names, along the streets', () => {
+test('every trip of the rules is driven between the very buildings it names: a leg of the round of its vehicle, or a car of its own', () => {
   const { v, p, cars } = carsOf(play(30)), c = v.cities[0], pc = p.cities[0];
   c.trips = c.trips.filter((t) => t.kind !== 'capo');      // a capo's own car is not a car that comes and goes (see movesTurf)
-  assert.ok(c.trips.length > 0); assert.equal(cars.length, c.trips.length);
+  assert.ok(c.trips.length > 0);
+  assert.equal(cars.length, new Set(c.trips.map((t, n) => t.vehicle || n)).size, 'one car for each vehicle, however many trips it makes');
   const siteAt = (x, y) => pc.lots.find((l) => l.site && l.bx === x && l.by === y);
-  cars.forEach((car, n) => {
-    const t = c.trips[n], a = siteAt(t.from.x, t.from.y), b = siteAt(t.to.x, t.to.y), path = car.path;
-    assert.deepEqual(path[0], [a.i, a.j]); assert.deepEqual(path[path.length - 1], [b.i, b.j]);
-    path.slice(1, -1).forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0, 'a car keeps to the streets'));
+  c.trips.forEach((t) => {
+    const a = siteAt(t.from.x, t.from.y), b = siteAt(t.to.x, t.to.y), car = cars.find((x) => x.id === 'ashport:' + t.vehicle);
+    if (!t.vehicle) { const own = cars.find((x) => !x.round && x.kind === t.kind && x.path[0].join() === [a.i, a.j].join()); assert.ok(own, 'a trip without a vehicle is a car that comes and goes'); assert.deepEqual(own.path[own.path.length - 1], [b.i, b.j]); return; }
+    assert.ok(car, 'the vehicle of the trip is on the map: ' + t.vehicle);
+    const stand = car.stops.map((s) => car.path[s.k].join() + (s.load ? '+' : '-'));
+    assert.ok(stand.indexOf([a.i, a.j].join() + '+') >= 0, 'it loads at the place the trip leaves from');
+    assert.ok(stand.slice(stand.indexOf([a.i, a.j].join() + '+')).indexOf([b.i, b.j].join() + '-') > 0, 'and unloads after, where the trip ends');
+    car.path.forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0 || pc.lots.some((l) => l.site && l.i === q[0] && l.j === q[1]), 'a car keeps to the streets'));
     assert.equal(car.city, 'ashport'); assert.equal(car.capo, t.capo);
   });
 });
 
-test('a car says what it carries and looks the part: a truck for liquor, a car for money', () => {
-  const { cars } = carsOf(play(30)), liquor = cars.find((c) => c.cargo === 'liquor'), cash = cars.find((c) => c.cargo === 'cash');
-  assert.equal(liquor.vehicle, 'truck'); assert.equal(liquor.loop, true); assert.equal(liquor.from, 'still'); assert.equal(liquor.to, 'speakeasy');
-  assert.equal(cash.vehicle, 'car'); assert.equal(cash.to, 'club');
+test('a vehicle looks the part: a truck for liquor, a car for money', () => {
+  let g = null, liquor = null, cash = null;
+  for (let m = 6; m <= 60 && !(liquor && cash); m += 3) { g = play(m); const { cars } = carsOf(g); liquor = liquor || cars.find((c) => c.kind === 'liquor'); cash = cash || cars.find((c) => c.kind === 'takings'); }
+  assert.ok(liquor && cash, 'liquor and cash are both driven at some point');
+  assert.equal(liquor.vehicle, 'truck'); assert.ok(liquor.round); assert.ok(liquor.stops[0].load && liquor.stops[0].amount > 0);
+  assert.equal(cash.vehicle, 'car');
   assert.notEqual(liquor.color, cash.color);
 });
 
@@ -170,8 +177,9 @@ test('a car that carries cash knows how much, and whose it is', () => {
 test('two loads on the same way are two cars, the second one leaving after the first', () => {
   const g = withLoads();
   const { v, p } = carsOf(g), c = v.cities[0], t = c.trips.filter((x) => x.kind === 'takings')[0];
-  c.trips = [t, Object.assign({}, t), Object.assign({}, t)];
-  const cars = M.tripsTurf(p, v);
+  const bare = () => Object.assign({}, t, { vehicle: null, home: null });      // loads the rules give no vehicle to (the laundry runs)
+  c.trips = [bare(), bare(), bare()];
+  const cars = M.tripsTurf(p, v).filter((x) => !x.parked);
   assert.equal(cars.length, 3);
   assert.equal(new Set(cars.map((x) => x.id)).size, 3, 'each has its own name');
   assert.deepEqual(cars.map((x) => x.delay > 0), [false, true, true]);
@@ -198,4 +206,47 @@ test('a capo is seen where he is this month, and drives there in his own car whe
   assert.deepEqual(moves[0].path[moves[0].path.length - 1], [pk.at.i, pk.at.j]);
   assert.equal(M.movesTurf(p, p).length, 0, 'a capo who stays where he is does not drive');
   assert.equal(M.movesTurf(null, p).length, 0);
+});
+
+// ---- rounds: a vehicle lives at its capo's club, goes out, loads, delivers, comes home, and is the same car next month
+const withRounds = () => {
+  const g = play(30), v = E.view(g), c = v.cities[0], k = c.capos[0], home = { x: k.x, y: k.y };
+  const ps = c.places.filter((q) => q.owner === 'family' && q.kind !== 'club').slice(0, 2);
+  k.cars = 2; k.trucks = 1;
+  c.trips = ps.map((q, n) => ({ kind: 'takings', cargo: 'cash', capo: k.id, from: { x: q.x, y: q.y }, to: home, amount: 150 + n, vehicle: k.id + ':car:1', leg: n, home }))
+    .concat([{ kind: 'wash', cargo: 'cash', capo: k.id, from: home, to: { x: ps[0].x, y: ps[0].y }, amount: 90 }]);
+  const p = M.planEmpire(v, global.AshportWorld.CITIES);
+  return { v, c, k, ps, p, cars: M.tripsTurf(p, v) };
+};
+
+test('the trips of one vehicle are one round: out of the club, load, deliver, and home again', () => {
+  const { k, ps, p, cars } = withRounds(), pc = p.cities[0];
+  const car = cars.find((t) => t.id === 'ashport:' + k.id + ':car:1');
+  assert.ok(car && car.round, 'one car for the two trips of dutch:car:1');
+  assert.deepEqual(car.path[0], car.path[car.path.length - 1], 'it ends where it started');
+  assert.deepEqual(car.path[0], car.home);
+  car.path.forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0 || pc.lots.some((l) => l.i === q[0] && l.j === q[1] && l.site), 'it keeps to the streets'));
+  assert.deepEqual(car.stops.map((s) => s.load), [true, false, true, false], 'it loads and unloads twice');
+  assert.deepEqual(car.stops.filter((s) => s.load).map((s) => s.amount), [150, 151]);
+  for (let n = 1; n < car.stops.length; n++) assert.ok(car.stops[n].k > car.stops[n - 1].k, 'the stops follow one another along the way');
+  const at = (s) => pc.lots.find((l) => l.i === car.path[s.k][0] && l.j === car.path[s.k][1]);
+  assert.equal(at(car.stops[0]).bx, ps[0].x); assert.equal(at(car.stops[2]).bx, ps[1].x);
+  assert.equal(car.vehicle, 'car'); assert.equal(car.amount, 150);
+});
+
+test('a vehicle with nothing to do stays parked at the club, and each has a place of its own', () => {
+  const { k, cars } = withRounds();
+  const idle = cars.filter((t) => t.parked);
+  assert.deepEqual(idle.map((t) => t.id).sort(), ['ashport:' + k.id + ':car:2', 'ashport:' + k.id + ':truck:1']);
+  idle.forEach((t) => { assert.equal(t.path.length, 1); assert.ok(t.round); });
+  const busy = cars.find((t) => t.id === 'ashport:' + k.id + ':car:1');
+  const spots = idle.map((t) => t.path[0].join()).concat([busy.home.join()]);
+  assert.equal(new Set(spots).size, 3, 'no two parked on the same spot');
+  assert.equal(idle.find((t) => /truck/.test(t.id)).vehicle, 'truck');
+});
+
+test('a trip without a vehicle of its own still comes and goes as before', () => {
+  const { cars } = withRounds();
+  const wash = cars.filter((t) => t.kind === 'wash');
+  assert.equal(wash.length, 1); assert.ok(wash[0].loop && !wash[0].round);
 });

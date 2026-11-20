@@ -109,6 +109,19 @@ assert.equal(await page.locator('#veil.on').count(), 0, 'and no sheet opens behi
 
 // money can be followed: every car of cash says how much it carries, and each total says what last month did to it
 await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat(); });
+// the cars live by the club: parked there, then out on their round, loaded only between the place and the club, and home again
+const fleet = () => page.evaluate(() => window.__ashport.map().stats().fleet);
+const lives = await page.evaluate(() => { const m = window.__ashport.map(), seen = { parked: 0, empty: 0, loaded: 0, ids: {} }; let wasOut = false, back = false;
+  for (let n = 0; n < 400 && !back; n++) { m.run(0.5); const f = m.stats().fleet.filter((x) => /:car:1$/.test(x.id))[0]; if (!f) break; seen.ids[f.id] = 1;
+    if (f.parked) { seen.parked++; if (wasOut) back = true; } else { wasOut = true; if (f.loaded) seen.loaded++; else seen.empty++; } }
+  return { seen, back }; });
+assert.ok(lives.seen.parked > 0 && lives.seen.empty > 0 && lives.seen.loaded > 0, 'a car is seen parked, on its way empty, and loaded ' + JSON.stringify(lives.seen));
+assert.ok(lives.back, 'and it comes home to the club');
+const fleetWas = (await fleet()).map((f) => f.id).sort();
+await page.evaluate(() => { for (let i = 0; i < 4; i++) window.__ashport.beat(); });
+const fleetNow = (await fleet()).map((f) => f.id);
+fleetWas.forEach((id) => assert.ok(fleetNow.includes(id), 'the same vehicle is there the month after: ' + id));
+await page.evaluate(() => { const m = window.__ashport.map(); for (let n = 0; n < 200 && !m.stats().fleet.some((f) => f.loaded && /:car:/.test(f.id)); n++) m.run(0.5); });
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
 const change = await page.evaluate(() => ({ shown: document.getElementById('dirtyd').textContent, rules: window.AshportEmpire.hud(window.__ashport.game()).change.dirty }));
 assert.equal(change.shown, window_change(change.rules), 'the change of the month is written beside the dirty total');
@@ -140,9 +153,13 @@ assert.match(await page.textContent('#wash'), /washes \$\d|no laundry yet/);
 await page.click('#speed'); await page.click('#speed');
 assert.equal(await page.textContent('#speed'), '4x');
 await months(240, 'seat');
-const seen = await page.evaluate(() => window.__seen);
-assert.ok(seen.seat >= 1, 'a man at the door was given a street (' + JSON.stringify(seen) + ')');
+const seated = await page.evaluate(() => window.__seen);
+assert.ok(seated.seat >= 1, 'a man at the door was given a street (' + JSON.stringify(seated) + ')');
 assert.match(await hud(), / \| 2 \/ \d+$/, 'the family has two capos');
+// (he may not have left his club yet when the second man came; the faces show up close, on a city that has been drawn since it last changed)
+if (!seated.rides) { await page.evaluate(() => window.__ashport.home()); await still();
+  for (let n = 0; n < 40 && !(await page.evaluate(() => window.__seen.rides)); n++) { await months(1, 'rides'); const d = await page.evaluate(() => window.__ashport.map().stats().drawn); await page.waitForFunction((d) => window.__ashport.map().stats().drawn > d + 1, d, { timeout: 30000 }).catch(() => {}); } }
+const seen = await page.evaluate(() => window.__seen);
 assert.ok(seen.away > 0 && seen.rides > 0, 'a capo is seen where he works, and in his own car on the way there (' + seen.away + ', ' + seen.rides + ')');
 assert.ok(seen.lit > 0 && seen.out === 0, 'the streets where a club can open are lit during the choice, and put out after (' + seen.lit + ', ' + seen.out + ')');
 await months(6);

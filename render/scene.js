@@ -612,8 +612,8 @@ const labels = () => {
     out.push({ id: 's' + (c.p.turf ? c.id : '') + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, owner: l.site.owner, key: l.site.key, capo: l.site.capo, city: c.id, bx: l.bx, by: l.by, x, y }); } });
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
-  for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
-    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, back: a.dir < 0, x, y }); }
+  for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || a.parked || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
+    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, round: a.round, back: a.round ? !a.loaded : a.dir < 0, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
   for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
@@ -654,16 +654,25 @@ function agentFor(t) {
   const C = CITIES.find(c => c.id === t.city); if (!C) return null;
   const pts = t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
   for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
-  if (!L) return null;
+  if (!L && !t.round) return null;
   // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
   return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: t.path.join(';'), leaving: false,
            geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-           tag: { cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
+           tag: { cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null,
+           // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
+           round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
+}
+// A vehicle on its round takes the way of the new month once it is back by the club; parked, it takes it at once.
+function reroute(id, a, t) {
+  if (a.sig === t.path.join(';')) { a.next = null; a.stops.forEach((s, i) => { if (t.stops[i]) s.amount = t.stops[i].amount; }); return; }      // same way, this month's loads
+  if (a.L && (a.p > 0 || a.wait <= 0) && a.p < a.L) { a.next = t; return; }
+  const b = agentFor(t); if (!b) return; b.wait = a.L ? Math.max(0, a.wait) : hsh(b.pts[0][0], b.L) * 2; b.rot = a.rot; agents.set(id, b);
 }
 function traffic(trips) {
   const seen = new Set();
   for (const t of trips) {
     if (t.loop) { seen.add(t.id); const old = agents.get(t.id);
+      if (old && old.round && t.round) { reroute(t.id, old, t); continue; }
       if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (fxN++), old); }      // the route changed: the old car finishes its run
       if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load, amount: t.amount || 0 }); }
     else { const a = agentFor(t); if (a) agents.set('once' + (fxN++), a); }
@@ -675,7 +684,18 @@ function moveAgents(dt) {
   const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
   for (const [id, a] of agents) {
     if (a.wait > 0) a.wait -= dt;
-    else {
+    else if (a.round) {
+      if (!a.L) { if (a.leaving) { agents.delete(id); continue; } }
+      else {
+        a.p += a.speed * dt; const s = a.stops[a.si];
+        if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
+        else if (a.p >= a.L) {      // home again: it rests by the club, then goes out again, by the new way if the month changed it
+          if (a.leaving) { agents.delete(id); continue; }
+          if (a.next) { const b = agentFor(a.next); if (b) { b.wait = 3; b.rot = a.rot; agents.set(id, b); continue; } a.next = null; }
+          a.p = 0; a.si = 0; a.loaded = false; a.wait = 3;
+        }
+      }
+    } else {
       a.p += a.dir * a.speed * dt;
       if (a.p >= a.L) {
         if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); agents.delete(id); continue; }
@@ -684,13 +704,14 @@ function moveAgents(dt) {
       } else if (a.p <= 0) { if (a.leaving) { agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
     }
     let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
-    const p0 = a.pts[k], p1 = a.pts[k + 1], s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
+    const p0 = a.pts[k], p1 = a.pts[k + 1] || p0, s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
     a.seen = !!(a.C.near && a.C.near.visible); a.x = x; a.z = z;
     if (a.seen) {
       const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir; if (fx || fz) a.rot = Math.atan2(fx, fz);
       putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.vehicle === 'truck' ? 1.2 : 1);
     }
-    if (n < MAXDOTS) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
+    a.parked = a.round && (!a.L || (a.p === 0 && a.wait > 0));
+    if (n < MAXDOTS && !a.parked) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
   }
   dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
   dots.material.size = clamp(6 * Math.sqrt(cam.zoom), 7, 20) * (innerHeight / 844);
@@ -801,6 +822,8 @@ addEventListener('resize', () => {
       r.built += n; r.meshes++; r.count = (r.count || 0) + (o.isInstancedMesh ? o.count : 1); if (seen) r.visible += n; });
     return out; };
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames }) };     // counted now, not at the last frame drawn; moving while the camera glides
+  // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
+  const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
