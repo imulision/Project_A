@@ -202,6 +202,27 @@
     var m = MOOD[k.mood]; if (!m) return '';
     return '<div class="move mood ' + k.mood + '" data-tip="' + esc(m[2]) + '">' + icon(m[0]) + '<span><b>' + m[1] + '.</b> ' + (k.mood === 'bitter' ? 'He sends nothing up.' : m[2].split(':')[0].replace(/\.$/, '') + '.') + '</span></div>';
   }
+  // ---- the first minutes. A new boss is told what to look at: one thing at a time, when it happens, each only once.
+  // hint(view, hud, seen) gives the one to show now, or null; `seen` holds the ids the boss has put away.
+  var HINTS = [
+    { id: 'capo', icon: 'men', when: function (v, h, c) { return !!c.capos.length; },
+      text: function (v, h, c) { return first(c.capos[0].name) + ' runs these streets for you. He decides what to open; you watch, and answer when he asks.'; } },
+    { id: 'asks', icon: 'time', when: function (v, h, c) { return h.pending > 0 && (c.asks.length || c.feuds.length); },
+      text: function () { return 'A capo waits for your word, and time has stopped. Tap the banner to answer him.'; } },
+    { id: 'money', icon: 'tribute', when: function (v, h, c) { return c.capos.some(function (k) { return k.sent > 0; }); },
+      text: function () { return 'Money comes up to you: a share of what each place made. The cars on the map carry it.'; } },
+    { id: 'wash', icon: 'laundering', when: function (v, h) { return h.dirty > T.RULES.stash; },
+      text: function () { return 'Too much dirty cash draws the police. Only clean money pays for gifts and learning: it needs a laundry.'; } },
+    { id: 'door', icon: 'hideout', when: function (v, h, c) { return c.doors.length > 0; },
+      text: function () { return 'A man knocks at your door. Take him in and he opens a club of his own on a street you choose.'; } }
+  ];
+  function hint(view, hud, seen) {
+    if (!hud || !hud.started) return null;
+    var c = view.cities.filter(function (q) { return q.held; })[0] || view.cities[0]; if (!c) return null;
+    for (var n = 0; n < HINTS.length; n++) { var t = HINTS[n]; if (!seen[t.id] && t.when(view, hud, c)) return { id: t.id, icon: t.icon, text: t.text(view, hud, c) }; }
+    return null;
+  }
+  function hintStrip(h) { return h ? '<div class="hint">' + icon(h.icon) + '<span>' + esc(h.text) + '</span><button data-hint="' + h.id + '">Got it</button></div>' : ''; }
   // moods(view): the men whose mood must show on their face over the map, by city id + capo id
   function moods(view) {
     var out = {};
@@ -359,7 +380,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, moods: moods,
+  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

@@ -575,3 +575,31 @@ test('the mark of a betrayal on the map says what it is when touched', () => {
   const t = C.fxTip('betrayal', 'Sal goes over to the Callahans', 'betrayal');
   assert.match(t, /Betrayal/); assert.match(t, /Sal goes over/); assert.doesNotMatch(t, /undefined/);
 });
+
+// ---- the first minutes: a few words at the right moment, once each, then nothing
+test('a new boss is told what to look at, one thing at a time, each only once', () => {
+  const city = (more) => Object.assign({ id: 'ashport', name: 'Ashport', held: true, capos: [{ id: 'sal', name: 'Sal Moretti', sent: 0, income: 0 }], places: [], asks: [], feuds: [], doors: [], trips: [] }, more);
+  const hud = (more) => Object.assign({ started: true, dirty: 0, clean: 0, pending: 0, month: 0 }, more), seen = {};
+  const first = C.hint({ cities: [city()] }, hud(), seen);
+  assert.equal(first.id, 'capo'); assert.match(first.text, /Sal/); assert.match(first.text, /decides/);
+  assert.equal(C.hint({ cities: [city()] }, hud(), seen).id, 'capo', 'it stays until the boss has read it');
+  seen.capo = 1;
+  assert.equal(C.hint({ cities: [city()] }, hud(), seen), null, 'nothing more to say until something new happens');
+  const asks = { cities: [city({ asks: [{ id: 1, capo: 'sal' }] })] };
+  assert.equal(C.hint(asks, hud({ pending: 1 }), seen).id, 'asks'); seen.asks = 1;
+  const pays = { cities: [city({ capos: [{ id: 'sal', name: 'Sal Moretti', sent: 120, income: 300 }] })] };
+  assert.equal(C.hint(pays, hud({ dirty: 400 }), seen).id, 'money'); seen.money = 1;
+  assert.equal(C.hint(pays, hud({ dirty: 2400 }), seen), null, 'the starting cash is no trouble');
+  assert.equal(C.hint(pays, hud({ dirty: 3400 }), seen).id, 'wash'); seen.wash = 1;
+  const knocks = { cities: [city({ doors: [{ capo: 'mae', name: 'Mae Rourke' }] })] };
+  assert.equal(C.hint(knocks, hud({ pending: 1 }), seen).id, 'door'); seen.door = 1;
+  assert.equal(C.hint(knocks, hud({ pending: 1, dirty: 9000 }), seen), null, 'five things, then the boss is on his own');
+  assert.equal(C.hint({ cities: [] }, { started: false }, {}), null, 'nothing before the game starts');
+  [first].forEach((h) => { assert.ok(h.icon); assert.ok(h.text.length < 140, 'short enough to read at a glance'); });
+});
+
+test('a hint is a strip with one button that puts it away', () => {
+  const html = C.hintStrip({ id: 'capo', icon: 'men', text: 'Sal decides.' });
+  assert.match(html, /class="hint"/); assert.match(html, /data-hint="capo"/); assert.match(html, /Sal decides\./); assert.match(html, /<svg/);
+  assert.equal(C.hintStrip(null), '');
+});

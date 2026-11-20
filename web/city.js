@@ -59,6 +59,7 @@
     $('share').textContent = h.share + '%'; $('cities').textContent = h.cities.held + ' / ' + h.cities.total;
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
+    showHint(h);
     var w = C.wash(view, h), k = C.clock(h, !!picking);
     $('wash').textContent = w.line; $('kept').textContent = w.washed > 0 ? 'washed ' + C.money(w.washed) : '';
     $('dirty').parentNode.classList.toggle('hot', w.hot);
@@ -71,6 +72,11 @@
       : (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
         (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(T.RULES.stash) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
+  // The first minutes: one thing to look at at a time, put away with a touch and never said again (kept apart from the saved game).
+  var HINTS = 'ashport-hints', known = {}; try { known = JSON.parse(localStorage.getItem(HINTS) || '{}') || {}; } catch (e) { known = {}; }
+  function showHint(h) { var t = C.hintStrip(picking || $('veil').classList.contains('on') ? null : C.hint(view, h, known)); if ($('hint').innerHTML !== t) $('hint').innerHTML = t; }
+  $('hint').addEventListener('click', function (e) { var b = e.target.closest('[data-hint]'); if (!b) return;
+    known[b.dataset.hint] = 1; try { localStorage.setItem(HINTS, JSON.stringify(known)); } catch (x) { /* no storage: said again next time */ } showHud(); });
   function toast(text, bad) {
     var e = document.createElement('div'); e.textContent = text; if (bad) e.className = 'bad';
     $('toast').appendChild(e); while ($('toast').children.length > 3) $('toast').firstChild.remove();
@@ -90,8 +96,8 @@
   });
 
   // ---- sheets
-  function open(html) { $('sheet').innerHTML = html; $('veil').classList.add('on'); $('sheet').scrollTop = 0; }
-  function close() { $('veil').classList.remove('on'); }
+  function open(html) { $('sheet').innerHTML = html; $('veil').classList.add('on'); $('sheet').scrollTop = 0; if (g && view) showHint(E.hud(g)); }
+  function close() { $('veil').classList.remove('on'); if (g && view) showHint(E.hud(g)); }
   function show(html) { if (html == null) close(); else open(html); }      // a sheet with nothing to say closes
   // An order goes to the rules, which refuse in plain words what cannot be done.
   function order(o) {
