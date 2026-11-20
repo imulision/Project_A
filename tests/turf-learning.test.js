@@ -252,6 +252,7 @@ test('Money: tight books cut what his men cost, double ledgers wash more, a sile
     T.settle(c, 'mae', 2, 2); T.join(f, 'mae'); kept(c, 'mae'); ranked(f, 'mae', rank);
     T.open(c, 1, 1, { owner: 'family', kind: 'front', capo: 'mae' });
     T.open(c, 3, 1, { owner: 'family', kind: 'front', capo: 'mae' });
+    T.open(c, 2, 1, { owner: 'family', kind: 'gambling', capo: 'mae', level: 3 }); // a room that brings in more than her men cost
     for (const k of Object.keys(f.tech)) f.tech[k] = 0;
     return { c, f };
   };

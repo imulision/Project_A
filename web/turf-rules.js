@@ -30,6 +30,7 @@
     rivalGrows: 9,      // months between two places a rival family opens
     rivalMost: 25,      // share of the city's blocks a rival family never goes beyond
     rivalEvery: 6,      // months between two raids on the family's places
+    sated: 30,          // months the rivals leave a capo alone after burning one of his places, divided by how hard they come
     rivalReach: 10,     // a rival only raids a block it presses on at least this hard
     anger: 12,          // every this many places the family runs in the city, the rivals hit twice as hard again
     cover: 3,           // a capo's men answer for any family place within this many blocks of his club

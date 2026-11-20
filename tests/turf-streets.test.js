@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const T = require('../web/turf.js');
 const D = require('../web/district.js');
 const H = require('./turf-helpers.js');
-const town = H.town, ALL = H.ALL, year = H.year, family = H.family, ashport = H.ashport, rivals = H.rivals, siege = H.siege, kinds = H.kinds;
+const town = H.town, ALL = H.ALL, year = H.year, family = H.family, ashport = H.ashport, rivals = H.rivals, siege = H.siege, kinds = H.kinds, kept = H.kept;
 
 test('a new city is nobody\'s', () => {
   const c = town();
@@ -545,4 +545,35 @@ test('the streets follow every change at once: a place enlarged, taken or burnt'
   const again = JSON.parse(JSON.stringify(c));
   assert.deepEqual(T.share(again), T.share(c), 'a city saved and loaded holds the same streets');
   assert.deepEqual(Object.keys(c).sort(), Object.keys(T.createCity({ id: 'x', w: 1, h: 1, zones: [] })).sort(), 'and nothing extra is saved with it');
+});
+
+// --- a capo is never wiped out: his doorstep is his, and he does not borrow to pay his men ---
+
+test('the rivals who have burnt a capo\'s place leave him alone for a while: nobody is ground down raid after raid', () => {
+  const c = town(), f = family({ tech: {} });
+  T.settle(c, 'mae', 2, 3); T.join(f, 'mae');
+  kept(c, 'mae');
+  // five laundries out east, each with the Callahans pressing hard on it
+  for (const y of [0, 1, 2, 3, 4]) {
+    T.open(c, 9, y, { owner: 'family', kind: 'rented', capo: 'mae' });
+    T.open(c, 10, y, { owner: 'Callahan', kind: 'speakeasy', level: 3 }); T.open(c, 8, y, { owner: 'Callahan', kind: 'speakeasy', level: 3 });
+  }
+  const months = [];
+  for (let m = 1; m <= 60; m++) if (T.stepMonth(c, f).some((e) => e.type === 'burnt')) months.push(m);
+  assert.ok(months.length >= 2, 'they do come back: ' + months);
+  const fury = 1 + 6 / T.RULES.anger, rest = Math.round(T.RULES.sated / fury);
+  for (let i = 1; i < months.length; i++) assert.ok(months[i] - months[i - 1] >= rest - T.RULES.rivalEvery, 'months ' + months);
+  assert.ok(months.length <= 3, 'and not every six months: ' + months);
+});
+
+test('a capo pays his men out of what his places bring in: a bad month never puts him in debt, and the club\'s own money stays his', () => {
+  const c = town(), f = family({ tech: {} });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch').cash = 0;
+  kept(c, 'dutch');
+  // three bars and nothing to pour: they bring in less than their men cost
+  for (const [x, y] of [[1, 1], [2, 1], [3, 1]]) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  let low = Infinity;
+  for (let i = 0; i < 24; i++) { T.stepMonth(c, f); low = Math.min(low, f.men.dutch.cash); }
+  assert.ok(low >= 0, 'never below nothing: ' + Math.round(low));
+  assert.ok(f.men.dutch.cash >= 12 * T.RULES.club * (1 - T.RULES.tribute), 'he puts the club\'s money aside: ' + Math.round(f.men.dutch.cash));
 });
