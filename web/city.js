@@ -77,6 +77,7 @@
   }
 
   // What happens is told by small tiles on the right edge: they slide in, stay a few seconds, and go. A touch on one goes where it happened.
+  var told = {};
   function tell(e) {
     var f = $('feed'); f.insertAdjacentHTML('beforeend', C.news(e)); var t = f.lastChild;
     while (f.children.length > 4) f.firstChild.remove();
@@ -268,7 +269,7 @@
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g);
     if (g.month === before) return;
-    events.forEach(tell);
+    C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events); showHud(); store();
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
   }
