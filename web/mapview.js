@@ -233,6 +233,7 @@
     return out;
   }
   var FXOF = { betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
+  var PAID = { opened: 1, enlarged: 1, moving: 1, car: 1, truck: 1, welcomed: 1, gift: 1 };      // what was paid for when it happened (a capo who only asks has spent nothing yet)
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
     var out = [];
@@ -243,7 +244,7 @@
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
       if (!lot && kind !== 'news') { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
       if (!lot) return;
-      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label });
+      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: PAID[e.type] && e.cost > 0 ? e.cost : 0 });
     });
     return out;
   }

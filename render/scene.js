@@ -616,10 +616,10 @@ function update(P2) {
   });
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
-const { fxList, spawnFx, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
-const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx });
+const { fxList, pops, spawnFx, spawnPop, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
+const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
 // what the page writes over the map (render/labels.js)
-const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, MAXTAGS });
+const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS });
 // The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
 let spotG = null, nSpots = 0;
 const spotMat = fxMat(null, new THREE.Color(0x8fe6ff), 0.5);
@@ -649,7 +649,7 @@ function frame(now) {
   // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
   // Anything that changes the picture (the camera, an order to the map, the size of the window) asks for a few images more.
   const view = cam.position.x + ',' + cam.position.y + ',' + cam.position.z + ',' + cam.zoom;
-  if (view !== lastView || goal || !held || fxList.length || spotG || frames < 4) stale = 3;
+  if (view !== lastView || goal || !held || fxList.length || pops.length || spotG || frames < 4) stale = 3;
   lastView = view;
   if (stale > 0) {
     stale--;

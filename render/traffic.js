@@ -1,6 +1,6 @@
 // The streets at work: every trip of the plan is a vehicle. Loops come and go, rounds leave the club and come home, convoys take the road between two cities.
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
-export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx }) {
+export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
   let n0 = 0;
   // the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
   // Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
@@ -53,10 +53,12 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
         if (!a.L) { if (a.leaving) { agents.delete(id); continue; } }
         else {
           a.p += a.speed * dt; const s = a.stops[a.si];
-          if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.lost) { a.wait = 3; spawnFx(s.lost === 'seizure' ? 'police' : 'gunfire', a.x === undefined ? a.pts[0][0] : a.x, a.z === undefined ? a.pts[0][1] : a.z, 1, s.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone'); } if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
+          if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.lost) a.got = 0; else if (s.load && (s.kind === 'takings' || s.kind === 'wash')) a.got = (a.got || 0) + (s.amount || 0); if (s.lost) { a.wait = 3; spawnFx(s.lost === 'seizure' ? 'police' : 'gunfire', a.x === undefined ? a.pts[0][0] : a.x, a.z === undefined ? a.pts[0][1] : a.z, 1, s.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone'); } if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
           else if (a.p >= a.L) {      // home again: it rests by the club, then goes out again, by the new way if the month changed it
             if (a.leaving) { agents.delete(id); continue; }
             if (a.next) { const b = agentFor(a.next); if (b) { b.wait = 3; b.rot = a.rot; agents.set(id, b); continue; } a.next = null; }
+            if (a.got > 0 && a.seen) spawnPop(a.x, a.z, 1.2, a.got);      // the money it brings home is seen coming in
+            a.got = 0;
             a.p = 0; a.si = 0; a.loaded = false; a.wait = 3;
           }
         }
