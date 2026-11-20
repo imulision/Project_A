@@ -14,6 +14,7 @@ const frac = (x) => x - Math.floor(x);
 const QUIET = { sign: null, parked: false };
 export function lotLook(l, r = 0.5) {
   const site = l.site;
+  if (l.burnt && !site) return { shade: 0.24, roof: null, gain: 0, lamps: 0, burnt: true, ...QUIET };      // burnt out: a black shell until the street forgets
   if (site && site.owner === 'family') return { shade: 1.18, roof: 'family', gain: 1, lamps: 2, ...QUIET };
   if (site) return { shade: 0.8, roof: site.color || null, gain: 0.7, lamps: 1, ...QUIET };
   if (l.ours) {
@@ -30,5 +31,19 @@ export function turned(before, after) {
   if (!before || !after || before.length !== after.length) return [];
   const out = [];
   after.forEach((b, k) => { const was = before[k].grip === 'family', is = b.grip === 'family'; if (was !== is) out.push({ x: b.x, y: b.y, won: is }); });
+  return out;
+}
+// front(blocks, w, h) -> the edges where the fight is: [{ x, y, dx, dy }] for each side of a street of the family that a rival
+// presses on hard (press >= PRESS) and that faces a street the family does not hold. Water, rails and the edge of town are no front.
+const PRESS = 0.6;
+export function front(blocks, w, h) {
+  const out = []; if (!blocks) return out;
+  for (const b of blocks) {
+    if (b.grip !== 'family' || !(b.press >= PRESS)) continue;
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const x = b.x + dx, y = b.y + dy; if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const n = blocks[y * w + x]; if (n && !n.void && n.grip && n.grip !== 'family') out.push({ x: b.x, y: b.y, dx, dy });
+    }
+  }
   return out;
 }

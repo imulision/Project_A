@@ -51,3 +51,19 @@ test('a street that changes hands is noticed: the blocks won and the blocks lost
   assert.deepEqual(turned(was, was), []); assert.deepEqual(turned(undefined, now), [], 'a town seen for the first time has no news');
   assert.deepEqual(turned(was.slice(0, 2), now), [], 'nor a town whose plan changed shape');
 });
+
+test('a place burnt out is a black shell: dark walls, no roof colour, no lamp, no sign', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  for (const l of [{ ours: true, lit: 3, site: null, shop: true, burnt: true }, { ours: false, lit: 0, site: null, burnt: true }]) {
+    const k = lotLook(l, 0.1); assert.ok(k.shade <= 0.3); assert.equal(k.roof, null); assert.equal(k.lamps, 0); assert.equal(k.sign, null); assert.equal(k.parked, false); assert.equal(k.burnt, true); }
+  assert.ok(!lotLook({ ours: true, lit: 3, site: null }, 0.1).burnt);
+});
+
+test('the front line: the edges of the family\'s streets that a rival presses on', async () => {
+  const { front } = await import('../render/look.mjs');
+  // 3 x 2 blocks: the family holds the middle column; the left one is pressed, the right is calm, water below is nobody's
+  const B = (x, y, grip, press, v) => ({ x, y, grip, press: press || 0, void: v || null });
+  const blocks = [B(0, 0, 'rival'), B(1, 0, 'family', 0.8), B(2, 0, 'rival'), B(0, 1, null, 0, 'water'), B(1, 1, 'family', 0.2), B(2, 1, 'contested')];
+  assert.deepEqual(front(blocks, 3, 2), [{ x: 1, y: 0, dx: 1, dy: 0 }, { x: 1, y: 0, dx: -1, dy: 0 }], 'only the pressed block, only towards the rival, never towards its own or the edge of town');
+  assert.deepEqual(front([B(0, 0, 'family', 0.9)], 1, 1), []); assert.deepEqual(front(undefined, 0, 0), []);
+});

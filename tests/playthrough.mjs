@@ -211,6 +211,13 @@ assert.match(await page.textContent('#sheet'), new RegExp(place.name));
 await page.click('#sheet [data-act=city]');
 assert.equal(await page.textContent('#sheet h2'), 'Ashport');
 assert.match(await page.textContent('#sheet .chief'), /Seamus Callahan.*Head of the Callahan family.*% of the streets/, 'the rival of the city has a face');
+// the line he gives the city: three on its sheet; he asks his men to earn, sees who follows, then lifts it
+assert.equal(await page.locator('#sheet [data-act=line]').count(), 3);
+await page.click('#sheet [data-act=line][data-line=earn]');
+assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').line), 'earn');
+assert.match(await page.textContent('#sheet'), /of \d capos? follow/);
+await page.click('#sheet [data-act=line].on');
+assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').line), null, 'a touch on the line in force lifts it');
 // the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
 assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
 assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');

@@ -33,6 +33,7 @@
     view = E.view(g);
     if (!g.started) return;
     waits = {};
+    var scars = C.scars(g.journal, g.month); view.cities.forEach(function (c) { c.scars = scars[c.id] || []; });      // what was burnt out stays black on the map for a while
     healths = C.healths(view); view.cities.forEach(function (c) { c.capos.forEach(function (k) { k.trouble = healths[c.id + k.id].worst === 'bad'; }); });      // how his streets fare: three lights under his face
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
@@ -154,6 +155,7 @@
     else if (act === 'seat') pick(d.city, d.city, d.capo);
     else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
     else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
+    else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g))); $('sheet').scrollTop = at; } }
     else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
