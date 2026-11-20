@@ -2179,3 +2179,156 @@ test('a road runs both ways, and carries goods for the fences like liquor for th
   assert.equal(went.length, T.RULES.convoy.loads);
   for (const v of went) assert.deepEqual([v.from, v.to, v.cargo, v.capo], ['next', 'town', 'goods', 'mae']);
 });
+
+// --- a man learns his trade: at each rank a capo gains an ability of his school, and it shows in the streets ---
+const ranked = (f, capo, rank) => { f.men[capo].rank = rank; f.men[capo].xp = T.RULES.xp[rank]; };
+const able = (f, capo) => T.abilities(f, capo).filter((a) => a.has).map((a) => a.id);
+
+test('every capo belongs to a school, and gains one named ability at each rank after Soldier', () => {
+  const f = family();
+  for (const [id, school] of [['sal', 'Muscle'], ['dutch', 'Liquor'], ['mae', 'Money'], ['tommy', 'Law'], ['vince', 'Vice'], ['danny', 'Games']]) {
+    T.join(f, id);
+    const all = T.abilities(f, id);
+    assert.equal(all.length, 3, id);
+    assert.ok(all.every((a) => a.school === school && a.name && a.gives && !a.has), id + ' is of ' + school);
+    assert.deepEqual(all.map((a) => a.rank), [1, 2, 3]);
+  }
+  ranked(f, 'sal', 2);
+  assert.deepEqual(able(f, 'sal'), ['escorts', 'hard']);
+  const ids = [].concat(...Object.keys(T.SCHOOLS).map((s) => T.SCHOOLS[s].map((a) => a.id)));
+  assert.equal(new Set(ids).size, 18, 'eighteen abilities, no two alike');
+});
+
+test('the month he rises, the journal says what he has learned, and his card shows it', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.xp = T.RULES.xp[1] - 1;
+  const e = T.stepMonth(c, f).find((x) => x.type === 'rank');
+  assert.equal(e.ability, 'nightruns');
+  assert.equal(e.label, 'Dutch rises to Capo: he can now run ' + T.RULES.reach[1] + ' places, and learns Night runs');
+  assert.deepEqual(T.view(c, f).capos[0].abilities.filter((a) => a.has).map((a) => a.name), ['Night runs']);
+});
+
+test('Muscle: escorted loads are never held up, hard streets stand where they burnt, and nobody raids a feared man', () => {
+  const held = (rank) => { const { c, f } = exposed('walt'); ranked(f, 'walt', rank); return until(c, f, 'hijack', 8); };
+  assert.ok(held(0), 'a Soldier of little grip is held up');
+  assert.equal(held(1), null);
+  const raid = (rank) => {
+    const c = town(), f = family();
+    T.settle(c, 'walt', 3, 3); T.join(f, 'walt'); ranked(f, 'walt', rank);
+    f.men.walt.cash = -100000;
+    T.open(c, 5, 3, { owner: 'family', kind: 'still', capo: 'walt' });
+    T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+    const seen = year(c, f, 24).filter((e) => e.type === 'burnt' || e.type === 'repelled').map((e) => e.type);
+    return { seen, muscle: T.cover(c, 5, 3).muscle };
+  };
+  assert.equal(raid(2).muscle, raid(1).muscle + 2, 'a Veteran\'s streets are hard: two points of Muscle more against a raid');
+  assert.ok(raid(2).seen.includes('repelled'));
+  assert.deepEqual(raid(3).seen, [], 'as a Legend nobody comes at all');
+});
+
+test('Liquor: night runs give each truck two more runs, deep cellars keep twice as much, the house label sells dearer', () => {
+  const runs = (rank) => {
+    const { c, f } = brewer(6, { level: 3 });
+    T.open(c, 9, 2, { owner: 'family', kind: 'still', capo: 'dutch', level: 3 });
+    ranked(f, 'dutch', rank); f.men.dutch.cash = 0;
+    T.stepMonth(c, f); T.stepMonth(c, f);
+    return hauls(c, f).length;
+  };
+  assert.equal(runs(0), T.RULES.truck.runs);
+  assert.equal(runs(1), T.RULES.truck.runs + 2);
+  const cellar = (rank) => {
+    const { c, f } = brewer(0);
+    ranked(f, 'dutch', rank);
+    for (let m = 0; m < 8; m++) T.stepMonth(c, f);
+    return placeAt(c, f, 8, 2).stock;
+  };
+  assert.equal(cellar(2), 2 * cellar(1));
+  const bar = (rank) => {
+    const { c, f } = brewer(1);
+    ranked(f, 'dutch', rank);
+    T.stepMonth(c, f);
+    return T.earns(c, placeAt(c, f, 1, 1));
+  };
+  assert.ok(Math.abs(bar(3) / bar(2) - 1.15) < 1e-6);
+});
+
+test('Money: tight books cut what his men cost, double ledgers wash more, a silent partner keeps half as much for himself', () => {
+  const books = (rank) => {
+    const c = town(), f = family();
+    T.settle(c, 'mae', 2, 2); T.join(f, 'mae'); kept(c, 'mae'); ranked(f, 'mae', rank);
+    T.open(c, 1, 1, { owner: 'family', kind: 'front', capo: 'mae' });
+    T.open(c, 3, 1, { owner: 'family', kind: 'front', capo: 'mae' });
+    for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+    return { c, f };
+  };
+  const cost = (rank) => { const { c, f } = books(rank); f.men.mae.cash = 0; T.stepMonth(c, f); return f.men.mae.income - c.flow.sent.mae - f.men.mae.cash; };
+  assert.ok(Math.abs(cost(1) / cost(0) - 0.85) < 1e-6, 'wages ' + cost(0) + ' then ' + cost(1));
+  const wash = (rank) => { const { c, f } = books(rank); T.stepMonth(c, f); return T.washing(c).most; };
+  assert.ok(Math.abs(wash(2) / wash(1) - 1.25) < 1e-6);
+  const keeps = (rank, xp) => {
+    const c = town(), f = family({ dirty: 0 });
+    T.settle(c, 'mae', 2, 2); T.join(f, 'mae'); kept(c, 'mae');
+    f.men.mae.rank = rank; f.men.mae.xp = xp;
+    for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+    f.men.mae.cash = T.RULES.pocket + 1000;
+    T.stepMonth(c, f);
+    return c.flow.sent.mae;
+  };
+  const spare = (rank) => keeps(rank, T.RULES.xp[rank]); // what goes up the month he has $1,000 he cannot use
+  const base = T.RULES.club * T.RULES.tribute;
+  assert.ok(Math.abs(spare(2) - base - (1000 - base + T.RULES.club) * (1 - T.RULES.keeps[2])) < 1, 'a Veteran keeps what his rank allows');
+  assert.ok(Math.abs(spare(3) - base - (1000 - base + T.RULES.club) * (1 - T.RULES.keeps[3] / 2)) < 1, 'a Legend who is a silent partner keeps half of it');
+});
+
+const solo = (capo, rank, places) => {
+  const c = town(), f = family();
+  T.settle(c, capo, 2, 2); T.join(f, capo); kept(c, capo); ranked(f, capo, rank);
+  places.forEach(([kind, x, y, more]) => T.open(c, x, y, Object.assign({ owner: 'family', kind, capo }, more)));
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  f.men[capo].cash = 0;
+  return { c, f };
+};
+const paid = (capo, rank, kind, x, y) => { const { c, f } = solo(capo, rank, [[kind, x, y]]); T.stepMonth(c, f); return T.earns(c, placeAt(c, f, x, y)); };
+
+test('Law: friends downtown see his trucks through, envelopes make a take cheaper, the judge cools his city', () => {
+  const stopped = (rank) => {
+    const { c, f } = solo('tommy', rank, [['still', 8, 2], ['speakeasy', 1, 1]]);
+    c.heat = T.RULES.road.heat + 20;
+    return !!T.stepMonth(c, f).find((e) => e.type === 'seizure');
+  };
+  assert.deepEqual([stopped(0), stopped(1)], [true, false]);
+  const take = (rank) => {
+    const { c, f } = solo('tommy', rank, []);
+    for (let y = 0; y < 6; y++) for (let x = 0; x < 12; x++) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'Callahan', kind: 'speakeasy' });
+    T.stepMonth(c, f);
+    const w = T.wants(c, 'tommy', { rank, tech: ALL() });
+    assert.equal(w.move, 'take');
+    return w.cost;
+  };
+  assert.ok(Math.abs(take(2) / take(1) - 0.75) < 0.01);
+  const cools = (rank) => { const { c, f } = solo('tommy', rank, []); c.heat = 50; T.stepMonth(c, f); return 50 - c.heat; };
+  assert.equal(cools(3), cools(2) + 1);
+});
+
+test('Vice: regulars pay more, house dealers double what weed brings, a big harvest doubles what a loft grows', () => {
+  assert.ok(Math.abs(paid('vince', 1, 'brothel', 1, 1) / paid('vince', 0, 'brothel', 1, 1) - 1.15) < 1e-6);
+  assert.ok(Math.abs(paid('vince', 1, 'loft', 8, 2) / paid('vince', 0, 'loft', 8, 2) - 1.15) < 1e-6);
+  const grown = (rank) => {
+    const { c, f } = solo('vince', rank, [['loft', 8, 2], ['speakeasy', 1, 1]]);
+    T.stepMonth(c, f);
+    return weed(c, f).length + (placeAt(c, f, 8, 2).stock || 0) / T.RULES.weed.load;
+  };
+  const bare = (rank) => { const { c, f } = solo('vince', rank, [['speakeasy', 1, 1]]); T.stepMonth(c, f); return T.earns(c, placeAt(c, f, 1, 1)); };
+  const lift = (rank) => { const { c, f } = solo('vince', rank, [['loft', 8, 2], ['speakeasy', 1, 1]]); T.stepMonth(c, f); return T.earns(c, placeAt(c, f, 1, 1)) / bare(rank); };
+  assert.ok(Math.abs(lift(1) - (1 + T.RULES.weed.bonus)) < 1e-6);
+  assert.ok(Math.abs(lift(2) - (1 + 2 * T.RULES.weed.bonus)) < 1e-6);
+  assert.equal(grown(3), 2 * grown(2));
+});
+
+test('Games: the house edge, markers that pay, and a back room that hides the boss\'s money', () => {
+  assert.ok(Math.abs(paid('danny', 1, 'gambling', 1, 1) / paid('danny', 0, 'gambling', 1, 1) - 1.15) < 1e-6);
+  assert.ok(Math.abs(paid('danny', 2, 'loans', 1, 1) / paid('danny', 1, 'loans', 1, 1) - 1.25) < 1e-6);
+  const heat = (rank, dirty) => { const { c, f } = solo('danny', rank, []); f.dirty = dirty; c.heat = 20; T.stepMonth(c, f); return c.heat > 20; };
+  const over = T.RULES.stash + 1500;
+  assert.deepEqual([heat(2, over), heat(3, over), heat(3, over + 2000)], [true, false, true], 'his back room hides $2,000 more of the boss\'s dirty money from the police');
+});
