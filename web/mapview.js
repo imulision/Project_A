@@ -142,17 +142,48 @@
   }
   var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
   // tripsTurf(plan, view): every trip the rules list in a city becomes a car between its two buildings. All of them run the whole month.
+  // The spot on the street, by the club, where the n-th vehicle of a capo is parked.
+  function parking(lot, n) { var r = lot.j % 3 === 1 ? lot.j - 1 : lot.j + 1; return [lot.i + (n % 2 ? 1 : -1) * 0.45 * Math.ceil(n / 2), r]; }
+  function join(path, more) { more.forEach(function (q) { var l = path[path.length - 1]; if (!l || l[0] !== q[0] || l[1] !== q[1]) path.push(q); }); return path; }
+  // tripsTurf(plan, view): what drives in the streets.
+  // The trips that name their vehicle are the legs of its round: it leaves its place by the club empty, loads, delivers, and comes home;
+  // a vehicle with no trip this month stays parked there. The other trips come and go between their two ends, as before.
   function tripsTurf(plan, view) {
     var out = [];
     view.cities.forEach(function (vc, ci) {
       var c = plan.cities[ci]; if (!c) return;
-      var same = {};      // several loads can leave by the same way in a month: each is a car of its own, a moment after the one before
+      var same = {}, rounds = {}, order = [];
       (vc.trips || []).forEach(function (t, n) {
         if (t.kind === 'capo') return;      // a capo's own car does not come and go: it drives once, when he moves (movesTurf)
         var a = lotOfBlock(c, t.from.x, t.from.y), b = lotOfBlock(c, t.to.x, t.to.y), look = HAUL[t.kind] || HAUL.takings; if (!a || !b || a === b) return;
+        if (t.vehicle && t.home) { if (!rounds[t.vehicle]) { rounds[t.vehicle] = []; order.push(t.vehicle); } rounds[t.vehicle].push({ t: t, a: a, b: b, n: n }); return; }
         var way = c.id + ':' + t.kind + ':' + t.from.x + '.' + t.from.y + '>' + t.to.x + '.' + t.to.y, nth = same[way] = (same[way] || 0) + 1;
         out.push({ id: way + (nth > 1 ? '#' + nth : ''), delay: (nth - 1) * 1.6, kind: t.kind, city: c.id, loop: true, color: FLOW[look.flow], vehicle: look.vehicle, violent: t.kind === 'crew',
                    path: route([a.i, a.j], [b.i, b.j]), cargo: t.cargo, amount: t.amount || 0, load: {}, capo: t.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: t.kind === 'crew' ? t.cargo : null, target: null, n: n });
+      });
+      var nth = function (id) { var m = /:(car|truck):(\d+)$/.exec(id); return m ? (m[1] === 'truck' ? 2 * m[2] : 2 * m[2] - 1) : 0; };
+      order.forEach(function (id) {
+        var legs = rounds[id].sort(function (x, y) { return (x.t.leg || 0) - (y.t.leg || 0); }), t0 = legs[0].t, look = HAUL[t0.kind] || HAUL.takings;
+        var h = lotOfBlock(c, t0.home.x, t0.home.y); if (!h) return;
+        var spot = parking(h, nth(id)), door = [h.i, spot[1]], path = [spot, door], stops = [], at = h;
+        legs.forEach(function (l) {
+          join(path, at === h ? route([h.i, h.j], [l.a.i, l.a.j]).slice(1) : route([at.i, at.j], [l.a.i, l.a.j]));
+          stops.push({ k: path.length - 1, load: true, amount: l.t.amount || 0, kind: l.t.kind, cargo: l.t.cargo });
+          join(path, route([l.a.i, l.a.j], [l.b.i, l.b.j]));
+          stops.push({ k: path.length - 1, load: false, amount: 0, kind: l.t.kind, cargo: l.t.cargo }); at = l.b;
+        });
+        join(path, at === h ? [door] : route([at.i, at.j], [h.i, h.j]).slice(0, -1)); join(path, [door, spot]);
+        out.push({ id: c.id + ':' + id, round: true, loop: true, kind: t0.kind, city: c.id, color: FLOW[look.flow], vehicle: /:truck:/.test(id) ? 'truck' : look.vehicle, violent: false, home: spot,
+                   path: path, stops: stops, cargo: t0.cargo, amount: t0.amount || 0, load: {}, capo: t0.capo || null, from: 'street', to: 'street', by: null, way: null, target: null, n: legs[0].n });
+      });
+      // the rest of the fleet waits by the club
+      (vc.capos || []).forEach(function (k) {
+        var h = typeof k.x === 'number' ? lotOfBlock(c, k.x, k.y) : null; if (!h) return;
+        [['car', k.cars || 0, 'takings'], ['truck', k.trucks || 0, 'liquor']].forEach(function (f) {
+          for (var n = 1; n <= f[1]; n++) { var id = k.id + ':' + f[0] + ':' + n; if (rounds[id]) continue;
+            out.push({ id: c.id + ':' + id, round: true, parked: true, loop: true, kind: f[2], city: c.id, color: FLOW[HAUL[f[2]].flow], vehicle: f[0], violent: false, home: parking(h, nth(id)),
+                       path: [parking(h, nth(id))], stops: [], cargo: null, amount: 0, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 }); }
+        });
       });
     });
     return out;
