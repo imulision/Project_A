@@ -25,11 +25,22 @@ test('the city is drawn block for block: six lots on every block of the rules', 
   p.lots.forEach((l) => assert.ok(l.i % 4 !== 0 && l.j % 3 !== 0, 'no building stands in a street'));
 });
 
-test('the old district names are only names written on the ground', () => {
+test('the old district names are only names written on the ground, each over the blocks the rules give it, whatever its shape', () => {
   const c = cityOf(play(1)), p = M.planTurf(c);
   assert.deepEqual(p.districts.map((d) => d.name), c.zones.map((z) => z.name));
   const z = c.zones[1], d = p.districts[1];
   assert.deepEqual([d.c0, d.c1, d.r0, d.r1], [z.x0, z.x1 + 1, z.y0, z.y1 + 1]);
+  c.blocks.forEach((b, n) => { assert.equal(p.blocks[n].zone, b.zone); lotsOf(p, b.x, b.y).forEach((l) => assert.equal(l.district, b.zone)); });
+  // the name is written over a block of its own, in the town, near the middle of its streets
+  p.districts.forEach((d, n) => { const b = c.blocks[Math.floor(d.cy) * c.w + Math.floor(d.cx)];
+    assert.equal(b.zone, n, d.name + ' is written on its own streets'); assert.ok(!b.void, d.name + ' is not written on the water'); });
+  assert.ok(c.zones.some((z, n) => c.blocks.filter((b) => b.zone === n).length < (z.x1 - z.x0 + 1) * (z.y1 - z.y0 + 1)), 'a name is not always a rectangle');
+});
+
+test('a city of an old save, with no street name on its blocks, still reads its names from the rectangles', () => {
+  const c = cityOf(play(1)), cols = Math.ceil(c.zones.length / 2), w = c.w / cols, h = c.h / 2;
+  const old = { ...c, blocks: c.blocks.map(({ zone, ...b }) => b), zones: c.zones.map((z, i) => ({ ...z, x0: (i % cols) * w, x1: (i % cols + 1) * w - 1, y0: Math.floor(i / cols) * h, y1: (Math.floor(i / cols) + 1) * h - 1 })) };
+  const p = M.planTurf(old);
   p.lots.forEach((l) => { const d = p.districts[l.district]; assert.ok(l.bx >= d.c0 && l.bx < d.c1 && l.by >= d.r0 && l.by < d.r1); });
 });
 
@@ -379,11 +390,60 @@ test('each street of the family says how hard the rival presses on it', () => {
 });
 
 test('men stand where the family is: a doorman at each place, two at the club, a crew where a capo faces the rivals', () => {
-  const c = cityOf(play(30)), k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club');
+  const c0 = cityOf(play(30)), c = { ...c0, capos: c0.capos.map((m) => ({ ...m, at: { x: m.x, y: m.y, why: 'home' } })) }, k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club');
   const p = M.planTurf(c), at = (x, y) => p.lots.find((l) => l.bx === x && l.by === y && l.site);
   assert.equal(at(k.x, k.y).men, 2, 'the club'); if (other) assert.equal(at(other.x, other.y).men, 1, 'a doorman');
   p.lots.forEach((l) => { if (!l.site || l.site.owner !== 'family') assert.ok(!l.men, 'nobody of the family stands at a rival\'s door'); });
   const raided = M.planTurf({ ...c, capos: c.capos.map((m) => (m.id === k.id ? { ...m, at: { x: k.x, y: k.y, why: 'raid', label: 'Facing the rivals' } } : m)) });
   assert.equal(raided.lots.find((l) => l.bx === k.x && l.by === k.y && l.site).men, 5, 'his crew stands with him');
   assert.notEqual(raided.key, p.key);
+});
+
+// ---- a town is not a grid: here and there two blocks stand as one, and the cars drive round
+const shutOf = (p) => { const s = {}; p.shut.forEach((q) => { s[q.x + ',' + q.y] = 1; }); return s; };
+const gapAt = (p, x, y) => x < 0 || y < 0 || x >= p.bx || y >= p.by || !!p.blocks[y * p.bx + x].void;
+// can a car stand on this tile of a street? (a crossing is never closed)
+const closed = (p, i, j) => {
+  const s = shutOf(p);
+  if (i % 4 === 0 && j % 3 !== 0) { const x = i / 4, y = Math.floor(j / 3); return !!s[x + ',' + y] || (gapAt(p, x - 1, y) && gapAt(p, x, y)); }
+  if (j % 3 === 0 && i % 4 !== 0) { const x = Math.floor(i / 4), y = j / 3; return gapAt(p, x, y - 1) && gapAt(p, x, y); }
+  return false;
+};
+const tilesOf = (path) => { const out = [];
+  for (let k = 1; k < path.length; k++) { const a = path[k - 1], b = path[k], n = Math.round(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])));
+    for (let t = 0; t <= n; t++) out.push([Math.round(a[0] + (b[0] - a[0]) * t / (n || 1)), Math.round(a[1] + (b[1] - a[1]) * t / (n || 1))]); }
+  return out; };
+
+test('here and there the street between two blocks is built over, the same every time', () => {
+  const g = play(2), c = cityOf(g), p = M.planTurf(c), s = shutOf(p);
+  let inner = 0; for (let y = 0; y < c.h; y++) for (let x = 1; x < c.w; x++) if (!gapAt(p, x - 1, y) && !gapAt(p, x, y)) inner++;
+  assert.ok(p.shut.length > inner * 0.05 && p.shut.length < inner * 0.25, 'some of them (' + p.shut.length + ' of ' + inner + ')');
+  assert.deepEqual(M.planTurf(cityOf(g)).shut, p.shut);
+  p.shut.forEach((q) => {
+    assert.ok(!gapAt(p, q.x - 1, q.y) && !gapAt(p, q.x, q.y), 'only between two blocks of the town');
+    assert.ok(!s[q.x + ',' + (q.y - 1)] && !s[q.x + ',' + (q.y + 1)] && !s[(q.x - 1) + ',' + q.y] && !s[(q.x + 1) + ',' + q.y], 'never two in a row: every crossing keeps its ways out');
+  });
+  // two buildings stand where the street was; the six lots of each block are untouched
+  assert.equal(p.lots.length, c.w * c.h * 6); assert.equal(p.infill.length, p.shut.length * 2);
+  p.infill.forEach((l) => { assert.ok(l.i % 4 === 0 && l.j % 3 !== 0); assert.ok(s[(l.i / 4) + ',' + Math.floor(l.j / 3)]); assert.ok(!l.open && !l.site && l.model); });
+  const left = p.infill[0], b = c.blocks[left.by * c.w + left.bx];
+  assert.equal(left.bx, left.i / 4 - 1, 'they follow the block on their left'); assert.equal(left.ours, b.grip === 'family');
+});
+
+test('a car never drives over the water, nor through a street that is built over', () => {
+  const g = play(30), v = E.view(g), plan = M.planEmpire(v, global.AshportWorld.CITIES), p = plan.cities[0];
+  const town = p.lots.filter((l) => !['water', 'rail', 'waste'].includes(l.open));
+  let turns = 0;
+  for (let n = 0; n < 300; n++) {
+    const a = town[(n * 37) % town.length], b = town[(n * 101 + 13) % town.length]; if (a === b) continue;
+    const path = M.route([a.i, a.j], [b.i, b.j], p);
+    assert.deepEqual(path[0], [a.i, a.j]); assert.deepEqual(path[path.length - 1], [b.i, b.j]);
+    for (let k = 1; k < path.length; k++) assert.ok(path[k][0] === path[k - 1][0] || path[k][1] === path[k - 1][1], 'no diagonal');
+    tilesOf(path.slice(1, -1)).forEach((q) => { assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0, q + ' is on a street'); assert.ok(!closed(p, q[0], q[1]), q + ' is open (' + a.i + ',' + a.j + ' to ' + b.i + ',' + b.j + ')'); });
+    if (path.length > 6) turns++;
+  }
+  assert.ok(turns > 0, 'some of them have to go round');
+  M.tripsTurf(plan, v).filter((t) => t.city === p.id && t.path.length > 1).forEach((t) => {
+    const mid = t.round ? t.path.slice(1, -1) : t.path;
+    tilesOf(mid).forEach((q) => assert.ok(!closed(p, q[0], q[1]), t.id + ' drives through ' + q)); });
 });

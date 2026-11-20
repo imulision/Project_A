@@ -126,7 +126,9 @@ test('a block: its street, who holds it, and the place that stands there', () =>
   const { v } = play((v) => v.month >= 12);
   const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club'), key = city.keys[0];
   const mine = C.block(v, 'ashport', ours.x, ours.y);
-  assert.match(mine, new RegExp(city.zones.find((z) => ours.x >= z.x0 && ours.x <= z.x1 && ours.y >= z.y0 && ours.y <= z.y1).name));
+  assert.match(mine, new RegExp(city.zones[city.blocks[ours.y * city.w + ours.x].zone].name));
+  // (a street name can be any shape: the block says which one it is on, not a rectangle)
+  city.blocks.filter((b) => !b.void).forEach((b) => assert.match(C.block(v, 'ashport', b.x, b.y), new RegExp('<h2>' + city.zones[b.zone].name + '</h2>')));
   assert.match(mine, /Sal/, 'the man who runs it');
   const theirs = C.block(v, 'ashport', key.x, key.y);
   assert.match(theirs, new RegExp(key.name));

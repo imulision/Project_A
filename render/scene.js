@@ -10,7 +10,7 @@ import { makeTraffic } from './traffic.js';
 import { makeLabels } from './labels.js';
 import { makeTerrain } from './terrain.js';
 import { makeTouch } from './touch.js';
-import { lotLook, turned, front } from './look.mjs';
+import { lotLook, turned, front, midX, midY } from './look.mjs';
 import { makePeriod } from './period.mjs';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -292,6 +292,7 @@ let nBuildings = 0;
 // what stands on every lot of a city this year: decided once, shared by the far and the near versions
 function plan(C) {
   C.lots = []; C.lamps = []; C.d = C.p.districts; C.held = C.p.held;
+  C.shut = new Set((C.p.shut || []).map(q => q.x + ',' + q.y));      // where two blocks stand as one: no street there, two buildings instead
   for (let i = 0; i < C.W; i++) for (let j = 0; j < C.H; j++) {
     const x = C.ox + i * T, z = C.oz + j * T, ri = i % 4 === 0, rj = j % 3 === 0;
     if (ri && rj) continue;
@@ -299,9 +300,9 @@ function plan(C) {
     if (ri) C.lamps.push([x + 0.82, z, Math.PI]);
     else if (rj && i % 2) C.lamps.push([x, z + 0.82, Math.PI / 2]);
   }
-  for (const l of C.p.lots) {
+  for (const l of C.p.lots.concat(C.p.infill || [])) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, infill: !!l.infill, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
   nBuildings += C.lots.length;
 }
@@ -349,6 +350,7 @@ const isVoid = (C, bx, by) => bx < 0 || by < 0 || bx >= C.bx || by >= C.by || !!
 // a street tile is drawn when at least one block of the town touches it
 function streetAt(C, i, j) {
   if (!C.p.blocks) return true;
+  if (i % 4 === 0 && j % 3 !== 0 && C.shut && C.shut.has((i / 4) + ',' + Math.floor(j / 3))) return false;
   const bxs = i % 4 === 0 ? [i / 4 - 1, i / 4] : [Math.floor(i / 4)], bys = j % 3 === 0 ? [j / 3 - 1, j / 3] : [Math.floor(j / 3)];
   for (const bx of bxs) for (const by of bys) if (!isVoid(C, bx, by)) return true;
   return false;
@@ -457,7 +459,7 @@ function buildNear(C) {
       sg.scale.setScalar(0.8); sg.position.set(l.x + fx * 0.84, 0.72, l.z + fz * 0.84); if (l.rot) sg.rotation.y = Math.PI / 2; cur.add(sg);
       pool(l.x + fx * 1.2, l.z + fz * 1.2, 2, new THREE.Color(col), 0.32);
     }
-    if (life.parked) add(PARKED[(l.i + l.j) % PARKED.length], CARMATS[(l.i * 3 + l.j) % CARMATS.length], l.x + fx * KERB, 0.17, l.z + fz * KERB, l.rot ? 0 : Math.PI / 2, 1, WHITE, false);
+    if (life.parked && !l.infill) add(PARKED[(l.i + l.j) % PARKED.length], CARMATS[(l.i * 3 + l.j) % CARMATS.length], l.x + fx * KERB, 0.17, l.z + fz * KERB, l.rot ? 0 : Math.PI / 2, 1, WHITE, false);
   }
   for (const [x, z, r] of C.lamps) {
     add('streetlight', LAMPMAT, x, 0, z, r, 1, WHITE, false);
@@ -620,7 +622,7 @@ renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0, held = false, stale = 3, lastView = '';
 const focus = (id, districtId, at) => {     // glide to the whole map, to a city, to one of its districts, or to one block of it (at: { x, y })
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
-  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
+  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + midX(d) * 4 * T, 0, c.oz + midY(d) * 3 * T).add(OFF), z: 11 * K }
     : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: K > 1 ? 2.4 * K : c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();
@@ -657,8 +659,8 @@ function pickAt(cx, cy) {
   _v.set(cx / innerWidth * 2 - 1, 1 - cy / innerHeight * 2, 0).unproject(cam);
   const dir = OFF.clone().normalize().negate(), t = -_v.y / dir.y, x = _v.x + dir.x * t, z = _v.z + dir.z * t;
   for (const C of CITIES) if (x >= C.ox - 1 && x <= C.x1 + 1 && z >= C.oz - 1 && z <= C.z1 + 1) {
-    const bi = (x - C.ox) / (4 * T), bj = (z - C.oz) / (3 * T), d = C.d.find(d => bi >= d.c0 && bi < d.c1 && bj >= d.r0 && bj < d.r1);
-    const bx = Math.floor(bi), by = Math.floor(bj), lot = C.p.turf ? C.lots.find(l => l.site && l.bx === bx && l.by === by) : null;
+    const bi = (x - C.ox) / (4 * T), bj = (z - C.oz) / (3 * T), bx = Math.floor(bi), by = Math.floor(bj), q = C.p.turf && C.p.blocks[by * C.bx + bx];
+    const d = q && C.d[q.zone] || C.d.find(d => bi >= d.c0 && bi < d.c1 && bj >= d.r0 && bj < d.r1), lot = C.p.turf ? C.lots.find(l => l.site && l.bx === bx && l.by === by) : null;
     return { city: C.id, district: d && !C.p.turf ? d.id : null, zone: d ? d.name : null, bx, by, site: lot ? lot.site : null, block: C.p.turf && C.p.blocks[by * C.bx + bx] || null, near: cam.zoom >= NEAR_ZOOM };
   }
   return null;

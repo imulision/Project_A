@@ -1,6 +1,7 @@
 // What just happened, lit where it happened: fire, gunfire, police lights, good news, a betrayal, and a plain mark for the rest.
 // Money is seen too: a figure rises over the place where it comes in or leaves (pops, written by the page).
 // makeFx(ctx) returns { fxList, pops, spawnFx, spawnPop, effects, animateFx }; ctx gives the scene, the camera and the cities.
+import { midX, midY } from './look.mjs';
 export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp }) {
   const fxList = []; let fxN = 0;
   const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12], news: [0xffe6b0, 10], betrayal: [0xff2a2a, 45],
@@ -18,7 +19,7 @@ export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp })
     for (const e of list) {
       const C = CITIES.find(c => c.id === e.city); if (!C) continue;
       const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
-      spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1, e.say, e.type);
+      spawnFx(e.kind, l ? l.x : C.ox + midX(d) * 4 * T, l ? l.z : C.oz + midY(d) * 3 * T, l ? l.h : 1, e.say, e.type);
       if (e.spent && l) spawnPop(l.x, l.z, l.h, -e.spent);
     }
   }

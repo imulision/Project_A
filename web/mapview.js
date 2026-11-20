@@ -71,7 +71,8 @@
   function planTurf(c, ci) {
     ci = ci || 0;
     var zones = c.zones.map(function (z, n) { return { id: c.id + '-' + n, name: z.name, c0: z.x0, c1: z.x1 + 1, r0: z.y0, r1: z.y1 + 1, capo: null }; });
-    var zoneOf = function (x, y) { for (var n = 0; n < zones.length; n++) { var z = zones[n]; if (x >= z.c0 && x < z.c1 && y >= z.r0 && y < z.r1) return n; } return 0; };
+    var zoneOf = function (x, y) { var q = c.blocks[y * c.w + x]; if (q && typeof q.zone === 'number' && zones[q.zone]) return q.zone;      // the block says its street name; an old save only has rectangles
+      for (var n = 0; n < zones.length; n++) { var z = zones[n]; if (x >= z.c0 && x < z.c1 && y >= z.r0 && y < z.r1) return n; } return 0; };
     var rival = ownerKey(c.rival), placeAt = {}, capoAt = {};
     c.places.forEach(function (p) { placeAt[p.x + ',' + p.y] = p; });
     var lots = [], looks = [], count = zones.map(function () { return { all: 0, family: 0, rival: 0 }; });
@@ -106,8 +107,20 @@
         }
         lots.push(lot);
       }
-      return { x: b.x, y: b.y, grip: b.grip, void: b.void || null, press: ours ? Math.min(1, b.rival / Math.max(1, b.family)) : 0, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
+      return { x: b.x, y: b.y, zone: zi, grip: b.grip, void: b.void || null, press: ours ? Math.min(1, b.rival / Math.max(1, b.family)) : 0, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
     });
+    // A town is not a grid either: here and there the street between two blocks side by side is built over, and they stand as one
+    // long block. Never two in a row, so that every crossing keeps its ways out; the cars drive round (route).
+    var shut = [], shutAt = {}, gone = function (x, y) { return x < 0 || y < 0 || x >= c.w || y >= c.h || !!c.blocks[y * c.w + x].void; }, infill = [];
+    for (var sy = 0; sy < c.h; sy++) for (var sx = 1; sx < c.w; sx++) {
+      if (gone(sx - 1, sy) || gone(sx, sy) || hash(sx, sy, ci * 7 + 31) >= 0.2) continue;
+      if (shutAt[sx + ',' + (sy - 1)] || shutAt[(sx - 1) + ',' + sy]) continue;
+      shutAt[sx + ',' + sy] = 1; shut.push({ x: sx, y: sy });
+      var like = lots[(sy * c.w + sx - 1) * 6 + 2];      // the building on its left: same hands, same lights
+      for (var fj = sy * 3 + 1; fj <= sy * 3 + 2; fj++) { var fr = hash(sx * 4, fj, ci * 7 + 2);
+        infill.push({ i: sx * 4, j: fj, bx: sx - 1, by: sy, district: like.district, tall: false, open: null, model: pick(LOW, fr), tint: Math.floor(hash(sx * 4, fj, ci * 7 + 4) * TINTS),
+                      lit: like.ours ? like.lit : 0, ours: like.ours, shop: fr < 0.4, tower: false, turn: 0.5, site: null, hideout: false, infill: true }); }
+    }
     // Men stand where the family is: a doorman at each of its places, two at a club, and a crew of three more where a capo faces the rivals.
     var crews = [];
     lots.forEach(function (l) { if (l.site && l.site.owner === 'family') l.men = l.hideout ? 2 : 1; });
@@ -122,6 +135,14 @@
     if (Object.keys(ill).length) lots.forEach(function (l) { if (!l.ours || l.site) return; var best = null, far = 1e9;
       run.forEach(function (p) { var d = Math.abs(p.x - l.bx) + Math.abs(p.y - l.by); if (d < far) { far = d; best = p; } });
       if (best && ill[best.capo]) l.low = true; });
+    // Where a street name is written: over the block of its own that is nearest the middle of all of them, never on the water.
+    zones.forEach(function (z, n) {
+      var mine = blocks.filter(function (b) { return b.zone === n && !b.void; }), sx = 0, sy = 0, best = null, far = 1e9;
+      if (!mine.length) mine = blocks.filter(function (b) { return b.zone === n; });
+      mine.forEach(function (b) { sx += b.x; sy += b.y; });
+      mine.forEach(function (b) { var d = Math.abs(b.x - sx / mine.length) + Math.abs(b.y - sy / mine.length); if (d < far) { far = d; best = b; } });
+      z.cx = best ? best.x + 0.5 : (z.c0 + z.c1) / 2; z.cy = best ? best.y + 0.5 : (z.r0 + z.r1) / 2;
+    });
     zones.forEach(function (z, n) {
       var k = count[n]; z.share = k.all ? 100 * k.family / k.all : 0;
       z.owner = k.family > k.rival ? 'family' : k.rival ? rival : 'other'; z.ownerName = z.owner === 'family' ? 'Your family' : z.owner === 'other' ? '' : c.rival;
@@ -137,7 +158,7 @@
     var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',');
     return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
-             districts: zones, lots: lots, blocks: blocks, capos: capos };
+             districts: zones, lots: lots, blocks: blocks, capos: capos, shut: shut, infill: infill };
   }
 
   // The whole map of the new game. `where` is AshportWorld.CITIES: where each city sits. The cities are far bigger than
@@ -157,12 +178,50 @@
   var FLOW = { logistics: '#ffb347', sales: '#7fe08a', money: '#ffe06a', building: '#c8d0ff', violence: '#ff5a3a' };
 
   // From one lot to another along the streets. Points are tiles [i, j]; streets are the columns i % 4 = 0 and the rows j % 3 = 0.
-  function route(a, b) {
+  // With the plan of the city (c), the car takes the shortest way that stays in the town: no street runs between two gaps of the
+  // outline (water, rails, waste ground), and none where two blocks stand as one. Without it, or if there is no way, it turns once.
+  function route(a, b, c) {
     var ra = a[1] % 3 === 1 ? a[1] - 1 : a[1] + 1, rb = b[1] % 3 === 1 ? b[1] - 1 : b[1] + 1, col = Math.round(a[0] / 4) * 4;
-    var pts = [a, [a[0], ra]];
-    if (ra !== rb) pts.push([col, ra], [col, rb]);
+    var pts = [a, [a[0], ra]], way = c && c.blocks ? around(c, a[0], ra, b[0], rb) : null;
+    if (way) pts = pts.concat(way);
+    else if (ra !== rb) pts.push([col, ra], [col, rb]);
     pts.push([b[0], rb], b);
     return pts.filter(function (p, k) { return k === 0 || p[0] !== pts[k - 1][0] || p[1] !== pts[k - 1][1]; });
+  }
+  // The crossings to drive through, from a tile of a row street to another: the shortest way over the streets that exist.
+  function around(c, ai, aj, bi, bj) {
+    var W = c.bx + 1, H = c.by + 1, memo = c.ways || (c.ways = {});
+    if (!memo.open) {
+      var gone = function (x, y) { return x < 0 || y < 0 || x >= c.bx || y >= c.by || !!c.blocks[y * c.bx + x].void; }, shut = {};
+      (c.shut || []).forEach(function (q) { shut[q.x + ',' + q.y] = 1; });
+      // open.row[y * W + x]: the row street y, along the block column x; open.col[y * W + x]: the column street x, along the block row y
+      memo.open = { row: [], col: [] };
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        memo.open.row[y * W + x] = x < c.bx && !(gone(x, y - 1) && gone(x, y));
+        memo.open.col[y * W + x] = y < c.by && !(gone(x - 1, y) && gone(x, y)) && !shut[x + ',' + y];
+      }
+    }
+    var open = memo.open, ax = Math.floor(ai / 4), ay = aj / 3, bx = Math.floor(bi / 4), by = bj / 3;
+    if (ai % 4 === 0) ax = Math.min(ax, c.bx - 1); if (bi % 4 === 0) bx = Math.min(bx, c.bx - 1);
+    if (ay === by && ax === bx) return [];      // the same stretch of street
+    var dist = [], from = [], todo = [], n, INF = 1e9;
+    for (n = 0; n < W * H; n++) { dist[n] = INF; from[n] = -1; }
+    var start = function (x, cost) { var k = ay * W + x; if (cost < dist[k]) { dist[k] = cost; todo.push(k); } };
+    start(ax, ai - ax * 4); start(ax + 1, (ax + 1) * 4 - ai);
+    while (todo.length) {
+      var best = 0; for (n = 1; n < todo.length; n++) if (dist[todo[n]] < dist[todo[best]]) best = n;
+      var k = todo.splice(best, 1)[0], x0 = k % W, y0 = (k - x0) / W;
+      var step = function (to, cost, ok) { if (ok && dist[k] + cost < dist[to]) { if (dist[to] === INF) todo.push(to); dist[to] = dist[k] + cost; from[to] = k; } };
+      if (x0 + 1 < W) step(k + 1, 4, open.row[k]);
+      if (x0 > 0) step(k - 1, 4, open.row[k - 1]);
+      if (y0 + 1 < H) step(k + W, 3, open.col[k]);
+      if (y0 > 0) step(k - W, 3, open.col[k - W]);
+    }
+    var e0 = by * W + bx, e1 = e0 + 1, c0 = dist[e0] + bi - bx * 4, c1 = dist[e1] + (bx + 1) * 4 - bi, end = c0 <= c1 ? e0 : e1;
+    if (dist[end] >= INF) return null;
+    var out = [];
+    for (n = end; n >= 0; n = from[n]) out.unshift([(n % W) * 4, Math.floor(n / W) * 3]);
+    return out;
   }
   // ---- the cars and the events
   // The lot that stands for a block: its place if it has one, else the lot a place would take.
@@ -190,7 +249,7 @@
         if (t.vehicle && t.home) { if (!rounds[t.vehicle]) { rounds[t.vehicle] = []; order.push(t.vehicle); } rounds[t.vehicle].push({ t: t, a: a, b: b, n: n }); return; }
         var way = c.id + ':' + t.kind + ':' + t.from.x + '.' + t.from.y + '>' + t.to.x + '.' + t.to.y, nth = same[way] = (same[way] || 0) + 1;
         out.push({ id: way + (nth > 1 ? '#' + nth : ''), delay: (nth - 1) * 1.6, kind: t.kind, city: c.id, loop: true, color: FLOW[look.flow], vehicle: look.vehicle, violent: t.kind === 'crew',
-                   path: route([a.i, a.j], [b.i, b.j]), cargo: t.cargo, amount: t.amount || 0, load: {}, capo: t.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: t.kind === 'crew' ? t.cargo : null, target: null, n: n });
+                   path: route([a.i, a.j], [b.i, b.j], c), cargo: t.cargo, amount: t.amount || 0, load: {}, capo: t.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: t.kind === 'crew' ? t.cargo : null, target: null, n: n });
       });
       var nth = function (id) { var m = /:(car|truck):(\d+)$/.exec(id); return m ? (m[1] === 'truck' ? 2 * m[2] : 2 * m[2] - 1) : 0; };
       order.forEach(function (id) {
@@ -198,21 +257,22 @@
         var h = lotOfBlock(c, t0.home.x, t0.home.y); if (!h) return;
         var spot = parking(h, nth(id)), door = [h.i, spot[1]], path = [spot, door], stops = [], at = h;
         legs.forEach(function (l) {
-          join(path, at === h ? route([h.i, h.j], [l.a.i, l.a.j]).slice(1) : route([at.i, at.j], [l.a.i, l.a.j]));
+          join(path, at === h ? route([h.i, h.j], [l.a.i, l.a.j], c).slice(1) : route([at.i, at.j], [l.a.i, l.a.j], c));
           stops.push({ k: path.length - 1, load: true, amount: l.t.amount || 0, kind: l.t.kind, cargo: l.t.cargo });
-          var before = path.length; join(path, route([l.a.i, l.a.j], [l.b.i, l.b.j]));
+          var before = path.length; join(path, route([l.a.i, l.a.j], [l.b.i, l.b.j], c));
           // a load lost on the road never arrives: the vehicle is stopped half way, and drives on empty
           stops.push({ k: l.t.lost ? Math.min(path.length - 2, before + Math.max(0, Math.floor((path.length - before) / 2) - 1)) : path.length - 1, load: false, lost: l.t.lost || null, amount: 0, kind: l.t.kind, cargo: l.t.cargo }); at = l.b;
         });
-        join(path, at === h ? [door] : route([at.i, at.j], [h.i, h.j]).slice(0, -1)); join(path, [door, spot]);
+        join(path, at === h ? [door] : route([at.i, at.j], [h.i, h.j], c).slice(0, -1)); join(path, [door, spot]);
         out.push({ id: c.id + ':' + id, round: true, loop: true, kind: t0.kind, city: c.id, color: FLOW[look.flow], vehicle: /:truck:/.test(id) ? 'truck' : look.vehicle, violent: false, home: spot,
                    path: path, stops: stops, cargo: t0.cargo, amount: t0.amount || 0, load: {}, capo: t0.capo || null, from: 'street', to: 'street', by: null, way: null, target: null, n: legs[0].n });
       });
       // the police patrol a city that runs hot: one car more for every thirty points of heat, each on its own beat
+      var town = c.lots.filter(function (l) { return l.open !== 'water' && l.open !== 'rail' && l.open !== 'waste'; });      // they keep to the town
       var beats = Math.min(3, Math.floor((vc.heat || 0) / 30));
       for (var q = 0; q < beats; q++) {
-        var pa = c.lots[Math.floor(hash(q, 1, ci * 7 + 21) * c.lots.length)], pb = c.lots[Math.floor(hash(q, 2, ci * 7 + 22) * c.lots.length)]; if (!pa || !pb || pa === pb) continue;
-        out.push({ id: c.id + ':patrol:' + q, loop: true, kind: 'patrol', city: c.id, color: '#4a7dff', vehicle: 'police', violent: false, path: route([pa.i, pa.j], [pb.i, pb.j]),
+        var pa = town[Math.floor(hash(q, 1, ci * 7 + 21) * town.length)], pb = town[Math.floor(hash(q, 2, ci * 7 + 22) * town.length)]; if (!pa || !pb || pa === pb) continue;
+        out.push({ id: c.id + ':patrol:' + q, loop: true, kind: 'patrol', city: c.id, color: '#4a7dff', vehicle: 'police', violent: false, path: route([pa.i, pa.j], [pb.i, pb.j], c),
                    cargo: null, amount: 0, load: {}, capo: null, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
       }
       // the rest of the fleet waits by the club
@@ -248,7 +308,7 @@
         var old = was.capos.filter(function (x) { return x.id === k.id; })[0];
         if (!old || !old.at || !k.at || typeof k.at.i !== 'number' || typeof old.at.i !== 'number' || (old.at.i === k.at.i && old.at.j === k.at.j)) return;
         out.push({ id: c.id + ':capo:' + k.id, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false,
-                   path: route([old.at.i, old.at.j], [k.at.i, k.at.j]), cargo: k.at.why, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
+                   path: route([old.at.i, old.at.j], [k.at.i, k.at.j], c), cargo: k.at.why, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
       });
     });
     return out;
