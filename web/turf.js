@@ -68,7 +68,8 @@
     keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
     respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club
     // a car leaves a place only with a full load of takings; what a car carries, the runs it makes in a month, its price and its upkeep (the car a man arrives with costs him nothing)
-    car: { load: 150, runs: 8, cost: 400, upkeep: 20 },
+    // loads: what a car carries once the family has learned cars of tier 1, 2 and 3
+    car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 400, upkeep: 20 },
     // a capo has a car of his own: with nothing else on his hands he goes where his business chokes. The runs he makes
     // himself when his cars left full tills behind, and what a place makes more the month he stands over it
     own: { runs: 2, boost: 0.25 },
@@ -385,8 +386,8 @@
   }
   function wages(c, capo) { return RULES.wage * run(c, capo).length; }
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
-  function collect(c, capo, cars, own) {
-    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, load = RULES.car.load, waiting = 0, full = 0, went = null;
+  function collect(c, capo, cars, own, load) {
+    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null;
     var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); return { p: p, b: b }; });
     while (left + mine > 0) {
       var best = null;
@@ -892,9 +893,14 @@
     });
   }
   // --- the family, and the building tree it carries from city to city ---
+  // What one car of the family carries in a run.
+  function loadOf(f) { return RULES.car.loads[Math.max(1, Math.min(3, (f.tech && f.tech.cars) || 1))]; }
+  function carries(tier) { return 'A car carries $' + RULES.car.loads[tier] + ' a run'; }
+  function nameOf(kind) { return kind === 'cars' ? 'Cars' : D.SITES[kind].name; }
   function createFamily() {
     var tech = {};
     KINDS.forEach(function (k) { tech[k] = RULES.learn.open.indexOf(k) >= 0 ? 1 : 0; });
+    tech.cars = 1;
     return { tech: tech, men: {}, dirty: 0, clean: 0, study: null };
   }
   function likedBy(f, kind) {
@@ -902,17 +908,23 @@
   }
   // Every trade: the tier the family knows, what the next one costs, and who in the family likes it.
   function tree(f) {
-    return KINDS.map(function (kind) {
+    var out = KINDS.map(function (kind) {
       var tier = f.tech[kind] || 0, wanted = likedBy(f, kind);
       return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted,
                studying: f.study && f.study.kind === kind ? f.study.monthsLeft : 0,
                next: tier >= RULES.learn.cost.length ? null
                  : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (wanted.length ? RULES.learn.taught : 1) } };
     });
+    // the cars: not a place, but learned the same way; asked for by the men whose tills were left full
+    var cars = Math.max(1, f.tech.cars || 1), stuck = Object.keys(f.men).filter(function (id) { return f.men[id].stuck; });
+    out.push({ kind: 'cars', name: 'Cars', street: null, tier: cars, wanted: cars < 3 ? stuck : [], gives: carries(cars),
+               studying: f.study && f.study.kind === 'cars' ? f.study.monthsLeft : 0,
+               next: cars >= 3 ? null : { tier: cars + 1, cost: RULES.learn.cost[cars], months: RULES.learn.months[cars] * (stuck.length ? RULES.learn.taught : 1), gives: carries(cars + 1) } });
+    return out;
   }
   function research(f, kind) {
-    if (!TERRAIN[kind]) throw new Error('unknown kind of place: ' + kind);
-    if (f.study) throw new Error('the family is already learning ' + D.SITES[f.study.kind].name);
+    if (!TERRAIN[kind] && kind !== 'cars') throw new Error('unknown kind of place: ' + kind);
+    if (f.study) throw new Error('the family is already learning ' + nameOf(f.study.kind));
     var t = tree(f).filter(function (q) { return q.kind === kind; })[0];
     if (!t.next) throw new Error('there is nothing more to learn about ' + t.name);
     if ((f.clean || 0) < t.next.cost) throw new Error('it takes $' + t.next.cost + ' of clean money');
@@ -926,6 +938,7 @@
       if (!clubOf(c, id)) return;
       var kind = who(id).likes.filter(function (k) { return TERRAIN[k] && !(f.tech[k] >= 1) && who(id).refuses.indexOf(k) < 0; })[0];
       if (kind) out.push({ capo: id, kind: kind, name: D.SITES[kind].name, label: first(id) + ' wants to open a ' + D.SITES[kind].name.toLowerCase() });
+      if (f.men[id].stuck && (f.tech.cars || 1) < 3) out.push({ capo: id, kind: 'cars', name: 'Cars', label: first(id) + ' wants bigger cars: his tills are piling up' });
     });
     return out;
   }
@@ -936,7 +949,8 @@
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
     if (f.study && --f.study.monthsLeft <= 0) {
       f.tech[f.study.kind] = f.study.tier;
-      events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
+      events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
+        : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
       f.study = null;
     }
     return events;
@@ -1041,13 +1055,13 @@
       if (!clubOf(c, capo)) return;
       var m = f.men[capo];
       m.cars = m.cars || 1;
-      var haul = collect(c, capo, m.cars, drives[capo]);
+      var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load);
       m.stuck = haul.full > 0;
       if (haul.went) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind };
       var inc = haul.got + RULES.club, pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1), profit = inc - pay;
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
-      if (!haul.idle && haul.waiting >= 2 * RULES.car.load && m.cash - pay >= RULES.car.cost) {
+      if (!haul.idle && haul.waiting >= 2 * load && m.cash - pay >= RULES.car.cost) {
         m.cash -= RULES.car.cost; m.cars += 1;
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
