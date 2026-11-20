@@ -173,6 +173,47 @@
     danny: { runs: 'gambling', n: 1, why: 'A room with tables to run' }
   };
   function who(id) { return D.CAPOS[id] || PEOPLE[id]; }
+  // A man learns his trade. Every specialty belongs to a school, and at each rank after Soldier a capo gains the next
+  // ability of his school. Each changes one rule for his own places, his own trucks or his own money.
+  var SCHOOL = { Enforcer: 'Muscle', 'Dock boss': 'Muscle', 'Police captain': 'Muscle', 'Union man': 'Muscle', Bootlegger: 'Liquor', Brewmaster: 'Liquor',
+                 Bookkeeper: 'Money', Politician: 'Law', Alderman: 'Law', Pusher: 'Vice', Hostess: 'Vice', Gambler: 'Games' };
+  var SCHOOLS = {
+    Muscle: [{ id: 'escorts', name: 'Escorts', gives: 'Nobody holds up his cars or his trucks' },
+             { id: 'hard', name: 'Hard streets', gives: 'Two points of Muscle more against a raid' },
+             { id: 'feared', name: 'Feared', gives: 'The rivals no longer raid the places he runs' }],
+    Liquor: [{ id: 'nightruns', name: 'Night runs', gives: 'Each of his trucks makes two more runs a month' },
+             { id: 'deep', name: 'Deep cellars', gives: 'His stills and stores keep twice as much' },
+             { id: 'label', name: 'House label', gives: 'His bars earn 15% more' }],
+    Money:  [{ id: 'tight', name: 'Tight books', gives: 'His men cost 15% less' },
+             { id: 'ledgers', name: 'Double ledgers', gives: 'His laundries wash 25% more' },
+             { id: 'silent', name: 'Silent partner', gives: 'He keeps half as much for himself' }],
+    Law:    [{ id: 'friends', name: 'Friends downtown', gives: 'The police never stop his trucks' },
+             { id: 'envelopes', name: 'Envelopes', gives: 'Taking a rival\'s place costs him 25% less' },
+             { id: 'judge', name: 'The judge', gives: 'His city cools one point more a month' }],
+    Vice:   [{ id: 'regulars', name: 'Regulars', gives: 'His brothels and lofts earn 15% more' },
+             { id: 'dealers', name: 'House dealers', gives: 'Weed brings his places twice the bonus' },
+             { id: 'harvest', name: 'Big harvest', gives: 'His lofts grow twice the weed' }],
+    Games:  [{ id: 'edge', name: 'House edge', gives: 'His gambling rooms earn 15% more' },
+             { id: 'markers', name: 'Markers', gives: 'His loans earn 25% more' },
+             { id: 'backroom', name: 'Back room', gives: 'Hides $2,000 more of dirty money from the police' }]
+  };
+  // The abilities that make one kind of place earn more for the man who has them.
+  var TRADE = { speakeasy: ['label', 1.15], brothel: ['regulars', 1.15], loft: ['regulars', 1.15], gambling: ['edge', 1.15], loans: ['markers', 1.25] };
+  function schoolOf(capo) { return SCHOOL[who(capo).specialty]; }
+  // What a capo has learned and what he still may, for his card.
+  function abilities(f, capo) {
+    var school = schoolOf(capo), rank = (f.men[capo] || {}).rank || 0;
+    return SCHOOLS[school].map(function (a, i) { return { id: a.id, name: a.name, gives: a.gives, school: school, rank: i + 1, has: rank >= i + 1 }; });
+  }
+  // The city remembers what its men know, so that every rule can ask without the family at hand.
+  function learnt(c, f) {
+    c.skills = {};
+    Object.keys(f.men || {}).forEach(function (capo) {
+      var rank = f.men[capo].rank || 0, list = SCHOOLS[schoolOf(capo)];
+      for (var i = 0; i < rank && i < list.length; i++) (c.skills[capo] = c.skills[capo] || {})[list[i].id] = true;
+    });
+  }
+  function can(c, capo, id) { var k = c.skills && c.skills[capo]; return !!(k && k[id]); }
   function person(id) {
     if (!who(id)) throw new Error('unknown capo: ' + id);
     return who(id);
@@ -443,8 +484,10 @@
       if (p.kind === 'still') out.push({ p: p, b: b, chain: 'liquor', cargo: 'liquor', makes: RULES.pours * size * pushed(c, p) });
       else if (p.kind === 'key' && KEYS[p.key].pours) out.push({ p: p, b: b, chain: 'liquor', cargo: 'liquor', makes: RULES.pours * KEYS[p.key].pours });
       else if (RULES.goods.makes[p.kind]) out.push({ p: p, b: b, chain: 'goods', cargo: CARGO[p.kind], makes: RULES.goods.makes[p.kind] * size * pushed(c, p) });
-      else if (p.kind === 'loft') out.push({ p: p, b: b, chain: 'weed', cargo: 'weed', makes: RULES.weed.makes * size * pushed(c, p) });
+      else if (p.kind === 'loft') out.push({ p: p, b: b, chain: 'weed', cargo: 'weed', makes: RULES.weed.makes * size * pushed(c, p) * (can(c, p.capo, 'harvest') ? 2 : 1) });
     });
+    // what each keeps before it stops making
+    out.forEach(function (s) { s.most = RULES.truck.cellar * s.makes * (can(c, s.p.capo, 'deep') ? 2 : 1); });
     return out;
   }
   // Where the rivals lie in wait this month: every place of the family they press on hard enough for its capo's Muscle
@@ -454,7 +497,7 @@
     if (c.month < (c.lurk || 0) || c.month <= (c.quiet || 0)) return null;
     var out = { at: {}, done: null }, any = false, shield = held(c, 'shield');
     everyPlace(c).forEach(function (p) {
-      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key') return;
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || can(c, p.capo, 'escorts')) return;
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach || h.rival <= h.family * (RULES.road.hold + RULES.road.muscle * who(p.capo).muscle + shield)) return;
       out.at[p.y * c.w + p.x] = true; any = true;
@@ -468,9 +511,9 @@
     var all = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {}, seized: null };
     var police = (c.heat || 0) >= RULES.road.heat && !held(c, 'shield');
     all.forEach(function (s) {
-      s.b.stock = Math.min(RULES.truck.cellar * s.makes, (s.b.stock || 0) + s.makes);
+      s.b.stock = Math.min(s.most, (s.b.stock || 0) + s.makes);
       var m = f.men[s.p.capo];
-      if (m && left[s.p.capo] === undefined) { m.trucks = m.trucks || 1; left[s.p.capo] = m.trucks * RULES.truck.runs; }
+      if (m && left[s.p.capo] === undefined) { m.trucks = m.trucks || 1; left[s.p.capo] = m.trucks * (RULES.truck.runs + (can(c, s.p.capo, 'nightruns') ? 2 : 0)); }
     });
     c.flow.hauls = [];
     CHAINS.forEach(function (chain) {
@@ -490,7 +533,7 @@
         var h = { capo: who2, cargo: from.cargo, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo), truck: n % trucks + 1, leg: Math.floor(n / trucks) };
         // a load the rivals or the police take on the road never reaches the shelf
         if (trap && !trap.done && (trap.at[from.p.y * c.w + from.p.x] || trap.at[to.p.y * c.w + to.p.x])) { h.lost = 'hijack'; trap.done = h; trap.x = trap.at[from.p.y * c.w + from.p.x] ? from.p.x : to.p.x; trap.y = trap.at[from.p.y * c.w + from.p.x] ? from.p.y : to.p.y; }
-        else if (police && !out.seized) { h.lost = 'seizure'; out.seized = h; }
+        else if (police && !out.seized && !can(c, who2, 'friends')) { h.lost = 'seizure'; out.seized = h; }
         from.b.stock -= 1; left[who2] -= 1; made[who2] = n + 1;
         if (!h.lost) to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1;
         c.flow.hauls.push(h);
@@ -514,13 +557,13 @@
     if (!WORTH[p.kind]) return 0;
     var h = hold(c, p.x, p.y);
     return WORTH[p.kind] * RULES.yield * worth(c, p.x, p.y, p.kind) * (1 + RULES.bigger * (p.level - 1)) * (h.family / (h.family + h.rival)) * lift(c, p.kind)
-      * (SELLS[p.kind] ? SELLS[p.kind].short + (1 - SELLS[p.kind].short) * poured(c, p, wet) : 1) * (p.kind === 'speakeasy' || p.kind === 'brothel' ? 1 + RULES.weed.bonus * ((c.blocks[p.x + ',' + p.y] || {}).high || 0) : 1) * (p.kind === 'still' ? 1 : pushed(c, p));
+      * (SELLS[p.kind] ? SELLS[p.kind].short + (1 - SELLS[p.kind].short) * poured(c, p, wet) : 1) * (p.kind === 'speakeasy' || p.kind === 'brothel' ? 1 + RULES.weed.bonus * (can(c, p.capo, 'dealers') ? 2 : 1) * ((c.blocks[p.x + ',' + p.y] || {}).high || 0) : 1) * (p.kind === 'still' ? 1 : pushed(c, p)) * (c.skills && TRADE[p.kind] && can(c, p.capo, TRADE[p.kind][0]) ? TRADE[p.kind][1] : 1);
   }
   function income(c, capo) {
     var wet = liquor(c).wet;
     return run(c, capo).reduce(function (n, p) { return n + earns(c, p, wet); }, clubOf(c, capo) ? RULES.club : 0);
   }
-  function wages(c, capo) { return RULES.wage * run(c, capo).length; }
+  function wages(c, capo) { return RULES.wage * run(c, capo).length * (can(c, capo, 'tight') ? 0.85 : 1); }
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
   function collect(c, capo, cars, own, load, trap) {
     var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
@@ -612,7 +655,7 @@
       if (prey) {
         var way = wayOf(capo), kind = keeps(capo, prey.p.kind, o.tech);
         return { move: 'take', way: way, x: prey.p.x, y: prey.p.y, kind: kind, name: D.SITES[kind].name, months: RULES.take[way].months,
-                 cost: Math.round(price(c, capo, kind) * RULES.take[way].cost),
+                 cost: Math.round(price(c, capo, kind) * RULES.take[way].cost * (can(c, capo, 'envelopes') ? 0.75 : 1)),
                  why: 'no free street left around him: he goes for the ' + prey.p.owner + 's\' place next door' };
       }
     }
@@ -683,10 +726,11 @@
   }
   // Who answers when a family place is hit: the hardest capo with a club close by, or its own.
   function cover(c, x, y) {
-    var p = at(c, x, y), best = { capo: p.capo, muscle: who(p.capo).muscle };
+    var grit = function (capo) { return who(capo).muscle + (can(c, capo, 'hard') ? 2 : 0); };
+    var p = at(c, x, y), best = { capo: p.capo, muscle: grit(p.capo) };
     everyPlace(c).forEach(function (q) {
       if (q.owner !== 'family' || q.kind !== 'club' || far(x, y, q.x, q.y) > RULES.cover) return;
-      if (who(q.capo).muscle > best.muscle) best = { capo: q.capo, muscle: who(q.capo).muscle };
+      if (grit(q.capo) > best.muscle) best = { capo: q.capo, muscle: grit(q.capo) };
     });
     return best;
   }
@@ -695,7 +739,7 @@
     if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
     var target = null;
     everyPlace(c).forEach(function (p) {
-      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key') return;
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || can(c, p.capo, 'feared')) return;
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach) return;
       if (!target || h.rival - h.family > target.margin) target = { margin: h.rival - h.family, p: p, h: h };
@@ -786,8 +830,9 @@
   }
   // Every place of the family that washes (what it can wash and what it keeps come from district.js), the cheapest first.
   function laundries(c) {
-    return everyPlace(c).filter(function (p) { return p.owner === 'family' && D.SITES[p.kind] && D.SITES[p.kind].wash; }).map(function (p) {
-      return { x: p.x, y: p.y, most: D.SITES[p.kind].wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5), loss: D.SITES[p.kind].loss };
+    var site = function (p) { return D.SITES[p.kind]; };
+    return everyPlace(c).filter(function (p) { return p.owner === 'family' && site(p) && site(p).wash; }).map(function (p) {
+      return { x: p.x, y: p.y, most: site(p).wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5) * (can(c, p.capo, 'ledgers') ? 1.25 : 1), loss: site(p).loss };
     }).sort(function (a, b) { return a.loss - b.loss; });
   }
   function money(c, f, events) {
@@ -809,7 +854,9 @@
     });
     // money that sleeps and blood in the streets draw the police
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
-    c.heat = (c.heat || 0) + (f.dirty > RULES.stash ? RULES.hot : 0) + loud * RULES.loud - RULES.cools * (held(c, 'shield') ? 2 : 1);
+    var hidden = 2000 * Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'backroom'); }).length;
+    c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud - RULES.cools * (held(c, 'shield') ? 2 : 1)
+      - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length;
     c.heat = Math.max(0, Math.min(100, c.heat));
     if (c.heat >= 100) {
       var seized = Math.round(Math.max(0, f.dirty) * RULES.bust);
@@ -1201,7 +1248,7 @@
     }
     var choke = { load: loadOf(f), drink: liquor(c), goods: supplied(c), washed: flow.wash || {}, most: {}, cellar: {} };
     choke.smokers = everyPlace(c).filter(function (p) { return p.owner === 'family' && CHAINS[2].sells.indexOf(p.kind) >= 0; }).length;
-    cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = { most: RULES.truck.cellar * s.makes, cargo: s.cargo }; });
+    cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = { most: s.most, cargo: s.cargo }; });
     laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
     return {
       id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0,
@@ -1230,13 +1277,14 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
   function stepMonth(c, f) {
     var events = [];
     c.month += 1;
+    learnt(c, f);
     c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {}, runs: [] }; // last month's money, for the screen
     settleTakes(c, events);
     Object.keys(f.men).forEach(function (capo) {
@@ -1296,13 +1344,15 @@
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
         m.rank += 1;
-        events.push({ type: 'rank', capo: capo, city: c.id, rank: m.rank,
-                      label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places' });
+        var gift = SCHOOLS[schoolOf(capo)][m.rank - 1];
+        events.push({ type: 'rank', capo: capo, city: c.id, rank: m.rank, ability: gift.id,
+                      label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places, and learns ' + gift.name });
+        learnt(c, f);
       }
       var p = plan(c, f, capo);
       // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare * (1 - RULES.keeps[m.rank]); sent += spare * (1 - RULES.keeps[m.rank]); }
+      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); }
       c.flow.sent[capo] = sent; c.flow.up += sent;
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
@@ -1339,7 +1389,7 @@
     return events;
   }
 
-  var api = { convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
