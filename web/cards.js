@@ -14,7 +14,9 @@
   var first = function (name) { return String(name).split(' ')[0]; };
   var months = function (n) { return n + ' month' + (n > 1 ? 's' : ''); };
   var funds = function (hud) { return Math.max(0, hud.dirty || 0) + Math.max(0, hud.clean || 0); };
-  var nameOf = function (id) { var p = T.person(id); return p ? p.name : 'Nobody'; };
+  // T.person throws on a name it does not know, and a sheet must never fail to open: what is not a person here is a key place or a rival family.
+  var known = function (id) { try { return T.person(id); } catch (e) { return null; } };
+  var nameOf = function (id) { var p = known(id); return p ? p.name : 'Nobody'; };
   var icon = function (k) { return I.icon(I.has(k) ? k : KEYICON[k] || 'unknown'); };
   var iconName = function (k) { return I.has(k) ? k : KEYICON[k] || 'unknown'; };
   var data = function (o) { return Object.keys(o).map(function (k) { return ' data-' + k + '="' + esc(o[k]) + '"'; }).join(''); };
@@ -130,7 +132,7 @@
   function short(cost, purse) { return cost > purse ? '<small>Not enough money: ' + money(purse) + ' of ' + money(cost) + '</small>' : ''; }
   function doorCard(c, d, purse) {
     var poach = d.door === 'poach', full = c.seats && c.seats.taken >= c.seats.total;
-    return '<div class="card ask">' + head(d.capo, d.name, esc(d.specialty) + ' · ' + (DOOR[d.door] || DOOR.name) + (d.by ? ' · spoken for by ' + esc(first(nameOf(d.by))) : '')) +
+    return '<div class="card ask">' + head(d.capo, d.name, esc(d.specialty) + ' · ' + (DOOR[d.door] || DOOR.name) + (d.by && known(d.by) ? ' · spoken for by ' + esc(first(nameOf(d.by))) : '')) +
       (d.why ? '<div class="move">' + icon('time') + '<span>' + esc(d.why) + '</span></div>' : '') + price(d.cost, purse) +
       (full ? '<small class="short">No seat left in ' + esc(c.name) + ': ' + c.seats.total + ' capos is all the city carries until the family holds another key place</small>' : '') +
       '<div class="acts col">' + (poach ? button('welcome', { from: c.id, city: c.id, capo: d.capo }, 'Take him in · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })
