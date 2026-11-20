@@ -220,7 +220,10 @@
       if (kind === 'fence') return stock.fences > 0 && stock.fences >= stock.makes ? 0.4 : 1;
       return RULES.goods.makes[kind] && stock.fences > stock.makes ? 1.5 : 1;
     };
-    if (mine.length < RULES.reach[o.rank]) {
+    // told to grow, he stretches: more places than a man of his rank should run
+    var room = mine.length < RULES.reach[o.rank] + (o.line === 'grow' ? RULES.line.stretch : 0);
+    var opens = function () {
+      if (!room) return null;
       frontier(c, capo).forEach(function (b) {
         KINDS.forEach(function (kind) {
           if (!(o.tech[kind] >= 1) || card.refuses.indexOf(kind) >= 0) return;
@@ -235,8 +238,10 @@
         return { move: 'open', x: best.x, y: best.y, kind: best.kind, name: D.SITES[best.kind].name, cost: price(c, capo, best.kind),
                  why: o.wash && D.SITES[best.kind].wash ? 'the boss\'s dirty money needs a wash' : (liked ? 'his kind of business, and ' : '') + z.name + ' is ' + (worth(c, best.x, best.y, best.kind) >= 1 ? 'made for it' : 'the best he has') };
       }
-    }
-    if (mine.length < RULES.reach[o.rank]) {
+      return null;
+    };
+    var takes = function () {
+      if (!room) return null;
       // hemmed in: the weakest rival place within reach, taken his own way
       var all = places(c, capo), prey = null;
       everyPlace(c).forEach(function (p) {
@@ -251,13 +256,20 @@
                  cost: Math.round(price(c, capo, kind) * RULES.take[way].cost * (can(c, capo, 'envelopes') ? 0.75 : 1)),
                  why: 'no free street left around him: he goes for the ' + prey.p.owner + 's\' place next door' };
       }
-    }
+      return null;
+    };
+    var grows = function () {
     var small = mine.filter(function (p) { return p.kind !== 'key' && p.level < Math.min(D.RULES.maxLevel, o.tech[p.kind] || 0); });
     small.sort(function (a, b) { return a.level - b.level || WORTH[b.kind] * taste(capo, b.kind) - WORTH[a.kind] * taste(capo, a.kind) || a.y - b.y || a.x - b.x; });
     if (!small.length) return null;
     var p = small[0];
     return { move: 'enlarge', x: p.x, y: p.y, kind: p.kind, name: D.SITES[p.kind].name, cost: Math.round(RULES.enlarge * D.SITES[p.kind].cost * p.level),
              why: mine.length >= RULES.reach[o.rank] ? 'he runs all the places his rank allows: he makes them bigger' : 'no street left to open on' };
+    };
+    // the order he tries them in: his own, or the one the boss's line asks for
+    var order = o.line === 'earn' ? [grows, opens, takes] : o.line === 'low' ? [opens, grows] : [opens, takes, grows];
+    for (var i = 0; i < order.length; i++) { var w = order[i](); if (w) return w; }
+    return null;
   }
 
   // --- washing money ---

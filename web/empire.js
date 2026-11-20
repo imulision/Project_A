@@ -185,6 +185,14 @@
       T.underboss(c, g.family, o.capo);
       record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
     },
+    // the boss gives a city its line: grow, earn, lie low, or none
+    line: function (g, o) {
+      var c = cityOf(g, o.city);
+      if (!held(g, c)) throw new Error('the family has no man in ' + specOf(c.id).name);
+      T.line(c, o.line);
+      var said = o.line ? T.RULES.line[o.line].name.toLowerCase() : null;
+      record(g, { type: 'line', city: c.id, line: o.line || null, label: said ? 'Your word for ' + specOf(c.id).name + ': ' + said : 'You leave ' + specOf(c.id).name + ' to its capos' }, g.month);
+    },
     // the boss buys something that lasts, in clean money
     buy: function (g, o) {
       var b = T.buy(g.family, o.holding);
