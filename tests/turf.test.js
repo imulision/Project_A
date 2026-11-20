@@ -330,7 +330,7 @@ test('ten years in Ashport against the Callahans: a real foothold, never the who
   assert.ok(opened >= 2 && opened <= 5, opened + ' places opened the first year');
   const rest = year(c, f, 108);
   const s = T.share(c);
-  assert.ok(s.family >= 8 && s.family <= 35, 'the family holds ' + Math.round(s.family) + '% after ten years');
+  assert.ok(s.family >= 8 && s.family <= 40, 'the family holds ' + Math.round(s.family) + '% after ten years');
   assert.ok(s.rival >= 30, 'the Callahans still hold ' + Math.round(s.rival) + '%');
   assert.ok(first.concat(rest).some((e) => e.type === 'burnt' || e.type === 'repelled'), 'and there was a fight');
 });
@@ -471,7 +471,8 @@ test('a key place is not one of the places a capo\'s rank limits, and costs him 
   T.stepMonth(c, f);
   assert.equal(f.men.sal.xp, 1, 'one place run, not two');
   const waiting = T.places(c, 'sal').reduce((n, p) => n + (p.till || 0), 0);
-  assert.ok(Math.abs(f.men.sal.income + waiting - before) < 1e-6, 'and the precinct is not a business: nothing to fetch there');
+  const made = (before - T.RULES.club) * (1 + T.RULES.own.boost); // Sal, with nothing else to do, stands over his one business
+  assert.ok(Math.abs(f.men.sal.income + waiting - T.RULES.club - made) < 1e-6, 'and the precinct is not a business: nothing to fetch there');
   assert.equal(T.places(c, 'sal').find((p) => p.kind === 'key').till, undefined);
 });
 
@@ -724,7 +725,7 @@ test('twenty years of saying yes, whoever the first capo is: slow at first, neve
     const g = yesMan(start);
     assert.ok(g.share[5] <= 30, start + ': ' + Math.round(g.share[5]) + '% after five years is too fast');
     assert.ok(g.share[20] >= 12, start + ': ' + Math.round(g.share[20]) + '% after twenty years, the family is dying');
-    assert.ok(g.share[20] <= 85, start + ': ' + Math.round(g.share[20]) + '% after twenty years, nothing is left to fight for');
+    assert.ok(g.share[20] <= 90, start + ': ' + Math.round(g.share[20]) + '% after twenty years, nothing is left to fight for');
     assert.ok(g.share[20] >= g.share[5], start + ': it grows');
     assert.ok(g.men.length >= 2, start + ': ' + g.men.length + ' men joined');
     assert.ok(g.men[0] >= 12, start + ': nobody joins in the first year');
@@ -1456,9 +1457,12 @@ test('the city says what came up to the boss last month, man by man, and what we
 // --- money is carried, run by run ---
 // Dutch with his club and six big bars that together make more than two cars can carry in a month.
 const LOAD = T.RULES.car.load, RUNS = T.RULES.car.runs;
-const sixBars = () => {
+// A capo who waits for the boss's word in front of a key place lends no hand to his own places.
+const kept = (c, capo) => c.asks.push({ id: 'town:port', capo, key: 'port', x: 11, y: 5, way: 'buy', cost: 1e9, months: 1, why: 'kept busy' });
+const sixBars = (free) => {
   const c = town(), f = family();
   T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  if (!free) kept(c, 'dutch');
   for (const [x, y] of [[1, 1], [2, 1], [3, 1], [1, 3], [2, 3], [3, 3]]) T.open(c, x, y, { owner: 'family', kind: 'gambling', capo: 'dutch', level: 3 });
   for (const k of Object.keys(f.tech)) f.tech[k] = 0; // nothing to open or enlarge: only the money moves
   return { c, f };
@@ -1521,6 +1525,7 @@ test('a car only leaves full: a small place waits until its till holds a whole l
   const c = town(), f = family();
   T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
   T.open(c, 8, 2, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  kept(c, 'dutch');
   for (const k of Object.keys(f.tech)) f.tech[k] = 0;
   const made = T.income(c, 'dutch') - T.RULES.club;
   assert.ok(made > 0 && made < T.RULES.car.load / 2, 'it makes $' + made + ' a month');
@@ -1534,4 +1539,135 @@ test('a car only leaves full: a small place waits until its till holds a whole l
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.deepEqual(runs.map((t) => t.amount), [T.RULES.car.load]);
   assert.ok(Math.abs(tills(c) - (made * months - T.RULES.car.load)) < 1e-6, 'what is over stays for the next car');
+});
+
+// --- a capo is somewhere: at his club, or where his business takes him ---
+const whereIs = (c, f, id) => T.view(c, f).capos.find((k) => k.id === id).at;
+
+test('a capo with nothing on his hands is at his club', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  assert.deepEqual(whereIs(c, f, 'dutch'), { x: 2, y: 2, why: 'home', label: 'At his club' });
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'capo'), [], 'and nobody is on the road');
+});
+
+test('a capo who is taking a place stands in front of it until it is settled', () => {
+  const c = town(), f = family();
+  T.settle(c, 'sal', 2, 2); T.join(f, 'sal');
+  T.open(c, 4, 2, { owner: 'Callahan', kind: 'speakeasy' });
+  c.ops.push({ capo: 'sal', x: 4, y: 2, way: 'force', kind: 'speakeasy', cost: 1, month: 0, months: 3 });
+  const at = whereIs(c, f, 'sal');
+  assert.deepEqual([at.x, at.y, at.why], [4, 2, 'take']);
+  assert.match(at.label, /Taking the Callahans' speakeasy in Lantern Row/i);
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'capo'), [{ kind: 'capo', cargo: 'take', capo: 'sal', from: { x: 2, y: 2 }, to: { x: 4, y: 2 } }]);
+  c.ops.length = 0;
+  assert.equal(whereIs(c, f, 'sal').why, 'home', 'then he goes home');
+});
+
+test('a capo goes where the rivals struck, and stays there for the month', () => {
+  const c = town(), f = family();
+  T.settle(c, 'mae', 3, 3); T.join(f, 'mae');
+  f.men.mae.cash = -100000;
+  T.open(c, 5, 3, { owner: 'family', kind: 'still', capo: 'mae' });
+  T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+  let hit = null;
+  for (let m = 0; m < 24 && !hit; m++) hit = T.stepMonth(c, f).find((e) => e.type === 'burnt' || e.type === 'repelled');
+  assert.ok(hit);
+  const at = whereIs(c, f, 'mae');
+  assert.deepEqual([at.x, at.y, at.why], [hit.x, hit.y, 'raid']);
+  assert.match(at.label, /Callahans/);
+  T.stepMonth(c, f);
+  assert.equal(whereIs(c, f, 'mae').why, 'home', 'a month later she is back');
+});
+
+test('the man who holds the street is the one who goes to the fight', () => {
+  const c = town(), f = family();
+  T.settle(c, 'mae', 3, 3); T.join(f, 'mae'); f.men.mae.cash = -100000;
+  T.open(c, 5, 3, { owner: 'family', kind: 'still', capo: 'mae' });
+  T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 2 });
+  T.settle(c, 'sal', 5, 5); T.join(f, 'sal'); f.men.sal.cash = -100000;
+  let hit = null;
+  for (let m = 0; m < 24 && !hit; m++) hit = T.stepMonth(c, f).find((e) => e.type === 'repelled');
+  assert.equal(hit.heldBy, 'sal');
+  assert.deepEqual([whereIs(c, f, 'sal').x, whereIs(c, f, 'sal').y, whereIs(c, f, 'sal').why], [hit.x, hit.y, 'raid']);
+  assert.notEqual(whereIs(c, f, 'mae').why, 'raid');
+});
+
+test('two capos at each other\'s throats: the one who started it stands at the other\'s door', () => {
+  const c = town(), f = family();
+  T.settle(c, 'sal', 2, 2); T.join(f, 'sal');
+  T.settle(c, 'dutch', 8, 3); T.join(f, 'dutch');
+  c.feuds = [{ id: 'sal|dutch', a: 'sal', b: 'dutch', month: 0, label: 'x' }];
+  const at = whereIs(c, f, 'sal');
+  assert.deepEqual([at.x, at.y, at.why], [8, 3, 'feud']);
+  assert.match(at.label, /Dutch/);
+  assert.equal(whereIs(c, f, 'dutch').why, 'home', 'the other waits for him at home');
+});
+
+test('a capo who asks for a key place waits in front of it for the boss\'s word', () => {
+  const c = town(), f = family();
+  T.settle(c, 'sal', 2, 2); T.join(f, 'sal');
+  T.open(c, 4, 3, { owner: 'Callahan', kind: 'key', key: 'precinct' });
+  c.asks.push({ id: 'town:precinct', capo: 'sal', key: 'precinct', x: 4, y: 3, way: 'force', cost: 1, months: 1, why: 'x' });
+  const at = whereIs(c, f, 'sal');
+  assert.deepEqual([at.x, at.y, at.why], [4, 3, 'asks']);
+});
+
+// --- a free capo takes his own car to where his business chokes ---
+const oneBar = () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch', level: 2 });
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { c, f };
+};
+
+test('with nothing else on his hands a capo stands over his best place, and it makes more that month', () => {
+  const { c, f } = oneBar();
+  const plain = T.income(c, 'dutch') - T.RULES.club;
+  T.stepMonth(c, f);
+  const at = whereIs(c, f, 'dutch');
+  assert.deepEqual([at.x, at.y, at.why], [3, 2, 'boost']);
+  assert.match(at.label, /Standing over his .* in Lantern Row/);
+  const made = f.men.dutch.income - T.RULES.club + tills(c);
+  assert.ok(Math.abs(made - plain * (1 + T.RULES.own.boost)) < 1e-6, 'it made $' + made + ' instead of $' + plain);
+  assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'capo'), [{ kind: 'capo', cargo: 'boost', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 2 } }]);
+});
+
+test('a capo who is busy elsewhere boosts nothing', () => {
+  const { c, f } = oneBar();
+  const plain = T.income(c, 'dutch') - T.RULES.club;
+  T.open(c, 9, 3, { owner: 'Callahan', kind: 'speakeasy' });
+  c.ops.push({ capo: 'dutch', x: 9, y: 3, way: 'buy', kind: 'speakeasy', cost: 1, month: 0, months: 6 });
+  T.stepMonth(c, f);
+  assert.equal(whereIs(c, f, 'dutch').why, 'take');
+  assert.ok(Math.abs(f.men.dutch.income - T.RULES.club + tills(c) - plain) < 1e-6);
+});
+
+test('when the bars run dry he stands over his still, and it pours more', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  for (const [x, y] of [[1, 1], [2, 1], [3, 1]]) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  const dry = T.liquor(c).wet;
+  assert.ok(dry < 1);
+  T.stepMonth(c, f);
+  const at = whereIs(c, f, 'dutch');
+  assert.deepEqual([at.x, at.y, at.why], [8, 2, 'boost']);
+  assert.ok(Math.abs(T.liquor(c).wet - dry * (1 + T.RULES.own.boost)) < 1e-6, 'the still pours a quarter more');
+});
+
+test('when his cars could not empty the tills last month, he drives the takings home himself', () => {
+  const { c, f } = sixBars(true);
+  T.stepMonth(c, f);
+  assert.ok(f.men.dutch.waiting >= LOAD, 'tills were left full');
+  T.stepMonth(c, f);
+  const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
+  assert.equal(runs.length, RUNS * f.men.dutch.cars + T.RULES.own.runs);
+  assert.equal(runs.filter((t) => t.own).length, T.RULES.own.runs, 'his own runs are marked');
+  const at = whereIs(c, f, 'dutch'), mine = runs.find((t) => t.own);
+  assert.deepEqual([at.x, at.y, at.why], [mine.from.x, mine.from.y, 'carry']);
+  assert.match(at.label, /Driving the takings/);
+  assert.equal(f.men.dutch.income, T.RULES.club + runs.length * LOAD);
 });
