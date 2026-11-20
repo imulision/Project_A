@@ -189,6 +189,11 @@ await page.evaluate(() => document.querySelector('[data-account]').click());
 assert.match(await page.textContent('#veil.on'), /Where the money goes[\s\S]*DIRTY CASH[\s\S]*CLEAN MONEY/);
 await shot('c2c-account');
 await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
+// what became of his decisions: from the journal, each one with its result or the months left before it
+await page.evaluate(() => document.getElementById('journal').click());
+await page.evaluate(() => document.querySelector('#veil.on [data-act=decisions]').click());
+assert.match(await page.textContent('#veil.on'), /Your decisions/);
+await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
 
 // a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens
 

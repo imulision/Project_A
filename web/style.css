@@ -244,3 +244,6 @@ body.stopped .sub #sub{display:none}
 .stallline span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stallline i{font-style:normal;color:var(--dim)}.stallline .ic{color:var(--accent)}
 .stall{position:relative;padding:8px 10px;margin:0 0 8px;background:#ffffff08;border-left:3px solid var(--accent)}.stall b{display:block;font-size:1.05em}.stall small{color:var(--dim)}.stall p{margin:5px 0 0}
 .stall .lever{color:var(--good)}.stall .lever .ic{margin-right:5px}.stall .nolever{color:var(--dim)}.stall button{margin-top:7px}
+.ev .i.ok{color:var(--good)}.ev .then{display:block;margin-top:4px;padding-left:8px;border-left:3px solid var(--dim);font-size:.93em;color:var(--dim)}
+.ev .then.good{border-left-color:var(--good);color:var(--good)}.ev .then.bad{border-left-color:var(--bad);color:var(--bad)}.ev .then.wait{font-style:italic}
+.news.good{border-color:var(--good)}.news.good .ic{color:var(--good)}

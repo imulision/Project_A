@@ -15,7 +15,7 @@
   var setAside = false;
   function stored() {
     var t = null;
-    try { t = localStorage.getItem(SAVE); if (!t) return null; var s = E.load(t), v = E.view(s), h = E.hud(s); M.planEmpire(v, W.CITIES); C.requests(v, h); C.family(v, h); C.journal(s.journal);
+    try { t = localStorage.getItem(SAVE); if (!t) return null; var s = E.load(t), v = E.view(s), h = E.hud(s); M.planEmpire(v, W.CITIES); C.requests(v, h); C.family(v, h); C.journal(s.journal); C.decisions(v);
       v.cities.forEach(function (c) { C.city(v, c.id); c.capos.forEach(function (k) { C.capo(v, c.id, k.id); }); }); return s; }
     catch (e) { if (t) { setAside = true; try { localStorage.setItem(SAVE + '-unreadable', t); localStorage.removeItem(SAVE); } catch (x) { /* no storage */ } } return null; }
   }
@@ -190,6 +190,7 @@
     else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g), rows)); } }
     else if (act === 'requests') requests();
     else if (act === 'family') show(C.family(view, E.hud(g), rows));
+    else if (act === 'decisions') show(C.decisions(view));
     else if (act === 'road') pick(d.from, d.city, d.capo);
     else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo]));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));

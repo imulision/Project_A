@@ -929,3 +929,22 @@ test('what holds the family back is said in plain words: what, since when, why, 
   const card = C.stallsCard(view); assert.match(card, /What holds you back/); assert.match(card, /sleeps[\s\S]*pier/); assert.match(card, /data-act="close"/);
   assert.match(C.stallsOf(view.cities[0]), /What holds this city back[\s\S]*pier/); assert.equal(C.stallsOf({ id: 'calder', stalls: [] }), ''); assert.equal(C.stallsOf({ id: 'calder' }), '');
 });
+
+test('the boss reads what became of his decisions: each one, and a year on what it gave, good, bad or neither', () => {
+  const d = (o) => ({ id: 'd1', month: 0, date: 'January 1926', type: 'line', city: 'ashport', label: 'Your word for Ashport: grow', due: 12, result: null, ...o });
+  const view = { month: 5, decisions: [d({ id: 'd3', type: 'welcomed', capo: 'otto', label: 'You took in Otto Brenner in Ashport', month: 4, due: 16 }),
+    d({ id: 'd2', type: 'cut', label: 'Your share in Ashport: 30%', result: { month: 3, date: 'April 1926', label: 'You changed your word after 3 months', good: null } }),
+    d({ result: { month: 12, date: 'January 1927', label: 'A year on under Grow: 5 places (was 1)', good: true } }),
+    d({ id: 'd0', type: 'denied', label: 'You refused Sal the pier', result: { month: 12, date: 'January 1927', label: 'Sal lost two places since', good: false } })] };
+  const html = C.decisions(view);
+  assert.match(html, /Your decisions/); assert.ok(html.indexOf('Otto') < html.indexOf('30%'), 'the latest first');
+  assert.match(html, /You took in Otto Brenner[\s\S]*?class="then wait"[^>]*>Its result in 11 months/);
+  assert.match(html, /class="then good"[^>]*>A year on under Grow/); assert.match(html, /class="then bad"[^>]*>Sal lost two places/); assert.match(html, /class="then idle"[^>]*>You changed your word/);
+  assert.match(html, /data-act="close"/);
+  assert.match(C.decisions({ month: 3, decisions: [] }), /Nothing decided yet/); assert.match(C.decisions({ month: 3 }), /Nothing decided yet/);
+  // in the journal the result of a decision is marked good or bad
+  const j = C.journal([{ type: 'outcome', good: true, label: 'A year on under Grow', date: 'January 1927' }, { type: 'outcome', good: false, label: 'Sal lost two places', date: 'May 1927' }, { type: 'outcome', good: null, label: 'Neither', date: 'June 1927' }]);
+  assert.match(j, /class="i no"[\s\S]*Sal lost two places/); assert.match(j, /class="i ok"[\s\S]*A year on under Grow/); assert.equal((j.match(/class="i ok"/g) || []).length, 1);
+  assert.equal(C.bad({ type: 'outcome', good: false }), true); assert.equal(C.bad({ type: 'outcome', good: true }), false);
+  assert.match(j, /data-act="decisions"/, 'and the journal leads to the decisions');
+});
