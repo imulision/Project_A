@@ -220,10 +220,15 @@
   // ---- labels over the map that would sit on one another
   // crowded(boxes): each box is { id, rank, x, y, w, h } with x, y its top left corner on the screen. The lower the rank,
   // the more it matters. Returns the ids to hide: a box gives way to any more important one it touches.
-  function crowded(boxes) {
+  // was (optional): the ids hidden at the last image. With it a label at the edge of another does not blink while the
+  // camera moves: one that was shown leaves only when covered by more than SLACK pixels, one that was hidden comes back
+  // only when it clears the others by SLACK pixels.
+  var SLACK = 6;
+  function crowded(boxes, was) {
     var kept = [], hidden = {};
     boxes.slice().sort(function (a, b) { return a.rank - b.rank || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0); }).forEach(function (b) {
-      for (var i = 0; i < kept.length; i++) { var k = kept[i]; if (b.x < k.x + k.w && k.x < b.x + b.w && b.y < k.y + k.h && k.y < b.y + b.h) { hidden[b.id] = true; return; } }
+      var m = !was ? 0 : was[b.id] ? SLACK : -SLACK;
+      for (var i = 0; i < kept.length; i++) { var k = kept[i]; if (b.x < k.x + k.w + m && k.x < b.x + b.w + m && b.y < k.y + k.h + m && k.y < b.y + b.h + m) { hidden[b.id] = true; return; } }
       kept.push(b);
     });
     return hidden;

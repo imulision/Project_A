@@ -280,3 +280,19 @@ test('a capo\'s sheet says where he is this month', () => {
   k.at = { x: 1, y: 1, why: 'take', label: 'Taking the speakeasy in Little Calabria' };
   assert.match(C.capo(v, c.id, k.id), /Taking the speakeasy in Little Calabria/);
 });
+
+test('a label at the edge of another does not blink: once hidden it comes back only with room to spare, once shown it leaves only when really covered', () => {
+  const capo = { id: 'capo', rank: 0, x: 100, y: 100, w: 46, h: 46 };
+  const name = (x) => ({ id: 'name', rank: 1, x, y: 100, w: 100, h: 24 });
+  // shown before: touching by a pixel or two is not enough to hide it
+  assert.deepEqual(C.crowded([capo, name(144)], {}), {});
+  assert.deepEqual(C.crowded([capo, name(130)], {}), { name: true });
+  // hidden before: just clear is not enough to bring it back
+  assert.deepEqual(C.crowded([capo, name(148)], { name: true }), { name: true });
+  assert.deepEqual(C.crowded([capo, name(160)], { name: true }), {});
+  // so a camera that shakes by a pixel around the edge changes nothing, whichever state it was in
+  [145, 146, 147, 146, 145, 147].reduce((was, x) => { const now = C.crowded([capo, name(x)], was); assert.deepEqual(now, was); return now; }, {});
+  [145, 146, 147, 146, 145, 147].reduce((was, x) => { const now = C.crowded([capo, name(x)], was); assert.deepEqual(now, was); return now; }, { name: true });
+  // with no memory given, the plain rule stands
+  assert.deepEqual(C.crowded([capo, name(145)]), { name: true });
+});
