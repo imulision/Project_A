@@ -35,7 +35,7 @@ test('the game starts in Ashport: the Callahans hold the six key places, the fir
   assert.throws(() => E.command(g, { type: 'start', capo: 'sal' }), /already started/);
 });
 
-test('four ticks make a month, the date moves, and what happens is written in the journal', () => {
+test('eight ticks make a month, the date moves, and what happens is written in the journal', () => {
   const g = E.createGame({ capo: 'dutch' });
   assert.equal(E.hud(g).date, 'January 1926');
   for (let i = 0; i < E.TICKS_PER_MONTH - 1; i++) assert.deepEqual(E.tick(g), []);
@@ -45,6 +45,7 @@ test('four ticks make a month, the date moves, and what happens is written in th
   assert.deepEqual([g.journal[0].type, g.journal[0].date], ['opened', 'January 1926']);
   assert.ok(g.journal[0].label);
   E.command(g, { type: 'speed', speed: 4 });
+  E.tick(g); // at speed 4 a month is two beats
   assert.equal(E.tick(g).length > 0 || E.hud(g).date === 'March 1926', true);
   assert.equal(E.hud(g).date, 'March 1926');
   E.command(g, { type: 'pause' });
@@ -461,4 +462,15 @@ test('the months kept are saved with the game, and a game saved before starts wi
   assert.deepEqual(E.view(back).history, []);
   back.paused = false; for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(back);
   assert.equal(E.view(back).history.length, 1);
+});
+
+test('a month lasts eight beats at speed 1, four at speed 2 and two at speed 4', () => {
+  assert.equal(E.TICKS_PER_MONTH, 8);
+  for (const [speed, beats] of [[1, 8], [2, 4], [4, 2]]) {
+    const g = E.createGame({ capo: 'dutch' });
+    E.command(g, { type: 'speed', speed });
+    for (let i = 0; i < beats - 1; i++) { E.tick(g); assert.equal(g.month, 0); }
+    E.tick(g);
+    assert.equal(g.month, 1, 'speed ' + speed);
+  }
 });
