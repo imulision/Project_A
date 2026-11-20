@@ -28,7 +28,8 @@
   function plan(c, f, capo) {
     var m = f.men[capo], busy = c.ops.filter(function (o) { return o.capo === capo && !o.key; })[0]; // a key place is the boss's affair: the capo goes on with his own
     if (busy) return { move: 'take', way: busy.way, x: busy.x, y: busy.y, cost: busy.cost, saved: busy.cost, progress: 1, waiting: 'time', why: 'his men are on their way' };
-    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash });
+    var led = P.follows(c, f, capo);
+    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash, line: led && led.follows ? P.lineOf(c) : null });
     if (!w) return { move: 'hold', waiting: 'rank', cost: 0, saved: 0, progress: 1, why: 'he runs all he can at his rank' };
     var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
     return { move: w.move, way: w.way, months: w.months, kind: w.kind, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
@@ -104,7 +105,7 @@
   }
 
   // Now and then they come for the family's place they press on hardest. A capo's Muscle decides if it stands.
-  function rivalRaids(c, events) {
+  function rivalRaids(c, events, f) {
     if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
     var target = null;
     everyPlace(c).forEach(function (p) {
@@ -120,7 +121,8 @@
     var e = { capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: by, heldBy: guard.capo };
     var fury = 1 + everyPlace(c).filter(function (q) { return q.owner === 'family'; }).length / RULES.anger; // the bigger the family, the harder they come
     if ((c.vendetta || 0) > c.month) fury *= 1 + RULES.vendetta.fury;                                      // and harder still while their chief wants blood
-    if (target.h.family * (RULES.stand + guard.muscle / 10 + held(c, 'shield')) >= target.h.rival * fury) {
+    var led = f && P.lineOf(c) === 'grow' && P.follows(c, f, p.capo), thin = led && led.follows ? 1 - RULES.line.thin : 1; // a man stretched thin guards his places badly
+    if (target.h.family * (RULES.stand + guard.muscle / 10 + held(c, 'shield')) * thin >= target.h.rival * fury) {
       e.type = 'repelled';
       c.repelled += 1;
       e.label = 'The ' + by + 's come for ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where

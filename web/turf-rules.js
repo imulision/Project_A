@@ -23,6 +23,11 @@
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
+    // the boss's line for a city. A capo follows it when it is in his nature (ambition for growing, business for earning, cunning for lying low)
+    // or when he is at least this loyal; a bitter man never does. `stretch`: places a capo told to grow runs beyond his rank, and `thin`: how much worse his places stand a raid meanwhile. `cools`: heat a city that lies low loses a month for each capo who follows
+    line: { loyal: 65, cools: 1, stretch: 2, thin: 0.3, grow: { stat: 'ambition', from: 60, name: 'Grow', gives: 'Your capos run more places than they can guard well' },
+            earn: { stat: 'business', from: 6, name: 'Earn', gives: 'Your capos make their places bigger before opening new ones' },
+            low: { stat: 'cunning', from: 6, name: 'Lie low', gives: 'Your capos leave the rivals alone, and the heat falls faster' } },
     // a chief struck gun in hand swears a vendetta: months it lasts, and how much harder his men come meanwhile
     vendetta: { months: 12, fury: 1 },
     // a capo's word on a key place: months after it is his before he is judged, the share of his figure that counts as kept,
