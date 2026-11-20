@@ -199,5 +199,5 @@ body.stopped .sub #sub{display:none}
 #hint .hint{display:flex;gap:10px;align-items:center;background:var(--solid);border:1px solid var(--line);border-left:3px solid var(--accent);padding:9px 10px;pointer-events:auto;box-shadow:0 6px 22px #000a}#hint .hint .ic{flex:none;width:22px;height:22px;color:var(--accent)}#hint .hint span{flex:1;font-size:.95em;line-height:1.3}#hint .hint button{flex:none;min-height:34px;padding:0 10px}
 #hint:not(:empty)~#toast{bottom:150px}
 .tiles.two{grid-template-columns:repeat(2,1fr)}.tile.curve b{font-size:1.15em}.tile.curve .spark{height:30px}
-.acts.cuts button{text-transform:capitalize}.acts.cuts button.on{border-color:var(--accent);color:var(--accent);opacity:1}.acts button small.up{color:var(--good)}.acts button small.down{color:var(--bad)}
+.acts.cuts button{text-transform:capitalize}.acts.cuts button.on{background:none;border-color:var(--accent);color:var(--accent);opacity:1}.acts button small.up{color:var(--good)}.acts button small.down{color:var(--bad)}
 .ev.hold{align-items:center}.ev.hold>div{flex:1}.ev.hold button{flex:none;min-width:92px}.ev.hold button small{display:block;font-size:.7em;color:var(--bad);max-width:110px;white-space:normal}
