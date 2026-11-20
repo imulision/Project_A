@@ -166,7 +166,7 @@
     },
     research: function (g, o) {
       T.research(g.family, o.building);
-      record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + D.SITES[o.building].name }, g.month);
+      record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + (o.building === 'cars' ? 'bigger cars' : D.SITES[o.building].name) }, g.month);
     }
   };
   function command(g, order) {
