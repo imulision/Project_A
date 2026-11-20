@@ -47,6 +47,22 @@
   function mark(l) {
     return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(planIcon(l)) + '</span>';
   }
+  // The laundries of the whole family: what they can wash a month, what they washed and kept last month,
+  // and whether the dirty cash has grown past what the boss can keep unnoticed.
+  function wash(view, hud) {
+    var o = { washes: 0, washed: 0, cut: 0 };
+    view.cities.forEach(function (c) { var m = c.money || {}; o.washes += m.washes || 0; o.washed += m.washed || 0; o.cut += m.cut || 0; });
+    o.washes = Math.round(o.washes); o.washed = Math.round(o.washed); o.cut = Math.round(o.cut);
+    o.hot = hud.dirty > T.RULES.stash;
+    o.line = o.washes > 0 ? 'washes ' + money(o.washes) + '/mo' : 'no laundry yet';
+    return o;
+  }
+  // Time that stands still: the word for it and the reason, or null while it runs.
+  function clock(hud, picking) {
+    if (picking) return { word: 'TIME STOPPED', why: 'Choose a street' };
+    if (!hud.paused) return null;
+    return { word: 'TIME STOPPED', why: hud.pending ? hud.pending + (hud.pending > 1 ? ' wait' : ' waits') + ' for your word' : 'Tap Play to go on' };
+  }
   // What last month did to a total, written beside it: "+$52", or nothing when it did not move.
   function change(n) { n = Math.round(n || 0); return n > 0 ? '+' + money(n) : n < 0 ? '\u2212' + money(-n) : ''; }
   // The dollars a car carries: a month of takings from one place, or a month of cash sent to one laundry.
@@ -96,14 +112,16 @@
       '<div class="move" style="--c:' + w.color + '">' + icon(w.icon) + '<span>' + w.word + ' · ' + money(a.cost) + ' from you · ' + months(a.months) + (a.why ? ' · ' + esc(a.why) : '') + '</span></div>' + price(a.cost, purse) +
       '<div class="acts">' + button('answer', { city: c.id, id: a.id, yes: 1 }, 'Yes, take it', { cls: 'go', off: a.cost > purse }) + button('answer', { city: o.city, id: o.id, yes: 0 }, 'No') + '</div></div>';
   }
+  // an answer the boss cannot pay says how far he is from it
+  function short(cost, purse) { return cost > purse ? '<small>Not enough money: ' + money(purse) + ' of ' + money(cost) + '</small>' : ''; }
   function doorCard(c, d, purse) {
     var poach = d.door === 'poach', full = c.seats && c.seats.taken >= c.seats.total;
     return '<div class="card ask">' + head(d.capo, d.name, esc(d.specialty) + ' · ' + (DOOR[d.door] || DOOR.name) + (d.by ? ' · spoken for by ' + esc(first(nameOf(d.by))) : '')) +
       (d.why ? '<div class="move">' + icon('time') + '<span>' + esc(d.why) + '</span></div>' : '') + price(d.cost, purse) +
       (full ? '<small class="short">No seat left in ' + esc(c.name) + ': ' + c.seats.total + ' capos is all the city carries until the family holds another key place</small>' : '') +
-      '<div class="acts col">' + (poach ? button('welcome', { from: c.id, city: c.id, capo: d.capo }, 'Take him in · ' + money(d.cost), { cls: 'go', off: full || d.cost > purse })
-        : button('seat', { city: c.id, capo: d.capo }, 'A club in ' + esc(c.name) + ' · ' + money(d.cost), { cls: 'go', off: full || d.cost > purse })) +
-      (d.roads || []).map(function (r) { return button('road', { from: c.id, city: r.city, capo: d.capo }, 'Send him to ' + esc(r.name) + ' · ' + money(r.cost), { off: r.cost > purse }); }).join('') + '</div></div>';
+      '<div class="acts col">' + (poach ? button('welcome', { from: c.id, city: c.id, capo: d.capo }, 'Take him in · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })
+        : button('seat', { city: c.id, capo: d.capo }, 'A club in ' + esc(c.name) + ' · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })) +
+      (d.roads || []).map(function (r) { return button('road', { from: c.id, city: r.city, capo: d.capo }, 'Send him to ' + esc(r.name) + ' · ' + money(r.cost) + short(r.cost, purse), { off: r.cost > purse }); }).join('') + '</div></div>';
   }
   function requests(view, hud) {
     var purse = funds(hud), cards = [];
@@ -112,8 +130,8 @@
       c.asks.forEach(function (a) { cards.push(askCard(c, a, purse)); });
       c.doors.forEach(function (d) { cards.push(doorCard(c, d, purse)); });
     });
-    return '<h2>Your word is needed</h2>' + (cards.length ? '<p>The clock is stopped. You can also leave them waiting and close this sheet.</p>' + cards.join('') : '<p>Nobody waits for you.</p>') +
-      '<div class="acts">' + button('close', {}, 'Close') + '</div>';
+    return '<h2>Your word is needed</h2>' + (cards.length ? '<p>The clock is stopped while they wait. Answer them, or leave them waiting and time goes on.</p>' + cards.join('') : '<p>Nobody waits for you.</p>') +
+      '<div class="acts">' + (cards.length ? button('later', {}, 'Leave them waiting') : button('close', {}, 'Close')) + '</div>';
   }
 
   // ---- a capo
@@ -219,5 +237,5 @@
   }
 
   return { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD,
-           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, carLoad: carLoad, change: change, crowded: crowded, iconName: iconName, planWord: planWord };
+           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
 });

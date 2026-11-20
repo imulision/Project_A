@@ -53,9 +53,17 @@
     $('share').textContent = h.share + '%'; $('cities').textContent = h.cities.held + ' / ' + h.cities.total;
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
-    $('sub').textContent = picking ? 'Choose a street' : h.paused ? (h.pending ? 'Waiting for your word' : 'Paused') : 'Your capos are at work';
+    var w = C.wash(view, h), k = C.clock(h, !!picking);
+    $('wash').textContent = w.line; $('kept').textContent = w.washed > 0 ? 'washed ' + C.money(w.washed) : '';
+    $('dirty').parentNode.classList.toggle('hot', w.hot);
+    // time that stands still is said in large, with the reason, and framed all around the screen
+    document.body.classList.toggle('stopped', !!k); if (map) map.hold(!!k);
+    $('sub').textContent = k ? '' : 'Your capos are at work';
+    $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
+    $('clock').dataset.go = picking ? '' : h.pending ? 'requests' : 'play';
     $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club: one of the lit streets.</span><button data-unpick="1">Cancel</button></div>'
-      : h.pending ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word</div>' : '';
+      : (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
+        (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(T.RULES.stash) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
   function toast(text, bad) {
     var e = document.createElement('div'); e.textContent = text; if (bad) e.className = 'bad';
@@ -104,6 +112,7 @@
     var b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
     var act = b.dataset.act, d = b.dataset;
     if (act === 'close') close();
+    else if (act === 'later') { close(); stopped = false; if (g.paused) E.command(g, { type: 'resume' }); showHud(); }      // he leaves them waiting: time goes on
     else if (act === 'start') { if (order({ type: 'start', capo: d.capo })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
     else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) answered(); }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
@@ -126,6 +135,7 @@
   $('veil').addEventListener('click', function (e) { var mine = veilDown; veilDown = false; if (mine && e.target === $('veil') && g.started) close(); });
   $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-unpick]')) { unpick(); showHud(); requests(); } else if (e.target.closest('[data-requests]')) requests(); });
   $('map').onclick = function () { if (map) map.focus(null); };
+  $('clock').onclick = function () { var go = $('clock').dataset.go; if (go === 'requests') requests(); else if (go === 'play') $('pause').click(); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
   $('speed').onclick = function () { if (!g.started) return; var s = E.SPEEDS; E.command(g, { type: 'speed', speed: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
   $('family').onclick = function () { if (g.started) show(C.family(view, E.hud(g))); };

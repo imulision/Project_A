@@ -38,7 +38,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
         A.tap({ city: p.city, bx: spot.x, by: spot.y, near: true });
         if (!A.picking()) seen.seat++; seen.out = A.map().stats().spots;
       }
-      else { seen.waited++; q('[data-act=close]').click(); if (A.game().paused) document.getElementById('pause').click(); }
+      else { seen.waited++; (q('[data-act=later]') || q('[data-act=close]')).click(); }
     }
     if (stopAt && seen[stopAt]) return;
   }
@@ -69,6 +69,20 @@ await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat();
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
 const change = await page.evaluate(() => ({ shown: document.getElementById('dirtyd').textContent, rules: window.AshportEmpire.hud(window.__ashport.game()).change.dirty }));
 assert.equal(change.shown, window_change(change.rules), 'the change of the month is written beside the dirty total');
+
+// time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
+await page.click('#pause');
+assert.equal(await page.evaluate(() => document.body.classList.contains('stopped')), true);
+assert.match(await page.textContent('#clock'), /TIME STOPPED.*Tap Play/);
+// and nothing drives while it stands still: the cars wait where they are
+const carsAt = () => page.evaluate(() => { const m = window.__ashport.map(); return { held: m.stats().held, at: m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') }; });
+const stood = await carsAt(); await page.waitForTimeout(900); const later = await carsAt();
+assert.equal(stood.held, true); assert.ok(stood.at.length > 0, 'cars are on the street');
+assert.equal(later.at, stood.at, 'no car moved while time stood still');
+await page.click('#clock');
+assert.equal(await page.evaluate(() => document.body.classList.contains('stopped') || window.__ashport.game().paused), false, 'the banner starts time again');
+await page.waitForFunction((was) => { const m = window.__ashport.map(); return !m.stats().held && m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') !== was; }, stood.at, { timeout: 20000 });      // the cars leave again with the clock
+assert.match(await page.textContent('#wash'), /washes \$\d|no laundry yet/);
 
 // a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens
 const face = await page.locator('.lab.capo').boundingBox(), fx = face.x + face.width / 2, fy = face.y + face.height / 2;

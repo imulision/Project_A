@@ -245,3 +245,31 @@ test('money that can be followed: the month\'s change beside a total, the amount
   assert.match(C.block(v, c.id, p.x, p.y), /\$90 in the till, waiting for a car/);
   assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
 });
+
+test('the laundries: what the family can wash a month is said under the dirty total, and too much dirty cash is flagged', () => {
+  const view = { cities: [{ money: { washes: 300, washed: 120, cut: 30 } }, { money: { washes: 150, washed: 0, cut: 0 } }, {}] };
+  const T = require('../web/turf.js');
+  assert.deepEqual(C.wash(view, { dirty: 2000 }), { washes: 450, washed: 120, cut: 30, hot: false, line: 'washes $450/mo' });
+  assert.equal(C.wash(view, { dirty: T.RULES.stash + 1 }).hot, true);
+  assert.equal(C.wash({ cities: [{ money: { washes: 0 } }] }, { dirty: 10 }).line, 'no laundry yet');
+});
+
+test('time that stands still says so, and says why', () => {
+  assert.equal(C.clock({ paused: false }), null);
+  assert.deepEqual(C.clock({ paused: true, pending: 0 }), { word: 'TIME STOPPED', why: 'Tap Play to go on' });
+  assert.deepEqual(C.clock({ paused: true, pending: 2 }), { word: 'TIME STOPPED', why: '2 wait for your word' });
+  assert.deepEqual(C.clock({ paused: true, pending: 1 }), { word: 'TIME STOPPED', why: '1 waits for your word' });
+  assert.deepEqual(C.clock({ paused: false }, true), { word: 'TIME STOPPED', why: 'Choose a street' });
+});
+
+test('an answer the boss cannot pay says how far he is from it, and the sheet says how to let time go on', () => {
+  const { g, v } = play(some('doors'));
+  const city = v.cities.find((c) => c.doors.length), d = city.doors[0];
+  city.seats = { taken: 3, total: 3 };
+  d.roads = [{ city: 'calder', name: 'Calder Falls', cost: 3250 }];
+  const html = C.requests(v, Object.assign({}, E.hud(g), { dirty: 2600, clean: 0 }));
+  assert.match(acts(html, 'road')[0], /disabled/);
+  assert.match(html, /Send him to Calder Falls · \$3,250<small>Not enough money: \$2,600 of \$3,250<\/small>/);
+  assert.equal(acts(html, 'later').length, 1, 'one button leaves them waiting');
+  assert.match(html, /Leave them waiting/);
+});
