@@ -54,9 +54,10 @@
   }
   function planIcon(p) { return !p ? 'time' : p.move === 'take' ? (WAY[p.way] || WAY.force).icon : p.kind && I.has(p.kind) ? p.kind : 'time'; }
   // what stands over a capo on the map: his face, a gauge of what he is after, and what it is
-  function mark(l, h) {
+  function mark(l, h, d) {
     return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(planIcon(l)) + '</span>' +
-      (h ? '<span class="hp" data-tip="' + esc(h.say) + '"><i class="' + h.money + '"></i><i class="' + h.men + '"></i><i class="' + h.threat + '"></i></span>' : '');
+      (h ? '<span class="hp" data-tip="' + esc(h.say) + '"><i class="' + h.money + '"></i><i class="' + h.men + '"></i><i class="' + h.threat + '"></i></span>' : '') +
+      (d ? '<span class="say ' + d.tone + '">' + esc(d.word) + (d.power ? '<b class="pw ' + d.power.tone + '">' + (ARROW[d.power.tone] || '') + ' ' + d.power.now + '</b>' : '<b>' + esc(d.earns) + '</b>') + '</span>' : '');
   }
   // The health of a capo's streets, read at a glance: money (do they earn), men (how he stands with the boss), threat (rivals and police).
   // health(city, capo) -> { money, men, threat: 'good' | 'warn' | 'bad', worst, say: the one line that matters }.
@@ -276,12 +277,12 @@
     var short = !hud || (hud.clean || 0) < t.cost, why = t.wait > 0 ? 'He had one this year: again in ' + t.wait + ' month' + (t.wait > 1 ? 's' : '') : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
     return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.wait > 0 || short }) + '</div>';
   }
-  function capo(view, cityId, id, hud) {
+  function capo(view, cityId, id, hud, pw) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
     var w = WAY[k.way] || WAY.force;
     var boss = c.under === k.id || k.under === true;
     return head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      healthLine(health(c, k)) + mood(k) + follows(k) + intent(k.plan) + skills(k) +
+      healthLine(health(c, k)) + powerLine(pw) + mood(k) + follows(k) + intent(k.plan) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'A MONTH', money(k.income), 'What reached his club last month') +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you last month: your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
@@ -418,6 +419,109 @@
     var short = t.next.cost > (hud.clean || 0);
     return html + (short ? '<small class="short">Short by ' + money(t.next.cost - (hud.clean || 0)) + ' of clean money</small>' : '') + button('research', { building: t.kind }, what, { cls: 'go', off: short });
   }
+  // ---- is the family getting anywhere?
+  // What the family holds of the whole map, month after month, and what its cities send up: read in the history the rules keep.
+  var mapShare = function (m) { var s = 0, n = 0; for (var k in m.cities || {}) { s += m.cities[k].share || 0; n++; } return n ? s / n : 0; };
+  var sentUp = function (m) { var s = 0; for (var k in m.cities || {}) s += m.cities[k].income || 0; return s; };
+  var round1 = function (x) { return Math.round(x * 10) / 10; }, signed = function (x, show) { return (x < 0 ? '−' : '+') + show(Math.abs(x)); };
+  // trend(view): the verdict over the last year (or since the start, if the game is younger). null in the first months.
+  function trend(view) {
+    var h = view.history || []; if (h.length < 3) return null;
+    var now = h[h.length - 1], was = h[Math.max(0, h.length - 13)], months = Math.min(12, h.length - 1), over = months === 12 ? 'in a year' : 'in ' + months + ' months';
+    var o = { months: months, streets: { now: round1(mapShare(now)), diff: round1(mapShare(now) - mapShare(was)) }, sent: { now: Math.round(sentUp(now)), diff: Math.round(sentUp(now) - sentUp(was)) } };
+    var big = Math.max(20, 0.1 * sentUp(was));
+    if (o.streets.diff >= 0.2) { o.tone = 'good'; o.word = 'GROWING'; o.say = signed(o.streets.diff, String) + '% of the streets ' + over; }
+    else if (o.streets.diff <= -0.2) { o.tone = 'bad'; o.word = 'LOSING GROUND'; o.say = signed(o.streets.diff, String) + '% of the streets ' + over; }
+    else if (o.sent.diff >= big) { o.tone = 'good'; o.word = 'EARNING MORE'; o.say = signed(o.sent.diff, money) + ' a month sent up, ' + over; }
+    else if (o.sent.diff <= -big) { o.tone = 'bad'; o.word = 'EARNING LESS'; o.say = signed(o.sent.diff, money) + ' a month sent up, ' + over; }
+    else { o.tone = 'warn'; o.word = 'STANDING STILL'; o.say = 'No street won ' + over; }
+    return o;
+  }
+  var ARROW = { good: '▲', bad: '▼', warn: '■' };
+  function trendLine(t) { return t ? '<span class="trend ' + t.tone + '">' + ARROW[t.tone] + ' ' + t.word + '</span> ' + esc(t.say) : 'Your capos are at work'; }
+  // beside the streets: how many points of the map were won or lost
+  function trendMark(t) { return t && t.streets.diff ? '<span class="' + (t.streets.diff > 0 ? 'good' : 'bad') + '">' + ARROW[t.streets.diff > 0 ? 'good' : 'bad'] + ' ' + signed(t.streets.diff, String) + '</span>' : ''; }
+  // The rank of the family: what it holds of the whole map. rank(view) -> { n, name, next, from, to, at, part: how far towards the next
+  // rank, was: where it stood a year ago on the same bar, moved: 'up' | 'down' | null if its rank changed since }.
+  var FAMILYRANKS = [['Street gang', 0], ['Crew', 3], ['Family', 10], ['Syndicate', 25], ['Commission', 50]];
+  function rankOf(share) { var n = 0; FAMILYRANKS.forEach(function (r, i) { if (share >= r[1]) n = i; }); return n; }
+  function rank(view) {
+    var h = view.history || [], at = h.length ? mapShare(h[h.length - 1]) : 0, old = h.length ? mapShare(h[Math.max(0, h.length - 13)]) : 0, n = rankOf(at), m = rankOf(old), nx = FAMILYRANKS[n + 1];
+    var from = FAMILYRANKS[n][1], to = nx ? nx[1] : null, on = function (x) { return to == null ? 1 : Math.max(0, Math.min(1, (x - from) / (to - from))); };
+    return { n: n, name: FAMILYRANKS[n][0], next: nx ? nx[0] : null, from: from, to: to, at: round1(at), part: on(at), was: on(old), moved: n > m ? 'up' : n < m ? 'down' : null };
+  }
+  function rankLine(r) {
+    var pc = function (x) { return Math.round(x * 100) + '%'; };
+    return '<span class="rk' + (r.moved ? ' ' + r.moved : '') + '" data-tip="' + esc('The rank of your family: the share of the whole map it holds (' + r.at + '%). The mark on the bar is where you stood a year ago.') + '"><b>' + (r.moved === 'up' ? '▲ ' : r.moved === 'down' ? '▼ ' : '') + esc(r.name) + '</b>' +
+      (r.next ? '<span class="bar"><i style="width:' + pc(r.part) + '"></i><u class="was" style="left:' + pc(r.was) + '"></u></span><small>' + esc(r.next) + ' at ' + r.to + '%</small>' : '') + '</span>';
+  }
+  // What a capo is doing and whether it works, in one word: doing(city, capo) -> { word, tone: 'good' | 'idle' | 'warn' | 'bad', earns }.
+  function doing(c, k, pw) {
+    var h = health(c, k), p = k.plan || {}, o = { word: 'HOLDING', tone: 'idle', earns: money(Math.round(k.income || 0)) };
+    if (pw) o.power = pw;
+    var set = function (word, tone) { o.word = word; o.tone = tone; return o; };
+    if (h.men === 'bad') return set('BITTER', 'bad');
+    if (h.threat === 'bad') return set('VENDETTA', 'bad');
+    if (h.money === 'bad') return set('EARNS NOTHING', 'bad');
+    if (k.at && k.at.why === 'raid') return set('UNDER ATTACK', 'warn');
+    if (p.waiting === 'money') return set('SAVING ' + Math.round((p.cost ? (p.saved || 0) / p.cost : p.progress || 0) * 100) + '%', (k.income || 0) > 0 ? 'good' : 'bad');
+    if (p.move === 'take') return set('TAKING', 'good');
+    if (p.move === 'open') return set('OPENING', 'good');
+    if (p.move === 'enlarge') return set('ENLARGING', 'good');
+    if (!k.places && !(k.income > 0)) return set('SETTLING IN', 'idle');
+    return o;
+  }
+  // The power of a capo, one figure: ten a place he runs, one for every ten dollars his streets bring in a month.
+  function power(k) { return (k.places || 0) * 10 + Math.round((k.income || 0) / 10); }
+  // The page remembers it month by month (the rules keep no history of each man): powerLog(log, view) -> the log with this month
+  // written, a year deep. A month earlier than the last one written is a new game: the memory starts again.
+  function powerLog(log, view) {
+    var out = {}, same = true;
+    view.cities.forEach(function (c) { (c.capos || []).forEach(function (k) {
+      var key = c.id + k.id, was = (log[key] || []).filter(function (r) { return r[0] <= view.month; }), last = was[was.length - 1];
+      if ((log[key] || []).length !== was.length) was = [];
+      if (!last || last[0] !== view.month || !was.length) { was = was.concat([[view.month, power(k)]]).slice(-13); same = false; }
+      out[key] = was;
+    }); });
+    return same && Object.keys(out).length === Object.keys(log).length ? log : out;
+  }
+  function powerTrend(log, key) {
+    var rows = log[key]; if (!rows || !rows.length) return null;
+    var now = rows[rows.length - 1][1], diff = now - rows[0][1];
+    return { now: now, diff: diff, tone: rows.length < 2 ? 'idle' : diff > 0 ? 'good' : diff < 0 ? 'bad' : 'idle', months: rows.length - 1 };
+  }
+  function powerLine(t) {
+    if (!t) return '';
+    var over = t.months >= 12 ? 'in a year' : 'in ' + t.months + ' month' + (t.months === 1 ? '' : 's');
+    return '<div class="move power ' + t.tone + '" data-tip="His power: ten a place he runs, one for every ten dollars his streets bring in a month.">' + icon('muscle') + '<span><b>POWER ' + t.now + '</b> ' +
+      (t.months ? (t.diff ? ARROW[t.tone] + ' ' + signed(t.diff, String) + ' ' + over : 'unchanged ' + over) : '') + '</span></div>';
+  }
+  // The month's account. Dirty cash and clean money are told the same way: what came in, what went out, line by line.
+  function account(view, hud) {
+    var m = { up: 0, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 }, ch = hud.change || {};
+    view.cities.forEach(function (c) { for (var k in m) m[k] += (c.money || {})[k] || 0; });
+    var back = Math.round(m.washed - m.cut), line = function (key, label, amount) { return { key: key, label: label, amount: Math.round(amount) }; };
+    var dirty = [line('up', 'Sent up by your capos', m.up), line('pay', 'Wages of your capos', -m.pay), line('wash', 'Sent to the laundries', -m.washed), line('seized', 'Seized by the police', -m.seized)];
+    var known = dirty.reduce(function (s, l) { return s + l.amount; }, 0), rest = Math.round((ch.dirty || 0) - known);
+    dirty.push(line('other', rest < 0 ? 'Paid out: clubs, key places, cars' : 'Other takings', rest));
+    var clean = [line('back', 'Back from the laundries', back)], rest2 = Math.round((ch.clean || 0) - back);
+    clean.push(line('other', rest2 < 0 ? 'Spent: what the family learns, gifts, purchases' : 'Other income', rest2));
+    var some = function (l) { return l.amount !== 0; }, sum = function (list, sign) { return list.reduce(function (s, l) { return s + (l.amount * sign > 0 ? Math.abs(l.amount) : 0); }, 0); };
+    var o = { dirty: dirty.filter(some), clean: clean.filter(some), dirtyNet: Math.round(ch.dirty || 0), cleanNet: Math.round(ch.clean || 0), cut: Math.round(m.cut) };
+    o.dirtyIn = sum(o.dirty, 1); o.dirtyOut = sum(o.dirty, -1); o.cleanIn = sum(o.clean, 1); o.cleanOut = sum(o.clean, -1);
+    var io = function (i, out) { return 'in ' + money(i) + ' · out ' + money(out); };
+    o.dirtyLine = io(o.dirtyIn, o.dirtyOut); o.cleanLine = m.washes > 0 || o.clean.length ? io(o.cleanIn, o.cleanOut) : 'no laundry yet';
+    o.room = m.washes > 0 ? 'Your laundries can wash ' + money(Math.round(m.washes)) + ' a month' + (m.washed < m.washes - 1 ? ': only ' + money(Math.round(m.washed)) + ' of dirty cash was there to wash' : ', and they are full') + '.'
+      : 'No laundry yet: dirty cash stays dirty until a capo opens one.';
+    return o;
+  }
+  function accountCard(view, hud) {
+    var a = account(view, hud), row = function (l) { return '<div class="row ' + (l.amount < 0 ? 'out' : 'in') + '"><span>' + esc(l.label) + '</span><b>' + signed(l.amount, money) + '</b></div>'; };
+    var part = function (ic, title, have, lines, net) { return '<h3 class="sub2">' + icon(ic) + title + ' · ' + money(have) + '</h3><div class="ledger">' + (lines.length ? lines.map(row).join('') : '<div class="row"><span>Nothing moved</span><b></b></div>') +
+      '<div class="row net"><span>This month</span><b>' + (net ? signed(net, money) : money(0)) + '</b></div></div>'; };
+    return '<h2>Where the money goes</h2><p>Last month, line by line.</p>' + part('dirty', 'DIRTY CASH', hud.dirty || 0, a.dirty, a.dirtyNet) + part('clean', 'CLEAN MONEY', hud.clean || 0, a.clean, a.cleanNet) +
+      '<p>' + esc(a.room) + (a.cut > 0 ? ' They kept ' + money(a.cut) + ' as their cut.' : '') + '</p>' + curves(view) + '<div class="acts">' + button('close', {}, 'Close') + '</div>';
+  }
   // ---- curves: the last months, so that the boss sees whether a decision paid. One small curve a figure, its last value beside its name.
   // curves(view) is the family (dirty, clean, what the cities sent up); curves(view, cityId) is one city (streets held, what it sent up).
   function curve(ic, label, values, show, tip, opt) {
@@ -480,7 +584,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

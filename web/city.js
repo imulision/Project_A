@@ -8,7 +8,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var say = function (s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, picking = null, stopped = false;
+  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, picking = null, stopped = false;
 
   // A saved game is kept only if today's rules and today's screen can read all of it: otherwise it is set aside
   // (kept under another name) and the player is told. Never a dead screen at the door.
@@ -27,7 +27,7 @@
 
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
-  var lastPlan = null;
+  var lastPlan = null, POWER = 'ashport-power';
   var strainAt = {};      // the family's places that choke, by city and block: the map marks them
   function refresh(events) {
     view = E.view(g);
@@ -35,6 +35,10 @@
     waits = {};
     var scars = C.scars(g.journal, g.month); view.cities.forEach(function (c) { c.scars = scars[c.id] || []; });      // what was burnt out stays black on the map for a while
     healths = C.healths(view); view.cities.forEach(function (c) { c.capos.forEach(function (k) { k.trouble = healths[c.id + k.id].worst === 'bad'; }); });      // how his streets fare: three lights under his face
+    // what each man is doing and whether he rises or falls: his power, remembered a year deep by the page (outside the save)
+    try { powers = JSON.parse(localStorage.getItem(POWER) || '{}') || {}; } catch (e) { powers = {}; }
+    var logged = C.powerLog(powers, view); if (logged !== powers) { powers = logged; try { localStorage.setItem(POWER, JSON.stringify(powers)); } catch (e) { /* no room: the arrows start again next time */ } }
+    doings = {}; view.cities.forEach(function (c) { c.capos.forEach(function (k) { doings[c.id + k.id] = C.doing(c, k, C.powerTrend(powers, c.id + k.id)); }); });
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
@@ -67,11 +71,16 @@
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
     showHint(h);
     var w = C.wash(view, h), k = C.clock(h, !!picking);
-    $('wash').textContent = w.line; $('kept').textContent = w.washed > 0 ? 'washed ' + C.money(w.washed) : '';
+    // the two moneys speak the same way: what came in and what went out last month (a touch opens the account, line by line)
+    var acc = C.account(view, h); $('wash').textContent = acc.dirtyLine; $('kept').textContent = acc.cleanLine;
+    // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
+    var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
+    $('rank').innerHTML = C.rankLine(C.rank(view));
+    $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '% ' : '') + C.trendMark(tr);
     $('dirty').parentNode.classList.toggle('hot', w.hot);
     // time that stands still is said in large, with the reason, and framed all around the screen
     document.body.classList.toggle('stopped', !!k); if (map) map.hold(!!k);
-    $('sub').textContent = k ? '' : 'Your capos are at work';
+    $('sub').innerHTML = k ? '' : C.trendLine(tr);
     $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
     $('clock').dataset.go = picking ? '' : h.pending ? 'requests' : 'play';
     $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club: one of the lit streets.</span><button data-unpick="1">Cancel</button></div>'
@@ -129,6 +138,7 @@
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g))); return; }
     var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
   }, true);
   document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
@@ -156,8 +166,8 @@
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') pick(d.city, d.city, d.capo);
-    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
-    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
+    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo))); } }
+    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo))); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g))); $('sheet').scrollTop = at; } }
@@ -168,7 +178,7 @@
     else if (act === 'requests') requests();
     else if (act === 'family') show(C.family(view, E.hud(g)));
     else if (act === 'road') pick(d.from, d.city, d.capo);
-    else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g)));
+    else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo)));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));
     else if (act === 'part') { if (order({ type: 'part', city: d.city, capo: d.capo, way: d.way })) { close(); toast(g.journal[g.journal.length - 1].label, true); } }
     else if (act === 'city') show(C.city(view, d.city));
@@ -233,7 +243,7 @@
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
     else if (picking) return;
     else if (l.site) said(l.city, l.bx, l.by, e);
-    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g))); }
+    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g), C.powerTrend(powers, l.city + l.capo))); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
   var MOVE = 'translate' in document.documentElement.style;
@@ -263,8 +273,8 @@
         if (l.pop) { var up = Math.round((l.part || 0) * 10); if (e.up !== up) { e.up = up; e.style.setProperty('--up', up / 10); } }
         else if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
-        else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', hp = healths[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood, hp ? hp.money + hp.men + hp.threat : ''].join();
-          if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
+        else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', hp = healths[l.city + l.capo], dg = doings[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood, hp ? hp.money + hp.men + hp.threat : '', dg ? dg.word + dg.tone + (dg.power ? dg.power.now + dg.power.tone : '') : ''].join();
+          if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp, dg); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
