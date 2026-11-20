@@ -817,7 +817,7 @@ test('the month\'s account: where the dirty cash came from and went, what came b
   assert.deepEqual(a.dirty.map((l) => [l.key, l.amount]), [['up', 200], ['pay', -81], ['wash', -210], ['seized', -40], ['other', -100]]);
   assert.deepEqual(a.clean.map((l) => [l.key, l.amount]), [['back', 158], ['other', -100]]);
   assert.deepEqual([a.dirtyIn, a.dirtyOut, a.cleanIn, a.cleanOut], [200, 431, 158, 100]);
-  assert.equal(a.dirtyLine, 'in $200 · out $431'); assert.equal(a.cleanLine, 'in $158 · out $100', 'the two tiles speak the same way');
+  assert.equal(a.dirtyLine, '+$200 \u2212$431'); assert.equal(a.cleanLine, '+$158 \u2212$100', 'the two tiles speak the same way');
   assert.match(a.room, /can wash \$1,418 a month.*only \$210/);
   const html = C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
   assert.match(html, /Sent up by your capos/); assert.match(html, /\+\$200/); assert.match(html, /Wages/); assert.match(html, /−\$81/); assert.match(html, /Seized by the police/);

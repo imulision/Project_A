@@ -572,7 +572,7 @@
     var some = function (l) { return l.amount !== 0; }, sum = function (list, sign) { return list.reduce(function (s, l) { return s + (l.amount * sign > 0 ? Math.abs(l.amount) : 0); }, 0); };
     var o = { dirty: dirty.filter(some), clean: clean.filter(some), dirtyNet: Math.round(ch.dirty || 0), cleanNet: Math.round(ch.clean || 0), cut: Math.round(m.cut) };
     o.dirtyIn = sum(o.dirty, 1); o.dirtyOut = sum(o.dirty, -1); o.cleanIn = sum(o.clean, 1); o.cleanOut = sum(o.clean, -1);
-    var io = function (i, out) { return 'in ' + money(i) + ' · out ' + money(out); };
+    var io = function (i, out) { return '+' + money(i) + ' \u2212' + money(out); };      // (short: it has to fit under the figure on a phone)
     o.dirtyLine = io(o.dirtyIn, o.dirtyOut); o.cleanLine = m.washes > 0 || o.clean.length ? io(o.cleanIn, o.cleanOut) : 'no laundry yet';
     o.room = m.washes > 0 ? 'Your laundries can wash ' + money(Math.round(m.washes)) + ' a month' + (m.washed < m.washes - 1 ? ': only ' + money(Math.round(m.washed)) + ' of dirty cash was there to wash' : ', and they are full') + '.'
       : 'No laundry yet: dirty cash stays dirty until a capo opens one.';
