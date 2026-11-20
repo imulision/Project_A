@@ -120,7 +120,9 @@ assert.match(await page.textContent('#tip'), /Gunfire.*Shots in the street/s);
 assert.equal(await page.locator('#veil.on').count(), 0, 'and no sheet opens behind it');
 
 // money can be followed: every car of cash says how much it carries, and each total says what last month did to it
-await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat(); });
+// (time runs until a car of the club has a round to make: when that comes depends on what the capo opened first)
+await page.evaluate(() => { const A = window.__ashport, out = () => A.map().stats().fleet.some((x) => /:car:1$/.test(x.id) && !x.parked);
+  for (let i = 0; i < 8 || (i < 96 && !out()); i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]'); if (q) q.click(); } });
 // the cars live by the club: parked there, then out on their round, loaded only between the place and the club, and home again
 const fleet = () => page.evaluate(() => window.__ashport.map().stats().fleet);
 const lives = await page.evaluate(() => { const m = window.__ashport.map(), seen = { parked: 0, empty: 0, loaded: 0, ids: {} }; let wasOut = false, back = false;
@@ -133,7 +135,10 @@ const fleetWas = (await fleet()).map((f) => f.id).sort();
 await page.evaluate(() => { for (let i = 0; i < 4; i++) window.__ashport.beat(); });
 const fleetNow = (await fleet()).map((f) => f.id);
 fleetWas.forEach((id) => assert.ok(fleetNow.includes(id), 'the same vehicle is there the month after: ' + id));
-await page.evaluate(() => { const m = window.__ashport.map(); for (let n = 0; n < 200 && !m.stats().fleet.some((f) => f.loaded && /:car:/.test(f.id)); n++) m.run(0.5); });
+// (a month without takings to fetch has no loaded car: time runs until one is on the road)
+await page.evaluate(() => { const A = window.__ashport, m = A.map(), loaded = () => m.stats().fleet.some((f) => f.loaded && /:car:/.test(f.id));
+  for (let month = 0; month < 24 && !loaded(); month++) { for (let n = 0; n < 200 && !loaded(); n++) m.run(0.5);
+    if (!loaded()) for (let i = 0; i < 4; i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]'); if (q) q.click(); } } });
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
 const change = await page.evaluate(() => ({ shown: document.getElementById('dirtyd').textContent, rules: window.AshportEmpire.hud(window.__ashport.game()).change.dirty }));
 assert.equal(change.shown, window_change(change.rules), 'the change of the month is written beside the dirty total');
