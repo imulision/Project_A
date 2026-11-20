@@ -11,6 +11,7 @@ import { makeLabels } from './labels.js';
 import { makeTerrain } from './terrain.js';
 import { makeTouch } from './touch.js';
 import { lotLook } from './look.mjs';
+import { makePeriod } from './period.mjs';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -150,7 +151,7 @@ function dispose(group) {
 
 await stage(0);
 // ---------- load the kit
-const NAMES = ['road_straight', 'road_junction', 'road_straight_crossing', 'streetlight', 'car_sedan', 'car_stationwagon', 'car_hatchback', 'watertower'];
+const NAMES = ['road_straight', 'road_junction', 'road_straight_crossing', 'watertower'];
 const loader = new GLTFLoader();
 const GEO = {};                                   // one geometry per model, shared by every copy on the map
 const b64 = s => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; };
@@ -222,7 +223,19 @@ function eraMat(lit) {
 }
 const ERAMATS = [0.07, 0.13, 0.2, 0.28].map(eraMat);
 const PLAINMAT = kitMat(), LITS = [0.18, 0.3, 0.42, 0.58].map(l => kitMat(0.85, l));
-const CARMATS = [0x3a3636, 0x3a3636, 0x7d3a34, 0x3f5a4a].map(c => kitMat(0.35, -1, c));
+// The vehicles and street lamps of the period are built by code (period.mjs) and carry their own colours. Pure white is the
+// paint: carMat(colour) replaces it with the colour of that car and leaves tyres, glass, chrome, wood and canvas as they are.
+{ const P = makePeriod(THREE, mergeGeometries); GEO.car_sedan = P.sedan; GEO.car_hatchback = P.coupe; GEO.car_stationwagon = P.truck; GEO.streetlight = P.lamp; }
+function carMat(paint) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0 });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uPaint = { value: new THREE.Color(paint) };
+    sh.fragmentShader = 'uniform vec3 uPaint;\n' + sh.fragmentShader.replace('#include <color_fragment>', 'diffuseColor.rgb *= all(greaterThan(vColor.rgb, vec3(0.99))) ? uPaint : vColor.rgb;');
+  };
+  m.customProgramCacheKey = () => 'car';
+  return m;
+}
+const CARMATS = [0x3a3636, 0x2c3038, 0x7d3a34, 0x3f5a4a].map(carMat), LAMPMAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6 }), WHITE = new THREE.Color(1, 1, 1);
 const TINTS = [0x9a4a38, 0x7e3b30, 0x8a8078, 0xa98458, 0x6f5a4c, 0x8c4038].map(c => new THREE.Color(c));
 const FARCOL = [0x86463a, 0x6e3a31, 0x777069, 0x8f7350, 0x62524a, 0x7a3d36].map(c => new THREE.Color(c));   // the same buildings seen from afar
 const ROADTINT = new THREE.Color(0xb9b2b6), PROPTINT = new THREE.Color(0xb8a890);
@@ -420,7 +433,7 @@ function buildNear(C) {
     }
   }
   for (const [x, z, r] of C.lamps) {
-    add('streetlight', PLAINMAT, x, 0, z, r, 1, PROPTINT, false);
+    add('streetlight', LAMPMAT, x, 0, z, r, 1, WHITE, false);
     const hx = x - Math.cos(r) * 0.22, hz = z + Math.sin(r) * 0.22;
     glow(hx, 1.02, hz, 0.55, GLOW_WARM, 0xffffff, 0.85); pool(hx, hz, 2.4, 0xffb868, 0.38);
   }
@@ -596,7 +609,7 @@ function update(P2) {
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
 const { fxList, spawnFx, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
-const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar: (...a) => putCar(...a), hsh, clamp, spawnFx });
+const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx });
 // what the page writes over the map (render/labels.js)
 const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, MAXTAGS });
 // The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
