@@ -183,3 +183,5 @@ body.stopped .sub #sub{display:none}
 .lab.pin.strain{box-shadow:0 0 0 2px var(--bad),0 2px 6px #000a}#tip .bad{color:var(--bad)}
 .lab.tag span{display:grid}
 .skills{display:flex;gap:10px;margin:0 0 10px}.skill{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:1.5px dashed #ffffff3a;color:#ffffff59}.skill .ic{width:20px;height:20px}.skill.on{border:1.5px solid var(--accent);color:var(--accent);background:#e8c46318}
+.slot.chair{position:relative}.slot.chair i{position:absolute;right:-4px;bottom:-4px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#15110b;display:grid;place-items:center}.slot.chair i .ic{width:11px;height:11px}.slot.chair.empty{display:grid;place-items:center;border:1.5px dashed #ffffff3a;color:#ffffff59;background:none}.slot.chair.empty .ic{width:22px;height:22px}.move small{color:var(--dim)}
+.slot.chair{overflow:visible}.slot.chair>svg:first-child{border-radius:50%}

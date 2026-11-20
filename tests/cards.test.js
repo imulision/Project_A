@@ -390,3 +390,41 @@ test("a capo's sheet shows what he has learned and what waits at his next rank, 
   assert.equal((html.match(/class="skill( on)?"/g) || []).length, 3);
   assert.doesNotMatch(C.capo(v, city.id, k0.id).replace(/abilities/g, ''), /class="skills"><\/div>/, 'no empty row for a capo without any');
 });
+
+// ---- the table: three chairs for the whole family
+const TABLE = [{ post: 'bookkeeper', name: 'Bookkeeper', capo: 'dutch', who: 'Dutch Keller', specialty: 'Bootlegger', pay: 300, paid: true, gives: 'Every laundry of the family washes 35% more' },
+  { post: 'routes', name: 'Routes', capo: null, who: null, specialty: null, pay: 300, paid: null, gives: null }, { post: 'fixer', name: 'Fixer', capo: null, who: null, specialty: null, pay: 300, paid: null, gives: null }];
+const DOOR = { capo: 'mae', name: 'Mae Rourke', specialty: 'Madam', door: 'name', by: null, why: 'A city with nightlife', cost: 2500, roads: [], open: true, chairs: ['routes', 'fixer'] };
+
+test('the family sheet shows the table: who sits, what he gives, and the empty chairs', () => {
+  const { v } = play((v) => v.month >= 2);
+  const html = C.family({ ...v, table: TABLE }, { men: 1, clean: 0 });
+  assert.match(html, /The table/);
+  assert.match(html, /data-act="chair" data-post="bookkeeper"/, 'a taken chair opens its sheet');
+  assert.match(html, /Bookkeeper: Dutch Keller\. Every laundry of the family washes 35% more/);
+  assert.equal((html.match(/class="slot chair empty"/g) || []).length, 2);
+  assert.doesNotMatch(C.family(v.table ? { ...v, table: undefined } : v, { men: 1, clean: 0 }), /The table/, 'no table, no section');
+});
+
+test('a man at the door can be given a chair at the table instead of a street', () => {
+  const { v } = play((v) => v.month >= 2);
+  const c = { ...v.cities[0], doors: [DOOR] }, w = { ...v, cities: [c], table: TABLE };
+  assert.match(C.requests(w, { dirty: 0, clean: 0 }), /data-act="chairs" data-city="ashport" data-capo="mae"/);
+  const none = { ...w, cities: [{ ...c, doors: [{ ...DOOR, chairs: [] }] }] };
+  assert.doesNotMatch(C.requests(none, { dirty: 0, clean: 0 }), /data-act="chairs"/, 'no free chair for him, no button');
+  const sheet = C.chairs(w, 'ashport', 'mae');
+  assert.match(sheet, /Mae Rourke/);
+  assert.match(sheet, /data-act="sit" data-city="ashport" data-capo="mae" data-post="routes"/);
+  assert.match(sheet, /data-act="sit" data-city="ashport" data-capo="mae" data-post="fixer"/);
+  assert.doesNotMatch(sheet, /data-post="bookkeeper"/, 'a taken chair is not on offer');
+  assert.match(sheet, /\$300 a month/); assert.match(sheet, /Dutch Keller/, 'and he sees who already sits');
+});
+
+test('a taken chair says what it costs and gives, and the man can be sent away', () => {
+  const { v } = play((v) => v.month >= 2);
+  const sheet = C.chair({ ...v, table: TABLE }, 'bookkeeper');
+  assert.match(sheet, /Dutch Keller/); assert.match(sheet, /washes 35% more/); assert.match(sheet, /\$300 a month/);
+  assert.match(sheet, /data-act="unseat" data-post="bookkeeper"/); assert.match(sheet, /cannot be taken back/);
+  assert.match(C.chair({ ...v, table: TABLE.map((t) => ({ ...t, paid: false })) }, 'bookkeeper'), /not paid/i);
+  assert.equal(C.chair({ ...v, table: TABLE }, 'routes'), null, 'an empty chair has no sheet');
+});

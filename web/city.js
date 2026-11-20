@@ -130,6 +130,12 @@
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') pick(d.city, d.city, d.capo);
+    else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
+    else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
+    else if (act === 'chair') show(C.chair(view, d.post));
+    else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g))); } }
+    else if (act === 'requests') requests();
+    else if (act === 'family') show(C.family(view, E.hud(g)));
     else if (act === 'road') pick(d.from, d.city, d.capo);
     else if (act === 'capo') show(C.capo(view, d.city, d.capo));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));
