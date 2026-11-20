@@ -996,11 +996,24 @@
   // --- what the screen reads ---
   // One plain picture of the city: every block and who holds it, every place,
   // every capo with where he is and what he is after, and what waits for the boss.
+  // Where a place of the family chokes: cash nobody fetches, a bar with nothing to pour, a still nobody drinks from,
+  // a laundry that cannot keep up. Each with a line the screen can show as it is.
+  function strains(c, f, p, k) {
+    var out = [], dollars = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
+    if ((p.till || 0) >= 2 * k.load) out.push({ kind: 'cash', label: 'Cash piling up: ' + dollars(p.till) + ' waits for a car' });
+    if (p.kind === 'speakeasy' && k.drink.wet < 1) out.push({ kind: 'dry', label: k.drink.stills ? 'Running dry: liquor for ' + Math.round(100 * k.drink.wet) + '% of what it could sell' : 'Nothing to pour: the family has no still' });
+    if (p.kind === 'still' && RULES.pours * k.drink.stills >= k.drink.bars + RULES.pours) out.push({ kind: 'surplus', label: 'More liquor than the bars can pour' });
+    var most = k.most[key(p.x, p.y)];
+    if (most && f.dirty > 0 && (k.washed[key(p.x, p.y)] || 0) >= 0.95 * most) out.push({ kind: 'swamped', label: 'Washing all it can: ' + dollars(f.dirty) + ' of dirty money still waits' });
+    return out;
+  }
   function view(c, f) {
     var m = memo(c), blocks = [], flow = c.flow || {};
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       blocks.push({ x: x, y: y, grip: grip(c, x, y), family: m.family[y * c.w + x], rival: m.rival[y * c.w + x] });
     }
+    var choke = { load: loadOf(f), drink: liquor(c), washed: flow.wash || {}, most: {} };
+    laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
     return {
       id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0,
       rival: c.rival || (places(c).filter(function (p) { return p.owner !== 'family'; })[0] || {}).owner || null,
@@ -1009,7 +1022,12 @@
       places: places(c).map(function (p) {
         p.name = p.kind === 'club' ? 'Social Club' : p.kind === 'key' ? KEYS[p.key].name : D.SITES[p.kind].name;
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo, till: p.till };
-      }).map(function (p) { if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till; return p; }),
+      }).map(function (p) {
+        if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
+        var s = p.owner === 'family' ? strains(c, f, p, choke) : [];
+        if (s.length) p.strains = s;
+        return p;
+      }),
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: places(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
