@@ -8,7 +8,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var say = function (s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, picking = null, stopped = false;
+  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, rows = {}, zshares = {}, ctrends = {}, lastStep = null, lastMonth = -1, picking = null, stopped = false;
 
   // A saved game is kept only if today's rules and today's screen can read all of it: otherwise it is set aside
   // (kept under another name) and the player is told. Never a dead screen at the door.
@@ -38,7 +38,13 @@
     // what each man is doing and whether he rises or falls: his power, remembered a year deep by the page (outside the save)
     try { powers = JSON.parse(localStorage.getItem(POWER) || '{}') || {}; } catch (e) { powers = {}; }
     var logged = C.powerLog(powers, view); if (logged !== powers) { powers = logged; try { localStorage.setItem(POWER, JSON.stringify(powers)); } catch (e) { /* no room: the arrows start again next time */ } }
-    doings = {}; view.cities.forEach(function (c) { c.capos.forEach(function (k) { doings[c.id + k.id] = C.doing(c, k, C.powerTrend(powers, c.id + k.id)); }); });
+    rows = C.powerRows(view, powers);      // (the rules' own history of each man, when the save has it)
+    doings = {}; view.cities.forEach(function (c) { c.capos.forEach(function (k) { doings[c.id + k.id] = C.doing(c, k, C.powerTrend(rows, c.id + k.id)); }); });
+    // every city and every street name: what the family holds of it and which way it went; a step won or lost is told in large, once
+    zshares = C.zoneShares(view); ctrends = {}; view.cities.forEach(function (c) { ctrends[c.id] = C.cityMark(C.cityTrend(view, c.id)); });
+    var step = { rank: C.rank(view), zones: zshares };
+    if (view.month < lastMonth) lastStep = null;      // another game: nothing to compare with
+    C.moments(lastStep, step).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
@@ -76,7 +82,8 @@
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
     $('rank').innerHTML = C.rankLine(C.rank(view));
-    $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '% ' : '') + C.trendMark(tr);
+    var sl = C.stallLine(view); if ($('stall').dataset.was !== sl) { $('stall').dataset.was = sl; $('stall').innerHTML = sl; }      // what holds him back, the worst first: a touch tells why
+    $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
     // time that stands still is said in large, with the reason, and framed all around the screen
     document.body.classList.toggle('stopped', !!k); if (map) map.hold(!!k);
@@ -92,6 +99,11 @@
   function showHint(h) { var t = C.hintStrip(picking || $('veil').classList.contains('on') ? null : C.hint(view, h, known)); if ($('hint').innerHTML !== t) $('hint').innerHTML = t; }
   $('hint').addEventListener('click', function (e) { var b = e.target.closest('[data-hint]'); if (!b) return;
     known[b.dataset.hint] = 1; try { localStorage.setItem(HINTS, JSON.stringify(known)); } catch (x) { /* no storage: said again next time */ } showHud(); });
+  function announce(m) {
+    var box = $('moment'), e = document.createElement('div'); e.innerHTML = C.moment(m); e = e.firstChild;
+    box.appendChild(e); while (box.children.length > 2) box.firstChild.remove();
+    setTimeout(function () { e.remove(); }, 5200);
+  }
   function toast(text, bad) {
     var e = document.createElement('div'); e.textContent = text; if (bad) e.className = 'bad';
     $('toast').appendChild(e); while ($('toast').children.length > 3) $('toast').firstChild.remove();
@@ -138,6 +150,7 @@
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
     if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g))); return; }
     var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
   }, true);
@@ -166,25 +179,25 @@
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') pick(d.city, d.city, d.capo);
-    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo))); } }
-    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo))); } }
+    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
+    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
-    else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g))); $('sheet').scrollTop = at; } }
+    else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
     else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
-    else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g))); } }
+    else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g), rows)); } }
     else if (act === 'requests') requests();
-    else if (act === 'family') show(C.family(view, E.hud(g)));
+    else if (act === 'family') show(C.family(view, E.hud(g), rows));
     else if (act === 'road') pick(d.from, d.city, d.capo);
-    else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(powers, d.city + d.capo)));
+    else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo]));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));
     else if (act === 'part') { if (order({ type: 'part', city: d.city, capo: d.capo, way: d.way })) { close(); toast(g.journal[g.journal.length - 1].label, true); } }
     else if (act === 'city') show(C.city(view, d.city));
     else if (act === 'focus') { close(); map.focus(d.city); }
     else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y }); }
-    else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g))); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
+    else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
     else if (act === 'new') { forget(); location.reload(); }
   });
   // A touch beside the sheet closes it, but only a touch that began there: the click a phone sends after the touch
@@ -197,7 +210,7 @@
   $('clock').onclick = function () { var go = $('clock').dataset.go; if (go === 'requests') requests(); else if (go === 'play') $('pause').click(); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
   $('speed').onclick = function () { if (!g.started) return; var s = E.SPEEDS; E.command(g, { type: 'speed', speed: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
-  $('family').onclick = function () { if (g.started) show(C.family(view, E.hud(g))); };
+  $('family').onclick = function () { if (g.started) show(C.family(view, E.hud(g), rows)); };
   $('journal').onclick = function () { if (g.started) show(C.journal(g.journal)); };
   // the meter: touch the images-per-second figure for the full reading (draw calls, triangles, resolution, cars, labels, WebGPU on this device)
   function meter() { if (!map || !$('fps').classList.contains('on')) return; var s = map.stats();
@@ -243,7 +256,7 @@
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
     else if (picking) return;
     else if (l.site) said(l.city, l.bx, l.by, e);
-    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g), C.powerTrend(powers, l.city + l.capo))); }
+    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g), C.powerTrend(rows, l.city + l.capo), rows[l.city + l.capo])); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
   var MOVE = 'translate' in document.documentElement.style;
@@ -277,7 +290,7 @@
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp, dg); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
-        else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
+        else if (!l.car && !l.site) { var zs = l.ground ? zshares[l.id.slice(1)] : null, more = l.ground ? C.zoneMark(zs) : l.sub + (ctrends[l.city] || ''); if (e.name !== l.name + more) { e.name = l.name + more; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = more; e.classList.toggle('good', !!zs && zs.tone === 'good'); e.classList.toggle('bad', !!zs && zs.tone === 'bad'); e.classList.toggle('held', !!zs && zs.share >= 100); e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
         if (l.role === 'club' || l.pop) return;
         if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
