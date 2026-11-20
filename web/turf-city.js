@@ -9,11 +9,13 @@
   var D = typeof require === 'function' ? require('./district.js') : root.AshportDistrict;
   var R = typeof require === 'function' ? require('./turf-rules.js') : root.AshportTurfRules;
   var P = typeof require === 'function' ? require('./turf-people.js') : root.AshportTurfPeople;
-  var RULES = R.RULES, TERRAIN = R.TERRAIN, WORTH = R.WORTH, KINDS = R.KINDS, key = R.key, inside = R.inside, at = R.at, far = R.far;
+  var RULES = R.RULES, TERRAIN = R.TERRAIN, WORTH = R.WORTH, KINDS = R.KINDS, key = R.key, inside = R.inside, size = R.size, at = R.at, far = R.far;
   var KEYS = P.KEYS, PEOPLE = P.PEOPLE, who = P.who, SCHOOLS = P.SCHOOLS, schoolOf = P.schoolOf, sits = P.sits;
 
   function createCity(spec) {
-    return { id: spec.id, w: spec.w, h: spec.h, zones: spec.zones.map(function (z) {
+    var voids = {};
+    (spec.voids || []).forEach(function (v) { voids[key(v.x, v.y)] = v.kind; });
+    return { id: spec.id, w: spec.w, h: spec.h, voids: voids, zones: spec.zones.map(function (z) {
       return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
     }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
   }
@@ -29,7 +31,7 @@
     c.rival = name;
     for (var placed = 0; placed < n;) {
       var x = roll(c, c.w), y = roll(c, c.h);
-      if (at(c, x, y)) continue;
+      if (!inside(c, x, y) || at(c, x, y)) continue;
       open(c, x, y, { owner: name, kind: bestKind(c, x, y) });
       placed += 1;
     }
@@ -55,7 +57,7 @@
     Object.keys(KEYS).forEach(function (id) {
       var best = null, others = keys(c);
       for (var y = 1; y < c.h - 1; y++) for (var x = 1; x < c.w - 1; x++) {
-        if (at(c, x, y) || others.some(function (k) { return far(x, y, k.x, k.y) < 3; })) continue;
+        if (!inside(c, x, y) || at(c, x, y) || others.some(function (k) { return far(x, y, k.x, k.y) < 3; })) continue;
         var z = zoneOf(c, x, y), t = z.traits[KEYS[id].street];
         // the middle of the best street for it
         var mid = far(2 * x, 2 * y, z.x0 + z.x1, z.y0 + z.y1);
@@ -73,7 +75,7 @@
   function landing(c) {
     var best = null;
     for (var y = 1; y < c.h - 1; y++) for (var x = 1; x < c.w - 1; x++) {
-      if (at(c, x, y)) continue;
+      if (!inside(c, x, y) || at(c, x, y)) continue;
       var r = hold(c, x, y).rival;
       if (!best || r < best.r) best = { x: x, y: y, r: r };
     }
@@ -217,8 +219,8 @@
   // The city in hundredths: what the family holds, what its rivals hold, what is fought over, what is nobody's.
   function share(c) {
     var n = { family: 0, rival: 0, contested: 0, free: 0 };
-    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) n[grip(c, x, y) || 'free'] += 1;
-    Object.keys(n).forEach(function (k) { n[k] = n[k] * 100 / (c.w * c.h); });
+    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (inside(c, x, y)) n[grip(c, x, y) || 'free'] += 1;
+    Object.keys(n).forEach(function (k) { n[k] = n[k] * 100 / size(c); });
     return n;
   }
 

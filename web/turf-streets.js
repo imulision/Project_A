@@ -61,7 +61,7 @@
   function rivalGrows(c) {
     if (!c.rival || c.month % RULES.rivalGrows !== 0) return;
     var theirs = everyPlace(c).filter(function (p) { return p.owner !== 'family'; }), ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; });
-    if (theirs.length >= RULES.rivalMost * c.w * c.h / 100) return;
+    if (theirs.length >= RULES.rivalMost * R.size(c) / 100) return;
     var best = null;
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       if (at(c, x, y) || grip(c, x, y) !== 'rival') continue;

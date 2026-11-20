@@ -57,7 +57,7 @@
 
   function spots(c) {
     var out = [], here = known(c);
-    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (!at(c, x, y) && (!here || grip(c, x, y) !== 'rival')) out.push({ x: x, y: y });
+    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (inside(c, x, y) && !at(c, x, y) && (!here || grip(c, x, y) !== 'rival')) out.push({ x: x, y: y });
     return out;
   }
 

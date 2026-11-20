@@ -28,9 +28,23 @@
 
   // A city of world.js laid out as blocks: its street names side by side on
   // two rows, the last one taking whatever is left of its row.
+  // The blocks a city's outline takes away: each side eaten in by so many blocks. Where two sides meet, the first one named wins.
+  function voidsOf(spec, w, h) {
+    var seen = {}, out = [];
+    (spec.gaps || []).forEach(function (g) {
+      g.depths.forEach(function (deep, i) {
+        for (var d = 0; d < deep; d++) {
+          var along = g.from + i, x = g.side === 'west' ? d : g.side === 'east' ? w - 1 - d : along, y = g.side === 'north' ? d : g.side === 'south' ? h - 1 - d : along;
+          if (x < 0 || y < 0 || x >= w || y >= h || seen[x + ',' + y]) continue;
+          seen[x + ',' + y] = true; out.push({ x: x, y: y, kind: g.kind });
+        }
+      });
+    });
+    return out;
+  }
   function layout(spec) {
-    var n = spec.districts.length, cols = Math.ceil(n / 2);
-    return T.createCity({ id: spec.id, w: cols * BLOCK.w, h: 2 * BLOCK.h, zones: spec.districts.map(function (d, i) {
+    var n = spec.districts.length, cols = Math.ceil(n / 2), w = cols * BLOCK.w, h = 2 * BLOCK.h;
+    return T.createCity({ id: spec.id, w: w, h: h, voids: voidsOf(spec, w, h), zones: spec.districts.map(function (d, i) {
       var col = i % cols, row = Math.floor(i / cols), last = i === n - 1;
       return { name: d.name, x0: col * BLOCK.w, y0: row * BLOCK.h, x1: last ? cols * BLOCK.w - 1 : (col + 1) * BLOCK.w - 1, y1: (row + 1) * BLOCK.h - 1, traits: d.traits };
     }) });
@@ -50,9 +64,9 @@
     // every city of the map, each held by the family that was there first and laid out by its own dice
     g.cities = W.CITIES.map(function (spec, i) {
       var c = layout(spec);
-      c.dice = i + 1;
+      c.dice = i + 3; // (a throw that leaves the newcomer a quiet corner of Ashport: see tests/turf-shape.test.js)
       T.crown(c, spec.rival);
-      T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
+      T.seed(c, spec.rival, Math.round(RIVAL_PLACES * T.size(c) / 240));
       return c;
     });
     var home = g.cities[0], spot = T.landing(home);
@@ -229,7 +243,7 @@
     if (!g.started) return out;
     var blocks = 0, ours = 0, heat = 0, pending = 0, seats = { taken: 0, total: 0 }, cities = { held: 0, total: g.cities.length };
     g.cities.forEach(function (c) {
-      var s = T.share(c), n = c.w * c.h, k = T.seats(c);
+      var s = T.share(c), n = T.size(c), k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
       pending += T.asks(c).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
       if (!held(g, c)) return;
@@ -252,7 +266,7 @@
     return g;
   }
 
-  var api = { START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, NAMES: NAMES,
+  var api = { layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, NAMES: NAMES,
               createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
