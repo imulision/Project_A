@@ -18,10 +18,26 @@
   // x, y and terrain are for the map (the same list is read by the 3D view);
   // character says what the city is good for;
   // rival is the family that holds it at the start;
-  // gaps is its outline (see gap above).
+  // gaps is its outline (see gap above);
+  // streets is the picture of its street names: one string per row of blocks from north to south, one letter per block,
+  // 'a' for the first name of districts, 'b' for the second... A name can be any shape, as long as it is in one piece.
   var CITIES = [
     { id: 'ashport', name: 'Ashport', x: -70, y: 95, terrain: 'plain', character: 'The big city. Everything passes through it.', rival: 'Callahan',
-      gaps: [gap('south', 'water', 7, [1, 1, 2, 2, 1, 1, 1, 1, 1, 2, 3, 3, 2]), gap('north', 'rail', 13, [1, 2, 2, 1, 2, 2, 1])],
+      gaps: [gap('south', 'water', 0, [1, 2, 2, 1, 2, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]), gap('east', 'water', 0, [3, 0, 3, 0, 0, 1, 1, 1]), gap('north', 'rail', 7, [1, 2, 2, 2, 2, 1, 2, 0, 1, 1, 1, 0, 1]), gap('west', 'waste', 1, [1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 1])],
+      streets: [
+        'aaaaaabbbbbbccccdddd',
+        'aaaaaabbbbbbccccdddd',
+        'aaaaaabbbbbccccddddd',
+        'aaaaabbbbbbcccccdddd',
+        'aaaaabbbbbccccccdddd',
+        'eeaaabbbbccccccggddd',
+        'eeeeebbfccccccgggggg',
+        'eeeeefffffccgggggggg',
+        'eeeeeeffffffggggghhh',
+        'eeeeeefffffffhhhhhhh',
+        'eeeeeffffhhhhhhhhhhh',
+        'eeeeefffhhhhhhhhhhhh',
+      ],
       districts: [
         place('ashport-uptown', 'Uptown', 1.2, 0, 0, 1.5),
         place('ashport-hillside', 'Hillside', 1, 0.4, 0, 1.2),
@@ -33,7 +49,21 @@
         place('ashport-docks', 'The Docks', 0.8, 1.2, 1.5, 0.5)
       ] },
     { id: 'calder', name: 'Calder Falls', x: 30, y: 20, terrain: 'mountains', character: 'A mill town in the hills. Foundries, quarries and unions.', rival: 'Northside',
-      gaps: [gap('west', 'water', 0, [1, 1, 1, 1, 1, 1]), gap('north', 'waste', 12, [1, 2, 2, 2, 2, 1, 1, 1]), gap('south', 'rail', 11, [2, 2, 2, 2, 1, 1, 1, 1, 1])],
+      gaps: [gap('west', 'water', 2, [1, 1, 0, 2, 0, 2, 0, 1, 1]), gap('south', 'rail', 0, [2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 2, 1, 1, 1, 0, 0, 0, 1, 1]), gap('north', 'waste', 3, [1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 2, 1]), gap('east', 'waste', 0, [1, 1, 1, 0, 1, 2, 0, 1, 0, 1])],
+      streets: [
+        'aaafffffffffdddddddd',
+        'aaaffffffffddddddddd',
+        'aaaafffffffbdddddddd',
+        'aaaabbbbbbbbbddddddd',
+        'aaaabbbbbbbbbbdddddd',
+        'aaabbbbbbbbbbgggeeee',
+        'aaacccbbbbbggggeeeee',
+        'acccccbbggggggeeeeee',
+        'cccccccgggggggeeeeee',
+        'cccccccggggggeeeeeee',
+        'ccccccgggggggeeeeeee',
+        'cccccccgggggeeeeeeee',
+      ],
       districts: [
         place('calder-millrace', 'Millrace', 0.5, 1.5, 0, 0.5),
         place('calder-highstreet', 'High Street', 1.2, 0.5, 0, 1.2),
@@ -44,7 +74,21 @@
         place('calder-ironbridge', 'Iron Bridge', 1, 1, 0.5, 0.8)
       ] },
     { id: 'marrow', name: 'Marrow Bay', x: 75, y: 150, terrain: 'coast', character: 'A bay of canneries, shipyards and night boats.', rival: 'Callahan',
-      gaps: [gap('east', 'water', 3, [1, 1, 1, 1, 2, 2, 2, 2, 2]), gap('south', 'water', 7, [1, 1, 2, 2, 1]), gap('north', 'waste', 0, [2, 1, 1])],
+      gaps: [gap('east', 'water', 0, [1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1]), gap('south', 'water', 1, [1, 1, 1, 2, 1, 0, 0, 0, 1, 1, 1, 2, 2, 2]), gap('west', 'rail', 3, [1, 1, 1, 2, 0, 1, 1, 1, 2]), gap('north', 'waste', 0, [1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1])],
+      streets: [
+        'aaaaaaeeeeccccc',
+        'aaaaaaeeeeecccc',
+        'aaaaaeeeeeecccc',
+        'aaaaaeeeeeccccc',
+        'aaaaeeeeeeecccc',
+        'ddaaaeeeeeecccc',
+        'dddddeeeebbbccc',
+        'dddddddbbbbbfff',
+        'ddddddbbbbbffff',
+        'dddddbbbbbbffff',
+        'ddddbbbbbbfffff',
+        'ddddbbbbbbbffff',
+      ],
       districts: [
         place('marrow-oldtown', 'Old Town', 1.5, 0.5, 0, 1),
         place('marrow-cannery', 'Cannery Row', 0.5, 1.5, 1, 0.5),
@@ -54,7 +98,21 @@
         place('marrow-shipwrights', 'Shipwrights', 0.5, 1.2, 1.5, 0.5)
       ] },
     { id: 'dunmore', name: 'Dunmore', x: -15, y: 235, terrain: 'hills', character: 'Coal, rail and breweries. Hard men and company stores.', rival: 'Kessler',
-      gaps: [gap('north', 'rail', 0, [2, 2, 1]), gap('west', 'rail', 2, [1, 2, 1]), gap('north', 'waste', 10, [1, 1, 2, 1, 1]), gap('south', 'waste', 0, [1, 1, 2, 2, 2, 1, 1, 1]), gap('east', 'waste', 5, [1, 1, 1])],
+      gaps: [gap('north', 'rail', 0, [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1]), gap('west', 'rail', 0, [1, 1, 0, 0, 1, 1, 1, 1]), gap('south', 'waste', 0, [2, 2, 2, 2, 2, 2, 0, 0, 2, 0, 2, 0, 1, 1, 1]), gap('east', 'waste', 0, [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 2])],
+      streets: [
+        'aaaaaabbbbbbbbb',
+        'aaaaaabbbbbbbbb',
+        'aaaaacbbbbbbbbb',
+        'aaaaccccbbbbbbb',
+        'aaaccccccccbbbb',
+        'ddcccccccccccee',
+        'dddddcccccceeee',
+        'ddddddfffceeeee',
+        'ddddddffffeeeee',
+        'dddddffffffeeee',
+        'ddddddffffeeeee',
+        'dddddddffeeeeee',
+      ],
       districts: [
         place('dunmore-depot', 'Depot', 0.8, 1.2, 0.8, 0.5),
         place('dunmore-coalhill', 'Coal Hill', 0.5, 1.5, 0, 0.5),
@@ -64,7 +122,21 @@
         place('dunmore-gallows', 'Gallows Corner', 1.5, 0.5, 0, 0.5)
       ] },
     { id: 'lorne', name: 'Port Lorne', x: 50, y: 370, terrain: 'coast', character: 'The sea port at the border. Whisky comes in here.', rival: 'Dockers',
-      gaps: [gap('south', 'water', 9, [1, 1, 1, 2, 2, 1, 1, 2, 2, 2, 2]), gap('east', 'water', 5, [1, 1, 2, 1]), gap('west', 'rail', 1, [1, 1, 1, 1, 1, 1]), gap('north', 'waste', 14, [1, 2, 2, 2, 1, 1])],
+      gaps: [gap('south', 'water', 0, [2, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 2, 1, 1, 1, 1, 0, 1, 1]), gap('east', 'water', 0, [1, 1, 1, 2, 1, 1, 1, 1, 0, 2, 2, 1]), gap('west', 'rail', 3, [1, 2, 2, 1]), gap('north', 'waste', 2, [1, 0, 0, 0, 0, 0, 0, 1, 2, 2, 1, 2, 1, 1, 0, 0, 1, 2])],
+      streets: [
+        'dddddddccccccbbbbbbb',
+        'ddddddcccccccbbbbbbb',
+        'ddddddfccccccbbbbbbb',
+        'dddddffffcccbbbbbbbb',
+        'ddddffffffffffbbbbgg',
+        'dddffffffffffffbbggg',
+        'eeefffffffffffgggggg',
+        'eeeefffaaaaaaggggggg',
+        'eeeeaaaaaaaaaagggggg',
+        'eeeeaaaaaaaaaaaggggg',
+        'eeeaaaaaaaaaaaaagggg',
+        'eeeeaaaaaaaaaaaggggg',
+      ],
       districts: [
         place('lorne-harbour', 'Harbour', 1, 0.8, 1.5, 0.5),
         place('lorne-saltworks', 'Saltworks', 0.5, 1.5, 0.5, 0.5),
@@ -75,7 +147,21 @@
         place('lorne-breakwater', 'Breakwater', 0.8, 0.5, 1.2, 0.5)
       ] },
     { id: 'vesper', name: 'Saint Vesper', x: -85, y: 300, terrain: 'plain', character: 'The cathedral city. Judges, bishops and old money.', rival: 'Callahan',
-      gaps: [gap('north', 'water', 0, [2, 1, 2, 2, 2, 1]), gap('north', 'water', 9, [1, 2, 1]), gap('west', 'rail', 3, [1, 1, 2, 2, 2, 1]), gap('south', 'waste', 15, [1, 3, 2, 3, 2])],
+      gaps: [gap('north', 'water', 0, [1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 2, 3, 1]), gap('west', 'rail', 3, [2, 2, 2, 1, 1, 2, 0, 2, 1]), gap('south', 'waste', 2, [1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 0, 1, 1, 2]), gap('east', 'waste', 0, [2, 0, 2, 2, 2, 0, 1])],
+      streets: [
+        'bbbbbbbeeeeeeccccccc',
+        'bbbbbbeeeeeeeccccccc',
+        'bbbbbbeeaaaaeecccccc',
+        'bbbbbeeaaaaaaecccccc',
+        'bbbbbeeaaaaaaeeccccc',
+        'ddbbbeeeaaaaeeeccccc',
+        'dddddddeeeeeeegggccc',
+        'ddddddddffffgggggggg',
+        'dddddddfffffffgggggg',
+        'ddddddffffffffgggggg',
+        'dddddddffffffggggggg',
+        'ddddddfffffffggggggg',
+      ],
       districts: [
         place('vesper-cathedral', 'Cathedral', 0.5, 0, 0, 1.5),
         place('vesper-tannery', 'Tannery', 0.5, 1.5, 0, 0.5),

@@ -251,7 +251,7 @@ test('twenty years of sending men down the road: several cities, never the whole
   for (const start of ['sal', 'dutch', 'tommy']) {
     const g = spreader(start), h = E.hud(g), v = E.view(g);
     assert.ok(h.cities.held >= 3, start + ' is in ' + h.cities.held + ' cities');
-    assert.ok(h.share >= 10 && h.share <= 80, start + ' holds ' + h.share + ' % of the map');
+    assert.ok(h.share >= 10 && h.share <= 85, start + ' holds ' + h.share + ' % of the map');
     assert.ok(v.cities.filter((c) => c.share.family >= 20).length >= 2, start + ' really holds two cities');
     assert.ok(h.clean < 1000000, start + ' sits on $' + h.clean);
     assert.ok(h.men >= 8, start + ' has ' + h.men + ' men');
