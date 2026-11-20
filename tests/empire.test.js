@@ -400,6 +400,34 @@ test('a man the underboss could not take in for want of money is not announced t
   assert.ok(seen.some((e) => e.type === 'welcomed' && e.by === 'dutch'), 'the underboss took him in');
 });
 
+test('the last twenty-four months also say, city by city: the rival\'s strength, each capo\'s places and income, each street name\'s share', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  const v = E.view(g), a = v.cities[0], last = v.history[v.history.length - 1].cities.ashport, k = a.capos[0];
+  assert.equal(last.rival, a.chief.strength);
+  assert.deepEqual(last.capos, { dutch: { places: k.places, income: k.income, rank: k.rank } });
+  assert.equal(last.zones.length, a.zones.length);
+  a.zones.forEach((z, n) => {
+    const real = a.blocks.filter((b) => b.zone === n && !b.void), ours = real.filter((b) => b.grip === 'family');
+    assert.equal(last.zones[n], Math.round(100 * ours.length / real.length), z.name);
+  });
+  assert.ok(last.zones.some((s) => s > 0), 'the family holds some of one street name');
+  assert.deepEqual(v.history[0].cities.calder.capos, {});
+  // a game saved before keeps its shorter lines
+  const old = E.load(E.save(g)); old.history.forEach((m) => { for (const id in m.cities) { delete m.cities[id].rival; delete m.cities[id].capos; delete m.cities[id].zones; } });
+  assert.equal(E.view(old).history[0].cities.ashport.capos, undefined);
+});
+
+test('a capo shows how far he is from his next rank', () => {
+  const g = E.createGame({ capo: 'dutch' }), k = () => E.view(g).cities[0].capos[0];
+  assert.deepEqual(k().next, { rank: 1, name: T.RANKS[1], xp: 0, of: T.RULES.xp[1] });
+  for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  assert.equal(k().next.xp, g.family.men.dutch.xp);
+  assert.ok(k().next.xp > 0 && k().next.xp < k().next.of);
+  g.family.men.dutch.rank = T.RANKS.length - 1;
+  assert.equal(k().next, null, 'a legend has nowhere left to rise');
+});
+
 // --- loyalty, from the game ---
 test('the boss makes a capo a gift; the game shows each man\'s mood and what a gift costs', () => {
   const g = E.createGame({ capo: 'vince' });

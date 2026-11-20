@@ -102,7 +102,20 @@
   function remember(g) {
     var line = { month: g.month, dirty: Math.round(g.family.dirty), clean: Math.round(g.family.clean || 0), cities: {} };
     g.cities.forEach(function (c) {
-      line.cities[c.id] = { share: Math.round(T.share(c).family * 10) / 10, income: Math.round((c.flow && c.flow.up) || 0) };
+      var share = T.share(c), here = line.cities[c.id] = { share: Math.round(share.family * 10) / 10, income: Math.round((c.flow && c.flow.up) || 0) };
+      // for the curves of the screen: how strong the rival is, what each capo runs and earns, and how much of each street name is ours
+      here.rival = Math.round(share.rival);
+      here.capos = {};
+      Object.keys(g.family.men).forEach(function (id) {
+        if (T.clubOf(c, id)) here.capos[id] = { places: T.run(c, id).length, income: g.family.men[id].income, rank: g.family.men[id].rank };
+      });
+      var all = c.zones.map(function () { return 0; }), ours = all.slice();
+      for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
+        if (c.voids && c.voids[x + ',' + y]) continue;
+        var z = T.zoneAt(c, x, y);
+        all[z] += 1; if (T.grip(c, x, y) === 'family') ours[z] += 1;
+      }
+      here.zones = all.map(function (n, i) { return n ? Math.round(100 * ours[i] / n) : 0; });
     });
     g.history = g.history || [];
     g.history.push(line);
