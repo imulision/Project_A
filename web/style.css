@@ -239,3 +239,4 @@ body.stopped .sub #sub{display:none}
 .rankrow b{font:500 1.2em/1 var(--title);font-variant-numeric:tabular-nums}.rankrow em{font-style:normal;font-size:.85em;text-align:right;color:var(--dim)}.rankrow.good em{color:var(--good)}.rankrow.bad em{color:var(--bad)}
 .move.power .spark{margin-left:auto;width:70px;height:22px}
 .ranks .rankrow{background:#ffffff08;color:var(--ink);border-top:0;border-right:0;border-bottom:0;font:inherit;width:100%}
+.move.next .rk{flex:1;font-size:1em}.move.next .rk b{font-size:1em}

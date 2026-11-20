@@ -908,3 +908,9 @@ test('a step won or lost is a moment: the rank of the family, a street name held
   assert.deepEqual(C.moments(st(1, { a: z(50) }), st(1, { a: z(60) })), [], 'a street more is not a moment');
   assert.match(C.moment(down[0]), /class="moment bad"/); assert.match(C.moment(down[0]), /FALLS BACK/);
 });
+
+test('a capo\'s sheet shows how far he is from his next rank', () => {
+  const html = C.nextRank({ next: { rank: 1, name: 'Capo', xp: 102, of: 150 } });
+  assert.match(html, /Capo/); assert.match(html, /width:68%/); assert.match(html, /102 \/ 150/);
+  assert.equal(C.nextRank({ next: null }), ''); assert.equal(C.nextRank({}), '', 'an old save says nothing of it');
+});
