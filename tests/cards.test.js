@@ -273,3 +273,10 @@ test('an answer the boss cannot pay says how far he is from it, and the sheet sa
   assert.equal(acts(html, 'later').length, 1, 'one button leaves them waiting');
   assert.match(html, /Leave them waiting/);
 });
+
+test('a capo\'s sheet says where he is this month', () => {
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const v = E.view(g), c = v.cities[0], k = c.capos[0];
+  k.at = { x: 1, y: 1, why: 'take', label: 'Taking the speakeasy in Little Calabria' };
+  assert.match(C.capo(v, c.id, k.id), /Taking the speakeasy in Little Calabria/);
+});

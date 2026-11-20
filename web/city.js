@@ -27,13 +27,15 @@
 
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
+  var lastPlan = null;
   function refresh(events) {
     view = E.view(g);
     if (!g.started) return;
     waits = {};
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view)); map.effects(M.effectsTurf(events || [], p));
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p))); map.effects(M.effectsTurf(events || [], p));
+    lastPlan = p;      // a capo who is not where he was last month drives there, once
   }
   function zoneId(cityId, x, y) { var c = view.cities.filter(function (q) { return q.id === cityId; })[0], n = 0;
     if (c) c.zones.forEach(function (z, i) { if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) n = i; }); return cityId + '-' + n; }
