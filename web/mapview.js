@@ -108,6 +108,12 @@
       }
       return { x: b.x, y: b.y, grip: b.grip, void: b.void || null, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
     });
+    // The streets of a capo in trouble go quiet: each street of the family follows the nearest place a capo runs.
+    var ill = {}, run = c.places.filter(function (p) { return p.owner === 'family' && p.capo; });
+    c.capos.forEach(function (k) { if (k.trouble) ill[k.id] = 1; });
+    if (Object.keys(ill).length) lots.forEach(function (l) { if (!l.ours || l.site) return; var best = null, far = 1e9;
+      run.forEach(function (p) { var d = Math.abs(p.x - l.bx) + Math.abs(p.y - l.by); if (d < far) { far = d; best = p; } });
+      if (best && ill[best.capo]) l.low = true; });
     zones.forEach(function (z, n) {
       var k = count[n]; z.share = k.all ? 100 * k.family / k.all : 0;
       z.owner = k.family > k.rival ? 'family' : k.rival ? rival : 'other'; z.ownerName = z.owner === 'family' ? 'Your family' : z.owner === 'other' ? '' : c.rival;
@@ -120,7 +126,7 @@
       return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
-    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('');
+    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',');
     return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos };

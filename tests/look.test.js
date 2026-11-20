@@ -36,3 +36,9 @@ test('the streets the family holds come alive: shop signs light up and cars park
   for (const l of [{ ours: false, lit: 2, site: null, shop: true }, { ours: true, lit: 3, site: { owner: 'family' }, shop: true }, { ours: false, lit: 1, site: { owner: 'callahan' }, shop: true }])
     for (let k = 0; k < 50; k++) { const o = lotLook(l, k / 50); assert.equal(o.sign, null); assert.equal(o.parked, false); }
 });
+
+test('a street whose capo is in trouble goes quiet: no sign, no car at the kerb, half the lamps', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  for (let k = 0; k < 100; k++) { const well = lotLook({ ours: true, lit: 3, site: null, shop: true }, k / 100), ill = lotLook({ ours: true, lit: 3, site: null, shop: true, low: true }, k / 100);
+    assert.equal(ill.sign, null); assert.equal(ill.parked, false); assert.equal(ill.lamps, Math.floor(well.lamps / 2)); assert.equal(ill.roof, 'family', 'it is still his'); assert.ok(ill.gain < well.gain); }
+});

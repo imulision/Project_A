@@ -339,3 +339,12 @@ test('money that leaves is seen leaving: an event that was paid for carries what
     { type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'truck', city: 'ashport', x: 5, y: 10, cost: 300 }], p);
   assert.deepEqual(fx.map((f) => f.spent || 0), [400, 0, 1500, 0, 300]);
 });
+
+test('the streets of a capo in trouble show it: their buildings are marked low, and the plan says the town changed', () => {
+  const c = cityOf(play(30)), k = c.capos[0];
+  const well = M.planTurf(c), ill = M.planTurf({ ...c, capos: c.capos.map((m) => (m.id === k.id ? { ...m, trouble: true } : m)) });
+  assert.equal(well.lots.filter((l) => l.low).length, 0);
+  const low = ill.lots.filter((l) => l.low);
+  assert.ok(low.length > 0, 'his streets are marked'); low.forEach((l) => assert.ok(l.ours && !l.site, 'only the streets, not the places'));
+  assert.notEqual(ill.key, well.key, 'the renderer draws the town again');
+});

@@ -66,6 +66,7 @@ assert.match(await hud(), /January 1926 .* \| 1 \/ \d+$/);
 await still();
 const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length, capos: document.querySelectorAll('.lab.capo').length }));
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
+assert.equal(await page.locator('.lab.capo .hp i').count(), 3, 'three lights under his face say how his streets fare: money, men, threat');
 // the first minutes: a strip says what to look at, and a touch puts it away for good
 assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
 await page.click('#hint [data-hint=capo]');
@@ -89,6 +90,7 @@ assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
 // his sheet says how he stands with the boss, and a gift waits for clean money: once made, not again this year
 assert.ok(await page.locator('#sheet .move.mood').count() === 1, 'his mood is on his sheet');
+assert.match(await page.textContent('#sheet .move.health'), /MONEY.*MEN.*THREAT/, 'and the health of his streets, named');
 assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'no gift without clean money');
 await page.click('#sheet [data-act=close]');
 const kept = await page.evaluate(() => { const g = window.__ashport.game(), was = g.family.clean || 0; g.family.clean = 2000; return was; });

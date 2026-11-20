@@ -49,8 +49,32 @@
   }
   function planIcon(p) { return !p ? 'time' : p.move === 'take' ? (WAY[p.way] || WAY.force).icon : p.kind && I.has(p.kind) ? p.kind : 'time'; }
   // what stands over a capo on the map: his face, a gauge of what he is after, and what it is
-  function mark(l) {
-    return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(planIcon(l)) + '</span>';
+  function mark(l, h) {
+    return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(planIcon(l)) + '</span>' +
+      (h ? '<span class="hp" data-tip="' + esc(h.say) + '"><i class="' + h.money + '"></i><i class="' + h.men + '"></i><i class="' + h.threat + '"></i></span>' : '');
+  }
+  // The health of a capo's streets, read at a glance: money (do they earn), men (how he stands with the boss), threat (rivals and police).
+  // health(city, capo) -> { money, men, threat: 'good' | 'warn' | 'bad', worst, say: the one line that matters }.
+  var HEALTH = { good: 0, warn: 1, bad: 2 }, HOT = 60;
+  function health(c, k) {
+    var mine = (c.places || []).filter(function (p) { return p.owner === 'family' && p.capo === k.id; }), choke = null, who = first(k.name || nameOf(k.id));
+    mine.forEach(function (p) { if (!choke && p.strains && p.strains.length) choke = p.strains[0].label; });
+    var o = { money: 'good', men: 'good', threat: 'good' }, why = {};
+    if (k.income != null && k.income <= 0) { o.money = k.places ? 'bad' : 'warn'; why.money = k.places ? 'His places earn nothing' : 'Nothing to earn from yet'; }
+    else if (choke) { o.money = 'warn'; why.money = choke; }
+    if (k.mood === 'bitter') { o.men = 'bad'; why.men = who + ' is bitter: he may turn on you'; } else if (k.mood === 'restless') { o.men = 'warn'; why.men = who + ' is restless'; }
+    var ch = c.chief;
+    if (ch && ch.vendetta > 0) { o.threat = 'bad'; why.threat = ch.name + ' wants blood: ' + ch.vendetta + ' month' + (ch.vendetta > 1 ? 's' : '') + ' of vendetta'; }
+    else if (k.at && k.at.why === 'raid') { o.threat = 'warn'; why.threat = k.at.label || 'The rivals press on his streets'; }
+    else if ((c.heat || 0) >= HOT) { o.threat = 'warn'; why.threat = 'The police watch this city closely'; }
+    var worst = 'good', say = 'His streets are doing well';
+    ['money', 'men', 'threat'].forEach(function (key) { if (HEALTH[o[key]] > HEALTH[worst]) { worst = o[key]; say = why[key]; } });
+    o.worst = worst; o.say = say; return o;
+  }
+  function healths(view) { var out = {}; view.cities.forEach(function (c) { (c.capos || []).forEach(function (k) { out[c.id + k.id] = health(c, k); }); }); return out; }
+  function healthLine(h) {
+    var chip = function (key, label) { return '<span class="chip ' + h[key] + '"><i></i>' + label + '</span>'; };
+    return '<div class="move health ' + h.worst + '"><span><span class="chips">' + chip('money', 'MONEY') + chip('men', 'MEN') + chip('threat', 'THREAT') + '</span>' + esc(h.say) + '</span></div>';
   }
   // The laundries of the whole family: what they can wash a month, what they washed and kept last month,
   // and whether the dirty cash has grown past what the boss can keep unnoticed.
@@ -241,7 +265,7 @@
     var w = WAY[k.way] || WAY.force;
     var boss = c.under === k.id || k.under === true;
     return head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      mood(k) + intent(k.plan) + skills(k) +
+      healthLine(health(c, k)) + mood(k) + intent(k.plan) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'A MONTH', money(k.income), 'What reached his club last month') +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you last month: your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
@@ -416,7 +440,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

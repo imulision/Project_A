@@ -672,3 +672,30 @@ test('the detail of a trade says in plain sight what it gives, and what the next
   assert.match(fresh, /<b>Learning it brings<\/b>/);
   assert.doesNotMatch(C.know({ tree: [{ ...tree[0], next: null }] }, 'still', { clean: 0 }), /class="move next"/);
 });
+
+test('the health of a capo\'s streets is read in three lights, money, men and threat, with the one line that matters', () => {
+  const city = (o) => ({ id: 'ashport', heat: 8, chief: { id: 'seamus', name: 'Seamus Callahan', vendetta: 0 }, places: [{ x: 3, y: 10, owner: 'family', capo: 'dutch', kind: 'club' }], ...o });
+  const man = (o) => ({ id: 'dutch', name: 'Dutch Keller', places: 2, income: 450, mood: 'steady', at: { why: 'home' }, ...o });
+  const fine = C.health(city(), man());
+  assert.deepEqual([fine.money, fine.men, fine.threat, fine.worst], ['good', 'good', 'good', 'good']); assert.equal(fine.say, 'His streets are doing well');
+  const choked = C.health(city({ places: [{ x: 4, y: 10, owner: 'family', capo: 'dutch', strains: [{ kind: 'dry', label: 'No liquor to pour' }] }] }), man());
+  assert.equal(choked.money, 'warn'); assert.equal(choked.worst, 'warn'); assert.match(choked.say, /No liquor to pour/);
+  const broke = C.health(city(), man({ income: 0 }));
+  assert.equal(broke.money, 'bad'); assert.match(broke.say, /earn nothing/i);
+  assert.equal(C.health(city(), man({ income: 0, places: 0 })).money, 'warn', 'a man who has just arrived has nothing to earn from yet');
+  assert.equal(C.health(city(), man({ mood: 'restless' })).men, 'warn'); const bitter = C.health(city(), man({ mood: 'bitter' })); assert.equal(bitter.men, 'bad'); assert.match(bitter.say, /Dutch/);
+  const raided = C.health(city(), man({ at: { why: 'raid', label: 'Facing the Callahans in Little Calabria' } }));
+  assert.equal(raided.threat, 'warn'); assert.equal(raided.say, 'Facing the Callahans in Little Calabria');
+  const feud = C.health(city({ chief: { id: 'seamus', name: 'Seamus Callahan', vendetta: 7 } }), man());
+  assert.equal(feud.threat, 'bad'); assert.match(feud.say, /Seamus Callahan.*7 months/);
+  assert.equal(C.health(city(), man({ income: 0, mood: 'restless' })).worst, 'bad', 'the worst of the three sets the colour');
+  assert.equal(C.health(city({ chief: undefined }), man({ at: undefined, income: undefined, mood: undefined })).worst, 'good', 'an old game is not alarmed');
+  // over the map: three small lights under his face; on his sheet: the same, named
+  const pips = C.mark({ capo: 'dutch', progress: 0.5 }, choked);
+  assert.match(pips, /<span class="hp" data-tip="[^"]*No liquor to pour"><i class="warn"><\/i><i class="good"><\/i><i class="good"><\/i><\/span>/);
+  assert.doesNotMatch(C.mark({ capo: 'dutch', progress: 0.5 }), /class="hp"/);
+  const all = C.healths({ cities: [{ ...city(), capos: [man({ mood: 'bitter' })] }] });
+  assert.equal(all.ashportdutch.worst, 'bad');
+  const line = C.healthLine(feud);
+  assert.match(line, /class="move health bad"/); assert.match(line, /MONEY[\s\S]*MEN[\s\S]*THREAT/); assert.match(line, /Seamus Callahan/);
+});
