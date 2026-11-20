@@ -214,3 +214,11 @@ test('every key place has a picture of its own kind, never the unknown mark', ()
   assert.equal(C.iconName('club'), 'hideout');
   assert.equal(C.iconName('speakeasy'), 'speakeasy');
 });
+
+test('dirty cash has one picture everywhere: on the top bar, on the cars that carry it and on those that take it to be washed', () => {
+  const I = require('../web/icons.js');
+  assert.equal(I.icon('dirty'), I.icon('takings'));
+  assert.equal(C.HAUL.wash[0], 'dirty');
+  assert.notEqual(C.HAUL.wash[1], C.HAUL.takings[1], 'the colour still tells the two trips apart');
+  assert.notEqual(I.icon('dirty'), I.icon('clean'));
+});

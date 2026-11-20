@@ -116,7 +116,11 @@
     else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g))); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
     else if (act === 'new') { forget(); location.reload(); }
   });
-  $('veil').addEventListener('click', function (e) { if (e.target === $('veil') && g.started) close(); });
+  // A touch beside the sheet closes it, but only a touch that began there: the click a phone sends after the touch
+  // that opened the sheet lands on the veil too, and must not close what it has just opened.
+  var veilDown = false;
+  $('veil').addEventListener('pointerdown', function (e) { veilDown = e.target === $('veil'); });
+  $('veil').addEventListener('click', function (e) { var mine = veilDown; veilDown = false; if (mine && e.target === $('veil') && g.started) close(); });
   $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-unpick]')) { unpick(); showHud(); requests(); } else if (e.target.closest('[data-requests]')) requests(); });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
