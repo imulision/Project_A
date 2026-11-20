@@ -71,6 +71,8 @@
   // What last month did to a total, written beside it: "+$52", or nothing when it did not move.
   function change(n) { n = Math.round(n || 0); return n > 0 ? '+' + money(n) : n < 0 ? '\u2212' + money(-n) : ''; }
   // The dollars a car carries: a month of takings from one place, or a month of cash sent to one laundry.
+  // Money seen on the map, over the place where it comes in or leaves.
+  function pop(n) { return !n ? null : { text: (n > 0 ? '+' : '\u2212') + money(Math.abs(n)), cls: n > 0 ? 'in' : 'out' }; }
   function carLoad(car) { return (car.kind === 'takings' || car.kind === 'wash') && car.amount > 0 ? money(car.amount) : ''; }
   function carTip(car, empty) {
     var h = haul(car), unit = h[3] || (h === HAUL.liquor ? 'cases' : ''), n = car.amount > 0 ? (carLoad(car) || (unit ? car.amount + ' ' + unit : '')) : '', road = car.kind === 'convoy';
@@ -413,7 +415,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

@@ -332,3 +332,10 @@ test('a betrayal is marked on the map with a light of its own, where the man had
   assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['betrayal:betrayal', 'news:whispers']);
   assert.equal(fx[0].say, 'Sal goes over to the Callahans');
 });
+
+test('money that leaves is seen leaving: an event that was paid for carries what it cost, one only asked for does not', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES);
+  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10, cost: 400 }, { type: 'asks', city: 'ashport', x: 4, y: 10, cost: 900 }, { type: 'gift', city: 'ashport', x: 5, y: 10, cost: 1500 },
+    { type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'truck', city: 'ashport', x: 5, y: 10, cost: 300 }], p);
+  assert.deepEqual(fx.map((f) => f.spent || 0), [400, 0, 1500, 0, 300]);
+});

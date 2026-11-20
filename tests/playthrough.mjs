@@ -168,6 +168,14 @@ await page.waitForFunction((n) => window.__ashport.map().stats().drawn > n, d0, 
 await page.click('#clock');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped') || window.__ashport.game().paused), false, 'the banner starts time again');
 await page.waitForFunction((was) => { const m = window.__ashport.map(); return !m.stats().held && m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') !== was; }, stood.at, { timeout: 20000 });      // the cars leave again with the clock
+// the loaded car comes home: what it brings is seen coming in over the club, and the dirty total answers
+const came = await page.evaluate(async () => { const m = window.__ashport.map(), fresh = () => m.labels().some((l) => l.pop > 0 && l.part < 0.4);
+  for (let n = 0; n < 800 && !fresh(); n++) { m.run(0.25); if (n % 40 === 39) await new Promise((r) => setTimeout(r, 300)); }      // (old figures fade away meanwhile)
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const e = document.querySelector('.lab.pop.in'); return { text: e && e.textContent, bump: document.getElementById('dirty').classList.contains('bump') }; });
+assert.match(came.text || '', /^\+\$\d/, 'the takings are written over the club');
+assert.ok(came.bump, 'the total at the top answers');
+await shot('c2b-money-in');
 assert.match(await page.textContent('#wash'), /washes \$\d|no laundry yet/);
 
 // a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens

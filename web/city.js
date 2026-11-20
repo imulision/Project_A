@@ -48,6 +48,7 @@
   // ---- the top of the screen
   // what last month did to a total, beside it: green when it grew, red when it shrank
   function delta(id, n) { var e = $(id), t = C.change(n); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('bad', n < 0); } }
+  function bump(id) { var e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   function showHud() {
     var h = E.hud(g);
     $('date').textContent = h.date;
@@ -243,6 +244,7 @@
         if (!e) {
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, l.fx === 'news' ? C.EVENT[l.type] || 'time' : (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
+          else if (l.pop) { var pp = C.pop(l.pop); e.className = 'lab pop ' + pp.cls; e.textContent = pp.text; if (l.pop > 0) bump('dirty'); }      // money seen coming in: the figure at the top of the screen answers
           else if (l.car) { e.className = 'lab tag'; e.innerHTML = '<span></span><b></b>'; e.pic = e.firstChild; e.b = e.lastChild; }
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
           else if (l.capo) e.className = 'lab capo';
@@ -252,7 +254,8 @@
         // a label is moved by the compositor alone, and only when it has moved by a whole pixel: no layout of the page per frame
         var px = Math.round(l.x), py = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120, news: 0 }[l.fx] || 0) : 0));
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
-        if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
+        if (l.pop) { var up = Math.round((l.part || 0) * 10); if (e.up !== up) { e.up = up; e.style.setProperty('--up', up / 10); } }
+        else if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
@@ -260,7 +263,7 @@
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
-        if (l.role === 'club') return;
+        if (l.role === 'club' || l.pop) return;
         if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });

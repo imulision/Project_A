@@ -655,3 +655,9 @@ test('the family sheet sells what clean money buys for good, with its price and 
   const { g, v } = play((v) => v.month >= 2);
   assert.match(C.family({ ...v, holdings }, E.hud(g)), /What clean money buys/, 'it is on the family sheet');
 });
+
+test('money seen on the map: what comes in is written with a plus, what leaves with a minus', () => {
+  assert.deepEqual(C.pop(120), { text: '+$120', cls: 'in' });
+  assert.deepEqual(C.pop(-1500), { text: '−$1,500', cls: 'out' });
+  assert.equal(C.pop(0), null); assert.equal(C.pop(undefined), null);
+});
