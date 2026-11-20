@@ -1053,6 +1053,14 @@
     settle(to, capo, x, y);
     join(f, capo);
   }
+  // --- the underboss ---
+  // One capo the boss names to hold a city for him. He must still have his club there.
+  function underOf(c) { return c.under && clubOf(c, c.under) ? c.under : null; }
+  function underboss(c, f, capo) {
+    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
+    if (!others(c, f, capo).length) throw new Error('one capo holds ' + c.id + ' alone: it needs no underboss yet');
+    c.under = capo;
+  }
   // --- parting with a capo ---
   var PARTINGS = {
     retire: { name: 'Pay him off', gives: 'He leaves in peace. The others take over what he ran.' },
@@ -1308,7 +1316,7 @@
     cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = { most: s.most, cargo: s.cargo }; });
     laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
     return {
-      id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0,
+      id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0, under: underOf(c),
       rival: c.rival || (everyPlace(c).filter(function (p) { return p.owner !== 'family'; })[0] || {}).owner || null,
       zones: c.zones.map(function (z) { return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1 }; }),
       blocks: blocks,
@@ -1334,7 +1342,7 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
@@ -1438,7 +1446,25 @@
     revenge(c, events);
     tempers(c, events);
     money(c, f, events);
+    // an event about one of the family's men that names no place happens at his club
+    events.forEach(function (e) {
+      var club = e.x === undefined && e.capo && f.men[e.capo] && clubOf(c, e.capo);
+      if (club) { e.x = club.x; e.y = club.y; }
+    });
+    var under = underOf(c), taken = false;
     doors(c, f).forEach(function (d) {
+      // a city with an underboss: he takes one man in a month himself, where the rivals press least, with the boss's
+      // money. A rival's lieutenant who would cross is still the boss's affair.
+      if (under && d.door !== 'poach') {
+        var s = seats(c), quiet = landing(c), free = spots(c);
+        var spot = quiet && free.filter(function (q) { return q.x === quiet.x && q.y === quiet.y; })[0] || free[0];
+        if (taken || s.taken >= s.total || !spot || funds(f) < d.cost) return;
+        send(c, c, f, d.capo, spot.x, spot.y);
+        taken = true;
+        events.push({ type: 'welcomed', capo: d.capo, city: c.id, x: spot.x, y: spot.y, by: under, cost: d.cost,
+                      label: d.name + ' joins the family: ' + first(under) + ' gives him a club in ' + zoneOf(c, spot.x, spot.y).name });
+        return;
+      }
       if (c.knocked[d.capo]) return;
       c.knocked[d.capo] = true;
       events.push({ type: 'knocks', capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' would join the family. ' + d.why });
@@ -1446,7 +1472,7 @@
     return events;
   }
 
-  var api = { table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
