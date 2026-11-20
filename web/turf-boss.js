@@ -142,7 +142,15 @@
   // A price that grows with the family, rounded to the nearest $50.
   function swell(base, rate, n) { return Math.round(base * Math.pow(1 + rate, Math.max(0, n)) / 50) * 50; }
 
-  var api = { eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  // The boss's share in this city: light, normal or heavy.
+  function cutOf(c) { return RULES.cut[c.cut] ? c.cut : 'normal'; }
+  function cut(c, how) {
+    if (!RULES.cut[how]) throw new Error('no such share: ' + how);
+    c.cut = how;
+  }
+  function cuts() { return Object.keys(RULES.cut).map(function (id) { return { id: id, share: RULES.cut[id].share, loyal: RULES.cut[id].loyal }; }); }
+
+  var api = { cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

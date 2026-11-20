@@ -23,6 +23,8 @@
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
+    // the boss's share, city by city: what he takes of what the cars bring in, and where it sets the loyalty his men settle at
+    cut: { light: { share: 0.08, loyal: 10 }, normal: { share: 0.15, loyal: 0 }, heavy: { share: 0.25, loyal: -15 } },
     bigger: 0.5,        // what each level above the first adds to what a place earns
     dry: 1 / 3,         // what a speakeasy earns with nothing to pour
     pours: 2,           // speakeasies one still of level 1 keeps wet

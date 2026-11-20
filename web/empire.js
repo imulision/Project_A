@@ -185,6 +185,13 @@
       T.underboss(c, g.family, o.capo);
       record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
     },
+    // the boss sets how much he takes in a city: light, normal or heavy
+    cut: function (g, o) {
+      var c = cityOf(g, o.city);
+      if (!held(g, c)) throw new Error('the family has no man in ' + specOf(c.id).name);
+      T.cut(c, o.cut);
+      record(g, { type: 'cut', city: c.id, cut: o.cut, label: 'You take a ' + o.cut + ' share in ' + specOf(c.id).name }, g.month);
+    },
     // the boss makes one of his capos a gift, in clean money: it warms a man who was turning sour
     gift: function (g, o) {
       var c = cityOf(g, o.city);
