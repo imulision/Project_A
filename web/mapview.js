@@ -220,12 +220,13 @@
   function effectsTurf(events, plan) {
     var out = [];
     (events || []).forEach(function (e) {
-      var kind = e.type === 'taken' ? (e.way === 'force' ? 'gunfire' : 'promotion') : FXOF[e.type]; if (!kind) return;
-      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || plan.cities[0]; if (!c) return;
+      // fire, gunfire, police lights and good news have their own light; any other event that has a place is a plain mark there
+      var kind = e.type === 'taken' ? (e.way === 'force' ? 'gunfire' : 'promotion') : FXOF[e.type] || 'news';
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || (kind === 'news' ? null : plan.cities[0]); if (!c) return;
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
-      if (!lot) { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
+      if (!lot && kind !== 'news') { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
       if (!lot) return;
-      out.push({ kind: kind, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label });
+      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label });
     });
     return out;
   }

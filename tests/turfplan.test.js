@@ -273,3 +273,11 @@ test('what goes from one city to the next is a truck on the road between them, o
   assert.match(out[0].way, new RegExp(p.cities[out[0].a].name + '.*' + p.cities[out[0].b].name));
   assert.deepEqual(M.convoysTurf(p, undefined), []);
 });
+
+test('every event that has a place is marked on the map where it happens, and says its type', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = v.cities[0].capos[0];
+  const fx = M.effectsTurf([{ type: 'asks', city: 'ashport', x: 4, y: 10, label: 'Sal asks' }, { type: 'welcomed', city: 'ashport', x: 5, y: 10, label: 'in' }, { type: 'car', city: 'ashport', capo: k.id, x: k.x, y: k.y, label: 'a car' },
+    { type: 'knocks', city: 'ashport', capo: 'nobody yet', label: 'a man' }, { type: 'studying', city: 'ashport', label: 'learning' }, { type: 'opened', city: 'ashport', x: 5, y: 10, label: 'opened' }], p);
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'promotion:opened'], 'what has no place of its own is not put on the map');
+  assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].say, 'Sal asks');
+});
