@@ -77,6 +77,9 @@
     // in a month, its price and upkeep (the truck that comes with a man's first still costs nothing), the months of its
     // own making a cellar holds, and the loads a bar keeps on its shelf. A bar pours one load a month.
     truck: { load: 20, runs: 4, cost: 500, upkeep: 25, cellar: 2, shelf: 2 },
+    // other goods ride the same trucks, after the liquor: the loads a warehouse and a chop shop make in a month, what
+    // is in a load, and the share a fence earns the month it has nothing to sell
+    goods: { makes: { warehouse: 2, chopshop: 1 }, load: { goods: 20, cars: 4 }, short: 0.6 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -393,51 +396,80 @@
     });
     return { stills: stills, bars: bars, wet: bars ? Math.min(1, RULES.pours * stills / bars) : 1 };
   }
-  // What a bar had to pour this month: the loads the trucks really brought it, or, before any month has gone by,
-  // what the family's stills could make for it.
-  function poured(c, p, wet) { var b = c.blocks[p.x + ',' + p.y]; return b && b.wet !== undefined ? b.wet : wet; }
-  // Where liquor is made: the family's stills, and the brewery if it holds it. What each makes in a month, in loads.
+  // Goods go from where they are made to where they are sold, by truck. Liquor from the stills to the bars; hijacked
+  // goods from the warehouses and stolen cars from the chop shops to the fences. A seller with nothing to sell earns
+  // only the `short` share of what it could.
+  var CHAINS = [{ id: 'liquor', sells: 'speakeasy', short: RULES.dry }, { id: 'goods', sells: 'fence', short: RULES.goods.short }];
+  var SELLS = { speakeasy: CHAINS[0], fence: CHAINS[1] };
+  var CARGO = { still: 'liquor', warehouse: 'goods', chopshop: 'cars' };
+  function loadOfCargo(cargo) { return cargo === 'liquor' ? RULES.truck.load : RULES.goods.load[cargo]; }
+  // How well the family's warehouses and chop shops keep its fences in goods, across the whole city: 0 to 1.
+  function supplied(c) {
+    var makes = 0, fences = 0, makers = 0;
+    everyPlace(c).forEach(function (p) {
+      if (p.owner !== 'family') return;
+      if (RULES.goods.makes[p.kind]) { makers += 1; makes += RULES.goods.makes[p.kind] * (1 + RULES.bigger * (p.level - 1)); }
+      if (p.kind === 'fence') fences += 1;
+    });
+    return { makers: makers, makes: makes, fences: fences, fed: fences ? Math.min(1, makes / fences) : 1 };
+  }
+  // What a seller had to sell this month: the loads the trucks really brought it, or, before any month has gone by,
+  // what the family could make for it.
+  function poured(c, p, wet) {
+    var b = c.blocks[p.x + ',' + p.y];
+    if (b && b.wet !== undefined) return b.wet;
+    return p.kind === 'fence' ? supplied(c).fed : wet;
+  }
+  // Where goods are made: the family's stills, and the brewery if it holds it; its warehouses and chop shops. What
+  // each makes in a month, in loads.
   function cellars(c) {
     var out = [];
     everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family') return;
-      if (p.kind === 'still') out.push({ p: p, b: c.blocks[key(p.x, p.y)], makes: RULES.pours * (1 + RULES.bigger * (p.level - 1)) * pushed(c, p) });
-      else if (p.kind === 'key' && KEYS[p.key].pours) out.push({ p: p, b: c.blocks[key(p.x, p.y)], makes: RULES.pours * KEYS[p.key].pours });
+      var b = c.blocks[key(p.x, p.y)], size = 1 + RULES.bigger * (p.level - 1);
+      if (p.kind === 'still') out.push({ p: p, b: b, chain: 'liquor', cargo: 'liquor', makes: RULES.pours * size * pushed(c, p) });
+      else if (p.kind === 'key' && KEYS[p.key].pours) out.push({ p: p, b: b, chain: 'liquor', cargo: 'liquor', makes: RULES.pours * KEYS[p.key].pours });
+      else if (RULES.goods.makes[p.kind]) out.push({ p: p, b: b, chain: 'goods', cargo: CARGO[p.kind], makes: RULES.goods.makes[p.kind] * size * pushed(c, p) });
     });
     return out;
   }
-  // One month of liquor: every cellar fills with what was made, the trucks of the men who make it drive full loads to
-  // the thirstiest bars of the family, and every bar pours what it has.
+  // One month of goods: every cellar and store fills with what was made, the trucks of the men who make it drive full
+  // loads to the family's emptiest sellers, liquor first, and every seller sells what it has.
   function distil(c, f) {
-    var src = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {} };
-    var bars = everyPlace(c).filter(function (p) { return p.owner === 'family' && p.kind === 'speakeasy'; }).map(function (p) { return { p: p, b: c.blocks[key(p.x, p.y)] }; });
-    src.forEach(function (s) {
+    var all = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {} };
+    all.forEach(function (s) {
       s.b.stock = Math.min(RULES.truck.cellar * s.makes, (s.b.stock || 0) + s.makes);
       var m = f.men[s.p.capo];
       if (m && left[s.p.capo] === undefined) { m.trucks = m.trucks || 1; left[s.p.capo] = m.trucks * RULES.truck.runs; }
     });
     c.flow.hauls = [];
-    for (;;) {
-      var from = null, to = null;
-      src.forEach(function (s) { if (s.b.stock >= 1 && left[s.p.capo] > 0 && (!from || s.b.stock > from.b.stock)) from = s; });
-      if (!from) break;
+    CHAINS.forEach(function (chain) {
+      var src = all.filter(function (s) { return s.chain === chain.id; }), short = false;
+      var bars = everyPlace(c).filter(function (p) { return p.owner === 'family' && p.kind === chain.sells; }).map(function (p) { return { p: p, b: c.blocks[key(p.x, p.y)] }; });
+      for (;;) {
+        var from = null, to = null;
+        src.forEach(function (s) { if (s.b.stock >= 1 && left[s.p.capo] > 0 && (!from || s.b.stock > from.b.stock)) from = s; });
+        if (!from) break;
+        bars.forEach(function (q) {
+          var has = q.b.stock || 0;
+          if (has + 1 > RULES.truck.shelf) return;
+          if (!to || has < (to.b.stock || 0) || (has === (to.b.stock || 0) && far(from.p.x, from.p.y, q.p.x, q.p.y) < far(from.p.x, from.p.y, to.p.x, to.p.y))) to = q;
+        });
+        if (!to) break;
+        from.b.stock -= 1; to.b.stock = (to.b.stock || 0) + 1; left[from.p.capo] -= 1;
+        var who2 = from.p.capo, n = made[who2] || 0, trucks = f.men[who2].trucks;
+        made[who2] = n + 1;
+        c.flow.hauls.push({ capo: who2, cargo: from.cargo, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo), truck: n % trucks + 1, leg: Math.floor(n / trucks) });
+      }
       bars.forEach(function (q) {
-        var has = q.b.stock || 0;
-        if (has + 1 > RULES.truck.shelf) return;
-        if (!to || has < (to.b.stock || 0) || (has === (to.b.stock || 0) && far(from.p.x, from.p.y, q.p.x, q.p.y) < far(from.p.x, from.p.y, to.p.x, to.p.y))) to = q;
+        var sold = Math.min(1, q.b.stock || 0);
+        q.b.stock = (q.b.stock || 0) - sold; q.b.wet = sold;
+        if (sold < 1) short = true;
       });
-      if (!to) break;
-      from.b.stock -= 1; to.b.stock = (to.b.stock || 0) + 1; left[from.p.capo] -= 1;
-      var who2 = from.p.capo, n = made[who2] || 0, trucks = f.men[who2].trucks;
-      made[who2] = n + 1;
-      c.flow.hauls.push({ capo: who2, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: RULES.truck.load, truck: n % trucks + 1, leg: Math.floor(n / trucks) });
-    }
-    bars.forEach(function (q) {
-      var sold = Math.min(1, q.b.stock || 0);
-      q.b.stock = (q.b.stock || 0) - sold; q.b.wet = sold;
-      if (sold < 1) out.dry = true;
+      if (short) out.dry = true;
+      // only the loads a starved seller waits for call for one more truck
+      if (short || chain.id === 'liquor') src.forEach(function (s) { out.waits[s.p.capo] = (out.waits[s.p.capo] || 0) + Math.floor(s.b.stock); });
     });
-    src.forEach(function (s) { out.waits[s.p.capo] = (out.waits[s.p.capo] || 0) + Math.floor(s.b.stock); });
     out.idle = left;
     return out;
   }
@@ -448,7 +480,7 @@
     if (!WORTH[p.kind]) return 0;
     var h = hold(c, p.x, p.y);
     return WORTH[p.kind] * RULES.yield * worth(c, p.x, p.y, p.kind) * (1 + RULES.bigger * (p.level - 1)) * (h.family / (h.family + h.rival)) * lift(c, p.kind)
-      * (p.kind === 'speakeasy' ? RULES.dry + (1 - RULES.dry) * poured(c, p, wet) : 1) * (p.kind === 'still' ? 1 : pushed(c, p));
+      * (SELLS[p.kind] ? SELLS[p.kind].short + (1 - SELLS[p.kind].short) * poured(c, p, wet) : 1) * (p.kind === 'still' ? 1 : pushed(c, p));
   }
   function income(c, capo) {
     var wet = liquor(c).wet;
@@ -505,12 +537,15 @@
   // `tech` is the family's building tree (0 = the trade is closed).
   function wants(c, capo, o) {
     var card = who(capo), mine = run(c, capo), club = clubOf(c, capo), best = null;
-    var count = {}, drink = liquor(c);
+    var count = {}, drink = liquor(c), stock = supplied(c);
     mine.forEach(function (p) { count[p.kind] = (count[p.kind] || 0) + 1; });
     // no capo opens one more bar with nothing to pour in it, and a dry city calls for a still
     var thirst = function (kind) {
       if (kind === 'speakeasy') return drink.bars > 0 && drink.bars >= RULES.pours * drink.stills ? 0.4 : 1;
-      return kind === 'still' && drink.bars > RULES.pours * drink.stills ? 1.5 : 1;
+      if (kind === 'still') return drink.bars > RULES.pours * drink.stills ? 1.5 : 1;
+      // and the same for a fence with nothing to sell, and for the warehouse or the chop shop that would fill it
+      if (kind === 'fence') return stock.fences > 0 && stock.fences >= stock.makes ? 0.4 : 1;
+      return RULES.goods.makes[kind] && stock.fences > stock.makes ? 1.5 : 1;
     };
     if (mine.length < RULES.reach[o.rank]) {
       frontier(c, capo).forEach(function (b) {
@@ -1039,7 +1074,7 @@
     ((c.flow && c.flow.hauls) || []).forEach(function (h) {
       var garage = clubOf(c, h.capo);
       if (garage && at(c, h.from.x, h.from.y) && at(c, h.to.x, h.to.y)) {
-        out.push({ kind: 'liquor', cargo: 'liquor', capo: h.capo, from: { x: h.from.x, y: h.from.y }, to: { x: h.to.x, y: h.to.y }, amount: h.amount,
+        out.push({ kind: h.cargo && h.cargo !== 'liquor' ? 'goods' : 'liquor', cargo: h.cargo || 'liquor', capo: h.capo, from: { x: h.from.x, y: h.from.y }, to: { x: h.to.x, y: h.to.y }, amount: h.amount,
                    vehicle: h.capo + ':truck:' + (h.truck || 1), leg: h.leg || 0, home: { x: garage.x, y: garage.y } });
       }
     });
@@ -1074,12 +1109,19 @@
   function strains(c, f, p, k) {
     var out = [], dollars = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
     if ((p.till || 0) >= 2 * k.load) out.push({ kind: 'cash', label: 'Cash piling up: ' + dollars(p.till) + ' waits for a car' });
-    var b = c.blocks[key(p.x, p.y)], wet = b.wet !== undefined ? b.wet : k.drink.wet, crates = Math.round((b.stock || 0) * RULES.truck.load);
+    var b = c.blocks[key(p.x, p.y)], wet = b.wet !== undefined ? b.wet : p.kind === 'fence' ? k.goods.fed : k.drink.wet, cell = k.cellar[key(p.x, p.y)];
     if (p.kind === 'speakeasy' && wet < 1) {
       out.push({ kind: 'dry', label: !k.drink.stills ? 'Nothing to pour: the family has no still' : b.wet === 0 ? 'Nothing to pour: no truck came this month'
         : 'Running dry: liquor for ' + Math.round(100 * wet) + '% of what it could sell' });
     }
-    if (k.cellar[key(p.x, p.y)] && (b.stock || 0) >= k.cellar[key(p.x, p.y)] - 1e-9) out.push({ kind: 'surplus', label: 'Cellar full: ' + crates + ' crates wait for a truck' });
+    if (p.kind === 'fence' && wet < 1) {
+      out.push({ kind: 'dry', label: !k.goods.makers ? 'Nothing to sell: the family has no warehouse and no chop shop' : b.wet === 0 ? 'Nothing to sell: no truck came this month'
+        : 'Running short: goods for ' + Math.round(100 * wet) + '% of what it could sell' });
+    }
+    if (cell && (b.stock || 0) >= cell.most - 1e-9) {
+      var n = Math.round((b.stock || 0) * loadOfCargo(cell.cargo));
+      out.push({ kind: 'surplus', label: (cell.cargo === 'liquor' ? 'Cellar full: ' + n + ' crates' : cell.cargo === 'cars' ? 'Yard full: ' + n + ' cars' : 'Store full: ' + n + ' crates') + ' wait for a truck' });
+    }
     else if (p.kind === 'still' && b.stock === undefined && RULES.pours * k.drink.stills >= k.drink.bars + RULES.pours) out.push({ kind: 'surplus', label: 'More liquor than the bars can pour' });
     var most = k.most[key(p.x, p.y)];
     if (most && f.dirty > 0 && (k.washed[key(p.x, p.y)] || 0) >= 0.95 * most) out.push({ kind: 'swamped', label: 'Washing all it can: ' + dollars(f.dirty) + ' of dirty money still waits' });
@@ -1090,8 +1132,8 @@
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       blocks.push({ x: x, y: y, grip: grip(c, x, y), family: m.family[y * c.w + x], rival: m.rival[y * c.w + x] });
     }
-    var choke = { load: loadOf(f), drink: liquor(c), washed: flow.wash || {}, most: {}, cellar: {} };
-    cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = RULES.truck.cellar * s.makes; });
+    var choke = { load: loadOf(f), drink: liquor(c), goods: supplied(c), washed: flow.wash || {}, most: {}, cellar: {} };
+    cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = { most: RULES.truck.cellar * s.makes, cargo: s.cargo }; });
     laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
     return {
       id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0,
@@ -1103,8 +1145,9 @@
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo, till: p.till };
       }).map(function (p) {
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
-        var crates = p.owner === 'family' ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * RULES.truck.load) : 0;
-        if (crates) p.stock = crates; // crates of liquor in a cellar or on a bar's shelf
+        var holds = p.kind === 'speakeasy' ? 'liquor' : p.kind === 'fence' ? 'goods' : (choke.cellar[key(p.x, p.y)] || {}).cargo;
+        var crates = p.owner === 'family' && holds ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * loadOfCargo(holds)) : 0;
+        if (crates) { p.stock = crates; p.holds = holds; } // what waits in a cellar, a store or a yard, or on a seller's shelf: crates of liquor or goods, or cars
         var s = p.owner === 'family' ? strains(c, f, p, choke) : [];
         if (s.length) p.strains = s;
         return p;
@@ -1214,7 +1257,7 @@
     return events;
   }
 
-  var api = { send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

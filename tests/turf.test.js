@@ -1901,3 +1901,87 @@ test('each truckload is driven by one of the capo\'s trucks, out of his club and
   assert.ok(runs.every((t) => t.vehicle === 'dutch:truck:1' && t.home.x === 2 && t.home.y === 2));
   assert.deepEqual(runs.map((t) => t.leg), [0, 1]);
 });
+
+// --- other goods are carried the same way: hijacked goods and stolen cars go by truck to the fences ---
+const dealer = (makers, fences) => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  kept(c, 'dutch');
+  makers.forEach((kind, i) => T.open(c, 8 + i, 2, { owner: 'family', kind, capo: 'dutch' }));
+  [[1, 1], [2, 1], [3, 1], [1, 3], [2, 3], [3, 3]].slice(0, fences).forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'fence', capo: 'dutch' }));
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { c, f };
+};
+const goods = (c, f) => T.trips(c, f).filter((t) => t.kind === 'goods');
+
+test('a warehouse fills with hijacked goods and the capo\'s truck drives them to his fences, one full load a run', () => {
+  const { c, f } = dealer(['warehouse'], 2);
+  assert.deepEqual(goods(c, f), [], 'no month has gone by: no truck has left');
+  T.stepMonth(c, f);
+  const runs = goods(c, f);
+  assert.equal(runs.length, T.RULES.goods.makes.warehouse);
+  assert.ok(runs.every((t) => t.cargo === 'goods' && t.amount === T.RULES.goods.load.goods && t.capo === 'dutch' && t.from.x === 8 && t.from.y === 2));
+  assert.deepEqual(runs.map((t) => t.to.x + ',' + t.to.y).sort(), ['1,1', '2,1'], 'one load for each fence');
+  assert.ok(runs.every((t) => t.vehicle === 'dutch:truck:1' && t.home.x === 2 && t.home.y === 2));
+  assert.equal(T.view(c, f).capos[0].trucks, 1, 'his first truck comes with the warehouse');
+});
+
+test('a chop shop sends its stolen cars to the fences too', () => {
+  const { c, f } = dealer(['chopshop'], 2);
+  T.stepMonth(c, f);
+  const runs = goods(c, f);
+  assert.equal(runs.length, T.RULES.goods.makes.chopshop);
+  assert.ok(runs.every((t) => t.cargo === 'cars' && t.amount === T.RULES.goods.load.cars));
+});
+
+test('a fence with nothing to sell earns a share of what it could, and says why', () => {
+  const none = dealer([], 1), fed = dealer(['warehouse'], 1);
+  T.stepMonth(none.c, none.f); T.stepMonth(fed.c, fed.f);
+  const only = (d) => T.earns(d.c, placeAt(d.c, d.f, 1, 1));
+  assert.ok(Math.abs(only(none) - T.RULES.goods.short * only(fed)) < 1e-6);
+  assert.equal(placeAt(none.c, none.f, 1, 1).strains.find((s) => s.kind === 'dry').label, 'Nothing to sell: the family has no warehouse and no chop shop');
+  assert.ok(!(placeAt(fed.c, fed.f, 1, 1).strains || []).some((s) => s.kind === 'dry'));
+  const thin = dealer(['chopshop'], 3);
+  T.stepMonth(thin.c, thin.f);
+  const starved = T.view(thin.c, thin.f).places.filter((p) => p.kind === 'fence' && p.strains);
+  assert.equal(starved.length, 2);
+  assert.equal(starved[0].strains[0].label, 'Nothing to sell: no truck came this month');
+});
+
+test('goods nobody sells fill the store, stop there, and say so', () => {
+  const { c, f } = dealer(['warehouse', 'chopshop'], 0);
+  for (let m = 0; m < 6; m++) T.stepMonth(c, f);
+  const store = placeAt(c, f, 8, 2), yard = placeAt(c, f, 9, 2);
+  assert.equal(store.stock, T.RULES.truck.cellar * T.RULES.goods.makes.warehouse * T.RULES.goods.load.goods);
+  assert.equal(store.strains[0].label, 'Store full: ' + store.stock + ' crates wait for a truck');
+  assert.equal(yard.stock, T.RULES.truck.cellar * T.RULES.goods.makes.chopshop * T.RULES.goods.load.cars);
+  assert.equal(yard.strains[0].label, 'Yard full: ' + yard.stock + ' cars wait for a truck');
+  assert.deepEqual([store.holds, yard.holds], ['goods', 'cars']);
+});
+
+test('a capo\'s trucks carry his liquor first: goods go with the runs that are left', () => {
+  const { c, f } = dealer(['warehouse'], 2);
+  T.open(c, 9, 2, { owner: 'family', kind: 'still', capo: 'dutch', level: 3 }); // four loads a month
+  [[4, 1], [5, 1], [4, 3], [5, 3]].forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch' }));
+  f.men.dutch.cash = 0;
+  T.stepMonth(c, f);
+  assert.equal(hauls(c, f).length, T.RULES.truck.runs, 'every run of his one truck went to the bars');
+  assert.deepEqual(goods(c, f), []);
+  f.men.dutch.trucks = 2;
+  T.stepMonth(c, f);
+  assert.ok(goods(c, f).length > 0, 'a second truck has runs to spare');
+  const legs = T.trips(c, f).filter((t) => t.vehicle === 'dutch:truck:1').map((t) => t.leg);
+  assert.deepEqual(legs, [...Array(legs.length).keys()], 'one truck, one run after the other, whatever it carries');
+});
+
+test('no capo opens one more fence with nothing to sell in it: starved fences call for a chop shop or a warehouse', () => {
+  const only = () => { const t = ALL(); for (const k of Object.keys(t)) t[k] = k === 'fence' || k === 'chopshop' || k === 'warehouse' ? 3 : 0; return t; };
+  const next = (fences, makers) => {
+    const c = town(); T.settle(c, 'dutch', 8, 2);
+    [[7, 1], [8, 1], [9, 1]].slice(0, fences).forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'fence', capo: 'dutch' }));
+    [[7, 3], [8, 3]].slice(0, makers).forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'chopshop', capo: 'dutch' }));
+    return T.wants(c, 'dutch', { rank: 3, tech: only() }).kind;
+  };
+  assert.notEqual(next(2, 0), 'fence', 'two fences and nothing to sell');
+  assert.equal(next(0, 2), 'fence', 'two chop shops and nobody to sell the cars');
+});
