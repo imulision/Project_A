@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "node --test tests/turf-streets.test.js tests/turf-men.test.js tests/turf-money.test.js tests/turf-view.test.js tests/turf-learning.test.js tests/turf-goods.test.js tests/turf-loyalty.test.js tests/turf-shape.test.js tests/turf-cut.test.js tests/turf-holdings.test.js tests/turf-promise.test.js tests/empire.test.js tests/turfplan.test.js tests/icons.test.js tests/cards.test.js tests/pace.test.js tests/look.test.js tests/period.test.js tests/load.test.js",
+    "test:unit": "node --test tests/turf-streets.test.js tests/turf-men.test.js tests/turf-money.test.js tests/turf-view.test.js tests/turf-learning.test.js tests/turf-goods.test.js tests/turf-loyalty.test.js tests/turf-shape.test.js tests/turf-cut.test.js tests/turf-holdings.test.js tests/turf-promise.test.js tests/turf-rival.test.js tests/empire.test.js tests/turfplan.test.js tests/icons.test.js tests/cards.test.js tests/pace.test.js tests/look.test.js tests/period.test.js tests/load.test.js",
     "test:integration": "node tests/playthrough.mjs",
     "build": "esbuild render/main.js --bundle --format=iife --minify --target=es2020 --legal-comments=none --outfile=web/render.js"
   },
