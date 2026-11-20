@@ -117,13 +117,16 @@
 
   function key(x, y) { return x + ',' + y; }
 
-  function inside(c, x, y) { return x >= 0 && y >= 0 && x < c.w && y < c.h; }
+  // A city is a rectangle of blocks with some missing (water, rail yards, waste ground): c.voids names them, and they are outside the city.
+  function inside(c, x, y) { return x >= 0 && y >= 0 && x < c.w && y < c.h && !(c.voids && c.voids[key(x, y)]); }
+  // How many real blocks a city has.
+  function size(c) { return c.w * c.h - (c.voids ? Object.keys(c.voids).length : 0); }
 
   function at(c, x, y) { return c.blocks[key(x, y)] || null; }
 
   function far(ax, ay, bx, by) { return Math.max(Math.abs(ax - bx), Math.abs(ay - by)); }
 
-  var api = { RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, at: at, far: far };
+  var api = { RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);
