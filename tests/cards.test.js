@@ -428,3 +428,14 @@ test('a taken chair says what it costs and gives, and the man can be sent away',
   assert.match(C.chair({ ...v, table: TABLE.map((t) => ({ ...t, paid: false })) }, 'bookkeeper'), /not paid/i);
   assert.equal(C.chair({ ...v, table: TABLE }, 'routes'), null, 'an empty chair has no sheet');
 });
+
+test('an event is a small tile on the edge of the screen: its picture, its words, and where it happened', () => {
+  const t = C.news({ type: 'opened', city: 'ashport', x: 4, y: 10, label: "Sal opens a speakeasy in Canal Street" });
+  assert.match(t, /^<button class="news"/); assert.match(t, /data-city="ashport" data-x="4" data-y="10"/); assert.match(t, /Sal opens a speakeasy/);
+  assert.match(C.news({ type: 'burnt', city: 'ashport', x: 1, y: 2, label: 'fire' }), /class="news bad"/);
+  const nowhere = C.news({ type: 'learned', label: 'The family learns' });
+  assert.doesNotMatch(nowhere, /data-x/); assert.match(nowhere, /The family learns/);
+  assert.match(C.news({ type: 'a new kind', label: 'x' }), /<svg/, 'an unknown event still has a picture');
+  assert.match(C.fxTip('news', 'Sal asks for a truck', 'asks'), /Sal asks for a truck/);
+  assert.doesNotMatch(C.fxTip('news', 'Sal asks', 'asks'), /undefined|news/);
+});

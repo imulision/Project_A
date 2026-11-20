@@ -25,6 +25,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   for (let i = 0; i < n * 4; i++) {
     A.beat();
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
+    seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
     if (again && i % 24 === 0) again.click();
     for (let guard = 0; guard < 12 && document.querySelector('#veil.on'); guard++) {
@@ -161,6 +162,7 @@ if (!seated.rides) { await page.evaluate(() => window.__ashport.home()); await s
   for (let n = 0; n < 40 && !(await page.evaluate(() => window.__seen.rides)); n++) { await months(1, 'rides'); const d = await page.evaluate(() => window.__ashport.map().stats().drawn); await page.waitForFunction((d) => window.__ashport.map().stats().drawn > d + 1, d, { timeout: 30000 }).catch(() => {}); } }
 const seen = await page.evaluate(() => window.__seen);
 assert.ok(seen.away > 0 && seen.rides > 0, 'a capo is seen where he works, and in his own car on the way there (' + seen.away + ', ' + seen.rides + ')');
+assert.ok(seen.news > 0 && seen.marks > 0, 'events are told by tiles on the edge and marked where they happen (' + seen.news + ', ' + seen.marks + ')');
 assert.ok(seen.lit > 0 && seen.out === 0, 'the streets where a club can open are lit during the choice, and put out after (' + seen.lit + ', ' + seen.out + ')');
 await months(6);
 await still();

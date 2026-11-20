@@ -36,7 +36,8 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), events ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns) map.effects(M.effectsTurf(events || [], p));
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), events ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
+    map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
   }
   function zoneId(cityId, x, y) { var c = view.cities.filter(function (q) { return q.id === cityId; })[0], n = 0;
@@ -74,6 +75,17 @@
     $('toast').appendChild(e); while ($('toast').children.length > 3) $('toast').firstChild.remove();
     setTimeout(function () { e.remove(); }, 6000);
   }
+
+  // What happens is told by small tiles on the right edge: they slide in, stay a few seconds, and go. A touch on one goes where it happened.
+  function tell(e) {
+    var f = $('feed'); f.insertAdjacentHTML('beforeend', C.news(e)); var t = f.lastChild;
+    while (f.children.length > 4) f.firstChild.remove();
+    setTimeout(function () { t.classList.add('out'); setTimeout(function () { t.remove(); }, 400); }, 6500);
+  }
+  $('feed').addEventListener('click', function (e) {
+    var t = e.target.closest('.news'); if (!t) return; var d = t.dataset; t.remove();
+    if (d.city && map) map.focus(d.city, zoneId(d.city, +d.x, +d.y));
+  });
 
   // ---- sheets
   function open(html) { $('sheet').innerHTML = html; $('veil').classList.add('on'); $('sheet').scrollTop = 0; }
@@ -198,7 +210,7 @@
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
   var FX = C.FX;
   function tapLabel(l, e) {
-    if (l.fx) tip(e, C.fxTip(l.fx, l.say));
+    if (l.fx) tip(e, C.fxTip(l.fx, l.say, l.type));
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
     else if (picking) return;
     else if (l.site) said(l.city, l.bx, l.by, e);
@@ -217,7 +229,7 @@
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
           e = labs[l.id] = document.createElement('div');
-          if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
+          if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, l.fx === 'news' ? C.EVENT[l.type] || 'time' : (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
           else if (l.car) { e.className = 'lab tag'; e.innerHTML = '<span></span><b></b>'; e.pic = e.firstChild; e.b = e.lastChild; }
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
           else if (l.capo) e.className = 'lab capo';
@@ -225,7 +237,7 @@
           $('labels').appendChild(e);
         }
         // a label is moved by the compositor alone, and only when it has moved by a whole pixel: no layout of the page per frame
-        var px = Math.round(l.x), py = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120 }[l.fx] || 0) : 0));
+        var px = Math.round(l.x), py = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120, news: 0 }[l.fx] || 0) : 0));
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
@@ -250,12 +262,11 @@
   }
 
   // ---- time
-  var LOUD = { hijack: 1, seizure: 1, truck: 0, burnt: 1, bust: 1, unpaid: 1, taken: 0, rank: 0, learned: 0, repelled: 0, car: 0 };
   function beat() {
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g);
     if (g.month === before) return;
-    events.forEach(function (e) { if (e.type in LOUD) toast(e.label, !!LOUD[e.type]); });
+    events.forEach(tell);
     refresh(events); showHud(); store();
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
   }
