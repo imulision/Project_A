@@ -28,7 +28,8 @@
   var STATS = [['muscle', 'Muscle: takes and holds streets, wins fights'], ['business', 'Business: makes every place pay more'], ['cunning', 'Cunning: hides the money, sees traps'], ['charisma', 'Charisma: keeps the neighbourhood and his men on his side']];
   var WAY = { force: { icon: 'muscle', color: '#ff5a3a', word: 'By force', tip: 'His men go in gun in hand' }, bribe: { icon: 'bribe', color: '#e8c463', word: 'With an envelope', tip: 'He pays the other side\'s man to change sides' },
               buy: { icon: 'clean', color: '#8fbf97', word: 'By buying', tip: 'He buys the place outright' } };
-  var HAUL = { liquor: ['liquor', '#ffb347', 'Liquor on its way to the bars'], takings: ['takings', '#e8c463', 'Takings, dirty cash, on their way to the club'], wash: ['dirty', '#6ad0e0', 'Dirty cash on its way to be washed'], crew: ['muscle', '#ff5a3a', 'A crew on its way to take a place'] };
+  var HAUL = { liquor: ['liquor', '#ffb347', 'Liquor on its way to the bars'], takings: ['takings', '#e8c463', 'Takings, dirty cash, on their way to the club'], wash: ['dirty', '#6ad0e0', 'Dirty cash on its way to be washed'], crew: ['muscle', '#ff5a3a', 'A crew on its way to take a place'],
+               patrol: ['heat', '#4a7dff', 'Police patrol: the hotter the city, the more of them'] };
   var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
@@ -98,6 +99,13 @@
   // The dollars a car carries: a month of takings from one place, or a month of cash sent to one laundry.
   // Money seen on the map, over the place where it comes in or leaves.
   function pop(n) { return !n ? null : { text: (n > 0 ? '+' : '\u2212') + money(Math.abs(n)), cls: n > 0 ? 'in' : 'out' }; }
+  // The places burnt out these last months, city by city: the map keeps them black for a while.
+  var SCAR = 6;
+  function scars(journal, month) {
+    var out = {};
+    (journal || []).forEach(function (e) { if (e.type === 'burnt' && typeof e.x === 'number' && month - e.month < SCAR) (out[e.city] = out[e.city] || []).push({ x: e.x, y: e.y }); });
+    return out;
+  }
   function carLoad(car) { return (car.kind === 'takings' || car.kind === 'wash') && car.amount > 0 ? money(car.amount) : ''; }
   function carTip(car, empty) {
     var h = haul(car), unit = h[3] || (h === HAUL.liquor ? 'cases' : ''), n = car.amount > 0 ? (carLoad(car) || (unit ? car.amount + ' ' + unit : '')) : '', road = car.kind === 'convoy';
@@ -458,7 +466,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

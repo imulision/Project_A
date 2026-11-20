@@ -33,6 +33,7 @@
     view = E.view(g);
     if (!g.started) return;
     waits = {};
+    var scars = C.scars(g.journal, g.month); view.cities.forEach(function (c) { c.scars = scars[c.id] || []; });      // what was burnt out stays black on the map for a while
     healths = C.healths(view); view.cities.forEach(function (c) { c.capos.forEach(function (k) { k.trouble = healths[c.id + k.id].worst === 'bad'; }); });      // how his streets fare: three lights under his face
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });

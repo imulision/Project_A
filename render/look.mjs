@@ -14,6 +14,7 @@ const frac = (x) => x - Math.floor(x);
 const QUIET = { sign: null, parked: false };
 export function lotLook(l, r = 0.5) {
   const site = l.site;
+  if (l.burnt && !site) return { shade: 0.24, roof: null, gain: 0, lamps: 0, burnt: true, ...QUIET };      // burnt out: a black shell until the street forgets
   if (site && site.owner === 'family') return { shade: 1.18, roof: 'family', gain: 1, lamps: 2, ...QUIET };
   if (site) return { shade: 0.8, roof: site.color || null, gain: 0.7, lamps: 1, ...QUIET };
   if (l.ours) {

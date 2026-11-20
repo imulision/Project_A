@@ -740,3 +740,10 @@ test('a promise is followed: what is owed is listed on the city sheet, and the d
   assert.doesNotMatch(kept, /class="news bad"/); assert.match(broken, /class="news bad"/);
   assert.match(kept, /as Dutch promised/);
 });
+
+test('the places burnt out these last months are remembered, city by city, for the map to keep them black', () => {
+  const journal = [{ month: 3, type: 'burnt', city: 'ashport', x: 4, y: 10 }, { month: 9, type: 'burnt', city: 'ashport', x: 5, y: 9 }, { month: 10, type: 'opened', city: 'ashport', x: 6, y: 9 }, { month: 10, type: 'burnt', city: 'dunmore', x: 1, y: 1 }];
+  assert.deepEqual(C.scars(journal, 11), { ashport: [{ x: 5, y: 9 }], dunmore: [{ x: 1, y: 1 }] });
+  assert.deepEqual(C.scars(journal, 30), {}); assert.deepEqual(C.scars(undefined, 3), {});
+  assert.match(C.carTip({ kind: 'patrol', vehicle: 'police' }), /Police patrol/);
+});

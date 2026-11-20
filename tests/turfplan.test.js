@@ -348,3 +348,26 @@ test('the streets of a capo in trouble show it: their buildings are marked low, 
   assert.ok(low.length > 0, 'his streets are marked'); low.forEach((l) => assert.ok(l.ours && !l.site, 'only the streets, not the places'));
   assert.notEqual(ill.key, well.key, 'the renderer draws the town again');
 });
+
+test('a place burnt out stays a black shell for a while, and works under way are marked where they are built', () => {
+  const c = cityOf(play(30)), b = c.blocks.find((q) => q.grip === 'family' && !c.places.some((p) => p.x === q.x && p.y === q.y));
+  const plain = M.planTurf(c), scarred = M.planTurf({ ...c, scars: [{ x: b.x, y: b.y }] });
+  assert.equal(plain.lots.filter((l) => l.burnt).length, 0);
+  const shell = scarred.lots.filter((l) => l.burnt);
+  assert.equal(shell.length, 1); assert.deepEqual([shell[0].bx, shell[0].by], [b.x, b.y]); assert.equal(shell[0].shop, false, 'nothing is sold in a shell');
+  assert.notEqual(scarred.key, plain.key, 'the renderer draws the town again');
+  const k = c.capos[0], busy = { ...c, capos: c.capos.map((m) => (m.id === k.id ? { ...m, plan: { move: 'open', kind: 'still', x: b.x, y: b.y, progress: 0.4, waiting: 'time' } } : m)) };
+  const site = M.planTurf(busy).lots.filter((l) => l.works);
+  assert.equal(site.length, 1); assert.deepEqual([site[0].bx, site[0].by], [b.x, b.y]);
+  const saving = { ...c, capos: c.capos.map((m) => (m.id === k.id ? { ...m, plan: { move: 'open', kind: 'still', x: b.x, y: b.y, progress: 0.4, waiting: 'money' } } : m)) };
+  assert.equal(M.planTurf(saving).lots.filter((l) => l.works).length, 0, 'a man still saving has built nothing yet');
+  assert.notEqual(M.planTurf(busy).key, plain.key);
+});
+
+test('the hotter a city, the more police cars patrol its streets', () => {
+  const v = E.view(play(30)), at = (heat) => { const w = { ...v, cities: v.cities.map((c, n) => (n ? c : { ...c, heat })) }, p = M.planEmpire(w, global.AshportWorld.CITIES); return M.tripsTurf(p, w).filter((t) => t.kind === 'patrol'); };
+  assert.equal(at(5).length, 0); assert.equal(at(30).length, 1); assert.equal(at(60).length, 2); assert.equal(at(100).length, 3, 'never a parade');
+  at(100).forEach((t) => { assert.equal(t.vehicle, 'police'); assert.equal(t.loop, true); assert.ok(t.path.length > 3); assert.equal(t.city, 'ashport');
+    t.path.forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0 || q === t.path[0] || q === t.path[t.path.length - 1], 'it keeps to the streets')); });
+  assert.notEqual(at(100)[0].path.join(';'), at(100)[1].path.join(';'), 'each has its own beat');
+});

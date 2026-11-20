@@ -301,7 +301,7 @@ function plan(C) {
   }
   for (const l of C.p.lots) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, low: !!l.low, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, low: !!l.low, burnt: !!l.burnt, works: !!l.works, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
   nBuildings += C.lots.length;
 }
@@ -405,6 +405,9 @@ function buildFar(C) {
   if (C.p.turf) turfGround(C);
 }
 // near version: the real models, one instanced draw call per model and light level
+const SCAFFOLD = new THREE.Color(0xd9b077), SMOKE = new THREE.MeshBasicMaterial({ map: GLOW_SOFT, color: 0x77726c, transparent: true, depthWrite: false, opacity: 0.5 });
+function smoke(x, y, z, s, op) { const m = new THREE.Mesh(UNIT, SMOKEMATS[op > 0.4 ? 0 : op > 0.3 ? 1 : 2]); m.quaternion.copy(cam.quaternion); m.position.set(x, y, z); m.scale.set(s, s, 1); m.renderOrder = 5; cur.add(m); }
+const SMOKEMATS = [0.5, 0.37, 0.24].map((o) => { const m = SMOKE.clone(); m.opacity = o; return m; });
 const SHOPSIGNS = ['#ffb347', '#ff6b5e', '#7fe0a8', '#ffd9a0', '#7fc8ff', '#ff8fc0'], PARKED = ['car_sedan', 'car_hatchback', 'car_sedan', 'car_stationwagon'], KERB = 1.25;      // a parked car, this far from the middle of its building
 function buildNear(C) {
   const G = new THREE.Group(), inst = new Map(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
@@ -424,7 +427,13 @@ function buildNear(C) {
   for (const l of C.lots) {
     if (l.open) { openGround(l, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), h > 0.1, [w, h, d])); continue; }
     const k = lotLook(l);
-    add(l.name, ERAMATS[l.lit], l.x, 0, l.z, l.rot, l.sy, TINTS[l.tint].clone().multiplyScalar(k.shade));
+    add(l.name, ERAMATS[k.burnt ? 0 : l.lit], l.x, 0, l.z, l.rot, l.sy, TINTS[l.tint].clone().multiplyScalar(k.shade));
+    if (k.burnt) for (let n = 0; n < 3; n++) smoke(l.x + 0.25 * n, l.h + 0.5 + 0.8 * n, l.z - 0.2 * n, 1.3 + 0.7 * n, 0.5 - 0.13 * n);      // it still smokes
+    if (l.works) {      // works under way: a scaffold of poles and planks around the building
+      const r = 0.98, top = Math.max(0.9, l.h * 0.8);
+      for (const [sx, sz] of [[-r, -r], [r, -r], [-r, r], [r, r]]) add('slab', ROOFMAT, l.x + sx, top / 2, l.z + sz, 0, 1, SCAFFOLD, false, [0.12, top, 0.12]);
+      for (let y = 0.45; y < top; y += 0.5) for (const [sx, sz, w, d] of [[0, r, 2 * r, 0.22], [r, 0, 0.22, 2 * r], [0, -r, 2 * r, 0.22], [-r, 0, 0.22, 2 * r]]) add('slab', ROOFMAT, l.x + sx, y, l.z + sz, 0, 1, SCAFFOLD, false, [w, 0.06, d]);
+    }
     if (k.roof) add('roofcap', ROOFMAT, l.x, l.h, l.z, l.rot, 1, roofColor(k, new THREE.Color()));
     if (l.tower) add('watertower', PLAINMAT, l.x + l.tx * 0.6, l.h, l.z - 0.2, l.tr, 1, PROPTINT);
     if (l.shop) {      // warm light spilling from the ground floor onto the pavement

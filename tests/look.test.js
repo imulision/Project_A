@@ -51,3 +51,10 @@ test('a street that changes hands is noticed: the blocks won and the blocks lost
   assert.deepEqual(turned(was, was), []); assert.deepEqual(turned(undefined, now), [], 'a town seen for the first time has no news');
   assert.deepEqual(turned(was.slice(0, 2), now), [], 'nor a town whose plan changed shape');
 });
+
+test('a place burnt out is a black shell: dark walls, no roof colour, no lamp, no sign', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  for (const l of [{ ours: true, lit: 3, site: null, shop: true, burnt: true }, { ours: false, lit: 0, site: null, burnt: true }]) {
+    const k = lotLook(l, 0.1); assert.ok(k.shade <= 0.3); assert.equal(k.roof, null); assert.equal(k.lamps, 0); assert.equal(k.sign, null); assert.equal(k.parked, false); assert.equal(k.burnt, true); }
+  assert.ok(!lotLook({ ours: true, lit: 3, site: null }, 0.1).burnt);
+});
