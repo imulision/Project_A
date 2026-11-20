@@ -468,7 +468,7 @@ test('a man at the door of a city that has an underboss is his to take in: no de
 test('a sheet that cannot be drawn says so and lets time go on, instead of throwing', () => {
   const html = C.capo({ cities: [{ id: 'a', name: 'A', capos: [{ id: 'nobody at all' }] }] }, 'a', 'nobody at all');
   assert.match(html, /could not be drawn/); assert.match(html, /data-act="later"/);
-  assert.match(C.requests({ cities: [{ id: 'a', feuds: [{}], asks: [], doors: [] }] }, {}), /could not be drawn/);
+  assert.match(C.requests({ cities: [{ id: 'a', feuds: null, asks: null, doors: null }] }, {}), /could not be drawn/);
 });
 
 test('whoever starts and whatever happens in fifteen years, every sheet of every month can be drawn', () => {
@@ -502,4 +502,16 @@ test('whoever starts and whatever happens in fifteen years, every sheet of every
       if (g.paused) E.command(g, { type: 'resume' });
     }
   });
+});
+
+// A man can come through a key place or from a rival family: what stands behind him is then not a person.
+test('the sheet of requests opens whoever stands behind the man at the door', () => {
+  const door = (more) => Object.assign({ capo: 'gus', name: 'Gus Hartmann', specialty: 'Brewmaster', door: 'name', by: null, why: 'He comes with the brewery.', cost: 800, roads: [], chairs: [] }, more);
+  const view = { cities: [{ id: 'ashport', name: 'Ashport', feuds: [], asks: [], seats: { taken: 1, total: 6 },
+    doors: [door({ by: 'brewery' }), door({ capo: 'finn', name: 'Finn O\'Rourke', door: 'poach', by: 'Callahan' }), door({ capo: 'rocco', name: 'Rocco Bellini', door: 'rise', by: 'sal' }), door({ capo: 'otto', name: 'Otto Brenner', by: 'nobody-known' })] }] };
+  const html = C.requests(view, { dirty: 5000, clean: 0, pending: 4 });
+  assert.match(html, /Gus Hartmann/);
+  assert.match(html, /Finn O'Rourke|Finn O&#39;Rourke/);
+  assert.match(html, /spoken for by Sal/);
+  assert.equal(html.match(/spoken for by/g).length, 1, 'only a man of the family speaks for another');
 });
