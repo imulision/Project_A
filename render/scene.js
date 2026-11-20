@@ -5,6 +5,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { due } from './pace.mjs';
+import { makeFx } from './fx.js';
+import { makeTraffic } from './traffic.js';
+import { makeLabels } from './labels.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -588,36 +591,6 @@ const focus = (id, districtId) => {     // glide to the whole map, to a city, or
 };
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
-// what the page writes over the map: city names from afar, district names up close, and what is happening
-const labels = () => {
-  const out = [], near = cam.zoom >= NEAR_ZOOM;
-  CITIES.forEach(c => {
-    if (!near) { const [x, y] = scr(c.ox - 2, c.oz - 2), k = c.p.held ? 'family' : c.p.rival, d = c.d.find(d => d.owner === k);
-      out.push({ id: 'c' + c.id, city: c.id, name: c.name, sub: c.p.turf ? (c.p.present ? c.p.held + '% of the streets' : c.p.rivalName) : c.p.held ? `you hold ${c.p.held} of ${c.p.total}` : (d ? d.ownerName : ''), color: COLORS[c.p.turf ? (c.p.present ? 'family' : c.p.rival) : k], x, y }); }
-    else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + (d.c0 + d.c1) * 2 * T, c.oz + (d.r0 + d.r1) * 1.5 * T);
-      out.push(c.p.turf ? { id: 'd' + d.id, small: true, ground: true, city: c.id, name: d.name, sub: '', color: '#ffffff', x, y }
-        : { id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
-    // the capo is seen where he sits: over the hideout of his district
-    if (near && c.near && c.near.visible && c.p.turf) for (const k of c.p.capos) {      // each capo where he is this month, with what he is doing; while he drives there, his face rides his car
-      let ride = null; for (const a of agents.values()) if (a.kind === 'capo' && a.tag.capo === k.id && a.C === c) ride = a;
-      const at = k.at || k, l = ride ? null : c.lots.find(l => l.i === at.i && l.j === at.j) || c.lots.find(l => l.i === k.i && l.j === k.j); if (!ride && !l) continue;
-      const [x, y] = ride ? scr(ride.x === undefined ? ride.pts[0][0] : ride.x, ride.z === undefined ? ride.pts[0][1] : ride.z, 2.2) : scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + c.id + k.id, capo: k.id, city: c.id, move: k.move, kind: k.kind, way: k.way, progress: k.progress, waiting: k.waiting, riding: !!ride, where: at.why || 'home', x, y }); }
-    else if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
-      const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + d.id, capo: d.capo, city: c.id, district: d.id, x, y }); });
-  });
-  // a mark over each place of the family, so that its trade is read at a glance
-  if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of c.lots) if (l.site) {
-    if (c.p.turf && l.site.owner !== 'family' && !l.site.key) continue;      // a rival's ordinary place is read by its sign alone; key places always carry a mark
-    const [x, y] = scr(l.x, l.z, l.h + 0.5); if (c.p.turf && (x < -40 || y < -40 || x > innerWidth + 40 || y > innerHeight + 40)) continue;
-    out.push({ id: 's' + (c.p.turf ? c.id : '') + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, owner: l.site.owner, key: l.site.key, capo: l.site.capo, city: c.id, bx: l.bx, by: l.by, x, y }); } });
-  // what every car carries, when the cars themselves are drawn
-  let shownCars = 0;
-  for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || a.parked || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
-    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, round: a.round, back: a.round ? !a.loaded : a.dir < 0, x, y }); }
-  const shown = new Set();      // one badge per kind and per block, however many shots are fired
-  for (const f of fxList) { const k = f.kind + (f.kind === 'news' ? f.type : '') + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, type: f.type, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
-  return out;
-};
 // the state of the game changed: rebuild only the cities that look different
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
@@ -627,113 +600,11 @@ function update(P2) {
     nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true;
   });
 }
-// fire, gunfire and police lights where something just happened
-const fxList = []; let fxN = 0;
-const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12], news: [0xffe6b0, 10] };
-function spawnFx(kind, x, z, h = 1, say, type) {
-  const look = FXLOOK[kind]; if (!look) return;
-  const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
-  m.quaternion.copy(cam.quaternion); m.position.set(x, h + 0.6, z); m.renderOrder = 6; scene.add(m);
-  fxList.push({ n: fxN++, kind, type, x, z, m, say, t: 0, life: look[1] });
-}
-function effects(list) {
-  for (const e of list) {
-    const C = CITIES.find(c => c.id === e.city); if (!C) continue;
-    const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
-    spawnFx(e.kind, l ? l.x : C.ox + (d.c0 + d.c1) * 2 * T, l ? l.z : C.oz + (d.r0 + d.r1) * 1.5 * T, l ? l.h : 1, e.say, e.type);
-  }
-}
-// the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
-// Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
-const agents = new Map(), MAXDOTS = 400, MAXTAGS = 28;
-const dots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ map: GLOW_WARM, size: 10, sizeAttenuation: false, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
-dots.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3)); dots.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3));
-dots.geometry.setDrawRange(0, 0); dots.frustumCulled = false; dots.renderOrder = 5; scene.add(dots);
-const POLICEMAT = kitMat(0.35, -1, 0x27365f), MUSCLEMAT = kitMat(0.35, -1, 0x241f1f);
-// Between two cities there is no street plan: the truck follows the road drawn on the land (or the straight line, by sea).
-const OPEN = { near: { visible: true } };
-function roadBetween(a, b) {
-  const r = ROADS.find(r => (r.a === a && r.b === b) || (r.a === b && r.b === a)), A = CITIES[a], B = CITIES[b]; if (!A || !B) return null;
-  return r ? (r.a === a ? r.pts : r.pts.slice().reverse()) : [[A.cx, A.cz], [B.cx, B.cz]];
-}
-function agentFor(t) {
-  const road = t.kind === 'convoy' ? roadBetween(t.a, t.b) : null, C = road ? OPEN : CITIES.find(c => c.id === t.city); if (!C) return null;
-  const pts = road || t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
-  for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
-  if (!L && !t.round) return null;
-  // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
-  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: (t.path || []).join(';'), leaving: false,
-           geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-           tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 14 : t.loop ? 2.4 : 5, o: null,
-           // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
-           round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, lost: s.lost, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
-}
-// A vehicle on its round takes the way of the new month once it is back by the club; parked, it takes it at once.
-function reroute(id, a, t) {
-  if (a.sig === t.path.join(';')) { a.next = null; a.stops.forEach((s, i) => { if (t.stops[i]) s.amount = t.stops[i].amount; }); return; }      // same way, this month's loads
-  if (a.L && (a.p > 0 || a.wait <= 0) && a.p < a.L) { a.next = t; return; }
-  const b = agentFor(t); if (!b) return; b.wait = a.L ? Math.max(0, a.wait) : hsh(b.pts[0][0], b.L) * 2; b.rot = a.rot; agents.set(id, b);
-}
-function traffic(trips) {
-  const seen = new Set();
-  for (const t of trips) {
-    if (t.loop) { seen.add(t.id); const old = agents.get(t.id);
-      if (old && old.round && t.round) { reroute(t.id, old, t); continue; }
-      if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (fxN++), old); }      // the route changed: the old car finishes its run
-      if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load, amount: t.amount || 0 }); }
-    else { const a = agentFor(t); if (a) agents.set('once' + (fxN++), a); }
-  }
-  // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there
-  for (const [id, a] of agents) if (a.loop && !a.leaving && !seen.has(id)) { a.leaving = true; agents.delete(id); agents.set('old' + (fxN++), a); }
-}
-function moveAgents(dt) {
-  const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
-  for (const [id, a] of agents) {
-    if (a.wait > 0) a.wait -= dt;
-    else if (a.round) {
-      if (!a.L) { if (a.leaving) { agents.delete(id); continue; } }
-      else {
-        a.p += a.speed * dt; const s = a.stops[a.si];
-        if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.lost) { a.wait = 3; spawnFx(s.lost === 'seizure' ? 'police' : 'gunfire', a.x === undefined ? a.pts[0][0] : a.x, a.z === undefined ? a.pts[0][1] : a.z, 1, s.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone'); } if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
-        else if (a.p >= a.L) {      // home again: it rests by the club, then goes out again, by the new way if the month changed it
-          if (a.leaving) { agents.delete(id); continue; }
-          if (a.next) { const b = agentFor(a.next); if (b) { b.wait = 3; b.rot = a.rot; agents.set(id, b); continue; } a.next = null; }
-          a.p = 0; a.si = 0; a.loaded = false; a.wait = 3;
-        }
-      }
-    } else {
-      a.p += a.dir * a.speed * dt;
-      if (a.p >= a.L) {
-        if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); agents.delete(id); continue; }
-        if (a.leaving) { agents.delete(id); continue; }
-        a.p = a.L; a.dir = -1; a.wait = 1.5;
-      } else if (a.p <= 0) { if (a.leaving) { agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
-    }
-    let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
-    const p0 = a.pts[k], p1 = a.pts[k + 1] || p0, s0 = k ? a.len[k - 1] : 0, t = (a.p - s0) / ((a.len[k] - s0) || 1), x = p0[0] + (p1[0] - p0[0]) * t, z = p0[1] + (p1[1] - p0[1]) * t;
-    a.seen = !!(a.C.near && a.C.near.visible); a.x = x; a.z = z;
-    if (a.seen) {
-      const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir; if (fx || fz) a.rot = Math.atan2(fx, fz);
-      putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.kind === 'convoy' ? 3 : a.vehicle === 'truck' ? 1.2 : 1);      // seen from far above, a truck between two cities is drawn large
-    }
-    a.parked = a.round && (!a.L || (a.p === 0 && a.wait > 0));
-    if (n < MAXDOTS && !a.parked) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
-  }
-  dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
-  dots.material.size = clamp(6 * Math.sqrt(cam.zoom), 7, 20) * (innerHeight / 844);
-}
-function animateFx(dt, now) {
-  for (let k = fxList.length - 1; k >= 0; k--) {
-    const f = fxList[k]; f.t += dt;
-    if (f.t > f.life) { f.m.removeFromParent(); f.m.material.dispose(); fxList.splice(k, 1); continue; }
-    const far = clamp(4 / cam.zoom, 0.6, 4), fade = Math.min(1, (f.life - f.t) / 2); let s, o = 0.95;
-    if (f.kind === 'fire') s = (5 + 1.5 * Math.sin(now * 0.013 + f.n) + Math.sin(now * 0.031)) * far;
-    else if (f.kind === 'promotion') { s = (6 + 2 * Math.sin(now * 0.004)) * far; o = 0.7; }
-    else if (f.kind === 'gunfire') { o = Math.sin(now * 0.045 + f.n * 2) > 0.5 ? 1 : 0; s = 3.5 * far; }
-    else { f.m.material.color.setHex(Math.sin(now * 0.012) > 0 ? 0x3a6dff : 0xff2a2a); s = 4.5 * far; }
-    f.m.scale.set(s, s, 1); f.m.material.opacity = o * fade;
-  }
-}
+// what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
+const { fxList, spawnFx, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
+const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar: (...a) => putCar(...a), hsh, clamp, spawnFx });
+// what the page writes over the map (render/labels.js)
+const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, MAXTAGS });
 // The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
 let spotG = null, nSpots = 0;
 const spotMat = fxMat(null, new THREE.Color(0x8fe6ff), 0.5);
