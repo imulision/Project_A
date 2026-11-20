@@ -19,7 +19,7 @@
   var F = typeof require === 'function' ? require('./turf-family.js') : root.AshportTurfFamily;
   var RULES = R.RULES, RANKS = R.RANKS, TERRAIN = R.TERRAIN, WORTH = R.WORTH, key = R.key, at = R.at;
   var KEYS = P.KEYS, PEOPLE = P.PEOPLE, who = P.who, SCHOOLS = P.SCHOOLS, schoolOf = P.schoolOf, abilities = P.abilities, table = P.table,
-      can = P.can, person = P.person;
+      can = P.can, person = P.person, loyalty = P.loyalty, sway = P.sway, mood = P.mood;
   var learnt = C.learnt, createCity = C.createCity, seed = C.seed, lieutenantsOf = C.lieutenantsOf, crown = C.crown, landing = C.landing,
       zoneOf = C.zoneOf, changed = C.changed, memo = C.memo, everyPlace = C.everyPlace, places = C.places, run = C.run, keys = C.keys, open = C.open,
       clubOf = C.clubOf, settle = C.settle, hold = C.hold, grip = C.grip, share = C.share, frontier = C.frontier, price = C.price,
@@ -32,7 +32,8 @@
   var eyes = B.eyes, asks = B.asks, answer = B.answer, money = B.money, rub = B.rub, grudges = B.grudges, feuds = B.feuds, willing = B.willing,
       tempers = B.tempers, rule = B.rule, swell = B.swell;
   var seat = M.seat, unseat = M.unseat, payTable = M.payTable, doors = M.doors, spots = M.spots, seats = M.seats, welcome = M.welcome, send = M.send,
-      underOf = M.underOf, underboss = M.underboss, partings = M.partings, part = M.part, revenge = M.revenge;
+      underOf = M.underOf, underboss = M.underboss, partings = M.partings, part = M.part, revenge = M.revenge,
+      gift = M.gift, gifts = M.gifts, hearts = M.hearts;
   var loadOf = F.loadOf, createFamily = F.createFamily, tree = F.tree, research = F.research, wishes = F.wishes, convoys = F.convoys, ride = F.ride;
 
   // --- what moves in the streets ---
@@ -139,7 +140,7 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
@@ -202,7 +203,9 @@
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.trucks] || 'new') + ' truck: liquor sits in his cellar while bars go dry' });
       }
       // the boss's share comes off the top, before the men are paid; a capo with nothing left sends what he has
-      var sent = Math.max(0, Math.min(RULES.tribute * willing(c, capo) * inc, m.cash + profit));
+      // a bitter man sends nothing at all
+      var gives = mood(f, capo) === 'bitter' ? 0 : willing(c, capo);
+      var sent = Math.max(0, Math.min(RULES.tribute * gives * inc, m.cash + profit));
       f.dirty += sent; m.cash += profit - sent;
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
@@ -211,11 +214,12 @@
         events.push({ type: 'rank', capo: capo, city: c.id, rank: m.rank, ability: gift.id,
                       label: first(capo) + ' rises to ' + RANKS[m.rank] + ': he can now run ' + RULES.reach[m.rank] + ' places, and learns ' + gift.name });
         learnt(c, f);
+        sway(f, capo, RULES.loyal.rank);
       }
       var p = plan(c, f, capo);
       // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); }
+      if (spare > 0 && gives === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); }
       c.flow.sent[capo] = sent; c.flow.up += sent;
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
@@ -244,6 +248,7 @@
     revenge(c, events);
     tempers(c, events);
     money(c, f, events);
+    hearts(c, f, events);
     // an event about one of the family's men that names no place happens at his club
     events.forEach(function (e) {
       var club = e.x === undefined && e.capo && f.men[e.capo] && clubOf(c, e.capo);
@@ -286,7 +291,7 @@
     return events;
   }
 
-  var api = { underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

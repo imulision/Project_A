@@ -398,3 +398,33 @@ test('a man the underboss could not take in for want of money is not announced t
   assert.ok(!seen.some((e) => e.type === 'knocks' && e.city === c.id && e.door !== 'poach'), 'no knock');
   assert.ok(seen.some((e) => e.type === 'welcomed' && e.by === 'dutch'), 'the underboss took him in');
 });
+
+// --- loyalty, from the game ---
+test('the boss makes a capo a gift; the game shows each man\'s mood and what a gift costs', () => {
+  const g = E.createGame({ capo: 'vince' });
+  const k = () => E.view(g).cities[0].capos[0];
+  assert.equal(k().mood, 'restless');
+  assert.deepEqual(k().gift, { cost: T.RULES.loyal.gift, wait: 0 });
+  assert.throws(() => E.command(g, { type: 'gift', city: 'ashport', capo: 'vince' }), /clean money to make Vince a gift/);
+  g.family.clean = 5000;
+  E.command(g, { type: 'gift', city: 'ashport', capo: 'vince' });
+  assert.equal(g.family.clean, 5000 - T.RULES.loyal.gift);
+  assert.equal(k().mood, 'steady');
+  const said = g.journal[g.journal.length - 1];
+  assert.deepEqual([said.type, said.capo, said.city, said.cost], ['gift', 'vince', 'ashport', T.RULES.loyal.gift]);
+  assert.equal(said.label, 'You make ' + T.person('vince').name + ' a gift');
+  assert.ok(said.x !== undefined && said.y !== undefined, 'it happens at his club');
+});
+
+test('a betrayal is in the journal, and does not stop the clock for an answer nobody can give', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  const c = g.cities[0], spot = T.spots(c)[0];
+  T.settle(c, 'vince', spot.x, spot.y); T.join(g.family, 'vince').loyal = 0;
+  let seen = [];
+  for (let i = 0; i < (T.RULES.loyal.turns + 1) * E.TICKS_PER_MONTH && !seen.some((e) => e.type === 'betrayal'); i++) { g.paused = false; seen = seen.concat(E.tick(g)); }
+  assert.ok(seen.some((e) => e.type === 'whispers'));
+  const e = seen.find((x) => x.type === 'betrayal');
+  assert.equal(e.capo, 'vince');
+  assert.ok(g.journal.some((j) => j.type === 'betrayal' && j.capo === 'vince'));
+  assert.ok(!E.view(g).cities[0].capos.some((q) => q.id === 'vince'));
+});
