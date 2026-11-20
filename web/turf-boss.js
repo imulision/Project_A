@@ -8,7 +8,8 @@
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
   var RULES = R.RULES, key = R.key, far = R.far, owns = R.owns;
-  var KEYS = P.KEYS, can = P.can, sway = P.sway;
+  var KEYS = P.KEYS, can = P.can, sway = P.sway, who = P.who;
+  var changed = C.changed, income = G.income;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
   var first = S.first, funds = S.funds, spend = S.spend;
@@ -28,9 +29,48 @@
     return out;
   }
 
+  // What a key place is worth to the family as things stand: what its capos make a month with it in their hands, less what they make without.
+  function keyWorth(c, x, y) {
+    var b = c.blocks[key(x, y)];
+    if (!b || b.kind !== 'key') return 0;
+    var was = b.owner, capos = {};
+    everyPlace(c).forEach(function (p) { if (p.owner === 'family' && p.capo) capos[p.capo] = true; });
+    var total = function (owner) {
+      b.owner = owner; changed(c);
+      return Object.keys(capos).reduce(function (n, id) { return n + income(c, id); }, 0);
+    };
+    var gain = total('family') - total(was === 'family' ? (c.rival || 'nobody') : was);
+    b.owner = was; changed(c);
+    return gain;
+  }
+  // What the capo says the place will bring in, and when he can be held to it. Nothing for a place that brings no money in.
+  // An ambitious man swells his figure.
+  function expects(c, capo, k, months) {
+    if (!KEYS[k.key].lifts && !KEYS[k.key].pours) return null;
+    var gain = Math.round(keyWorth(c, k.x, k.y) * (1 + (who(capo).ambition - 50) * RULES.promise.boast / 100));
+    return gain > 0 ? { gain: gain, months: months + RULES.promise.after } : null;
+  }
+  function promises(c) {
+    return (c.promises || []).map(function (p) {
+      return { capo: p.capo, key: p.key, name: KEYS[p.key].name, x: p.x, y: p.y, expected: p.expected, months: p.due - c.month };
+    });
+  }
+  // The day comes: what the place really brings in, against what was said.
+  function judge(c, events) {
+    var due = (c.promises || []).filter(function (p) { return c.month >= p.due; });
+    if (!due.length) return;
+    c.promises = c.promises.filter(function (p) { return c.month < p.due; });
+    due.forEach(function (p) {
+      var b = c.blocks[key(p.x, p.y)], ours = b && b.kind === 'key' && b.owner === 'family';
+      var actual = ours ? Math.round(keyWorth(c, p.x, p.y)) : 0, kept = actual >= p.expected * RULES.promise.near;
+      events.push({ type: 'promise', city: c.id, capo: p.capo, kind: 'key', key: p.key, x: p.x, y: p.y, expected: p.expected, actual: actual, kept: kept,
+                    label: 'The ' + KEYS[p.key].name + ' brings in $' + actual + ' a month: ' + first(p.capo) + (kept ? ' kept his word' : ' had said $' + p.expected + ', and did not keep his word') });
+    });
+  }
+
   function asks(c) {
     return c.asks.map(function (a) {
-      return { id: a.id, capo: a.capo, key: a.key, name: KEYS[a.key].name, gives: KEYS[a.key].gives, x: a.x, y: a.y, way: a.way, cost: a.cost, months: a.months, why: a.why };
+      return { id: a.id, capo: a.capo, key: a.key, name: KEYS[a.key].name, gives: KEYS[a.key].gives, x: a.x, y: a.y, way: a.way, cost: a.cost, months: a.months, why: a.why, expects: a.expects || null };
     });
   }
 
@@ -41,6 +81,7 @@
       if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' the ' + KEYS[a.key].name + ' takes');
       spend(f, a.cost);
       c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months });
+      if (a.expects) { c.promises = c.promises || []; c.promises.push({ capo: a.capo, key: a.key, x: a.x, y: a.y, expected: a.expects.gain, due: c.month + a.expects.months }); }
     } else c.refused[a.key] = c.month + RULES.sulk;
     sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
     c.asks = c.asks.filter(function (q) { return q !== a; });
@@ -172,7 +213,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

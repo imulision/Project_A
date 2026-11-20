@@ -65,6 +65,16 @@
     mallory: { key: 'precinct', name: 'Ed Mallory', specialty: 'Police captain', muscle: 6, business: 4, cunning: 7, charisma: 4, loyalty: 40, ambition: 60, likes: ['loans', 'gambling', 'fence'], refuses: ['loft'] }
   };
 
+  // The chief of the old family in each city. The boss never hires him: he reads his name on the other side of the street.
+  var CHIEFS = {
+    seamus:  { chief: 'Callahan', home: 'ashport', name: 'Seamus Callahan' },
+    viktor:  { chief: 'Northside', home: 'calder', name: 'Viktor Novak' },
+    eamon:   { chief: 'Callahan', home: 'marrow', name: 'Eamon Callahan' },
+    ernst:   { chief: 'Kessler', home: 'dunmore', name: 'Ernst Kessler' },
+    red:     { chief: 'Dockers', home: 'lorne', name: 'Red Macready' },
+    brendan: { chief: 'Callahan', home: 'vesper', name: 'Brendan Callahan' }
+  };
+
   // What draws each big name to a family: places of a kind it runs, a key place it holds, or raids it has thrown back.
   var LURES = {
     sal:   { repelled: 1, burnt: 2, why: 'The family threw a raid back: Sal respects that', need: 'The family keeps getting burnt out: Sal smells work' },
@@ -75,7 +85,7 @@
     danny: { runs: 'gambling', n: 1, why: 'A room with tables to run' }
   };
 
-  function who(id) { return D.CAPOS[id] || PEOPLE[id]; }
+  function who(id) { return D.CAPOS[id] || PEOPLE[id] || CHIEFS[id]; }
 
   // A man learns his trade. Every specialty belongs to a school, and at each rank after Soldier a capo gains the next
   // ability of his school. Each changes one rule for his own places, his own trucks or his own money.
@@ -159,13 +169,19 @@
 
   function can(c, capo, id) { var k = c.skills && c.skills[capo]; return !!(k && k[id]); }
 
+  // The chief of the old family in this city, if it has one.
+  function chiefOf(c) {
+    if (!c.rival) return null;
+    return Object.keys(CHIEFS).filter(function (id) { return CHIEFS[id].chief === c.rival && CHIEFS[id].home === c.id; })[0] || null;
+  }
+
   function person(id) {
     if (!who(id)) throw new Error('unknown capo: ' + id);
     return who(id);
   }
 
   var api = { KEYS: KEYS, PEOPLE: PEOPLE, LURES: LURES, who: who, SCHOOLS: SCHOOLS, TRADE: TRADE, schoolOf: schoolOf, abilities: abilities,
-      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, loyalty: loyalty, sway: sway, mood: mood };
+      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfPeople = api;
 })(typeof self !== 'undefined' ? self : this);

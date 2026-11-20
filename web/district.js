@@ -10,18 +10,18 @@
   var RULES = { maxLevel: 3 };   // a place grows up to this level
 
   var SITES = {
-    still:     { name: 'Cellar still',   cost: 400 },
-    speakeasy: { name: 'Speakeasy',      cost: 600 },
-    gambling:  { name: 'Gambling room',  cost: 500 },
-    loft:      { name: 'Cannabis loft',  cost: 700 },
-    rented:    { name: 'Rented laundry', cost: 300, wash: 300, loss: 0.25 },
-    front:     { name: 'Owned front',    cost: 1000, wash: 500, loss: 0.15 },
-    warehouse: { name: 'Warehouse',      cost: 1200 },
-    brothel:   { name: 'Brothel',        cost: 800 },
-    chopshop:  { name: 'Chop shop',      cost: 700 },
-    fence:     { name: 'Fence',          cost: 500 },
-    loans:     { name: 'Loan office',    cost: 600 },
-    union:     { name: 'Union local',    cost: 900 }
+    still:     { name: 'Cellar still', does: 'Makes the liquor your speakeasies pour',   cost: 400 },
+    speakeasy: { name: 'Speakeasy', does: 'Sells liquor at night: it runs dry without a still',      cost: 600 },
+    gambling:  { name: 'Gambling room', does: 'Earns on night streets and needs no supply',  cost: 500 },
+    loft:      { name: 'Cannabis loft', does: 'Grows cannabis: sells on the spot, and to bars and brothels',  cost: 700 },
+    rented:    { name: 'Rented laundry', does: 'Washes dirty money, and keeps a quarter of it', cost: 300, wash: 300, loss: 0.25 },
+    front:     { name: 'Owned front', does: 'Washes more dirty money, and keeps less of it',    cost: 1000, wash: 500, loss: 0.15 },
+    warehouse: { name: 'Warehouse', does: 'Holds the stolen goods your fences sell',      cost: 1200 },
+    brothel:   { name: 'Brothel', does: 'The best earner of the night streets',        cost: 800 },
+    chopshop:  { name: 'Chop shop', does: 'Strips stolen cars for your fences to sell',      cost: 700 },
+    fence:     { name: 'Fence', does: 'Sells stolen goods: needs a warehouse or a chop shop',          cost: 500 },
+    loans:     { name: 'Loan office', does: 'Lends at interest on the rich streets',    cost: 600 },
+    union:     { name: 'Union local', does: 'Takes its dues on the factory streets',    cost: 900 }
   };
 
   var CAPOS = {
