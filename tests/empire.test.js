@@ -428,3 +428,37 @@ test('a betrayal is in the journal, and does not stop the clock for an answer no
   assert.ok(g.journal.some((j) => j.type === 'betrayal' && j.capo === 'vince'));
   assert.ok(!E.view(g).cities[0].capos.some((q) => q.id === 'vince'));
 });
+
+// --- the last two years, month by month, for the curves of the screen ---
+
+test('the game keeps the last twenty-four months: the two kinds of money, and each city\'s streets and what it sent up', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  assert.deepEqual(E.view(g).history, []);
+  const beat = (months) => { for (let i = 0; i < months * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); } };
+  beat(3);
+  const h = E.view(g).history;
+  assert.deepEqual(h.map((m) => m.month), [1, 2, 3]);
+  const last = h[2], v = E.view(g), hud = E.hud(g);
+  assert.deepEqual([last.dirty, last.clean], [hud.dirty, hud.clean]);
+  assert.deepEqual(Object.keys(last.cities), v.cities.map((c) => c.id));
+  assert.equal(last.cities.ashport.share, Math.round(v.cities[0].share.family * 10) / 10);
+  assert.equal(last.cities.ashport.income, Math.round(g.cities[0].flow.up));
+  assert.equal(last.cities.calder.share, 0);
+  beat(30);
+  const later = E.view(g).history;
+  assert.equal(later.length, 24);
+  assert.deepEqual([later[0].month, later[23].month], [10, 33]);
+  assert.ok(later.some((m) => m.cities.ashport.income > 0), 'Ashport sent money up');
+});
+
+test('the months kept are saved with the game, and a game saved before starts with none', () => {
+  const g = E.createGame({ capo: 'sal' });
+  for (let i = 0; i < 5 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  const back = E.load(E.save(g));
+  assert.deepEqual(E.view(back).history, E.view(g).history);
+  assert.equal(E.view(back).history.length, 5);
+  delete back.history;
+  assert.deepEqual(E.view(back).history, []);
+  back.paused = false; for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(back);
+  assert.equal(E.view(back).history.length, 1);
+});

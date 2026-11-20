@@ -16,6 +16,7 @@
   var TICKS_PER_MONTH = 4;
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
+  var HISTORY = 24;           // months kept for the curves
   var FIRST_YEAR = 1926;
   var BLOCK = { w: 5, h: 6 }; // blocks under each street name
   var START_CASH = 2500;      // dirty $ the boss starts with: what it takes to set up the first man who knocks
@@ -83,6 +84,16 @@
     g.journal.push(line);
     if (g.journal.length > JOURNAL_SIZE) g.journal.splice(0, g.journal.length - JOURNAL_SIZE);
   }
+  // The month that just ended, kept for the curves of the screen: the last HISTORY months, oldest first.
+  function remember(g) {
+    var line = { month: g.month, dirty: Math.round(g.family.dirty), clean: Math.round(g.family.clean || 0), cities: {} };
+    g.cities.forEach(function (c) {
+      line.cities[c.id] = { share: Math.round(T.share(c).family * 10) / 10, income: Math.round((c.flow && c.flow.up) || 0) };
+    });
+    g.history = g.history || [];
+    g.history.push(line);
+    if (g.history.length > HISTORY) g.history.splice(0, g.history.length - HISTORY);
+  }
   // One beat of the clock. A month of rules every TICKS_PER_MONTH beats at speed 1.
   function tick(g) {
     if (!g.started || g.paused) return [];
@@ -113,6 +124,7 @@
         });
       });
       g.month += 1;
+      remember(g);
     }
     return events;
   }
@@ -225,8 +237,8 @@
     });
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [] };
-    return { date: dateOf(g.month), month: g.month, tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [] };
+    return { date: dateOf(g.month), month: g.month, history: g.history || [], tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -266,7 +278,7 @@
     return g;
   }
 
-  var api = { layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, NAMES: NAMES,
+  var api = { layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
               createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
