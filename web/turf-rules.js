@@ -23,6 +23,9 @@
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
+    // a capo's word on a key place: months after it is his before he is judged, the share of his figure that counts as kept,
+    // and how much each point of ambition above 50 swells the figure he gives (in hundredths)
+    promise: { after: 6, near: 0.9, boast: 1 },
     // what clean money buys for good, in three sizes (cost by size): each size adds its effect once more
     holdings: {
       lawyer:  { name: 'Law Firm', cost: [8000, 25000, 75000], spares: 0.25, gives: 'The police seize less when they raid your counting rooms' },
