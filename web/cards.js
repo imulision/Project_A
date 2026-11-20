@@ -37,9 +37,9 @@
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
-                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift' };
+                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes' };
   var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
-  var bad = function (e) { return !!BAD[e.type] || (e.type === 'promise' && e.kept === false); };      // a broken promise is bad news, a kept one is not
+  var bad = function (e) { return !!BAD[e.type] || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
   var GRIP = { family: 'Your family holds this street', rival: 'The rivals hold this street', contested: 'Both sides claim this street' };
   var KEYICON = { brewery: 'still', hotel: 'speakeasy', port: 'truck', depot: 'warehouse', cityhall: 'bribe', precinct: 'police', club: 'hideout' };
@@ -124,7 +124,7 @@
   // An event as a small tile on the edge of the screen: its picture and its words. A touch goes where it happened, when it has a place.
   function news(e) {
     var there = typeof e.x === 'number' && e.city;
-    return '<button class="news' + (bad(e) ? ' bad' : '') + '"' + (there ? data({ city: e.city, x: e.x, y: e.y }) : '') + '>' + icon(EVENT[e.type] || 'time') + '<span>' + esc(e.label || e.type) + '</span></button>';
+    return '<button class="news' + (bad(e) ? ' bad' : e.type === 'outcome' && e.good === true ? ' good' : '') + '"' + (there ? data({ city: e.city, x: e.x, y: e.y }) : '') + '>' + icon(EVENT[e.type] || 'time') + '<span>' + esc(e.label || e.type) + '</span></button>';
   }
   // The same thing told month after month is noise: an event is news the first month, and again only once a month has passed without it.
   function untold(events, seen, month) {
@@ -655,8 +655,17 @@
   function journal(lines) {
     var last = lines.slice(-60).reverse();
     return '<h2>Journal</h2>' + (last.length ? '<ul class="list">' + last.map(function (e) {
-      return '<li class="ev"><span class="i' + (bad(e) ? ' no' : '') + '">' + icon(EVENT[e.type] || 'time') + '</span><div>' + esc(e.label || e.type) + '<small>' + esc(e.date || '') + '</small></div></li>'; }).join('') + '</ul>' : '<p>Nothing yet.</p>') +
-      '<div class="acts">' + button('new', {}, 'New game') + button('close', {}, 'Close') + '</div>';
+      return '<li class="ev"><span class="i' + (bad(e) ? ' no' : e.type === 'outcome' && e.good === true ? ' ok' : '') + '">' + icon(e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time') + '</span><div>' + esc(e.label || e.type) + '<small>' + esc(e.date || '') + '</small></div></li>'; }).join('') + '</ul>' : '<p>Nothing yet.</p>') +
+      '<div class="acts">' + button('decisions', {}, 'Your decisions') + button('new', {}, 'New game') + button('close', {}, 'Close') + '</div>';
+  }
+  // What became of the boss's decisions (view.decisions, kept by the rules): each one, and a year on what it gave.
+  function decisions(view) {
+    var l = view.decisions || [];
+    return '<h2>Your decisions</h2><p>What you decided, and what it gave a year on.</p>' + (l.length ? '<ul class="list">' + l.map(function (d) {
+      var r = d.result, left = Math.max(1, (d.due || 0) - (view.month || 0));
+      var then = r ? '<span class="then ' + (r.good === true ? 'good' : r.good === false ? 'bad' : 'idle') + '">' + esc(r.label) + '</span>' : '<span class="then wait">Its result in ' + left + ' month' + (left === 1 ? '' : 's') + '</span>';
+      return '<li class="ev"><span class="i' + (r && r.good === false ? ' no' : r && r.good === true ? ' ok' : '') + '">' + icon(EVENT[d.type] || 'time') + '</span><div>' + esc(d.label) + '<small>' + esc(d.date || '') + '</small>' + then + '</div></li>'; }).join('') + '</ul>' : '<p>Nothing decided yet.</p>') +
+      '<div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
 
   // A sheet that cannot be drawn must never freeze the game: it says so, and its only button lets time go on.
@@ -667,7 +676,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
