@@ -379,7 +379,9 @@ test('each street of the family says how hard the rival presses on it', () => {
 });
 
 test('men stand where the family is: a doorman at each place, two at the club, a crew where a capo faces the rivals', () => {
-  const c = cityOf(play(30)), k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club');
+  const c = cityOf(play(30)), k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family');
+  const faced = (q) => c.capos.some((m) => m.at && m.at.why === 'raid' && m.at.x === q.x && m.at.y === q.y); // (a crew may already stand at one of them)
+  const other = mine.find((p) => p.kind !== 'club' && !faced(p));
   const p = M.planTurf(c), at = (x, y) => p.lots.find((l) => l.bx === x && l.by === y && l.site);
   assert.equal(at(k.x, k.y).men, 2, 'the club'); if (other) assert.equal(at(other.x, other.y).men, 1, 'a doorman');
   p.lots.forEach((l) => { if (!l.site || l.site.owner !== 'family') assert.ok(!l.men, 'nobody of the family stands at a rival\'s door'); });
