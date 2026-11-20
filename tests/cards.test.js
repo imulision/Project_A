@@ -237,5 +237,11 @@ test('money that can be followed: the month\'s change beside a total, the amount
   const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
   const v = E.view(g), k = v.cities[0].capos[0];
   assert.ok(k.sent > 0, 'he sent something up');
-  assert.match(C.capo(v, v.cities[0].id, k.id), new RegExp('SENT UP</small><b>\\' + C.money(k.sent).replace(',', ',')));
+  const sheet = C.capo(v, v.cities[0].id, k.id);
+  assert.ok(sheet.includes('SENT UP</small><b>' + C.money(k.sent)), 'what he sent up');
+  assert.ok(sheet.includes('CARS</small><b>' + k.cars), 'his cars');
+  // cash that waits in a place's till for a car is said on the place and on the capo
+  const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club'); p.till = 90; k.waiting = 90;
+  assert.match(C.block(v, c.id, p.x, p.y), /\$90 in the till, waiting for a car/);
+  assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
 });

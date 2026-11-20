@@ -168,4 +168,3 @@ button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
 
 /* a car that carries cash says how much: the month's takings of one place, or what goes to one laundry */
 .lab.tag.empty{display:none}.lab.tag.amt{width:auto;height:22px;border-radius:11px;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px}.lab.tag b{display:none;font:600 12px/1 var(--title);letter-spacing:.3px;font-variant-numeric:tabular-nums;color:#fff}.lab.tag.amt b{display:block}
-.tiles.two{grid-template-columns:repeat(2,1fr)}
