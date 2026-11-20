@@ -23,3 +23,16 @@ test('seen from afar, the streets the family holds are lit, more as the hold fir
   assert.equal(lotLook({ ours: false, lit: 0, site: null }, 0.01).lamps, 0);
   assert.equal(lotLook({ ours: false, lit: 1, site: { owner: 'callahan', color: '#4fbf7a' } }, 0.01).lamps, 1, 'a rival\'s place keeps one lamp');
 });
+
+test('the streets the family holds come alive: shop signs light up and cars park at the kerb, more as the hold firms up', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  const count = (lit, what, lot = {}) => { let s = 0; for (let k = 0; k < 200; k++) if (lotLook({ ours: true, lit, site: null, shop: true, ...lot }, k / 200)[what]) s++; return s / 200; };
+  assert.ok(count(1, 'sign') > 0.1 && count(2, 'sign') > count(1, 'sign') * 1.5 && count(3, 'sign') > count(2, 'sign') * 1.2, 'signs');
+  assert.ok(count(3, 'sign') <= 0.9, 'never every shop: a street, not a fairground');
+  assert.equal(count(3, 'sign', { shop: false }), 0, 'only a shop carries a sign');
+  assert.ok(count(1, 'parked') > 0.05 && count(3, 'parked') > count(1, 'parked') * 2 && count(3, 'parked') <= 0.6, 'parked cars');
+  const names = new Set(); for (let k = 0; k < 200; k++) { const s = lotLook({ ours: true, lit: 3, site: null, shop: true }, k / 200).sign; if (s) { assert.match(s, /^[A-Z &]{3,10}$/); names.add(s); } }
+  assert.ok(names.size >= 5, 'several trades, not one sign repeated');
+  for (const l of [{ ours: false, lit: 2, site: null, shop: true }, { ours: true, lit: 3, site: { owner: 'family' }, shop: true }, { ours: false, lit: 1, site: { owner: 'callahan' }, shop: true }])
+    for (let k = 0; k < 50; k++) { const o = lotLook(l, k / 50); assert.equal(o.sign, null); assert.equal(o.parked, false); }
+});

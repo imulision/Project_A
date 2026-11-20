@@ -3,15 +3,23 @@
 // brighter as the hold firms up), a rival's place carries his, and the rest of the town stays dark.
 // From afar the same streets are lit: lamps in the windows, more of them as the hold firms up.
 // lotLook(lot, r) -> { shade: what the walls are multiplied by, roof: 'family' | a colour | null, gain: strength of the roof colour,
-//                      lamps: how many window lights show from afar }, r being a number in [0, 1) proper to the lot.
+//                      lamps: how many window lights show from afar,
+//                      sign: the name over a shop of a street the family holds, or null (a place has its own sign already),
+//                      parked: whether a car waits at its kerb }, r being a number in [0, 1) proper to the lot.
+// A street the family holds comes alive: the firmer the hold, the more shops light a sign and the more cars at the kerb.
 const LAMPS = [0, 0.3, 0.75, 1.3];      // lamps a building, on average, by how firmly the street is held
+const SIGNED = [0, 0.2, 0.5, 0.8], PARKED = [0, 0.12, 0.3, 0.5];
+const TRADES = ['DINER', 'TAILOR', 'BARBER', 'DRUGS', 'HOTEL', 'CIGARS', 'BAKERY', 'PAWN', 'LAUNDRY', 'BILLIARDS'];
+const frac = (x) => x - Math.floor(x);
+const QUIET = { sign: null, parked: false };
 export function lotLook(l, r = 0.5) {
   const site = l.site;
-  if (site && site.owner === 'family') return { shade: 1.18, roof: 'family', gain: 1, lamps: 2 };
-  if (site) return { shade: 0.8, roof: site.color || null, gain: 0.7, lamps: 1 };
+  if (site && site.owner === 'family') return { shade: 1.18, roof: 'family', gain: 1, lamps: 2, ...QUIET };
+  if (site) return { shade: 0.8, roof: site.color || null, gain: 0.7, lamps: 1, ...QUIET };
   if (l.ours) {
     const lit = Math.max(1, Math.min(3, l.lit || 1)), want = LAMPS[lit];
-    return { shade: 1 + 0.04 * lit, roof: 'family', gain: 0.4 + 0.13 * lit, lamps: Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0) };
+    return { shade: 1 + 0.04 * lit, roof: 'family', gain: 0.4 + 0.13 * lit, lamps: Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0),
+      sign: l.shop && frac(r * 7.31) < SIGNED[lit] ? TRADES[Math.floor(frac(r * 53.7) * TRADES.length)] : null, parked: frac(r * 3.17) < PARKED[lit] };
   }
-  return { shade: 0.62, roof: null, gain: 0, lamps: 0 };
+  return { shade: 0.62, roof: null, gain: 0, lamps: 0, ...QUIET };
 }
