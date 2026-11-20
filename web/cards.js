@@ -27,6 +27,9 @@
   var WAY = { force: { icon: 'muscle', color: '#ff5a3a', word: 'By force', tip: 'His men go in gun in hand' }, bribe: { icon: 'bribe', color: '#e8c463', word: 'With an envelope', tip: 'He pays the other side\'s man to change sides' },
               buy: { icon: 'clean', color: '#8fbf97', word: 'By buying', tip: 'He buys the place outright' } };
   var HAUL = { liquor: ['liquor', '#ffb347', 'Liquor on its way to the bars'], takings: ['takings', '#e8c463', 'Takings, dirty cash, on their way to the club'], wash: ['dirty', '#6ad0e0', 'Dirty cash on its way to be washed'], crew: ['muscle', '#ff5a3a', 'A crew on its way to take a place'] };
+  var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
+  // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
+  function haul(car) { return (car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
                 granted: 'yes', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time' };
   var BAD = { burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1 };
@@ -67,9 +70,9 @@
   function change(n) { n = Math.round(n || 0); return n > 0 ? '+' + money(n) : n < 0 ? '\u2212' + money(-n) : ''; }
   // The dollars a car carries: a month of takings from one place, or a month of cash sent to one laundry.
   function carLoad(car) { return (car.kind === 'takings' || car.kind === 'wash') && car.amount > 0 ? money(car.amount) : ''; }
-  function carTip(car) {
-    var h = HAUL[car.kind] || HAUL.takings;
-    return '<b style="color:' + h[1] + '">' + icon(h[0]) + ' ' + esc(h[2]) + '</b>' + (carLoad(car) ? '<br>' + carLoad(car) + ' on board' : '') + (car.capo ? '<br>' + esc(nameOf(car.capo)) + (car.kind === 'crew' && WAY[car.cargo] ? ' · ' + WAY[car.cargo].word.toLowerCase() : '') : '');
+  function carTip(car, empty) {
+    var h = haul(car), n = car.amount > 0 ? (carLoad(car) || (h[3] || (car.kind === 'liquor' ? 'cases' : '') ? car.amount + ' ' + (h[3] || 'cases') : '')) : '';
+    return '<b style="color:' + h[1] + '">' + icon(h[0]) + ' ' + esc(h[2]) + '</b>' + (empty ? '<br>Empty, on its way to load' : n ? '<br>' + n + ' on board' : '') + (car.capo ? '<br>' + esc(nameOf(car.capo)) + (car.kind === 'crew' && WAY[car.cargo] ? ' · ' + WAY[car.cargo].word.toLowerCase() : '') : '');
   }
   // The badges that light up over the map when something happens, and what a touch on one says.
   var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'] };
@@ -265,5 +268,5 @@
   }
 
   return { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD,
-           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, FX: FX, fxTip: fxTip, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
 });

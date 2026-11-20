@@ -140,7 +140,7 @@
     for (var n = first; n < first + 6; n++) if (c.lots[n] && c.lots[n].site) return c.lots[n];
     return spot || null;
   }
-  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
+  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, goods: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
   // tripsTurf(plan, view): every trip the rules list in a city becomes a car between its two buildings. All of them run the whole month.
   // The spot on the street, by the club, where the n-th vehicle of a capo is parked.
   function parking(lot, n) { var r = lot.j % 3 === 1 ? lot.j - 1 : lot.j + 1; return [lot.i + (n % 2 ? 1 : -1) * 0.45 * Math.ceil(n / 2), r]; }

@@ -613,7 +613,7 @@ const labels = () => {
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
   for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || a.parked || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
-    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, back: a.round ? !a.loaded : a.dir < 0, x, y }); }
+    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, round: a.round, back: a.round ? !a.loaded : a.dir < 0, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
   for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
@@ -822,6 +822,8 @@ addEventListener('resize', () => {
       r.built += n; r.meshes++; r.count = (r.count || 0) + (o.isInstancedMesh ? o.count : 1); if (seen) r.visible += n; });
     return out; };
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+  // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
+  const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
