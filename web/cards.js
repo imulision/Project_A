@@ -312,6 +312,7 @@
     return '<h2>' + esc(c.name) + '</h2><p>' + (c.held ? 'You hold ' + Math.round(s.family) + '% of its streets' : 'No man of yours here yet') + ' · the ' + esc(c.rival) + ' family holds ' + Math.round(s.rival) + '%</p>' + shares(s) +
       '<div class="tiles">' + tile('men', 'SEATS', c.seats.taken + ' / ' + c.seats.total, 'Capos you have here, out of those the city can carry. Each key place you hold adds a seat') +
       tile('heat', 'HEAT', Math.round(c.heat || 0), 'How closely the police watch this city') + tile('clean', 'WASHED', money(c.money ? c.money.washed : 0), 'Dirty cash washed here last month') + '</div>' +
+      curves(view, c.id) +
       (c.capos.length ? '<h3 class="sub2">Your capos</h3>' + faces(c, c.capos, true) : '') +
       '<h3 class="sub2">Key places</h3><ul class="list">' + c.keys.map(function (k) { var ours = k.owner === 'family';
         return '<li class="ev"><span class="' + (ours ? 'i yes' : 'i') + '">' + icon(k.key) + '</span><div><b>' + esc(k.name) + '</b> · ' + (ours ? 'yours' + (k.capo ? ', ' + esc(first(nameOf(k.capo))) : '') : esc(k.owner)) + '<small>' + esc(k.gives) + '</small></div></li>'; }).join('') + '</ul>' +
@@ -337,12 +338,31 @@
     var short = t.next.cost > (hud.clean || 0);
     return html + (short ? '<small class="short">Short by ' + money(t.next.cost - (hud.clean || 0)) + ' of clean money</small>' : '') + button('research', { building: t.kind }, what, { cls: 'go', off: short });
   }
+  // ---- curves: the last months, so that the boss sees whether a decision paid. One small curve a figure, its last value beside its name.
+  // curves(view) is the family (dirty, clean, what the cities sent up); curves(view, cityId) is one city (streets held, what it sent up).
+  function curve(ic, label, values, show, tip, opt) {
+    return '<div class="tile curve" data-tip="' + esc(tip) + '"><small>' + icon(ic) + label + '</small><b>' + show(values[values.length - 1]) + '</b>' + I.spark(values, opt) + '</div>';
+  }
+  function curves(view, cityId) {
+    var h = view.history || []; if (h.length < 2) return '';
+    var since = 'over the last ' + h.length + ' months', pct = function (x) { return (Math.round(x * 10) / 10) + '%'; };
+    if (cityId) {
+      var of = function (k) { return h.map(function (m) { return ((m.cities || {})[cityId] || {})[k] || 0; }); }, share = of('share'), income = of('income');
+      if (!share.some(function (x) { return x > 0; })) return '';
+      return '<div class="tiles two">' + curve('streets', 'STREETS', share, pct, 'Share of the streets of this city your family holds, ' + since, { min: 0 }) +
+        curve('tribute', 'SENT UP', income, money, 'What this city sent up to you each month, ' + since, { min: 0 }) + '</div>';
+    }
+    var sent = h.map(function (m) { var s = 0; for (var k in m.cities || {}) s += m.cities[k].income || 0; return s; });
+    return '<div class="tiles">' + curve('dirty', 'DIRTY', h.map(function (m) { return m.dirty; }), money, 'Dirty cash at the end of each month, ' + since, { min: 0 }) +
+      curve('clean', 'CLEAN', h.map(function (m) { return m.clean; }), money, 'Clean money at the end of each month, ' + since, { min: 0 }) +
+      curve('tribute', 'SENT UP', sent, money, 'What all your cities sent up each month, ' + since, { min: 0 }) + '</div>';
+  }
   function family(view, hud) {
     var men = '';
     view.cities.forEach(function (c) { if (c.capos.length) men += '<div class="tier"><small>' + esc(c.name) + ' · ' + c.seats.taken + ' / ' + c.seats.total + ' seats</small><div>' +
       c.capos.map(function (m) { return '<button class="slot" data-act="capo"' + data({ city: c.id, capo: m.id }) + ' data-tip="' + esc(m.name + ', ' + m.rankName) + '">' + I.portrait(m.id) + '</button>'; }).join('') + '</div></div>'; });
     var pick = view.tree.filter(function (t) { return t.studying; })[0] || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
-    return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p><div class="pyr">' + men + '</div>' + table(view) +
+    return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p>' + curves(view) + '<div class="pyr">' + men + '</div>' + table(view) +
       '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. A face marks what a capo is asking for.</p><div class="tree">' + view.tree.map(function (t) { return knowBtn(t, pick && t.kind === pick.kind); }).join('') + '</div>' +
       '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
@@ -380,7 +400,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

@@ -603,3 +603,22 @@ test('a hint is a strip with one button that puts it away', () => {
   assert.match(html, /class="hint"/); assert.match(html, /data-hint="capo"/); assert.match(html, /Sal decides\./); assert.match(html, /<svg/);
   assert.equal(C.hintStrip(null), '');
 });
+
+// ---- curves: did a decision pay? the last months of the family and of each city
+test('the family sheet and the city sheets carry the curves of the last months', () => {
+  const { g, v } = play((v) => v.month >= 8), h = E.hud(g);
+  assert.ok(v.history.length >= 6);
+  const fam = C.curves(v);
+  assert.equal((fam.match(/class="tile curve"/g) || []).length, 3, 'dirty, clean, sent up');
+  assert.match(fam, /DIRTY/); assert.match(fam, /CLEAN/); assert.match(fam, /SENT UP/);
+  assert.equal((fam.match(/<polyline/g) || []).length, 3);
+  assert.equal(fam.match(/points="([^"]*)"/)[1].trim().split(' ').length, v.history.length, 'one point a month');
+  assert.match(fam, new RegExp(C.money(v.history[v.history.length - 1].dirty).replace('$', '\\$')), 'with the figure of the last month');
+  const town = C.curves(v, 'ashport');
+  assert.equal((town.match(/class="tile curve"/g) || []).length, 2, 'streets held and what the city sends up');
+  assert.match(town, /STREETS/); assert.match(town, /%/);
+  assert.match(C.family(v, h), /class="tile curve"/); assert.match(C.city(v, 'ashport'), /class="tile curve"/);
+  assert.equal(C.curves({ ...v, history: v.history.slice(0, 1) }), '', 'one month is not yet a curve');
+  assert.equal(C.curves({ ...v, history: undefined }), '', 'an old game without history draws none');
+  assert.doesNotMatch(C.city(v, 'dunmore'), /class="tile curve"/, 'nothing to follow where the family is not');
+});
