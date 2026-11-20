@@ -94,6 +94,76 @@
               .slice(0, 3).map(function (q) { return q.s; });
   }
 
+  // --- what became of the boss's decisions ---
+  // Each decision is kept with what the city looked like that day. A year on the game says what it gave, once: an 'outcome'
+  // in the news (the clock does not stop for it) and a result on the decision. good is true, false, or null when it cannot be said.
+  var DECISIONS = 20, YEAR = 12;
+  function ours(c) { return T.places(c).filter(function (p) { return p.owner === 'family'; }).length; }
+  function sour(g, c) { return Object.keys(g.family.men).filter(function (id) { return T.clubOf(c, id) && T.loyalty(g.family, id) < T.RULES.loyal.restless; }).length; }
+  function sight(g, c) { return { places: ours(c), up: Math.round((c.flow && c.flow.up) || 0), heat: Math.round(c.heat || 0), sour: sour(g, c) }; }
+  function firstName(id) { return T.person(id).name.split(' ')[0]; }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function close(g, d, label, good) { d.result = { month: g.month, date: dateOf(g.month), label: label, good: good }; }
+  function decide(g, d) {
+    g.decisions = g.decisions || [];
+    g.seq = (g.seq || 0) + 1;
+    d.id = 'd' + g.seq; d.month = g.month; d.date = dateOf(g.month); d.due = g.month + YEAR; d.result = null;
+    // a word given again for the same city closes the one before it
+    if (d.type === 'line' || d.type === 'cut') g.decisions.forEach(function (q) {
+      if (q.type === d.type && q.city === d.city && !q.result) close(g, q, 'You changed your word after ' + plural(g.month - q.month, 'month'), null);
+    });
+    g.decisions.push(d);
+    if (g.decisions.length > DECISIONS) g.decisions.splice(0, g.decisions.length - DECISIONS);
+  }
+  var OUTCOMES = {
+    welcomed: function (g, c, d) {
+      if (!g.family.men[d.capo] || !T.clubOf(c, d.capo)) return { label: firstName(d.capo) + ' is gone from ' + specOf(c.id).name, good: false };
+      var n = T.run(c, d.capo).length;
+      return { label: firstName(d.capo) + ' runs ' + plural(n, 'place') + ' in ' + specOf(c.id).name + ' and makes ' + dollars(g.family.men[d.capo].income) + ' a month', good: n >= 2 };
+    },
+    granted: function (g, c, d) {
+      var k = T.keys(c).filter(function (q) { return q.key === d.key; })[0];
+      return k.owner === 'family' ? { label: 'the ' + k.name + ' is yours', good: true } : { label: 'the ' + k.owner + 's still hold the ' + k.name, good: false };
+    },
+    denied: function (g, c, d) {
+      var k = T.keys(c).filter(function (q) { return q.key === d.key; })[0];
+      return k.owner === 'family' ? { label: 'the ' + k.name + ' is yours all the same', good: null }
+        : { label: 'the ' + k.owner + 's still hold the ' + k.name + ', and you kept the ' + dollars(d.cost) + ' it would have cost', good: null };
+    },
+    line: function (g, c, d) {
+      var now = sight(g, c), was = d.was, by = { grow: now.places - was.places, earn: now.up - was.up, low: was.heat - now.heat }[d.line];
+      return { under: d.line ? ' under ' + T.RULES.line[d.line].name : ' with no word given', good: by === undefined || by === 0 ? null : by > 0,
+               label: now.places + ' places (was ' + was.places + '), ' + dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + '), heat ' + now.heat + ' (was ' + was.heat + ')' };
+    },
+    cut: function (g, c, d) {
+      var now = sight(g, c), was = d.was;
+      return { under: ' with a ' + d.cut + ' share', good: now.sour > was.sour ? false : now.up > was.up ? true : null,
+               label: dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + '), ' + plural(now.sour, 'sour capo') + ' (was ' + was.sour + ')' };
+    },
+    parted: function (g, c, d) {
+      var now = sight(g, c), was = d.was;
+      return { under: ' without ' + firstName(d.capo), good: now.up > was.up ? true : now.up < was.up ? false : null,
+               label: now.places + ' places in ' + specOf(c.id).name + ' (was ' + was.places + '), ' + dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + ')' };
+    }
+  };
+  // The decisions that are a year old today.
+  function outcomes(g, events) {
+    (g.decisions || []).forEach(function (d) {
+      if (d.result || g.month < d.due || !OUTCOMES[d.type]) return;
+      var o = OUTCOMES[d.type](g, cityOf(g, d.city), d), label = 'A year on' + (o.under || '') + ': ' + o.label;
+      close(g, d, label, o.good);
+      var e = { type: 'outcome', decision: d.id, city: d.city, good: o.good, label: label };
+      if (d.capo) e.capo = d.capo;
+      record(g, e, g.month); events.push(e);
+    });
+  }
+  function decisions(g) {
+    return (g.decisions || []).slice().reverse().map(function (d) {
+      var out = {}; Object.keys(d).forEach(function (k) { if (k !== 'was') out[k] = d[k]; });
+      return out;
+    });
+  }
+
   function linked(a, b) { return W.ROUTES.some(function (r) { return (r.from === a && r.to === b) || (r.from === b && r.to === a); }); }
   function held(g, c) { return Object.keys(g.family.men).some(function (id) { return T.clubOf(c, id); }); }
   function specOf(id) { return W.CITIES.filter(function (c) { return c.id === id; })[0]; }
@@ -182,6 +252,7 @@
         });
       });
       g.month += 1;
+      outcomes(g, events);
       remember(g);
       g.idle = cheapest(g) ? (g.idle !== undefined && g.idle !== null ? g.idle : g.month - 1) : null; // since when clean money could have been spent
     }
@@ -222,6 +293,8 @@
     answer: function (g, o) {
       var c = cityOf(g, o.city), a = T.asks(c).filter(function (q) { return q.id === o.id; })[0];
       T.answer(c, g.family, o.id, !!o.yes);
+      decide(g, { type: o.yes ? 'granted' : 'denied', city: c.id, capo: a.capo, key: a.key, cost: a.cost,
+                  label: (o.yes ? 'You gave ' + T.person(a.capo).name + ' your word for the ' : 'You refused ' + T.person(a.capo).name + ' the ') + a.name });
       record(g, { type: o.yes ? 'granted' : 'denied', capo: a.capo, city: c.id, key: a.key, x: a.x, y: a.y,
                   label: o.yes ? 'You give ' + T.person(a.capo).name + ' your word for the ' + a.name : 'You tell ' + T.person(a.capo).name + ' to leave the ' + a.name + ' alone' }, g.month);
     },
@@ -248,8 +321,10 @@
     line: function (g, o) {
       var c = cityOf(g, o.city);
       if (!held(g, c)) throw new Error('the family has no man in ' + specOf(c.id).name);
+      var was = sight(g, c);
       T.line(c, o.line);
       var said = o.line ? T.RULES.line[o.line].name.toLowerCase() : null;
+      decide(g, { type: 'line', city: c.id, line: o.line || null, was: was, label: said ? 'Your word for ' + specOf(c.id).name + ': ' + said : 'You left ' + specOf(c.id).name + ' to its capos' });
       record(g, { type: 'line', city: c.id, line: o.line || null, label: said ? 'Your word for ' + specOf(c.id).name + ': ' + said : 'You leave ' + specOf(c.id).name + ' to its capos' }, g.month);
     },
     // the boss buys something that lasts, in clean money
@@ -261,7 +336,9 @@
     cut: function (g, o) {
       var c = cityOf(g, o.city);
       if (!held(g, c)) throw new Error('the family has no man in ' + specOf(c.id).name);
+      var was = sight(g, c);
       T.cut(c, o.cut);
+      decide(g, { type: 'cut', city: c.id, cut: o.cut, was: was, label: 'You took a ' + o.cut + ' share in ' + specOf(c.id).name });
       record(g, { type: 'cut', city: c.id, cut: o.cut, label: 'You take a ' + o.cut + ' share in ' + specOf(c.id).name }, g.month);
     },
     // the boss makes one of his capos a gift, in clean money: it warms a man who was turning sour
@@ -275,6 +352,7 @@
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
       T.send(from, c, g.family, o.capo, o.x, o.y);
+      decide(g, { type: 'welcomed', city: c.id, capo: o.capo, label: (from !== c ? 'You sent ' + T.person(o.capo).name + ' to ' : 'You took in ' + T.person(o.capo).name + ' in ') + specOf(c.id).name });
       var club = T.clubOf(c, o.capo), e = { type: 'welcomed', capo: o.capo, city: c.id, x: club.x, y: club.y,
         label: T.person(o.capo).name + ' joins the family and opens his club in ' + T.zoneOf(c, club.x, club.y).name + (from !== c ? ', ' + specOf(c.id).name : '') };
       if (from !== c) e.from = from.id;
@@ -288,7 +366,9 @@
     },
     // the boss parts with a capo: paid off, killed, or given to the police
     part: function (g, o) {
-      var c = cityOf(g, o.city), name = T.person(o.capo) ? T.person(o.capo).name : o.capo, r = T.part(c, g.family, o.capo, o.way);
+      var c = cityOf(g, o.city), name = T.person(o.capo) ? T.person(o.capo).name : o.capo, was = sight(g, c), r = T.part(c, g.family, o.capo, o.way);
+      decide(g, { type: 'parted', city: c.id, capo: o.capo, way: o.way, was: was,
+                  label: { retire: 'You paid ' + name + ' off', kill: 'You had ' + name + ' killed', jail: 'You gave ' + name + ' to the police' }[o.way] });
       var said = { retire: 'You pay ' + name + ' off. He leaves the city', kill: name + ' is found in the river', jail: 'The police come for ' + name + ' at dawn' };
       record(g, { type: 'parted', capo: o.capo, city: c.id, way: o.way, kept: r.kept, closed: r.closed,
                   label: said[o.way] + (r.closed ? ': ' + r.closed + (r.closed > 1 ? ' places close' : ' place closes') : '') }, g.month);
@@ -316,8 +396,8 @@
     });
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [] };
-    return { date: dateOf(g.month), month: g.month, history: g.history || [], stalls: stalls(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [] };
+    return { date: dateOf(g.month), month: g.month, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -357,7 +437,7 @@
     return g;
   }
 
-  var api = { layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
+  var api = { DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
               createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
