@@ -79,16 +79,47 @@
       var month = g.month, was = { dirty: g.family.dirty, clean: g.family.clean || 0 };
       var happened = T.month(g.family, g.cities);
       g.change = { dirty: Math.round(g.family.dirty) - Math.round(was.dirty), clean: Math.round(g.family.clean || 0) - Math.round(was.clean) };
+      g.waiting = g.waiting || {};
       happened.forEach(function (e) {
         record(g, e, month);
         events.push(e);
+        // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
+        if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
         if (STOPS[e.type]) g.paused = true;
+      });
+      // and is announced again the day a word can be given
+      g.cities.forEach(function (c) {
+        T.doors(c, g.family).forEach(function (d) {
+          var k = c.id + ':' + d.capo;
+          if (!answerable(g, c, d)) { g.waiting[k] = true; return; }
+          if (!g.waiting[k]) return;
+          delete g.waiting[k];
+          var e = { type: 'knocks', ready: true, capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' can now be taken in' };
+          record(g, e, month); events.push(e); g.paused = true;
+        });
       });
       g.month += 1;
     }
     return events;
   }
 
+  // Where a man at the door could be sent instead: the cities next door that still have a seat.
+  function roadsOf(g, c, d) {
+    if (d.door === 'poach') return [];
+    return g.cities.filter(function (q) {
+      var s = T.seats(q);
+      return linked(c.id, q.id) && s.taken < s.total;
+    }).map(function (q) { return { city: q.id, name: specOf(q.id).name, cost: d.cost + T.RULES.doors.road }; });
+  }
+  // Can the boss say yes to this man today: a seat here or down a road, and the money for it.
+  function answerable(g, c, d) {
+    var s = T.seats(c), has = T.funds(g.family);
+    return (s.taken < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
+  }
+  function canAnswer(g, c, capo) {
+    var d = T.doors(c, g.family).filter(function (q) { return q.capo === capo; })[0];
+    return !!d && answerable(g, c, d);
+  }
   function cityOf(g, id) {
     var c = g.cities.filter(function (q) { return q.id === id; })[0];
     if (!c) throw new Error('no such city: ' + id);
@@ -164,12 +195,7 @@
                v.name = specOf(c.id).name;
                v.held = held(g, c);
                // where each man at the door could be sent instead: the cities next door that still have a seat
-               v.doors.forEach(function (d) {
-                 d.roads = d.door === 'poach' ? [] : g.cities.filter(function (q) {
-                   var s = T.seats(q);
-                   return linked(c.id, q.id) && s.taken < s.total;
-                 }).map(function (q) { return { city: q.id, name: specOf(q.id).name, cost: d.cost + T.RULES.doors.road }; });
-               });
+               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); });
                return v;
              }) };
   }
@@ -180,7 +206,7 @@
     g.cities.forEach(function (c) {
       var s = T.share(c), n = c.w * c.h, k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
-      pending += T.asks(c).length + T.doors(c, g.family).length + T.feuds(c).length;
+      pending += T.asks(c).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
       if (!held(g, c)) return;
       cities.held += 1; seats.taken += k.taken; seats.total += k.total;
     });
