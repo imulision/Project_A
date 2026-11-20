@@ -13,7 +13,7 @@
   var D = node ? require('./district.js') : root.AshportDistrict;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
-  var TICKS_PER_MONTH = 4;
+  var TICKS_PER_MONTH = 8;   // beats of the clock in a month at speed 1 (the screen beats once a second)
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
   var HISTORY = 24;           // months kept for the curves
