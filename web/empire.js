@@ -43,9 +43,23 @@
     });
     return out;
   }
+  // The street names of a city. With a picture (spec.streets: one string per row of blocks, one letter per block, 'a' for the
+  // first name of the list, 'b' for the second...) a name can be any shape. Without one, the names stand side by side on two rows.
   function layout(spec) {
-    var n = spec.districts.length, cols = Math.ceil(n / 2), w = cols * BLOCK.w, h = 2 * BLOCK.h;
-    return T.createCity({ id: spec.id, w: w, h: h, voids: voidsOf(spec, w, h), zones: spec.districts.map(function (d, i) {
+    var n = spec.districts.length, cols = Math.ceil(n / 2), w = cols * BLOCK.w, h = 2 * BLOCK.h, streets = null;
+    if (spec.streets) {
+      if (spec.streets.length !== h) throw new Error(spec.id + ': ' + spec.streets.length + ' rows of street names, ' + h + ' expected');
+      streets = [];
+      spec.streets.forEach(function (row, y) {
+        if (row.length !== w) throw new Error(spec.id + ': row ' + y + ' is ' + row.length + ' blocks long, ' + w + ' expected');
+        for (var x = 0; x < w; x++) {
+          var z = row.charCodeAt(x) - 97;
+          if (!(z >= 0 && z < n)) throw new Error(spec.id + ': no street name for \'' + row[x] + '\' at ' + x + ',' + y);
+          streets.push(z);
+        }
+      });
+    }
+    return T.createCity({ id: spec.id, w: w, h: h, voids: voidsOf(spec, w, h), streets: streets, zones: spec.districts.map(function (d, i) {
       var col = i % cols, row = Math.floor(i / cols), last = i === n - 1;
       return { name: d.name, x0: col * BLOCK.w, y0: row * BLOCK.h, x1: last ? cols * BLOCK.w - 1 : (col + 1) * BLOCK.w - 1, y1: (row + 1) * BLOCK.h - 1, traits: d.traits };
     }) });
@@ -116,6 +130,7 @@
       g.cities.forEach(function (c) {
         T.doors(c, g.family).forEach(function (d) {
           var k = c.id + ':' + d.capo;
+          if (d.door !== 'poach' && c.under && T.clubOf(c, c.under)) return; // the underboss sees to him: nothing to tell the boss
           if (!answerable(g, c, d)) { g.waiting[k] = true; return; }
           if (!g.waiting[k]) return;
           delete g.waiting[k];

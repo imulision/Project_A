@@ -66,13 +66,95 @@ test('a city saved before cities had a shape plays on as a full rectangle', () =
   assert.ok(!T.view(c, f).blocks.some((q) => q.void));
 });
 
+// --- street names of any shape ---
+
+// The same town, but Lantern Row runs under The Works along the south and The Works takes a bite out of it in the north.
+const bent = () => {
+  const streets = [];
+  for (let y = 0; y < 6; y++) for (let x = 0; x < 12; x++) streets.push(y >= 4 ? (x < 9 ? 0 : 1) : y === 0 ? (x < 4 ? 0 : 1) : (x < 6 ? 0 : 1));
+  return T.createCity({ id: 'town', w: 12, h: 6, streets, zones: shaped().zones.map((z) => ({ name: z.name, traits: z.traits })) });
+};
+
+test('a street name can be any shape: every block knows which one it is on', () => {
+  const c = bent();
+  assert.equal(T.zoneOf(c, 8, 5).name, 'Lantern Row');
+  assert.equal(T.zoneOf(c, 4, 0).name, 'The Works');
+  assert.equal(T.zoneOf(c, 5, 1).name, 'Lantern Row');
+  assert.equal(T.zoneOf(c, 9, 5).name, 'The Works');
+});
+
+test('the screen is told the street name of every block, and the box each name fits in', () => {
+  const v = T.view(bent(), family());
+  const b = (x, y) => v.blocks.find((q) => q.x === x && q.y === y);
+  assert.deepEqual([b(8, 5).zone, b(4, 0).zone, b(5, 1).zone, b(9, 5).zone], [0, 1, 0, 1]);
+  assert.deepEqual(v.zones, [{ name: 'Lantern Row', x0: 0, y0: 0, x1: 8, y1: 5 }, { name: 'The Works', x0: 4, y0: 0, x1: 11, y1: 5 }]);
+});
+
+test('a place is worth what its own street name makes it, wherever the name bends', () => {
+  const c = bent(), plain = shaped();
+  assert.ok(T.worth(c, 8, 5, 'speakeasy') > T.worth(plain, 8, 5, 'speakeasy'), 'the south-east corner is Lantern Row now: a better street for a speakeasy');
+});
+
+test('a city saved when street names were rectangles keeps them, and the screen is still told block by block', () => {
+  const c = shaped(), v = T.view(c, family());
+  assert.ok(!c.streets);
+  assert.ok(v.blocks.every((b) => b.zone === (b.x < 6 ? 0 : 1)));
+});
+
+test('a city whose blocks do not all have a street name is refused', () => {
+  assert.throws(() => T.createCity({ id: 'town', w: 12, h: 6, streets: [0, 1, 0], zones: shaped().zones }), /town: 72 blocks, 3 street names/);
+  const bad = []; for (let i = 0; i < 72; i++) bad.push(i ? 0 : 2);
+  assert.throws(() => T.createCity({ id: 'town', w: 12, h: 6, streets: bad, zones: shaped().zones }), /town: no street name 2/);
+});
+
 // --- the six cities of the map ---
+
+test('the street names of a city are of unequal sizes and none is a plain rectangle, yet each is in one piece', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  for (const c of E.view(g).cities) {
+    const sizes = c.zones.map((z, n) => c.blocks.filter((b) => b.zone === n).length);
+    assert.equal(sizes.reduce((a, b) => a + b, 0), c.w * c.h, c.id + ': every block has a street name');
+    assert.ok(Math.min(...sizes) >= 14, c.id + ': a street name of ' + Math.min(...sizes) + ' blocks');
+    assert.ok(Math.max(...sizes) >= 1.6 * Math.min(...sizes), c.id + ': street names all about the same size, ' + sizes.join(' '));
+    c.zones.forEach((z, n) => {
+      const mine = c.blocks.filter((b) => b.zone === n), k = (x, y) => x + ',' + y, set = new Set(mine.map((b) => k(b.x, b.y)));
+      assert.ok(mine.every((b) => b.x >= z.x0 && b.x <= z.x1 && b.y >= z.y0 && b.y <= z.y1), c.id + ' ' + z.name + ' spills out of its box');
+      assert.ok(mine.length < (z.x1 - z.x0 + 1) * (z.y1 - z.y0 + 1), c.id + ' ' + z.name + ' is a plain rectangle');
+      const seen = new Set([k(mine[0].x, mine[0].y)]), todo = [mine[0]];
+      while (todo.length) {
+        const b = todo.pop();
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const q = k(b.x + dx, b.y + dy); if (set.has(q) && !seen.has(q)) { seen.add(q); todo.push({ x: b.x + dx, y: b.y + dy }); } }
+      }
+      assert.equal(seen.size, mine.length, c.id + ' ' + z.name + ' is in ' + 'more than one piece');
+    });
+  }
+});
+
+test('a picture of a city that is the wrong size, or uses a letter no street name has, is refused', () => {
+  const spec = JSON.parse(JSON.stringify(W.CITIES[0]));
+  spec.streets = spec.streets.slice(0, 11);
+  assert.throws(() => E.layout(spec), /ashport: 11 rows of street names, 12 expected/);
+  spec.streets = W.CITIES[0].streets.slice(); spec.streets[3] = spec.streets[3].slice(0, 5) + 'z' + spec.streets[3].slice(6);
+  assert.throws(() => E.layout(spec), /ashport: no street name for 'z' at 5,3/);
+  spec.streets = W.CITIES[0].streets.slice(); spec.streets[3] = spec.streets[3] + 'a';
+  assert.throws(() => E.layout(spec), /ashport: row 3 is 21 blocks long, 20 expected/);
+});
 
 test('every city of the map has its own outline: some blocks missing, mostly on its edges, never the same drawing twice', () => {
   const g = E.createGame({ capo: 'dutch' }), seen = new Set();
   for (const c of E.view(g).cities) {
     const gone = c.blocks.filter((b) => b.void), part = gone.length / c.blocks.length;
-    assert.ok(part >= 0.05 && part <= 0.2, c.id + ': ' + Math.round(part * 100) + ' % of its blocks are missing');
+    assert.ok(part >= 0.18 && part <= 0.3, c.id + ': ' + Math.round(part * 100) + ' % of its blocks are missing');
+    // every side of the rectangle is bitten, none of them all the way along, and never to the same depth all along
+    const sides = { north: (i, d) => [i, d], south: (i, d) => [i, c.h - 1 - d], west: (i, d) => [d, i], east: (i, d) => [c.w - 1 - d, i] };
+    for (const side of Object.keys(sides)) {
+      const long = side === 'north' || side === 'south' ? c.w : c.h, depths = [];
+      for (let i = 0; i < long; i++) { let d = 0; while (d < 4 && gone.some((b) => b.x === sides[side](i, d)[0] && b.y === sides[side](i, d)[1])) d++; depths.push(d); }
+      assert.ok(depths.some((d) => d > 0), c.id + ': its ' + side + ' side is a straight line');
+      assert.ok(depths.some((d) => d === 0), c.id + ': its ' + side + ' side is gone altogether');
+      let turns = 0; for (let i = 1; i < long; i++) if (depths[i] !== depths[i - 1]) turns++;
+      assert.ok(turns >= 3, c.id + ': its ' + side + ' side only turns ' + turns + ' times');
+    }
     assert.ok(gone.every((b) => ['water', 'rail', 'waste'].includes(b.void)));
     assert.ok(new Set(gone.map((b) => b.void)).size >= 2, c.id + ' has more than one kind of gap');
     // a gap always touches the edge of the rectangle or another gap: no hole in the middle of a street
@@ -85,11 +167,10 @@ test('every city of the map has its own outline: some blocks missing, mostly on 
     assert.ok(!seen.has(drawing), c.id + ' looks like another city'); seen.add(drawing);
     for (const p of c.places) assert.ok(!set.has(k(p.x, p.y)), c.id + ': a place stands on a gap');
     // every street name keeps most of its blocks
-    for (const z of c.zones) {
-      let all = 0, real = 0;
-      for (let y = z.y0; y <= z.y1; y++) for (let x = z.x0; x <= z.x1; x++) { all++; if (!set.has(k(x, y))) real++; }
-      assert.ok(real / all >= 0.5, c.id + ' ' + z.name + ' keeps ' + real + ' of ' + all);
-    }
+    c.zones.forEach((z, n) => {
+      const all = c.blocks.filter((b) => b.zone === n), real = all.filter((b) => !b.void);
+      assert.ok(real.length / all.length >= 0.5, c.id + ' ' + z.name + ' keeps ' + real.length + ' of ' + all.length);
+    });
   }
   assert.equal(seen.size, W.CITIES.length);
 });
