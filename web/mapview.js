@@ -41,6 +41,15 @@
     return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
   }
   function pick(list, r) { return list[Math.min(list.length - 1, Math.floor(r * list.length))]; }
+  // A number between 0 and 1 that changes slowly from one lot to the next: neighbours get close values, so that
+  // what it decides (how tall, how full, what trade) comes in neighbourhoods and not as a sprinkle.
+  function field(i, j, seed, size) {
+    var x = i / size, y = j / size, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    var sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    var a = hash(x0, y0, seed), b = hash(x0 + 1, y0, seed), c = hash(x0, y0 + 1, seed), d = hash(x0 + 1, y0 + 1, seed);
+    return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+  }
+  var YARDS = ['era_warehouse', 'era_works'];      // what stands where the town works: sheds and workshops
 
   function ownerKey(owner) {
     if (owner === 'family') return 'family';
@@ -70,10 +79,17 @@
       var ours = b.grip === 'family', w = !ours ? -1 : b.family >= 66 ? 2 : b.family >= 33 ? 1 : 0, zi = zoneOf(b.x, b.y), n = 0;
       count[zi].all++; if (ours) count[zi].family++; else if (b.grip === 'rival') count[zi].rival++;
       looks.push(w);
+      // A town is not a chessboard. How far the block is from the edge, and three slow fields, shape it: the middle is
+      // full and tall in places, the rim thins out and stays low, a block here and there is a park, sheds stand together.
+      // None of it depends on who holds the street, so the ground never changes under the player.
+      var rim = Math.min(b.x, b.y, c.w - 1 - b.x, c.h - 1 - b.y), park = !placeAt[b.x + ',' + b.y] && rim > 0 && hash(b.x, b.y, ci * 7 + 12) < 0.045;
       for (var j = b.y * 3 + 1; j <= b.y * 3 + 2; j++) for (var i = b.x * 4 + 1; i <= b.x * 4 + 3; i++, n++) {
-        var tall = hash(i, j, ci * 7 + 1) < (ours ? [0.2, 0.5, 0.8][w] : 0.3), r = hash(i, j, ci * 7 + 2);
-        var lot = { i: i, j: j, bx: b.x, by: b.y, district: zi, tall: tall,
-                    model: tall ? (w === 2 && hash(i, j, ci * 7 + 3) < 0.45 ? pick(HIGH, r) : pick(MID, r)) : pick(LOW, r),
+        var dense = field(i, j, ci * 7 + 11, 6), works = field(i, j, ci * 7 + 13, 8) > 0.7, r = hash(i, j, ci * 7 + 2);
+        var chance = (ours ? [0.2, 0.5, 0.8][w] : 0.3) * Math.max(0, dense * 3.2 - 0.9) * (rim === 0 ? 0.25 : rim === 1 ? 0.7 : 1);
+        var tall = !works && hash(i, j, ci * 7 + 1) < chance;
+        var open = park ? 'park' : hash(i, j, ci * 7 + 14) < (rim === 0 ? 0.42 : rim === 1 ? 0.1 : dense < 0.3 ? 0.07 : 0.015) ? 'yard' : null;
+        var lot = { i: i, j: j, bx: b.x, by: b.y, district: zi, tall: tall, open: open,
+                    model: tall ? (w === 2 && hash(i, j, ci * 7 + 3) < 0.45 ? pick(HIGH, r) : pick(MID, r)) : works ? pick(YARDS, r) : pick(LOW, r),
                     tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
                     shop: hash(i, j, ci * 7 + 5) < (ours ? [0.4, 0.65, 0.9][w] : 0.3),
                     tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null, hideout: false };
@@ -84,6 +100,7 @@
                        role: p.kind === 'key' ? 'key' : p.kind === 'club' ? 'club' : WASH[p.kind] ? 'laundering' : 'business',
                        sign: look.sign, color: mine ? (look.color || COLORS.family) : COLORS[ownerKey(p.owner)] };
           lot.model = look.model; lot.tall = MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = mine; lot.lit = mine ? 3 : 1; lot.tower = false;
+          lot.open = null;
           lot.hideout = mine && p.kind === 'club';
           if (lot.hideout) capoAt[p.capo] = lot;
         }
