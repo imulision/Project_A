@@ -172,6 +172,14 @@
       (p && p.till > 0 ? '<div class="move">' + icon('dirty') + '<span>' + money(p.till) + ' in the till, waiting for a car</span></div>' : '') +
       '<div class="acts">' + (ours && p.capo ? button('capo', { city: c.id, capo: p.capo }, 'See ' + esc(first(nameOf(p.capo)))) : '') + button('city', { city: c.id }, esc(c.name)) + button('close', {}, 'Close') + '</div>';
   }
+  // The same in a few words, for the bubble beside the finger: the place and who runs it, or the street and who holds it.
+  function blockTip(view, cityId, x, y) {
+    var c = cityOf(view, cityId); if (!c) return null;
+    var b = c.blocks[y * c.w + x] || {}, p = c.places.filter(function (q) { return q.x === x && q.y === y; })[0], ours = p && p.owner === 'family';
+    if (!p) return '<b>' + esc(zoneOf(c, x, y).name) + '</b><br>' + (GRIP[b.grip] || 'Nobody holds this street yet');
+    return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
+      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '');
+  }
   function shares(s) {
     var part = function (k, color) { return s[k] > 0 ? '<i style="flex:' + s[k].toFixed(1) + ';background:' + color + '" data-tip="' + { family: 'Yours', rival: 'The rivals', contested: 'Fought over', free: 'Held by nobody' }[k] + ': ' + Math.round(s[k]) + '%"></i>' : ''; };
     return '<div class="shares">' + part('family', 'var(--accent)') + part('contested', '#ff5a3a') + part('rival', '#6b6f86') + part('free', '#ffffff1f') + '</div>';
@@ -246,5 +254,5 @@
   }
 
   return { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD,
-           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, FX: FX, fxTip: fxTip, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           start: start, man: man, requests: requests, capo: capo, parting: parting, block: block, blockTip: blockTip, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, FX: FX, fxTip: fxTip, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
 });

@@ -304,3 +304,18 @@ test('a badge over the map says what just happened there', () => {
   assert.match(C.fxTip('unknown'), /unknown/);
   assert.equal(C.FX.police[1], 'Police');
 });
+
+test('a touched street answers with a few words beside the finger, not a sheet', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club'), key = city.keys[0];
+  const mine = C.blockTip(v, 'ashport', ours.x, ours.y);
+  assert.match(mine, new RegExp(ours.name)); assert.match(mine, /Sal runs it/);
+  assert.doesNotMatch(mine, /<button|<h2/, 'no button, no title: it is a word, not a page');
+  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 90, 'short');
+  assert.match(C.blockTip(v, 'ashport', key.x, key.y), new RegExp(key.name));
+  const p = { ...ours, till: 90 }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) };
+  assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 in the till/);
+  let empty = null; for (let y = 0; y < city.h && !empty; y++) for (let x = 0; x < city.w; x++) if (!city.places.some((q) => q.x === x && q.y === y)) { empty = C.blockTip(v, 'ashport', x, y); break; }
+  assert.match(empty, /street|holds/i); assert.doesNotMatch(empty, /Nothing of note/);
+  assert.equal(C.blockTip(v, 'nowhere', 0, 0), null);
+});

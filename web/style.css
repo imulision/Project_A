@@ -178,3 +178,4 @@ body.stopped .sub #sub{display:none}
 .res em{display:block;font-style:normal;font-size:.68em;color:var(--dim);white-space:nowrap;min-height:1.2em;overflow:hidden;text-overflow:ellipsis}
 .acts button small{display:block;font-size:.78em;letter-spacing:0;text-transform:none;color:var(--bad);margin-top:2px}
 .res div.hot{border-top-color:var(--bad)}.res div.hot b{color:var(--bad)}
+#tip.more{pointer-events:auto;padding-right:26px}#tip i.more{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;font-size:1.5em;color:var(--accent)}#tip .ic{width:1.1em;height:1.1em;vertical-align:-.15em}

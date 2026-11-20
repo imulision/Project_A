@@ -89,13 +89,21 @@
   }
   function requests() { show(C.requests(view, E.hud(g))); }
 
-  function tip(el, html) {
-    var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = html || C.esc(el.dataset.tip); t.classList.add('on');
+  // A bubble beside what was touched. With `more`, a touch on the bubble itself opens the whole page.
+  function tip(el, html, more) {
+    var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = (html || C.esc(el.dataset.tip)) + (more ? '<i class="more">\u203a</i>' : ''); t.classList.add('on'); t.classList.toggle('more', !!more); tip.more = more || null;
     var w = t.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - t.offsetHeight - 8;
     t.style.left = x + 'px'; t.style.top = (y < 8 ? r.bottom + 8 : y) + 'px';
-    tip.at = Date.now(); clearTimeout(tip.t); tip.t = setTimeout(function () { t.classList.remove('on'); }, 3200);
+    tip.at = Date.now(); clearTimeout(tip.t); tip.t = setTimeout(untip, more ? 6000 : 3200);
   }
-  document.addEventListener('click', function (e) { var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (Date.now() - (tip.at || 0) > 450) $('tip').classList.remove('on'); }, true);      // the click a phone sends after a touch does not close what that touch opened
+  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; }
+  function at(x, y) { return { getBoundingClientRect: function () { return { left: x, top: y - 16, width: 0, height: 32, bottom: y + 16 }; } }; }
+  function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
+  }, true);
+  document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
 
   // While a club is being placed, the streets where it can open are lit on the ground.
   function spotsOf(city) { var raw = g.cities.filter(function (q) { return q.id === city; })[0]; return raw ? T.spots(raw) : []; }
@@ -174,8 +182,10 @@
       return;
     }
     if (!hit.near || !inside) return map.focus(hit.city, inside ? zoneId(hit.city, hit.bx, hit.by) : undefined);
-    show(C.block(view, hit.city, hit.bx, hit.by));
+    said(hit.city, hit.bx, hit.by, at(x == null ? innerWidth / 2 : x, y == null ? innerHeight / 2 : y));
   }
+  // a touched street or place answers with a bubble; the bubble leads to its page
+  function said(city, bx, by, el) { var h = C.blockTip(view, city, bx, by); if (h) tip(el, h, function () { show(C.block(view, city, bx, by)); }); }
 
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
   var FX = C.FX;
@@ -183,7 +193,7 @@
     if (l.fx) tip(e, C.fxTip(l.fx, l.say));
     else if (l.car) tip(e, C.carTip(l.car));
     else if (picking) return;
-    else if (l.site) show(C.block(view, l.city, l.bx, l.by));
+    else if (l.site) said(l.city, l.bx, l.by, e);
     else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo)); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
