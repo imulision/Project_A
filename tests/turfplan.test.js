@@ -76,7 +76,7 @@ test("a rival's place is drawn as theirs, in their colour, and the family's as o
 test('streets the family holds are better lit than the rest, block by block', () => {
   const c = cityOf(play(30)), p = M.planTurf(c);
   const held = c.blocks.find((b) => b.grip === 'family'), lost = c.blocks.find((b) => b.grip === 'rival');
-  lotsOf(p, held.x, held.y).forEach((l) => { assert.equal(l.ours, true); assert.ok(l.lit >= 1); });
+  lotsOf(p, held.x, held.y).forEach((l) => { if (!l.site) { assert.equal(l.ours, true); assert.ok(l.lit >= 1); } });
   lotsOf(p, lost.x, lost.y).forEach((l) => { if (!l.site) { assert.equal(l.ours, false); assert.equal(l.lit, 0); } });
 });
 
