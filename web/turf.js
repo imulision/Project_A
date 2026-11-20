@@ -72,7 +72,11 @@
     car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 400, upkeep: 20 },
     // a capo has a car of his own: with nothing else on his hands he goes where his business chokes. The runs he makes
     // himself when his cars left full tills behind, and what a place makes more the month he stands over it
-    own: { runs: 2, boost: 0.25 },
+    own: { runs: 2, boost: 0.15 },
+    // liquor is carried too. A truck leaves a cellar only with a full load: the crates in a load, the runs a truck makes
+    // in a month, its price and upkeep (the truck that comes with a man's first still costs nothing), the months of its
+    // own making a cellar holds, and the loads a bar keeps on its shelf. A bar pours one load a month.
+    truck: { load: 20, runs: 4, cost: 500, upkeep: 25, cellar: 2, shelf: 2 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -185,7 +189,7 @@
       placed += 1;
     }
     // its lieutenants share the places, from the west of the city to the east
-    var men = lieutenantsOf(c), theirs = places(c).filter(function (p) { return p.owner === name && p.kind !== 'key'; });
+    var men = lieutenantsOf(c), theirs = everyPlace(c).filter(function (p) { return p.owner === name && p.kind !== 'key'; });
     if (!men.length) return;
     theirs.sort(function (a, b) { return a.x - b.x || a.y - b.y; }).forEach(function (p, i) {
       at(c, p.x, p.y).man = men[Math.min(men.length - 1, Math.floor(i * men.length / theirs.length))];
@@ -261,6 +265,8 @@
     kept.set(c, m);
     return m;
   }
+  // The same list for the rules' own reading: no copies, never to be written to, and without the tills.
+  function everyPlace(c) { return memo(c).places; }
   // Every place of the city, or only those a capo runs.
   function places(c, capo) {
     return memo(c).places.filter(function (p) { return capo === undefined || p.capo === capo; }).map(function (p) {
@@ -272,22 +278,36 @@
       return out;
     });
   }
-  function run(c, capo) { return places(c, capo).filter(function (p) { return p.kind !== 'club' && p.kind !== 'key'; }); }
+  // The businesses a capo runs. Kept until a place changes, and never to be written to.
+  function run(c, capo) {
+    var k = crowns(c);
+    if (!k.run[capo]) k.run[capo] = memo(c).places.filter(function (p) { return p.capo === capo && p.kind !== 'club' && p.kind !== 'key'; });
+    return k.run[capo];
+  }
   // The key places of the city, and who holds each.
   function keys(c) {
-    return places(c).filter(function (p) { return p.kind === 'key'; }).map(function (p) {
+    return everyPlace(c).filter(function (p) { return p.kind === 'key'; }).map(function (p) {
       return { key: p.key, name: KEYS[p.key].name, x: p.x, y: p.y, owner: p.owner, capo: p.capo, gives: KEYS[p.key].gives };
     });
   }
   // What the family's key places add up to, for one line of KEYS.
+  // Both are asked for every place every month, so they are worked out once and kept with the rest of memo(c).
+  function crowns(c) {
+    var m = memo(c);
+    if (!m.crowns) m.crowns = { list: m.places.filter(function (p) { return p.kind === 'key' && p.owner === 'family'; }), held: {}, lift: {}, club: {}, run: {} };
+    return m.crowns;
+  }
   function held(c, what) {
-    return keys(c).reduce(function (n, k) { return n + (k.owner === 'family' && KEYS[k.key][what] || 0); }, 0);
+    var k = crowns(c);
+    if (k.held[what] === undefined) k.held[what] = k.list.reduce(function (n, p) { return n + (KEYS[p.key][what] || 0); }, 0);
+    return k.held[what];
   }
   function lift(c, kind) {
-    return keys(c).reduce(function (n, k) {
-      var l = k.owner === 'family' && KEYS[k.key].lifts;
-      return n + (l && l.street === TERRAIN[kind] ? l.by : 0);
-    }, 1);
+    var k = crowns(c);
+    if (k.lift[kind] === undefined) {
+      k.lift[kind] = k.list.reduce(function (n, p) { var l = KEYS[p.key].lifts; return n + (l && l.street === TERRAIN[kind] ? l.by : 0); }, 1);
+    }
+    return k.lift[kind];
   }
 
   function open(c, x, y, p) {
@@ -307,7 +327,9 @@
   }
   // A capo arrives: his social club is his base, and where he is found.
   function clubOf(c, capo) {
-    var club = places(c, capo).filter(function (p) { return p.kind === 'club'; })[0];
+    var k = crowns(c);
+    if (k.club[capo] === undefined) k.club[capo] = memo(c).places.filter(function (p) { return p.kind === 'club' && p.capo === capo; })[0] || null;
+    var club = k.club[capo];
     return club ? { x: club.x, y: club.y } : null;
   }
   function settle(c, capo, x, y) {
@@ -338,7 +360,7 @@
 
   // The free blocks a capo can open on: streets the family holds, close to a place he runs.
   function frontier(c, capo) {
-    var mine = places(c, capo), out = [];
+    var mine = everyPlace(c).filter(function (p) { return p.capo === capo; }), out = [];
     if (!mine.length) return out;
     for (var y = 0; y < c.h; y++) {
       for (var x = 0; x < c.w; x++) {
@@ -364,12 +386,60 @@
   // How well the family's stills keep its speakeasies wet, across the whole city: 0 to 1.
   function liquor(c) {
     var stills = held(c, 'pours'), bars = 0;
-    places(c).forEach(function (p) {
+    everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family') return;
       if (p.kind === 'still') stills += (1 + RULES.bigger * (p.level - 1)) * pushed(c, p);
       if (p.kind === 'speakeasy') bars += 1;
     });
     return { stills: stills, bars: bars, wet: bars ? Math.min(1, RULES.pours * stills / bars) : 1 };
+  }
+  // What a bar had to pour this month: the loads the trucks really brought it, or, before any month has gone by,
+  // what the family's stills could make for it.
+  function poured(c, p, wet) { var b = c.blocks[p.x + ',' + p.y]; return b && b.wet !== undefined ? b.wet : wet; }
+  // Where liquor is made: the family's stills, and the brewery if it holds it. What each makes in a month, in loads.
+  function cellars(c) {
+    var out = [];
+    everyPlace(c).forEach(function (p) {
+      if (p.owner !== 'family') return;
+      if (p.kind === 'still') out.push({ p: p, b: c.blocks[key(p.x, p.y)], makes: RULES.pours * (1 + RULES.bigger * (p.level - 1)) * pushed(c, p) });
+      else if (p.kind === 'key' && KEYS[p.key].pours) out.push({ p: p, b: c.blocks[key(p.x, p.y)], makes: RULES.pours * KEYS[p.key].pours });
+    });
+    return out;
+  }
+  // One month of liquor: every cellar fills with what was made, the trucks of the men who make it drive full loads to
+  // the thirstiest bars of the family, and every bar pours what it has.
+  function distil(c, f) {
+    var src = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {} };
+    var bars = everyPlace(c).filter(function (p) { return p.owner === 'family' && p.kind === 'speakeasy'; }).map(function (p) { return { p: p, b: c.blocks[key(p.x, p.y)] }; });
+    src.forEach(function (s) {
+      s.b.stock = Math.min(RULES.truck.cellar * s.makes, (s.b.stock || 0) + s.makes);
+      var m = f.men[s.p.capo];
+      if (m && left[s.p.capo] === undefined) { m.trucks = m.trucks || 1; left[s.p.capo] = m.trucks * RULES.truck.runs; }
+    });
+    c.flow.hauls = [];
+    for (;;) {
+      var from = null, to = null;
+      src.forEach(function (s) { if (s.b.stock >= 1 && left[s.p.capo] > 0 && (!from || s.b.stock > from.b.stock)) from = s; });
+      if (!from) break;
+      bars.forEach(function (q) {
+        var has = q.b.stock || 0;
+        if (has + 1 > RULES.truck.shelf) return;
+        if (!to || has < (to.b.stock || 0) || (has === (to.b.stock || 0) && far(from.p.x, from.p.y, q.p.x, q.p.y) < far(from.p.x, from.p.y, to.p.x, to.p.y))) to = q;
+      });
+      if (!to) break;
+      from.b.stock -= 1; to.b.stock = (to.b.stock || 0) + 1; left[from.p.capo] -= 1;
+      var who2 = from.p.capo, n = made[who2] || 0, trucks = f.men[who2].trucks;
+      made[who2] = n + 1;
+      c.flow.hauls.push({ capo: who2, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: RULES.truck.load, truck: n % trucks + 1, leg: Math.floor(n / trucks) });
+    }
+    bars.forEach(function (q) {
+      var sold = Math.min(1, q.b.stock || 0);
+      q.b.stock = (q.b.stock || 0) - sold; q.b.wet = sold;
+      if (sold < 1) out.dry = true;
+    });
+    src.forEach(function (s) { out.waits[s.p.capo] = (out.waits[s.p.capo] || 0) + Math.floor(s.b.stock); });
+    out.idle = left;
+    return out;
   }
   // A place makes more the month its capo stands over it.
   function pushed(c, p) { return c.push && c.push[p.y * c.w + p.x] ? 1 + RULES.own.boost : 1; }
@@ -378,7 +448,7 @@
     if (!WORTH[p.kind]) return 0;
     var h = hold(c, p.x, p.y);
     return WORTH[p.kind] * RULES.yield * worth(c, p.x, p.y, p.kind) * (1 + RULES.bigger * (p.level - 1)) * (h.family / (h.family + h.rival)) * lift(c, p.kind)
-      * (p.kind === 'speakeasy' ? RULES.dry + (1 - RULES.dry) * wet : 1) * (p.kind === 'still' ? 1 : pushed(c, p));
+      * (p.kind === 'speakeasy' ? RULES.dry + (1 - RULES.dry) * poured(c, p, wet) : 1) * (p.kind === 'still' ? 1 : pushed(c, p));
   }
   function income(c, capo) {
     var wet = liquor(c).wet;
@@ -387,7 +457,7 @@
   function wages(c, capo) { return RULES.wage * run(c, capo).length; }
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
   function collect(c, capo, cars, own, load) {
-    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null;
+    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
     var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); return { p: p, b: b }; });
     while (left + mine > 0) {
       var best = null;
@@ -395,7 +465,8 @@
       if (!best) break;
       best.b.till -= load; got += load;
       var r = { capo: capo, x: best.p.x, y: best.p.y, amount: load };
-      if (left > 0) left -= 1; else { mine -= 1; r.own = true; went = went || { x: r.x, y: r.y }; }
+      if (left > 0) { r.car = done % cars + 1; r.leg = Math.floor(done / cars); done += 1; left -= 1; }
+      else { r.own = true; r.leg = drove; drove += 1; mine -= 1; went = went || { x: r.x, y: r.y }; }
       c.flow.runs.push(r);
     }
     for (var j = 0; j < tills.length; j++) { waiting += tills[j].b.till; if (tills[j].b.till >= load) full += 1; }
@@ -460,7 +531,7 @@
     if (mine.length < RULES.reach[o.rank]) {
       // hemmed in: the weakest rival place within reach, taken his own way
       var all = places(c, capo), prey = null;
-      places(c).forEach(function (p) {
+      everyPlace(c).forEach(function (p) {
         if (p.owner === 'family' || p.kind === 'key') return;
         if (!all.some(function (q) { return far(p.x, p.y, q.x, q.y) <= RULES.near; })) return;
         var r = hold(c, p.x, p.y).rival;
@@ -524,7 +595,7 @@
   // The rivals open a place of their own now and then, on the free block they press on hardest toward the family.
   function rivalGrows(c) {
     if (!c.rival || c.month % RULES.rivalGrows !== 0) return;
-    var theirs = places(c).filter(function (p) { return p.owner !== 'family'; }), ours = places(c).filter(function (p) { return p.owner === 'family'; });
+    var theirs = everyPlace(c).filter(function (p) { return p.owner !== 'family'; }), ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; });
     if (theirs.length >= RULES.rivalMost * c.w * c.h / 100) return;
     var best = null;
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
@@ -541,7 +612,7 @@
   // Who answers when a family place is hit: the hardest capo with a club close by, or its own.
   function cover(c, x, y) {
     var p = at(c, x, y), best = { capo: p.capo, muscle: who(p.capo).muscle };
-    places(c).forEach(function (q) {
+    everyPlace(c).forEach(function (q) {
       if (q.owner !== 'family' || q.kind !== 'club' || far(x, y, q.x, q.y) > RULES.cover) return;
       if (who(q.capo).muscle > best.muscle) best = { capo: q.capo, muscle: who(q.capo).muscle };
     });
@@ -551,17 +622,17 @@
   function rivalRaids(c, events) {
     if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
     var target = null;
-    places(c).forEach(function (p) {
+    everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key') return;
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach) return;
       if (!target || h.rival - h.family > target.margin) target = { margin: h.rival - h.family, p: p, h: h };
     });
     if (!target) return;
-    var p = target.p, by = c.rival || places(c).filter(function (q) { return q.owner !== 'family'; })[0].owner, where = zoneOf(c, p.x, p.y).name;
+    var p = target.p, by = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner, where = zoneOf(c, p.x, p.y).name;
     var guard = cover(c, p.x, p.y);
     var e = { capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: by, heldBy: guard.capo };
-    var fury = 1 + places(c).filter(function (q) { return q.owner === 'family'; }).length / RULES.anger; // the bigger the family, the harder they come
+    var fury = 1 + everyPlace(c).filter(function (q) { return q.owner === 'family'; }).length / RULES.anger; // the bigger the family, the harder they come
     if (target.h.family * (RULES.stand + guard.muscle / 10 + held(c, 'shield')) >= target.h.rival * fury) {
       e.type = 'repelled';
       c.repelled += 1;
@@ -616,7 +687,7 @@
       if (c.month < (c.refused[k.key] || 0)) return;
       if (c.asks.concat(c.ops).some(function (o) { return o.key === k.key; })) return;
       if (!mine.some(function (p) { return far(k.x, k.y, p.x, p.y) <= RULES.near; })) return;
-      var around = places(c).filter(function (p) { return p.owner === 'family' && far(k.x, k.y, p.x, p.y) <= RULES.near; }).length;
+      var around = everyPlace(c).filter(function (p) { return p.owner === 'family' && far(k.x, k.y, p.x, p.y) <= RULES.near; }).length;
       if (around >= RULES.siege) out = k;
     });
     return out;
@@ -643,7 +714,7 @@
   }
   // Every place of the family that washes (what it can wash and what it keeps come from district.js), the cheapest first.
   function laundries(c) {
-    return places(c).filter(function (p) { return p.owner === 'family' && D.SITES[p.kind] && D.SITES[p.kind].wash; }).map(function (p) {
+    return everyPlace(c).filter(function (p) { return p.owner === 'family' && D.SITES[p.kind] && D.SITES[p.kind].wash; }).map(function (p) {
       return { x: p.x, y: p.y, most: D.SITES[p.kind].wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5), loss: D.SITES[p.kind].loss };
     }).sort(function (a, b) { return a.loss - b.loss; });
   }
@@ -681,7 +752,7 @@
   // A capo who opens or takes a place within reach of another capo's leaves a grudge between them.
   function rub(c, capo, x, y) {
     var seen = {};
-    places(c).forEach(function (p) {
+    everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family' || p.capo === capo || seen[p.capo] || far(x, y, p.x, p.y) > RULES.near) return;
       seen[p.capo] = true;
       c.grudge = c.grudge || {};
@@ -732,7 +803,7 @@
   // --- where capos come from ---
   // Who would join the family in this city today, and through which door.
   function doors(c, f) {
-    var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
+    var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; }), out = [];
     var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id); };
     var add = function (id, door, by, why, price) {
       out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
@@ -757,7 +828,7 @@
       if (p.key && ours.some(function (q) { return q.key === p.key; })) add(id, 'figure', p.key, 'He ran the ' + KEYS[p.key].name + ' before it was ours');
     });
     // a rival's lieutenant listens once the family weighs enough in the city
-    var his = function (id) { return places(c).filter(function (p) { return p.man === id; }); };
+    var his = function (id) { return everyPlace(c).filter(function (p) { return p.man === id; }); };
     if (c.rival && share(c).family >= RULES.turn) lieutenantsOf(c).forEach(function (id) {
       if (free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
     });
@@ -773,7 +844,7 @@
   }
   // How many capos the city carries, and how many are there.
   function seats(c) {
-    var ours = places(c).filter(function (p) { return p.owner === 'family'; });
+    var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; });
     return { taken: ours.filter(function (p) { return p.kind === 'club'; }).length,
              total: RULES.seats + ours.filter(function (p) { return p.kind === 'key'; }).length };
   }
@@ -961,26 +1032,28 @@
   // bar, every place's takings to its capo's club, the boss's dirty money from
   // the clubs to the laundries, and the crews on their way to what they take.
   function trips(c, f) {
-    var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
-    var at2 = function (p) { return { x: p.x, y: p.y }; }, wet = liquor(c).wet, washed = (c.flow && c.flow.wash) || {};
-    var stills = ours.filter(function (p) { return p.kind === 'still'; });
+    var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; }), out = [];
+    var at2 = function (p) { return { x: p.x, y: p.y }; }, washed = (c.flow && c.flow.wash) || {};
     var washes = ours.filter(function (p) { return D.SITES[p.kind] && D.SITES[p.kind].wash; });
-    ours.forEach(function (p) {
-      if (p.kind === 'speakeasy' && stills.length) {
-        var s = stills.reduce(function (a, b) { return far(p.x, p.y, b.x, b.y) < far(p.x, p.y, a.x, a.y) ? b : a; });
-        out.push({ kind: 'liquor', cargo: 'liquor', capo: s.capo, from: at2(s), to: at2(p) });
+    // one trip for every truckload that really left a cellar last month
+    ((c.flow && c.flow.hauls) || []).forEach(function (h) {
+      var garage = clubOf(c, h.capo);
+      if (garage && at(c, h.from.x, h.from.y) && at(c, h.to.x, h.to.y)) {
+        out.push({ kind: 'liquor', cargo: 'liquor', capo: h.capo, from: { x: h.from.x, y: h.from.y }, to: { x: h.to.x, y: h.to.y }, amount: h.amount,
+                   vehicle: h.capo + ':truck:' + (h.truck || 1), leg: h.leg || 0, home: { x: garage.x, y: garage.y } });
       }
     });
     ((c.flow && c.flow.runs) || []).forEach(function (r) {
       var club = clubOf(c, r.capo);
       if (!club || !at(c, r.x, r.y)) return;
-      var t = { kind: 'takings', cargo: 'cash', capo: r.capo, from: { x: r.x, y: r.y }, to: club, amount: r.amount };
+      var t = { kind: 'takings', cargo: 'cash', capo: r.capo, from: { x: r.x, y: r.y }, to: club, amount: r.amount,
+                vehicle: r.capo + (r.own ? ':own' : ':car:' + (r.car || 1)), leg: r.leg || 0, home: { x: club.x, y: club.y } };
       if (r.own) t.own = true; // the capo drove this one himself
       out.push(t);
     });
     Object.keys(f.men || {}).forEach(function (id) {
       var club = clubOf(c, id), w = club && whereabouts(c, f, id);
-      if (w && w.why !== 'home') out.push({ kind: 'capo', cargo: w.why, capo: id, from: { x: club.x, y: club.y }, to: { x: w.x, y: w.y } });
+      if (w && w.why !== 'home') out.push({ kind: 'capo', cargo: w.why, capo: id, from: { x: club.x, y: club.y }, to: { x: w.x, y: w.y }, vehicle: id + ':own', home: { x: club.x, y: club.y } });
     });
     if (f.dirty > 0) washes.forEach(function (p) {
       var club = clubOf(c, p.capo);
@@ -1001,8 +1074,13 @@
   function strains(c, f, p, k) {
     var out = [], dollars = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
     if ((p.till || 0) >= 2 * k.load) out.push({ kind: 'cash', label: 'Cash piling up: ' + dollars(p.till) + ' waits for a car' });
-    if (p.kind === 'speakeasy' && k.drink.wet < 1) out.push({ kind: 'dry', label: k.drink.stills ? 'Running dry: liquor for ' + Math.round(100 * k.drink.wet) + '% of what it could sell' : 'Nothing to pour: the family has no still' });
-    if (p.kind === 'still' && RULES.pours * k.drink.stills >= k.drink.bars + RULES.pours) out.push({ kind: 'surplus', label: 'More liquor than the bars can pour' });
+    var b = c.blocks[key(p.x, p.y)], wet = b.wet !== undefined ? b.wet : k.drink.wet, crates = Math.round((b.stock || 0) * RULES.truck.load);
+    if (p.kind === 'speakeasy' && wet < 1) {
+      out.push({ kind: 'dry', label: !k.drink.stills ? 'Nothing to pour: the family has no still' : b.wet === 0 ? 'Nothing to pour: no truck came this month'
+        : 'Running dry: liquor for ' + Math.round(100 * wet) + '% of what it could sell' });
+    }
+    if (k.cellar[key(p.x, p.y)] && (b.stock || 0) >= k.cellar[key(p.x, p.y)] - 1e-9) out.push({ kind: 'surplus', label: 'Cellar full: ' + crates + ' crates wait for a truck' });
+    else if (p.kind === 'still' && b.stock === undefined && RULES.pours * k.drink.stills >= k.drink.bars + RULES.pours) out.push({ kind: 'surplus', label: 'More liquor than the bars can pour' });
     var most = k.most[key(p.x, p.y)];
     if (most && f.dirty > 0 && (k.washed[key(p.x, p.y)] || 0) >= 0.95 * most) out.push({ kind: 'swamped', label: 'Washing all it can: ' + dollars(f.dirty) + ' of dirty money still waits' });
     return out;
@@ -1012,11 +1090,12 @@
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       blocks.push({ x: x, y: y, grip: grip(c, x, y), family: m.family[y * c.w + x], rival: m.rival[y * c.w + x] });
     }
-    var choke = { load: loadOf(f), drink: liquor(c), washed: flow.wash || {}, most: {} };
+    var choke = { load: loadOf(f), drink: liquor(c), washed: flow.wash || {}, most: {}, cellar: {} };
+    cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = RULES.truck.cellar * s.makes; });
     laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
     return {
       id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0,
-      rival: c.rival || (places(c).filter(function (p) { return p.owner !== 'family'; })[0] || {}).owner || null,
+      rival: c.rival || (everyPlace(c).filter(function (p) { return p.owner !== 'family'; })[0] || {}).owner || null,
       zones: c.zones.map(function (z) { return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1 }; }),
       blocks: blocks,
       places: places(c).map(function (p) {
@@ -1024,19 +1103,21 @@
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo, till: p.till };
       }).map(function (p) {
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
+        var crates = p.owner === 'family' ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * RULES.truck.load) : 0;
+        if (crates) p.stock = crates; // crates of liquor in a cellar or on a bar's shelf
         var s = p.owner === 'family' ? strains(c, f, p, choke) : [];
         if (s.length) p.strains = s;
         return p;
       }),
       lieutenants: lieutenantsOf(c).map(function (id) {
-        return { id: id, name: who(id).name, specialty: who(id).specialty, places: places(c).filter(function (p) { return p.man === id; }).length };
+        return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       keys: keys(c), share: share(c), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), cars: man.cars || 1, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
@@ -1069,6 +1150,7 @@
       if (p) m.help = { x: p.x, y: p.y, why: 'boost', kind: p.kind };
     });
     Object.keys(f.men).forEach(function (capo) { var h = clubOf(c, capo) && f.men[capo].help; if (h) c.push[h.y * c.w + h.x] = true; });
+    var drink = distil(c, f);
     Object.keys(f.men).forEach(function (capo) {
       if (!clubOf(c, capo)) return;
       var m = f.men[capo];
@@ -1076,13 +1158,20 @@
       var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load);
       m.stuck = haul.full > 0;
       if (haul.went) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind };
-      var inc = haul.got + RULES.club, pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1), profit = inc - pay;
+      var inc = haul.got + RULES.club, makes = drink.idle[capo] !== undefined,
+          pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1) + (makes ? RULES.truck.upkeep * (m.trucks - 1) : 0), profit = inc - pay;
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
       if (!haul.idle && haul.waiting >= 2 * load && m.cash - pay >= RULES.car.cost) {
         m.cash -= RULES.car.cost; m.cars += 1;
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
+      }
+      // loads that wait in his cellars while bars go dry, and no truck free: he buys another one
+      if (makes && drink.dry && drink.idle[capo] === 0 && drink.waits[capo] >= 2 && m.cash - pay >= RULES.truck.cost) {
+        m.cash -= RULES.truck.cost; m.trucks += 1;
+        events.push({ type: 'truck', capo: capo, city: c.id, trucks: m.trucks, cost: RULES.truck.cost,
+                      label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.trucks] || 'new') + ' truck: liquor sits in his cellar while bars go dry' });
       }
       var due = RULES.tribute * willing(c, capo);
       var sent = profit > 0 ? profit * due : 0;
