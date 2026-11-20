@@ -247,3 +247,5 @@ body.stopped .sub #sub{display:none}
 .ev .i.ok{color:var(--good)}.ev .then{display:block;margin-top:4px;padding-left:8px;border-left:3px solid var(--dim);font-size:.93em;color:var(--dim)}
 .ev .then.good{border-left-color:var(--good);color:var(--good)}.ev .then.bad{border-left-color:var(--bad);color:var(--bad)}.ev .then.wait{font-style:italic}
 .news.good{border-color:var(--good)}.news.good .ic{color:var(--good)}
+.rt.good{color:var(--good)}.rt.bad{color:var(--bad)}
+.lab.pin .lv{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);font:700 8px/1 var(--text);font-style:normal;letter-spacing:.5px;padding:1px 3px;border-radius:3px;background:#0c0a08dd;color:var(--accent)}

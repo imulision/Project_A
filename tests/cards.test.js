@@ -948,3 +948,16 @@ test('the boss reads what became of his decisions: each one, and a year on what 
   assert.equal(C.bad({ type: 'outcome', good: false }), true); assert.equal(C.bad({ type: 'outcome', good: true }), false);
   assert.match(j, /data-act="decisions"/, 'and the journal leads to the decisions');
 });
+
+test('the rival\'s strength has its arrow too, and a place wears its level', () => {
+  const row = (rival) => ({ month: 1, dirty: 0, clean: 0, cities: { ashport: { share: 5, income: 0, rival } } });
+  const c = { id: 'ashport', rival: 'Callahan', chief: { id: 'seamus', name: 'Seamus Callahan', family: 'Callahan', strength: 40, vendetta: 0 } };
+  const weaker = { history: [row(55)].concat(flat(11, row(50)), [row(40)]) };
+  assert.deepEqual(C.rivalTrend(weaker, 'ashport'), { now: 40, diff: -15, tone: 'good' }, 'a rival who weakens is good news');
+  assert.equal(C.rivalTrend({ history: [row(40)].concat(flat(11, row(40)), [row(52)]) }, 'ashport').tone, 'bad');
+  assert.equal(C.rivalTrend({ history: flat(13, { month: 1, cities: { ashport: { share: 5 } } }) }, 'ashport'), null, 'an old save keeps no trace of it');
+  assert.match(C.chief(c, weaker), /class="rt good"[^>]*>▼ −15 in a year/); assert.doesNotMatch(C.chief(c), /class="rt/);
+  assert.equal(C.pin({ site: 'speakeasy', owner: 'family', level: 1 }), C.pin({ site: 'speakeasy', owner: 'family' }));
+  assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 2 }), /class="lv">II</); assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 3 }), /class="lv">III</);
+  assert.doesNotMatch(C.pin({ site: 'speakeasy', owner: 'Callahan', level: 3 }), /class="lv"/, 'a rival does not show his books');
+});

@@ -302,7 +302,7 @@ function plan(C) {
   }
   for (const l of C.p.lots.concat(C.p.infill || [])) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, infill: !!l.infill, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, infill: !!l.infill, boom: !!l.boom, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
   nBuildings += C.lots.length;
 }

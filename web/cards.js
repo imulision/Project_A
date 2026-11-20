@@ -363,9 +363,19 @@
         (n ? button('buy', { holding: h.id }, money(n.cost) + (short ? '<small>It takes ' + money(n.cost) + ' of clean money</small>' : ''), { off: short }) : '') + '</li>'; }).join('') + '</ul>';
   }
   // The rival of the city has a face: who he is, how much of the town is his, what he last did, and whether he is out for blood.
-  function chief(c) {
+  // The strength of the rival family in a city, against a year ago: a rival who weakens is good news.
+  function rivalTrend(view, cityId) {
+    var h = (view && view.history) || []; if (h.length < 2) return null;
+    var of = function (m) { return ((m.cities || {})[cityId] || {}).rival; }, now = of(h[h.length - 1]), was = of(h[Math.max(0, h.length - 13)]);
+    if (typeof now !== 'number' || typeof was !== 'number') return null;
+    return { now: now, diff: now - was, tone: now - was <= -3 ? 'good' : now - was >= 3 ? 'bad' : 'idle' };
+  }
+  // The mark over a place: its trade, and its level once the family has enlarged it.
+  function pin(l) { return icon(iconName(l.key || l.site)) + (l.owner === 'family' && l.level > 1 ? '<i class="lv">' + ['', 'I', 'II', 'III', 'IV'][Math.min(4, l.level)] + '</i>' : ''); }
+  function chief(c, view) {
     var h = c && c.chief; if (!h) return '';
-    return '<h3 class="sub2">The ' + esc(h.family || c.rival || 'rival') + ' family</h3><div class="chief"><span class="slot">' + I.portrait(h.id) + '</span><div><b>' + esc(h.name) + '</b><small>Head of the ' + esc(h.family || c.rival || 'rival') + ' family · ' + Math.round(h.strength || 0) + '% of the streets</small>' +
+    var rt = view ? rivalTrend(view, c.id) : null, arrow = rt && rt.tone !== 'idle' ? ' <span class="rt ' + rt.tone + '">' + (rt.diff < 0 ? '\u25BC' : '\u25B2') + ' ' + (rt.diff < 0 ? '\u2212' : '+') + Math.abs(rt.diff) + ' in a year</span>' : '';
+    return '<h3 class="sub2">The ' + esc(h.family || c.rival || 'rival') + ' family</h3><div class="chief"><span class="slot">' + I.portrait(h.id) + '</span><div><b>' + esc(h.name) + '</b><small>Head of the ' + esc(h.family || c.rival || 'rival') + ' family · ' + Math.round(h.strength || 0) + '% of the streets' + arrow + '</small>' +
       '<span class="bar"><i style="width:' + Math.round(h.strength || 0) + '%"></i></span></div></div>' +
       (h.vendetta > 0 ? '<div class="move no">' + icon('attack') + '<span><b>Vendetta: ' + months(h.vendetta) + '.</b> You took one of his places by force: his men hit twice as hard</span></div>' : '') +
       (h.last && h.last.label ? '<div class="acts col">' + button('show', { city: c.id, x: h.last.x, y: h.last.y }, icon(EVENT[h.last.type] || 'time') + ' ' + esc(h.last.label) + '<small style="color:var(--dim)">His last move. Touch to see where</small>') + '</div>' : '');
@@ -396,7 +406,7 @@
       (c.capos.length ? '<h3 class="sub2">Your capos</h3>' + faces(c, c.capos, true) : '') +
       '<h3 class="sub2">Key places</h3><ul class="list">' + c.keys.map(function (k) { var ours = k.owner === 'family';
         return '<li class="ev"><span class="' + (ours ? 'i yes' : 'i') + '">' + icon(k.key) + '</span><div><b>' + esc(k.name) + '</b> · ' + (ours ? 'yours' + (k.capo ? ', ' + esc(first(nameOf(k.capo))) : '') : esc(k.owner)) + '<small>' + esc(k.gives) + '</small></div></li>'; }).join('') + '</ul>' +
-      promises(c) + chief(c) + (c.lieutenants && c.lieutenants.length ? (c.chief ? '' : '<h3 class="sub2">The ' + esc(c.rival) + ' family</h3>') + faces(c, c.lieutenants, false) : '') +
+      promises(c) + chief(c, view) + (c.lieutenants && c.lieutenants.length ? (c.chief ? '' : '<h3 class="sub2">The ' + esc(c.rival) + ' family</h3>') + faces(c, c.lieutenants, false) : '') +
       '<div class="acts">' + button('focus', { city: c.id }, 'Go there') + button('close', {}, 'Close') + '</div>';
   }
 
@@ -676,7 +686,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
