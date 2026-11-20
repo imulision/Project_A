@@ -866,7 +866,8 @@ test('the view of a city gives the map everything it draws', () => {
   assert.equal(dutch.reach, T.RULES.reach[0]);
   assert.deepEqual(dutch.plan, T.plan(c, f, 'dutch'));
   assert.ok(dutch.income > 0 && typeof dutch.cash === 'number' && dutch.way === 'buy');
-  assert.deepEqual(v.money, { dirty: f.dirty, clean: f.clean, washed: T.washing(c).washed, washes: T.washing(c).most });
+  assert.deepEqual([v.money.dirty, v.money.clean, v.money.washed, v.money.washes], [f.dirty, f.clean, T.washing(c).washed, T.washing(c).most]);
+  assert.deepEqual(Object.keys(v.money).sort(), ['clean', 'cut', 'dirty', 'pay', 'seized', 'up', 'washed', 'washes']);
   assert.equal(v.heat, c.heat);
   assert.deepEqual(v.seats, T.seats(c));
   assert.deepEqual(v.takes, T.takes(c)); assert.deepEqual(v.asks, T.asks(c)); assert.deepEqual(v.doors, T.doors(c, f));
@@ -1088,7 +1089,7 @@ test('the trips of a city: liquor from the stills to the bars, takings to the cl
   const trips = T.trips(c, f), of = (kind) => trips.filter((t) => t.kind === kind);
   assert.deepEqual(of('liquor'), [{ kind: 'liquor', cargo: 'liquor', capo: 'dutch', from: { x: 8, y: 2 }, to: { x: 3, y: 2 } }]);
   assert.deepEqual(of('takings').map((t) => [t.from.x, t.from.y, t.to.x, t.to.y, t.cargo]).sort(), [[3, 2, 2, 2, 'cash'], [3, 3, 2, 2, 'cash'], [8, 2, 2, 2, 'cash']]);
-  assert.deepEqual(of('wash'), [{ kind: 'wash', cargo: 'cash', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 3 } }]);
+  assert.deepEqual(of('wash'), [{ kind: 'wash', cargo: 'cash', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 3 }, amount: 0 }], 'no month has gone by: nothing washed yet');
   assert.deepEqual(of('crew'), [{ kind: 'crew', cargo: 'buy', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 10, y: 4 } }]);
   f.dirty = 0;
   assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'wash'), [], 'nothing to wash, nobody drives to the laundry');
@@ -1410,4 +1411,40 @@ test('nobody knows the first man in a new city: the rivals leave the family alon
   assert.ok(fresh.length, 'the peace does not last');
   assert.ok(fresh[0] > T.RULES.respite, 'first raid in month ' + fresh[0]);
   assert.equal(T.RULES.respite, 24);
+});
+
+// --- money that can be followed ---
+
+test('every trip says how many dollars it carries, and they add up to what the city reports', () => {
+  const c = town(), f = family({ dirty: 5000 });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 3, 3, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  f.men.dutch.cash = 0;
+  T.stepMonth(c, f);
+  const trips = T.trips(c, f), sum = (kind) => trips.filter((t) => t.kind === kind).reduce((n, t) => n + t.amount, 0);
+  const takings = trips.filter((t) => t.kind === 'takings');
+  assert.equal(takings.length, 2);
+  assert.ok(takings.every((t) => t.amount > 0 && Number.isInteger(t.amount)));
+  assert.ok(Math.abs(sum('takings') + T.RULES.club - f.men.dutch.income) <= 1, 'the takings are what his places earned');
+  assert.equal(sum('wash'), Math.round(c.washed), 'the wash trips carry what was washed');
+  assert.ok(sum('wash') > 0);
+});
+
+test('the city says what came up to the boss last month, man by man, and what went out', () => {
+  const c = town(), f = family({ dirty: 5000 });
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 3, 2, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 3 });
+  T.open(c, 3, 3, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  f.men.dutch.rank = 1;
+  const before = { dirty: f.dirty, clean: f.clean || 0 };
+  T.stepMonth(c, f);
+  const m = T.view(c, f).money, man = T.view(c, f).capos[0];
+  assert.ok(m.up > 0);
+  assert.equal(man.sent, m.up, 'one capo: all of it is his');
+  assert.equal(m.pay, T.RULES.pay[1]);
+  assert.equal(m.seized, 0);
+  assert.ok(m.cut > 0 && m.washed > m.cut);
+  assert.ok(Math.abs(f.dirty - (before.dirty + m.up - m.pay - m.washed)) < 1e-6, 'dirty: what came up, less the pay, less what went to the wash');
+  assert.ok(Math.abs(f.clean - (before.clean + m.washed - m.cut)) < 1e-6, 'clean: what was washed, less the cut');
 });

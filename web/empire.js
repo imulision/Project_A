@@ -76,8 +76,10 @@
     var events = [];
     while (g.ticks >= TICKS_PER_MONTH && !g.paused) {
       g.ticks -= TICKS_PER_MONTH;
-      var month = g.month;
-      T.month(g.family, g.cities).forEach(function (e) {
+      var month = g.month, was = { dirty: g.family.dirty, clean: g.family.clean || 0 };
+      var happened = T.month(g.family, g.cities);
+      g.change = { dirty: Math.round(g.family.dirty) - Math.round(was.dirty), clean: Math.round(g.family.clean || 0) - Math.round(was.clean) };
+      happened.forEach(function (e) {
         record(g, e, month);
         events.push(e);
         if (STOPS[e.type]) g.paused = true;
@@ -183,6 +185,7 @@
       cities.held += 1; seats.taken += k.taken; seats.total += k.total;
     });
     out.cities = cities;
+    out.change = g.change || { dirty: 0, clean: 0 }; // what last month did to the two kinds of money
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
     out.seats = seats; out.pending = pending;
