@@ -142,6 +142,17 @@
     },
     // somebody is at the door: the boss takes him in and picks the street for his club
     // or sends him down the road: `from` is the city where he knocked, `city` the one he opens
+    // a man at the door takes a chair at the boss's table instead of a street; and the boss takes a chair back
+    seat: function (g, o) {
+      T.seat(cityOf(g, o.city), g.family, o.capo, o.post);
+      var chair = T.table(g.family).filter(function (s) { return s.post === o.post; })[0];
+      record(g, { type: 'seated', capo: o.capo, city: o.city, post: o.post, label: chair.who + ' takes the ' + chair.name + '\'s chair at the table' }, g.month);
+    },
+    unseat: function (g, o) {
+      var chair = T.table(g.family).filter(function (s) { return s.post === o.post; })[0];
+      T.unseat(g.family, o.post);
+      record(g, { type: 'unseated', capo: chair.capo, post: o.post, label: chair.who + ' leaves the table, and the family' }, g.month);
+    },
     welcome: function (g, o) {
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
@@ -188,14 +199,15 @@
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [] };
-    return { date: dateOf(g.month), month: g.month, tree: T.tree(g.family), study: g.family.study,
+    return { date: dateOf(g.month), month: g.month, tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
                v.name = specOf(c.id).name;
                v.held = held(g, c);
                // where each man at the door could be sent instead: the cities next door that still have a seat
-               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); });
+               var free = T.table(g.family).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
+               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; });
                return v;
              }) };
   }

@@ -2332,3 +2332,74 @@ test('Games: the house edge, markers that pay, and a back room that hides the bo
   const over = T.RULES.stash + 1500;
   assert.deepEqual([heat(2, over), heat(3, over), heat(3, over + 2000)], [true, false, true], 'his back room hides $2,000 more of the boss\'s dirty money from the police');
 });
+
+// --- the boss's table: three chairs for the whole family, filled by men who run no street ---
+const knocking = () => {
+  const c = town(), f = rich();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch'); kept(c, 'dutch');
+  T.open(c, 1, 1, { owner: 'family', kind: 'front', capo: 'dutch' });
+  T.open(c, 3, 1, { owner: 'family', kind: 'gambling', capo: 'dutch' });
+  c.repelled = 1;
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { c, f };
+};
+
+test('the table has three chairs, empty at first; a man at the door can be given one instead of a street', () => {
+  const { c, f } = knocking();
+  assert.deepEqual(coming(c, f), ['danny', 'mae', 'sal']);
+  assert.deepEqual(T.table(f).map((s) => [s.post, s.name, s.capo]), [['bookkeeper', 'Bookkeeper', null], ['routes', 'Routes', null], ['fixer', 'Fixer', null]]);
+  const cost = T.doors(c, f).find((d) => d.capo === 'mae').cost, had = T.funds(f);
+  T.seat(c, f, 'mae', 'bookkeeper');
+  assert.equal(T.funds(f), had - cost, 'he costs what he would have cost on a street');
+  const chair = T.table(f)[0];
+  assert.deepEqual([chair.capo, chair.who, chair.pay], ['mae', T.person('mae').name, T.RULES.table.pay]);
+  assert.ok(/washes/.test(chair.gives));
+  assert.deepEqual(coming(c, f), ['danny', 'sal'], 'she is no longer at the door');
+  assert.equal(f.men.mae, undefined, 'and runs no street');
+  assert.equal(T.clubOf(c, 'mae'), null);
+});
+
+test('a chair holds one man, a man holds one chair, and only a man at the door may sit', () => {
+  const { c, f } = knocking();
+  T.seat(c, f, 'mae', 'bookkeeper');
+  assert.throws(() => T.seat(c, f, 'sal', 'bookkeeper'), /^Error: the Bookkeeper's chair is taken$/);
+  assert.throws(() => T.seat(c, f, 'sal', 'cook'), /no such chair: cook/);
+  assert.throws(() => T.seat(c, f, 'dutch', 'fixer'), /dutch is not at the door/);
+  const poor = knocking(); poor.f.dirty = 0;
+  assert.throws(() => T.seat(poor.c, poor.f, 'sal', 'routes'), /^Error: the boss cannot pay the \$\d+ Sal asks$/);
+});
+
+test('each chair serves the whole family, by what the man is good at', () => {
+  const wash = (who) => { const { c, f } = knocking(); if (who) T.seat(c, f, who, 'bookkeeper'); T.stepMonth(c, f); return T.washing(c).most; };
+  assert.ok(Math.abs(wash('mae') / wash(null) - (1 + T.RULES.table.wash * T.person('mae').business)) < 1e-6, 'the Bookkeeper: every laundry washes more for each point of his Business');
+  const loads = (who) => {
+    const { a, b, f } = twoTowns(3);
+    f.dirty = 20000; a.repelled = 1;
+    T.open(a, 9, 2, { owner: 'family', kind: 'still', capo: 'dutch', level: 3 }); // plenty to send
+    if (who) T.seat(a, f, who, 'routes');
+    T.month(f, [a, b], ROAD);
+    return T.convoys(f).length;
+  };
+  assert.equal(loads(null), T.RULES.convoy.loads);
+  assert.equal(loads('sal'), T.RULES.convoy.loads + Math.floor(T.person('sal').cunning / 2), 'Routes: more loads down every road for his Cunning');
+  const cools = (who) => { const { c, f } = knocking(); if (who) T.seat(c, f, who, 'fixer'); c.heat = 50; T.stepMonth(c, f); return 50 - c.heat; };
+  assert.equal(cools('danny'), cools(null) + Math.floor(T.person('danny').charisma / 4), 'the Fixer: every city cools faster for his Charisma');
+});
+
+test('a man at the table is paid every month, and the day the boss takes his chair away he is gone for good', () => {
+  const { c, f } = knocking();
+  T.seat(c, f, 'mae', 'bookkeeper');
+  f.dirty = T.RULES.table.pay + 500; f.clean = 0;
+  const events = T.month(f, [c]);
+  assert.ok(!events.some((e) => e.type === 'unpaid'));
+  assert.equal(T.table(f)[0].paid, true);
+  assert.ok(T.funds(f) < 500 + c.flow.up + 1, 'her pay left the boss\'s money');
+  f.dirty = 0; f.clean = 0;
+  const broke = T.month(f, [c]).find((e) => e.type === 'unpaid' && e.capo === 'mae');
+  assert.equal(broke.label, 'Mae has not been paid this month');
+  assert.equal(T.table(f)[0].paid, false);
+  T.unseat(f, 'bookkeeper');
+  assert.equal(T.table(f)[0].capo, null);
+  assert.ok(!coming(c, f).includes('mae'), 'she does not come back');
+  assert.throws(() => T.unseat(f, 'bookkeeper'), /nobody sits there/);
+});
