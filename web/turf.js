@@ -162,7 +162,7 @@
   function createCity(spec) {
     return { id: spec.id, w: spec.w, h: spec.h, zones: spec.zones.map(function (z) {
       return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
-    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0 };
+    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
   }
   // A throw of the city's own dice: the same city always plays out the same way.
   function roll(c, n) {
@@ -582,23 +582,25 @@
   // Every place of the family that washes (what it can wash and what it keeps come from district.js), the cheapest first.
   function laundries(c) {
     return places(c).filter(function (p) { return p.owner === 'family' && D.SITES[p.kind] && D.SITES[p.kind].wash; }).map(function (p) {
-      return { most: D.SITES[p.kind].wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5), loss: D.SITES[p.kind].loss };
+      return { x: p.x, y: p.y, most: D.SITES[p.kind].wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5), loss: D.SITES[p.kind].loss };
     }).sort(function (a, b) { return a.loss - b.loss; });
   }
   function money(c, f, events) {
     f.clean = f.clean || 0;
+    var flow = c.flow || (c.flow = { up: 0, sent: {} });
+    flow.pay = 0; flow.cut = 0; flow.seized = 0; flow.wash = {};
     // every man in the city is paid by his rank
     Object.keys(f.men).forEach(function (capo) {
       if (!clubOf(c, capo)) return;
       var due = RULES.pay[f.men[capo].rank], dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
-      f.dirty -= dirty; f.clean -= clean;
+      f.dirty -= dirty; f.clean -= clean; flow.pay += dirty + clean;
       if (dirty + clean < due) events.push({ type: 'unpaid', capo: capo, city: c.id, due: due, label: first(capo) + ' has not been paid this month' });
     });
     // the fronts wash what they can of what is left
     c.washed = 0;
     laundries(c).forEach(function (l) {
       var n = Math.max(0, Math.min(f.dirty, l.most));
-      f.dirty -= n; f.clean += n * (1 - l.loss); c.washed += n;
+      f.dirty -= n; f.clean += n * (1 - l.loss); c.washed += n; flow.cut += n * l.loss; flow.wash[key(l.x, l.y)] = n;
     });
     // money that sleeps and blood in the streets draw the police
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
@@ -606,7 +608,7 @@
     c.heat = Math.max(0, Math.min(100, c.heat));
     if (c.heat >= 100) {
       var seized = Math.round(Math.max(0, f.dirty) * RULES.bust);
-      f.dirty -= seized;
+      f.dirty -= seized; flow.seized = seized;
       c.heat = RULES.afterBust;
       events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
     }
@@ -885,7 +887,7 @@
   // the clubs to the laundries, and the crews on their way to what they take.
   function trips(c, f) {
     var ours = places(c).filter(function (p) { return p.owner === 'family'; }), out = [];
-    var at2 = function (p) { return { x: p.x, y: p.y }; };
+    var at2 = function (p) { return { x: p.x, y: p.y }; }, wet = liquor(c).wet, washed = (c.flow && c.flow.wash) || {};
     var stills = ours.filter(function (p) { return p.kind === 'still'; });
     var washes = ours.filter(function (p) { return D.SITES[p.kind] && D.SITES[p.kind].wash; });
     ours.forEach(function (p) {
@@ -894,11 +896,11 @@
         var s = stills.reduce(function (a, b) { return far(p.x, p.y, b.x, b.y) < far(p.x, p.y, a.x, a.y) ? b : a; });
         out.push({ kind: 'liquor', cargo: 'liquor', capo: s.capo, from: at2(s), to: at2(p) });
       }
-      if (club && p.kind !== 'club' && p.kind !== 'key') out.push({ kind: 'takings', cargo: 'cash', capo: p.capo, from: at2(p), to: club });
+      if (club && p.kind !== 'club' && p.kind !== 'key') out.push({ kind: 'takings', cargo: 'cash', capo: p.capo, from: at2(p), to: club, amount: Math.round(earns(c, p, wet)) });
     });
     if (f.dirty > 0) washes.forEach(function (p) {
       var club = clubOf(c, p.capo);
-      if (club) out.push({ kind: 'wash', cargo: 'cash', capo: p.capo, from: club, to: at2(p) });
+      if (club) out.push({ kind: 'wash', cargo: 'cash', capo: p.capo, from: club, to: at2(p), amount: Math.round(washed[key(p.x, p.y)] || 0) });
     });
     c.ops.forEach(function (o) {
       var club = clubOf(c, o.capo);
@@ -911,7 +913,7 @@
   // One plain picture of the city: every block and who holds it, every place,
   // every capo with where he is and what he is after, and what waits for the boss.
   function view(c, f) {
-    var m = memo(c), blocks = [];
+    var m = memo(c), blocks = [], flow = c.flow || {};
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       blocks.push({ x: x, y: y, grip: grip(c, x, y), family: m.family[y * c.w + x], rival: m.rival[y * c.w + x] });
     }
@@ -928,17 +930,18 @@
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: places(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       keys: keys(c), share: share(c), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
-      money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most },
+      money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id);
         return { id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank], sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
       })
     };
   }
   function stepMonth(c, f) {
     var events = [];
     c.month += 1;
+    c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {} }; // last month's money, for the screen
     settleTakes(c, events);
     Object.keys(f.men).forEach(function (capo) {
       var k = clubOf(c, capo) && !c.asks.some(function (a) { return a.capo === capo; }) && eyes(c, capo);
@@ -956,7 +959,8 @@
       var m = f.men[capo], inc = income(c, capo), pay = wages(c, capo), profit = inc - pay;
       m.income = inc;
       var due = RULES.tribute * willing(c, capo);
-      if (profit > 0) { f.dirty += profit * due; m.cash += profit * (1 - due); } else m.cash += profit;
+      var sent = profit > 0 ? profit * due : 0;
+      if (profit > 0) { f.dirty += sent; m.cash += profit * (1 - due); } else m.cash += profit;
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
         m.rank += 1;
@@ -966,7 +970,8 @@
       var p = plan(c, f, capo);
       // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare * (1 - RULES.keeps[m.rank]); }
+      if (spare > 0 && willing(c, capo) === 1 && (p.move === 'hold' || p.waiting !== 'money')) { m.cash -= spare; f.dirty += spare * (1 - RULES.keeps[m.rank]); sent += spare * (1 - RULES.keeps[m.rank]); }
+      c.flow.sent[capo] = sent; c.flow.up += sent;
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);

@@ -271,3 +271,15 @@ test('the boss starts with enough dirty money to take in the first man who knock
     assert.equal(E.hud(g).men, 2);
   }
 });
+
+test('the hud says how much the two kinds of money moved last month', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  assert.deepEqual(E.hud(g).change, { dirty: 0, clean: 0 });
+  months(g, 3);
+  const before = E.hud(g);
+  months(g, 1);
+  const h = E.hud(g);
+  assert.deepEqual(h.change, { dirty: h.dirty - before.dirty, clean: h.clean - before.clean });
+  assert.ok(h.change.dirty > 0, 'the first capo already sends something up');
+  assert.deepEqual(E.hud(E.load(E.save(g))).change, h.change);
+});
