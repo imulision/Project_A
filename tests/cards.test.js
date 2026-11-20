@@ -319,3 +319,26 @@ test('a touched street answers with a few words beside the finger, not a sheet',
   assert.match(empty, /street|holds/i); assert.doesNotMatch(empty, /Nothing of note/);
   assert.equal(C.blockTip(v, 'nowhere', 0, 0), null);
 });
+
+test('a place that chokes says so: on its bubble, on its page, and in the list the map reads', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club');
+  const p = { ...ours, strains: [{ kind: 'cash', label: 'The till is full: no car comes often enough' }, { kind: 'dry', label: 'Not enough liquor to sell' }] };
+  const c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] };
+  assert.match(C.blockTip(w, c.id, p.x, p.y), /The till is full/);
+  assert.match(C.block(w, c.id, p.x, p.y), /The till is full[\s\S]*Not enough liquor to sell/);
+  assert.deepEqual(C.strains(w)[c.id + ':' + p.x + ',' + p.y], ['cash', 'dry']);
+  assert.deepEqual(C.strains(v), {}, 'nothing to show while all runs well');
+  assert.match(C.strainBadge(['cash', 'dry']), /<i[^>]*>.*<i/s, 'one mark for each kind');
+  assert.equal(C.strainBadge(undefined), '');
+});
+
+test('what the family knows: bigger cars are a line like the trades, with what a tier gives', () => {
+  const { v } = play((v) => v.month >= 2);
+  const tree = v.tree.filter((t) => t.kind !== 'cars').concat([{ kind: 'cars', name: 'Cars', street: null, tier: 1, wanted: [], gives: 'A car carries $150 a run', studying: 0, next: { tier: 2, cost: 2000, months: 4, gives: 'A car carries $300 a run' } }]);
+  const w = { ...v, tree };
+  assert.match(C.family(w, { clean: 0 }), /data-know="cars"/);
+  assert.ok(require('../web/icons.js').has('cars'), 'it has its own picture');
+  const k = C.know(w, 'cars', { clean: 5000 });
+  assert.match(k, /A car carries \$150 a run/); assert.match(k, /A car carries \$300 a run/);
+});
