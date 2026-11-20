@@ -33,3 +33,17 @@ export function turned(before, after) {
   after.forEach((b, k) => { const was = before[k].grip === 'family', is = b.grip === 'family'; if (was !== is) out.push({ x: b.x, y: b.y, won: is }); });
   return out;
 }
+// front(blocks, w, h) -> the edges where the fight is: [{ x, y, dx, dy }] for each side of a street of the family that a rival
+// presses on hard (press >= PRESS) and that faces a street the family does not hold. Water, rails and the edge of town are no front.
+const PRESS = 0.6;
+export function front(blocks, w, h) {
+  const out = []; if (!blocks) return out;
+  for (const b of blocks) {
+    if (b.grip !== 'family' || !(b.press >= PRESS)) continue;
+    for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+      const x = b.x + dx, y = b.y + dy; if (x < 0 || y < 0 || x >= w || y >= h) continue;
+      const n = blocks[y * w + x]; if (n && !n.void && n.grip && n.grip !== 'family') out.push({ x: b.x, y: b.y, dx, dy });
+    }
+  }
+  return out;
+}

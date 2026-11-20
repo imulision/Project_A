@@ -371,3 +371,19 @@ test('the hotter a city, the more police cars patrol its streets', () => {
     t.path.forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0 || q === t.path[0] || q === t.path[t.path.length - 1], 'it keeps to the streets')); });
   assert.notEqual(at(100)[0].path.join(';'), at(100)[1].path.join(';'), 'each has its own beat');
 });
+
+test('each street of the family says how hard the rival presses on it', () => {
+  const c = cityOf(play(30)), p = M.planTurf(c);
+  c.blocks.forEach((b, n) => { const q = p.blocks[n];
+    if (b.grip === 'family') assert.equal(q.press, Math.min(1, b.rival / Math.max(1, b.family))); else assert.equal(q.press, 0); });
+});
+
+test('men stand where the family is: a doorman at each place, two at the club, a crew where a capo faces the rivals', () => {
+  const c = cityOf(play(30)), k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club');
+  const p = M.planTurf(c), at = (x, y) => p.lots.find((l) => l.bx === x && l.by === y && l.site);
+  assert.equal(at(k.x, k.y).men, 2, 'the club'); if (other) assert.equal(at(other.x, other.y).men, 1, 'a doorman');
+  p.lots.forEach((l) => { if (!l.site || l.site.owner !== 'family') assert.ok(!l.men, 'nobody of the family stands at a rival\'s door'); });
+  const raided = M.planTurf({ ...c, capos: c.capos.map((m) => (m.id === k.id ? { ...m, at: { x: k.x, y: k.y, why: 'raid', label: 'Facing the rivals' } } : m)) });
+  assert.equal(raided.lots.find((l) => l.bx === k.x && l.by === k.y && l.site).men, 5, 'his crew stands with him');
+  assert.notEqual(raided.key, p.key);
+});
