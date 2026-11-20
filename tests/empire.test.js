@@ -283,3 +283,52 @@ test('the hud says how much the two kinds of money moved last month', () => {
   assert.ok(h.change.dirty > 0, 'the first capo already sends something up');
   assert.deepEqual(E.hud(E.load(E.save(g))).change, h.change);
 });
+
+// --- the clock never stops for a word the boss cannot give ---
+const firstKnock = (prepare) => {
+  const g = E.createGame({ capo: 'dutch' });
+  let knock = null;
+  for (let i = 0; i < 2000 && !knock; i++) { prepare(g); knock = E.tick(g).find((e) => e.type === 'knocks'); }
+  return { g, knock };
+};
+
+test('a man the boss cannot afford knocks without stopping the clock, and the door says nothing can be done yet', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 0; g.family.clean = 0; });
+  assert.ok(knock, 'he knocks all the same');
+  assert.equal(g.paused, false, 'no word can be given: time goes on');
+  const door = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo);
+  assert.equal(door.open, false);
+  assert.equal(E.hud(g).pending, 0, 'and nothing is counted as waiting for the boss');
+});
+
+test('the day the boss can afford him, the man knocks again and the clock stops', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 0; g.family.clean = 0; });
+  g.family.dirty = 50000;
+  let again = null;
+  for (let i = 0; i < 2 * E.TICKS_PER_MONTH && !again; i++) again = E.tick(g).find((e) => e.type === 'knocks');
+  assert.ok(again, 'he is announced again');
+  assert.deepEqual([again.capo, again.ready], [knock.capo, true]);
+  assert.match(again.label, /can now be taken in/);
+  assert.equal(g.paused, true);
+  const door = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo);
+  assert.equal(door.open, true);
+  assert.ok(E.hud(g).pending >= 1);
+  E.command(g, { type: 'resume' });
+  let third = null;
+  for (let i = 0; i < 3 * E.TICKS_PER_MONTH && !third; i++) { g.family.dirty = 50000; third = E.tick(g).find((e) => e.type === 'knocks' && e.capo === knock.capo) || null; if (g.paused) E.command(g, { type: 'resume' }); }
+  assert.equal(third, null, 'once announced as ready, he does not knock every month');
+});
+
+test('a man who can only be sent down the road counts as one the boss can answer', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 0; g.family.clean = 0; });
+  const c = g.cities[0];
+  // no seat left in Ashport
+  for (const id of ['sal', 'mae', 'tommy', 'vince', 'danny'].filter((k) => k !== knock.capo)) { const s = T.spots(c)[0]; if (T.seats(c).taken < T.seats(c).total) { T.settle(c, id, s.x, s.y); T.join(g.family, id); } }
+  assert.equal(T.seats(c).taken, T.seats(c).total);
+  const road = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).roads[0];
+  assert.ok(road, 'a city next door has a seat');
+  g.family.dirty = road.cost - 1;
+  assert.equal(E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).open, false, 'one dollar short of the road');
+  g.family.dirty = road.cost;
+  assert.equal(E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).open, true);
+});
