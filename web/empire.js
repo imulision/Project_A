@@ -64,9 +64,9 @@
     // every city of the map, each held by the family that was there first and laid out by its own dice
     g.cities = W.CITIES.map(function (spec, i) {
       var c = layout(spec);
-      c.dice = i + 3; // (a throw that leaves the newcomer a quiet corner of Ashport: see tests/turf-shape.test.js)
+      c.dice = i + 1;
       T.crown(c, spec.rival);
-      T.seed(c, spec.rival, Math.round(RIVAL_PLACES * T.size(c) / 240));
+      T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
       return c;
     });
     var home = g.cities[0], spot = T.landing(home);

@@ -118,3 +118,12 @@ test('the first man sets foot in a corner the old family neglects: the rivals pr
   const g = E.createGame({ capo: 'dutch' }), home = g.cities[0], club = T.places(home).find((p) => p.kind === 'club');
   assert.ok(T.hold(home, club.x, club.y).rival <= 14, 'the rivals press ' + T.hold(home, club.x, club.y).rival.toFixed(1) + ' on the first club');
 });
+
+test('the outlines take nothing from the old families: every city opens with the same places as on a full rectangle', () => {
+  const shapedMap = E.view(E.createGame({ capo: 'dutch' })).cities.map((c) => c.places.map((p) => p.x + ',' + p.y + p.kind).sort().join(' '));
+  const keep = W.CITIES.map((c) => c.gaps);
+  W.CITIES.forEach((c) => { c.gaps = []; });
+  let full;
+  try { full = E.view(E.createGame({ capo: 'dutch' })).cities.map((c) => c.places.map((p) => p.x + ',' + p.y + p.kind).sort().join(' ')); } finally { W.CITIES.forEach((c, i) => { c.gaps = keep[i]; }); }
+  assert.deepEqual(shapedMap, full);
+});
