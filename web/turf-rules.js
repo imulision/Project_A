@@ -23,6 +23,15 @@
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
+    // what clean money buys for good, in three sizes (cost by size): each size adds its effect once more
+    holdings: {
+      lawyer:  { name: 'Law Firm', cost: [8000, 25000, 75000], spares: 0.25, gives: 'The police seize less when they raid your counting rooms' },
+      judge:   { name: 'A Judge', cost: [12000, 40000, 120000], cools: 1, gives: 'The heat falls faster in every city' },
+      paper:   { name: 'The Courier', cost: [10000, 30000, 90000], hushes: 0.25, gives: 'Blood in the streets draws the police less' },
+      company: { name: 'Shipping Company', cost: [15000, 50000, 150000], hides: 4000, gives: 'More dirty money can sleep unnoticed in its books' }
+    },
+    // the boss's share, city by city: what he takes of what the cars bring in, and where it sets the loyalty his men settle at
+    cut: { light: { share: 0.08, loyal: 10 }, normal: { share: 0.15, loyal: 0 }, heavy: { share: 0.25, loyal: -15 } },
     bigger: 0.5,        // what each level above the first adds to what a place earns
     dry: 1 / 3,         // what a speakeasy earns with nothing to pour
     pours: 2,           // speakeasies one still of level 1 keeps wet
@@ -119,6 +128,8 @@
 
   // A city is a rectangle of blocks with some missing (water, rail yards, waste ground): c.voids names them, and they are outside the city.
   function inside(c, x, y) { return x >= 0 && y >= 0 && x < c.w && y < c.h && !(c.voids && c.voids[key(x, y)]); }
+  // The size of one of the family's lasting purchases (0 when it has none).
+  function owns(f, id) { return (f && f.holdings && f.holdings[id]) || 0; }
   // How many real blocks a city has.
   function size(c) { return c.w * c.h - (c.voids ? Object.keys(c.voids).length : 0); }
 
@@ -126,7 +137,7 @@
 
   function far(ax, ay, bx, by) { return Math.max(Math.abs(ax - bx), Math.abs(ay - by)); }
 
-  var api = { RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, at: at, far: far };
+  var api = { RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);
