@@ -672,3 +672,71 @@ test('the detail of a trade says in plain sight what it gives, and what the next
   assert.match(fresh, /<b>Learning it brings<\/b>/);
   assert.doesNotMatch(C.know({ tree: [{ ...tree[0], next: null }] }, 'still', { clean: 0 }), /class="move next"/);
 });
+
+test('the health of a capo\'s streets is read in three lights, money, men and threat, with the one line that matters', () => {
+  const city = (o) => ({ id: 'ashport', heat: 8, chief: { id: 'seamus', name: 'Seamus Callahan', vendetta: 0 }, places: [{ x: 3, y: 10, owner: 'family', capo: 'dutch', kind: 'club' }], ...o });
+  const man = (o) => ({ id: 'dutch', name: 'Dutch Keller', places: 2, income: 450, mood: 'steady', at: { why: 'home' }, ...o });
+  const fine = C.health(city(), man());
+  assert.deepEqual([fine.money, fine.men, fine.threat, fine.worst], ['good', 'good', 'good', 'good']); assert.equal(fine.say, 'His streets are doing well');
+  const choked = C.health(city({ places: [{ x: 4, y: 10, owner: 'family', capo: 'dutch', strains: [{ kind: 'dry', label: 'No liquor to pour' }] }] }), man());
+  assert.equal(choked.money, 'warn'); assert.equal(choked.worst, 'warn'); assert.match(choked.say, /No liquor to pour/);
+  const broke = C.health(city(), man({ income: 0 }));
+  assert.equal(broke.money, 'bad'); assert.match(broke.say, /earn nothing/i);
+  assert.equal(C.health(city(), man({ income: 0, places: 0 })).money, 'warn', 'a man who has just arrived has nothing to earn from yet');
+  assert.equal(C.health(city(), man({ mood: 'restless' })).men, 'warn'); const bitter = C.health(city(), man({ mood: 'bitter' })); assert.equal(bitter.men, 'bad'); assert.match(bitter.say, /Dutch/);
+  const raided = C.health(city(), man({ at: { why: 'raid', label: 'Facing the Callahans in Little Calabria' } }));
+  assert.equal(raided.threat, 'warn'); assert.equal(raided.say, 'Facing the Callahans in Little Calabria');
+  const feud = C.health(city({ chief: { id: 'seamus', name: 'Seamus Callahan', vendetta: 7 } }), man());
+  assert.equal(feud.threat, 'bad'); assert.match(feud.say, /Seamus Callahan.*7 months/);
+  assert.equal(C.health(city(), man({ income: 0, mood: 'restless' })).worst, 'bad', 'the worst of the three sets the colour');
+  assert.equal(C.health(city({ chief: undefined }), man({ at: undefined, income: undefined, mood: undefined })).worst, 'good', 'an old game is not alarmed');
+  // over the map: three small lights under his face; on his sheet: the same, named
+  const pips = C.mark({ capo: 'dutch', progress: 0.5 }, choked);
+  assert.match(pips, /<span class="hp" data-tip="[^"]*No liquor to pour"><i class="warn"><\/i><i class="good"><\/i><i class="good"><\/i><\/span>/);
+  assert.doesNotMatch(C.mark({ capo: 'dutch', progress: 0.5 }), /class="hp"/);
+  const all = C.healths({ cities: [{ ...city(), capos: [man({ mood: 'bitter' })] }] });
+  assert.equal(all.ashportdutch.worst, 'bad');
+  const line = C.healthLine(feud);
+  assert.match(line, /class="move health bad"/); assert.match(line, /MONEY[\s\S]*MEN[\s\S]*THREAT/); assert.match(line, /Seamus Callahan/);
+});
+
+test('a capo\'s ask is laid out as a choice: what a yes costs and what he promises, what a no leaves behind', () => {
+  const ask = { id: 'sal:brewery', capo: 'sal', key: 'brewery', name: 'Brewery', x: 12, y: 8, gives: 'Pours for eight speakeasies', way: 'force', cost: 1800, months: 4, why: 'It pours for his bars', expects: { gain: 340, months: 10 } };
+  const v = E.view(E.createGame({ capo: 'sal' })); v.cities[0].asks = [ask];
+  const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
+  const sides = html.match(/<div class="sides">([\s\S]*?)<\/div><\/div><\/div>/)[0];
+  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 a month[\s\S]*promised[\s\S]*10 months[\s\S]*data-yes="1"/);
+  assert.match(sides, /class="side no"[\s\S]*IF YOU SAY NO[\s\S]*Sal[\s\S]*data-yes="0"/);
+  assert.ok(sides.indexOf('class="side yes"') < sides.indexOf('class="side no"'));
+  v.cities[0].asks = [{ ...ask, expects: null }];
+  const hall = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
+  assert.doesNotMatch(hall, /a month, promised/); assert.match(hall, /No money promised/, 'a place that earns nothing says so');
+  v.cities[0].asks = [{ ...ask, expects: undefined }];
+  assert.doesNotMatch(C.requests(v, { dirty: 5000, clean: 0, pending: 1 }), /promised/, 'an old game makes no promise');
+});
+
+test('the rival of a city has a face: his name, how strong he is, what he last did, and his vendetta', () => {
+  const c = { id: 'ashport', rival: 'Callahan', chief: { id: 'seamus', name: 'Seamus Callahan', family: 'Callahan', strength: 91, last: { type: 'burnt', month: 6, x: 4, y: 10, label: 'Burnt Dutch\'s speakeasy in Little Calabria' }, vendetta: 0 } };
+  const html = C.chief(c);
+  assert.match(html, /class="chief"/); assert.match(html, /<svg class="face"/); assert.match(html, /Seamus Callahan/); assert.match(html, /Head of the Callahan family/);
+  assert.match(html, /91% of the streets/); assert.match(html, /style="width:91%"/);
+  assert.match(html, /data-act="show" data-city="ashport" data-x="4" data-y="10"[^>]*>[\s\S]*Burnt Dutch&#39;s speakeasy|Burnt Dutch's speakeasy/);
+  assert.doesNotMatch(html, /Vendetta/);
+  const feud = C.chief({ ...c, chief: { ...c.chief, vendetta: 7, last: null } });
+  assert.match(feud, /class="move no"[\s\S]*Vendetta: 7 months[\s\S]*twice as hard/); assert.doesNotMatch(feud, /data-act="show"/);
+  assert.equal(C.chief({ id: 'ashport', chief: null }), ''); assert.equal(C.chief({ id: 'ashport' }), '');
+  const { v } = play((v) => v.month >= 2);
+  assert.match(C.city(v, 'ashport'), /class="chief"/, 'he is on the city sheet');
+  assert.equal(C.EVENT.vendetta, 'attack'); assert.ok(C.BAD.vendetta);
+});
+
+test('a promise is followed: what is owed is listed on the city sheet, and the day it is judged the news says kept or broken', () => {
+  const promises = [{ capo: 'dutch', key: 'brewery', name: 'Brewery', x: 12, y: 8, expected: 340, months: 4 }];
+  const html = C.promises({ id: 'ashport', promises });
+  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 a month from the Brewery/); assert.match(html, /judged in 4 months/);
+  assert.equal(C.promises({ id: 'ashport', promises: [] }), ''); assert.equal(C.promises({ id: 'ashport' }), '');
+  const kept = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 410, kept: true, label: 'The Brewery pays $410 a month, as Dutch promised' });
+  const broken = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 120, kept: false, label: 'The Brewery pays $120 a month, not the $340 Dutch promised' });
+  assert.doesNotMatch(kept, /class="news bad"/); assert.match(broken, /class="news bad"/);
+  assert.match(kept, /as Dutch promised/);
+});

@@ -28,7 +28,7 @@ export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxL
     for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || a.parked || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag
       const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, round: a.round, back: a.round ? !a.loaded : a.dir < 0, x, y }); }
     const shown = new Set();      // one badge per kind and per block, however many shots are fired
-    for (const f of fxList) { const k = f.kind + (f.kind === 'news' ? f.type : '') + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, type: f.type, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
+    for (const f of fxList) { if (f.quiet) continue; const k = f.kind + (f.kind === 'news' ? f.type : '') + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, type: f.type, say: f.say, part: Math.min(1, f.t / f.life), x, y }); }
     for (const q of pops) { const [x, y] = scr(q.x, q.z, q.h + 0.8); out.push({ id: 'p' + q.n, pop: q.amount, part: q.t / q.life, x, y }); }      // money coming in or leaving, rising as it fades
     return out;
   };

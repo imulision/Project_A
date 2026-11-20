@@ -36,3 +36,18 @@ test('the streets the family holds come alive: shop signs light up and cars park
   for (const l of [{ ours: false, lit: 2, site: null, shop: true }, { ours: true, lit: 3, site: { owner: 'family' }, shop: true }, { ours: false, lit: 1, site: { owner: 'callahan' }, shop: true }])
     for (let k = 0; k < 50; k++) { const o = lotLook(l, k / 50); assert.equal(o.sign, null); assert.equal(o.parked, false); }
 });
+
+test('a street whose capo is in trouble goes quiet: no sign, no car at the kerb, half the lamps', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  for (let k = 0; k < 100; k++) { const well = lotLook({ ours: true, lit: 3, site: null, shop: true }, k / 100), ill = lotLook({ ours: true, lit: 3, site: null, shop: true, low: true }, k / 100);
+    assert.equal(ill.sign, null); assert.equal(ill.parked, false); assert.equal(ill.lamps, Math.floor(well.lamps / 2)); assert.equal(ill.roof, 'family', 'it is still his'); assert.ok(ill.gain < well.gain); }
+});
+
+test('a street that changes hands is noticed: the blocks won and the blocks lost between two months', async () => {
+  const { turned } = await import('../render/look.mjs');
+  const was = [{ x: 0, y: 0, grip: 'family' }, { x: 1, y: 0, grip: 'rival' }, { x: 2, y: 0, grip: 'contested' }, { x: 3, y: 0, grip: 'family' }, { x: 4, y: 0, grip: null, void: 'water' }];
+  const now = [{ x: 0, y: 0, grip: 'family' }, { x: 1, y: 0, grip: 'family' }, { x: 2, y: 0, grip: 'family' }, { x: 3, y: 0, grip: 'rival' }, { x: 4, y: 0, grip: null, void: 'water' }];
+  assert.deepEqual(turned(was, now), [{ x: 1, y: 0, won: true }, { x: 2, y: 0, won: true }, { x: 3, y: 0, won: false }]);
+  assert.deepEqual(turned(was, was), []); assert.deepEqual(turned(undefined, now), [], 'a town seen for the first time has no news');
+  assert.deepEqual(turned(was.slice(0, 2), now), [], 'nor a town whose plan changed shape');
+});

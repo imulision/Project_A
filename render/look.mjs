@@ -18,8 +18,17 @@ export function lotLook(l, r = 0.5) {
   if (site) return { shade: 0.8, roof: site.color || null, gain: 0.7, lamps: 1, ...QUIET };
   if (l.ours) {
     const lit = Math.max(1, Math.min(3, l.lit || 1)), want = LAMPS[lit];
+    if (l.low) return { shade: 1 + 0.02 * lit, roof: 'family', gain: (0.4 + 0.13 * lit) * 0.8, lamps: Math.floor((Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0)) / 2), ...QUIET };      // his capo is in trouble: the street goes quiet
     return { shade: 1 + 0.04 * lit, roof: 'family', gain: 0.4 + 0.13 * lit, lamps: Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0),
       sign: l.shop && frac(r * 7.31) < SIGNED[lit] ? TRADES[Math.floor(frac(r * 53.7) * TRADES.length)] : null, parked: frac(r * 3.17) < PARKED[lit] };
   }
   return { shade: 0.62, roof: null, gain: 0, lamps: 0, ...QUIET };
+}
+// turned(before, after) -> the blocks that changed hands between two plans of the same town: [{ x, y, won }],
+// won when the family now holds the street, lost when it held it and no longer does.
+export function turned(before, after) {
+  if (!before || !after || before.length !== after.length) return [];
+  const out = [];
+  after.forEach((b, k) => { const was = before[k].grip === 'family', is = b.grip === 'family'; if (was !== is) out.push({ x: b.x, y: b.y, won: is }); });
+  return out;
 }

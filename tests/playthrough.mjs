@@ -66,6 +66,7 @@ assert.match(await hud(), /January 1926 .* \| 1 \/ \d+$/);
 await still();
 const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length, capos: document.querySelectorAll('.lab.capo').length }));
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
+assert.equal(await page.locator('.lab.capo .hp i').count(), 3, 'three lights under his face say how his streets fare: money, men, threat');
 // the first minutes: a strip says what to look at, and a touch puts it away for good
 assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
 await page.click('#hint [data-hint=capo]');
@@ -89,6 +90,7 @@ assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
 // his sheet says how he stands with the boss, and a gift waits for clean money: once made, not again this year
 assert.ok(await page.locator('#sheet .move.mood').count() === 1, 'his mood is on his sheet');
+assert.match(await page.textContent('#sheet .move.health'), /MONEY.*MEN.*THREAT/, 'and the health of his streets, named');
 assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'no gift without clean money');
 await page.click('#sheet [data-act=close]');
 const kept = await page.evaluate(() => { const g = window.__ashport.game(), was = g.family.clean || 0; g.family.clean = 2000; return was; });
@@ -208,6 +210,7 @@ await page.click('#tip');
 assert.match(await page.textContent('#sheet'), new RegExp(place.name));
 await page.click('#sheet [data-act=city]');
 assert.equal(await page.textContent('#sheet h2'), 'Ashport');
+assert.match(await page.textContent('#sheet .chief'), /Seamus Callahan.*Head of the Callahan family.*% of the streets/, 'the rival of the city has a face');
 // the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
 assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
 assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');
@@ -250,6 +253,7 @@ assert.ok(near.stats.calls <= 240, 'draw calls up close: ' + near.stats.calls);
 assert.ok(near.labels <= 90, 'labels up close: ' + near.labels);
 await page.click('#map'); await still();
 const far = await page.evaluate(() => window.__ashport.map().stats());
+assert.ok(far.waves > 0, 'a street that changes hands lights up in a wave (' + far.waves + ')');
 assert.ok(far.calls <= 240, 'draw calls from afar: ' + far.calls);
 await shot('c6-six-cities');
 
