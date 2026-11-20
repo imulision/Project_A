@@ -87,6 +87,14 @@
     var there = typeof e.x === 'number' && e.city;
     return '<button class="news' + (BAD[e.type] ? ' bad' : '') + '"' + (there ? data({ city: e.city, x: e.x, y: e.y }) : '') + '>' + icon(EVENT[e.type] || 'time') + '<span>' + esc(e.label || e.type) + '</span></button>';
   }
+  // The same thing told month after month is noise: an event is news the first month, and again only once a month has passed without it.
+  function untold(events, seen, month) {
+    return (events || []).filter(function (e) {
+      var k = [e.type, e.city || '', e.capo || '', e.label || ''].join('|'), last = seen[k];
+      seen[k] = month;
+      return last === undefined || last < month - 1;
+    });
+  }
   function head(capo, title, sub) {
     return '<div class="head"><div class="mini">' + I.portrait(capo) + '</div><div><h2>' + esc(title) + '</h2><p>' + sub + '</p></div></div>';
   }
@@ -188,7 +196,7 @@
     return '<div class="skills">' + a.map(function (s) { return '<span class="skill' + (s.has ? ' on' : '') + '" data-tip="' + esc((s.has ? '' : 'At rank ' + s.rank + ' · ') + s.name + ': ' + s.gives) + '">' + icon(SCHOOL[s.school] || 'ambition') + '</span>'; }).join('') + '</div>';
   }
   // Loyalty reaches the screen as a mood, never as a number.
-  var MOOD = { steady: ['loyalty', 'Steady', 'He is with you.'], restless: ['time', 'Restless', 'Something weighs on him: an unpaid wage, a ruling against him. A gesture would settle him.'],
+  var MOOD = { steady: ['loyalty', 'Steady', 'He is with you.'], restless: ['time', 'Restless', 'Something weighs on him: a ruling against him, a place refused. A gesture would settle him.'],
                bitter: ['betrayal', 'Bitter', 'He sends nothing up. Left bitter for six months, he goes over to the rivals with every place he runs.'] };
   function mood(k) {
     var m = MOOD[k.mood]; if (!m) return '';
@@ -345,7 +353,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD,
+  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

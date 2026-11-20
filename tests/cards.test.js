@@ -554,3 +554,14 @@ test('whispers, a betrayal and a gift have their tile and their line in the jour
   ['whispers', 'betrayal', 'gift'].forEach((t) => assert.ok(C.EVENT[t], t + ' has its own icon'));
   assert.notEqual(C.EVENT.betrayal, C.EVENT.gift);
 });
+
+// ---- the same bad news is not told again every month
+test('a tile that would say the same thing month after month is told once, and again only after a quiet month', () => {
+  const seen = {}, e = { type: 'unpaid', city: 'ashport', capo: 'sal', label: 'Sal has not been paid this month' }, other = { type: 'opened', city: 'ashport', capo: 'sal', label: 'Sal opens a speakeasy' };
+  assert.deepEqual(C.untold([e, other], seen, 10), [e, other]);
+  assert.deepEqual(C.untold([e], seen, 11), [], 'the month after, it is known');
+  assert.deepEqual(C.untold([e], seen, 12), []);
+  assert.deepEqual(C.untold([], seen, 13), []);
+  assert.deepEqual(C.untold([e], seen, 14), [e], 'after a month without it, it is news again');
+  assert.deepEqual(C.untold([other, other], seen, 14), [other], 'and never twice in the same month');
+});
