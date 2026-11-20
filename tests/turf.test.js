@@ -2042,3 +2042,91 @@ test('weed nobody sells stays in the loft and says so only when the family has s
   assert.equal(loft.holds, 'weed');
   assert.equal(loft.strains.find((s) => s.kind === 'surplus').label, 'Stash full: ' + loft.stock + ' bags wait for a truck');
 });
+
+// --- what goes up to the boss: a share of everything the cars bring in, before the capo pays his men ---
+test('a capo kicks up a share of his takings, even the month his men cost him all the rest', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.cash = 500;
+  T.stepMonth(c, f);
+  const m = f.men.dutch, sent = c.flow.sent.dutch;
+  assert.ok(m.income > 0);
+  assert.ok(Math.abs(sent - T.RULES.tribute * m.income) < 1e-6, 'sent ' + sent + ' of ' + m.income);
+});
+
+test('a capo with an empty club sends up what he has and no more: he never owes the boss', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.cash = -2000; // deep in the red
+  T.stepMonth(c, f);
+  assert.equal(c.flow.sent.dutch, 0);
+});
+
+test('no capo opens one more still when the family already makes more liquor than its bars pour', () => {
+  const only = () => { const t = ALL(); for (const k of Object.keys(t)) t[k] = k === 'still' || k === 'rented' ? 3 : 0; return t; };
+  const next = (stills) => {
+    const c = town(); T.settle(c, 'sal', 8, 2);
+    [[7, 1], [8, 1], [9, 1]].slice(0, stills).forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'still', capo: 'sal' }));
+    return T.wants(c, 'sal', { rank: 3, tech: only() }).kind;
+  };
+  assert.equal(next(0), 'still');
+  assert.equal(next(2), 'rented', 'two stills and not one bar: he puts his money elsewhere');
+});
+
+// --- the road is not safe: the rivals hold up what leaves a street they press on, the police stop trucks when the city is hot ---
+const exposed = (capo, kind, more) => {
+  const c = town(), f = family();
+  T.settle(c, capo, 3, 3); T.join(f, capo);
+  kept(c, capo);
+  T.open(c, 5, 3, Object.assign({ owner: 'family', kind: kind || 'gambling', capo }, more));
+  T.open(c, 7, 3, { owner: 'Callahan', kind: 'speakeasy', level: 3 });
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { c, f };
+};
+const until = (c, f, type, months) => { for (let m = 0; m < months; m++) { const e = T.stepMonth(c, f).find((x) => x.type === type); if (e) return e; } return null; };
+
+test('now and then the rivals hold up a car that leaves a street they press on: the load never reaches the club', () => {
+  const { c, f } = exposed('mae');
+  const e = until(c, f, 'hijack', T.RULES.road.every);
+  assert.ok(e, 'within ' + T.RULES.road.every + ' months');
+  assert.deepEqual([e.capo, e.x, e.y, e.cargo, e.amount, e.by], ['mae', 5, 3, 'cash', LOAD, 'Callahan']);
+  assert.equal(e.label, 'The Callahans hold up Mae\'s car in Lantern Row: $' + LOAD + ' gone');
+  const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
+  assert.equal(runs.filter((t) => t.lost === 'hijack').length, 1);
+  assert.equal(f.men.mae.income, T.RULES.club + LOAD * (runs.length - 1), 'every load but that one came in');
+  assert.equal(c.flow.hijacked, LOAD);
+});
+
+test('they leave a hard man\'s cars alone, and the streets the family holds firmly', () => {
+  const hard = exposed('sal');
+  assert.equal(until(hard.c, hard.f, 'hijack', 3 * T.RULES.road.every), null);
+  const deep = sixBars();
+  T.open(deep.c, 11, 5, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.equal(until(deep.c, deep.f, 'hijack', 3 * T.RULES.road.every), null);
+});
+
+test('a truck is held up like a car: its load is lost and the bar goes without', () => {
+  const { c, f } = exposed('mae', 'still');
+  T.open(c, 1, 1, { owner: 'family', kind: 'speakeasy', capo: 'mae' });
+  T.open(c, 2, 1, { owner: 'family', kind: 'speakeasy', capo: 'mae' });
+  const e = until(c, f, 'hijack', T.RULES.road.every);
+  assert.deepEqual([e.cargo, e.amount, e.x, e.y], ['liquor', CRATES, 5, 3]);
+  assert.equal(e.label, 'The Callahans hold up Mae\'s truck in Lantern Row: ' + CRATES + ' crates of liquor gone');
+  const runs = hauls(c, f);
+  assert.equal(runs.filter((t) => t.lost === 'hijack').length, 1);
+  const dry = T.view(c, f).places.filter((p) => p.kind === 'speakeasy' && (p.strains || []).some((s) => s.kind === 'dry'));
+  assert.equal(dry.length, 1, 'the bar that waited for it has nothing to pour');
+});
+
+test('when the city is hot the police stop a truck every month and seize its load; cars with cash pass', () => {
+  const play = (heat, bought) => {
+    const { c, f } = brewer(2);
+    c.heat = heat;
+    if (bought) T.open(c, 11, 5, { owner: 'family', kind: 'key', key: 'precinct', capo: 'dutch' });
+    const e = T.stepMonth(c, f).find((x) => x.type === 'seizure');
+    return { e, lost: hauls(c, f).filter((t) => t.lost === 'seizure').length, cash: T.trips(c, f).filter((t) => t.kind === 'takings' && t.lost).length };
+  };
+  const hot = play(T.RULES.road.heat + 10);
+  assert.deepEqual([hot.e.capo, hot.e.cargo, hot.e.amount, hot.lost, hot.cash], ['dutch', 'liquor', CRATES, 1, 0]);
+  assert.equal(hot.e.label, 'The police stop Dutch\'s truck: ' + CRATES + ' crates of liquor seized');
+  assert.equal(play(T.RULES.road.heat - 10).e, undefined, 'a quiet city: nobody looks into a truck');
+  assert.equal(play(T.RULES.road.heat + 10, true).e, undefined, 'with the precinct in its pocket the family drives through');
+});
