@@ -227,3 +227,14 @@ body.stopped .sub #sub{display:none}
 .move.power{border-left:3px solid var(--dim)}.move.power.good{border-left-color:var(--good)}.move.power.bad{border-left-color:var(--bad)}.move.power.good span{color:var(--good)}.move.power.bad span{color:var(--bad)}.move.power b{color:var(--ink)}
 .ledger{margin:0 0 12px}.ledger .row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line)}.ledger .row b{font-variant-numeric:tabular-nums;white-space:nowrap}
 .ledger .row.in b{color:var(--good)}.ledger .row.out b{color:var(--bad)}.ledger .row.net{border-bottom:0;border-top:1px solid var(--dim);color:var(--dim)}.ledger .row.net b{color:var(--ink)}
+
+/* a step won or lost, told in large, once */
+#moment{position:fixed;left:14px;right:14px;top:30%;z-index:4;display:grid;gap:8px;pointer-events:none}
+.moment{padding:14px 16px;text-align:center;background:#0c0a08ee;border-top:3px solid var(--good);border-bottom:3px solid var(--good);animation:moment 5.2s ease-out both}
+.moment.bad{border-color:var(--bad)}.moment b{display:block;font:500 1.7em/1.15 var(--title);letter-spacing:1.5px;color:var(--good)}.moment.bad b{color:var(--bad)}.moment span{display:block;margin-top:4px;color:var(--dim)}
+@keyframes moment{0%{opacity:0;transform:scale(1.25)}8%{opacity:1;transform:scale(1)}85%{opacity:1}100%{opacity:0}}
+.lab.good span{color:var(--good)}.lab.bad span{color:var(--bad)}.lab.held b{color:var(--accent)}
+.ranks{display:grid;gap:4px;margin:0 0 12px}.rankrow{display:grid;grid-template-columns:18px 30px 1fr auto 64px;align-items:center;gap:8px;padding:5px 8px;text-align:left;border-left:3px solid var(--dim)}
+.rankrow.good{border-left-color:var(--good)}.rankrow.bad{border-left-color:var(--bad)}.rankrow i{font-style:normal;color:var(--dim)}.rankrow .pf{width:30px;height:30px;border-radius:50%;overflow:hidden;display:block}
+.rankrow b{font:500 1.2em/1 var(--title);font-variant-numeric:tabular-nums}.rankrow em{font-style:normal;font-size:.85em;text-align:right;color:var(--dim)}.rankrow.good em{color:var(--good)}.rankrow.bad em{color:var(--bad)}
+.move.power .spark{margin-left:auto;width:70px;height:22px}

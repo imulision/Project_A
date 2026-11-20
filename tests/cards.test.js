@@ -863,3 +863,48 @@ test('each capo has a power, and the page remembers a year of it to say whether 
   const line = C.powerLine(C.powerTrend(log, 'ashportsal')); assert.match(line, /POWER/); assert.match(line, /140/); assert.match(line, /\+110 in a year/);
   assert.match(C.powerLine(C.powerTrend(fall, 'ashportsal')), /−20/); assert.equal(C.powerLine(null), '');
 });
+
+// ---- the same reading at every level: a city, a street name, the men side by side, and the moment a step is won or lost
+test('each city and each street name says what the family holds of it, and which way it went in a year', () => {
+  const rows = flat(12, [4, 100]).concat([[10, 100]]), v = past(rows);
+  assert.deepEqual(C.cityTrend(v, 'ashport'), { now: 10, diff: 6, tone: 'good' }); assert.equal(C.cityTrend(v, 'calder').tone, 'idle'); assert.equal(C.cityTrend({ history: [] }, 'ashport'), null);
+  assert.match(C.cityMark(C.cityTrend(v, 'ashport')), /▲ \+6/); assert.equal(C.cityMark(C.cityTrend(v, 'calder')), ''); assert.equal(C.cityMark(null), '');
+  const blocks = [{ x: 0, y: 0, zone: 0, grip: 'family' }, { x: 1, y: 0, zone: 0, grip: 'rival' }, { x: 2, y: 0, zone: 0, void: 'water' }, { x: 3, y: 0, zone: 1, grip: 'family' }];
+  const city = { id: 'ashport', w: 4, h: 1, zones: [{ name: 'Docks' }, { name: 'Uptown' }], blocks };
+  const old = { month: 1, dirty: 0, clean: 0, cities: { ashport: { share: 0, income: 0, zones: [20, 100] } } }, now = { month: 13, dirty: 0, clean: 0, cities: { ashport: { share: 0, income: 0, zones: [50, 100] } } };
+  const z = C.zoneShares({ cities: [city], history: [old].concat(flat(11, old), [now]) });
+  assert.deepEqual(z['ashport-0'], { name: 'Docks', share: 50, diff: 30, tone: 'good' }, 'the water is not counted'); assert.deepEqual(z['ashport-1'], { name: 'Uptown', share: 100, diff: 0, tone: 'idle' });
+  // an old save keeps no history of its street names, nor a name on its blocks: the share is said when it can be, the arrow is not
+  assert.deepEqual(C.zoneShares({ cities: [city], history: [] })['ashport-0'], { name: 'Docks', share: 50, diff: null, tone: 'idle' });
+  assert.deepEqual(C.zoneShares({ cities: [{ ...city, blocks: blocks.map(({ zone, ...b }) => b) }], history: [] }), {});
+  assert.equal(C.zoneMark(z['ashport-0']), '50% ▲'); assert.equal(C.zoneMark(z['ashport-1']), '100%'); assert.equal(C.zoneMark({ share: 0, diff: null, tone: 'idle' }), '');
+});
+
+test('the power of each man is read in the history of the rules when they keep it, and the men are ranked side by side', () => {
+  const row = (m, sal, mae) => ({ month: m, dirty: 0, clean: 0, cities: { ashport: { share: 5, income: 0, capos: { sal: { places: sal, income: 100 }, ...(mae == null ? {} : { mae: { places: mae, income: 0 } }) } } } });
+  const view = { month: 14, history: [row(1, 1, null)].concat(Array.from({ length: 13 }, (_, n) => row(n + 2, n < 12 ? 2 : 5, 3))),
+    cities: [{ id: 'ashport', name: 'Ashport', capos: [{ id: 'sal', name: 'Sal Moretti', places: 5, income: 100 }, { id: 'mae', name: 'Mae Lin', places: 3, income: 0 }] }] };
+  const rows = C.powerRows(view, { ashportsal: [[1, 999]] });
+  assert.equal(rows.ashportsal.length, 13); assert.deepEqual(rows.ashportsal[12], [14, 60]); assert.deepEqual(rows.ashportsal[0], [2, 30], 'the rules\' history wins over the page\'s memory');
+  assert.deepEqual(C.powerTrend(rows, 'ashportsal'), { now: 60, diff: 30, tone: 'good', months: 12 });
+  // rows without the men (an old save): the page's own memory stands in
+  const bare = { ...view, history: view.history.map((r) => ({ ...r, cities: { ashport: { share: 5, income: 0 } } })) };
+  assert.deepEqual(C.powerRows(bare, { ashportsal: [[1, 999]] }), { ashportsal: [[1, 999]] });
+  const html = C.ranking(view, rows);
+  assert.ok(html.indexOf('Sal') < html.indexOf('Mae'), 'the strongest first'); assert.match(html, /data-act="capo" data-city="ashport" data-capo="sal"/); assert.match(html, /60/); assert.match(html, /▲ \+30/);
+  assert.equal(C.ranking({ cities: [{ id: 'a', capos: [{ id: 'sal', name: 'Sal' }] }] }, {}), '', 'one man alone is not ranked');
+  assert.match(C.powerLine(C.powerTrend(rows, 'ashportsal'), rows.ashportsal), /class="spark/, 'and his sheet draws the year');
+});
+
+test('a step won or lost is a moment: the rank of the family, a street name held whole or lost', () => {
+  const st = (n, zones) => ({ rank: { n, name: ['Street gang', 'Crew', 'Family'][n] }, zones });
+  const z = (share, name) => ({ name: name || 'The Docks', share });
+  assert.deepEqual(C.moments(null, st(1, {})), [], 'nothing to tell when the game is opened');
+  assert.deepEqual(C.moments(st(0, {}), st(1, {})), [{ kind: 'rank-up', tone: 'good', title: 'YOUR FAMILY IS NOW A CREW', sub: 'It holds enough of the map to be counted.' }]);
+  const down = C.moments(st(2, {}), st(1, {})); assert.equal(down[0].kind, 'rank-down'); assert.equal(down[0].tone, 'bad'); assert.match(down[0].title, /FALLS BACK TO A CREW/);
+  assert.deepEqual(C.moments(st(1, { a: z(80) }), st(1, { a: z(100) })).map((m) => [m.kind, m.title]), [['zone-won', 'THE DOCKS IS YOURS']]);
+  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(90) })).map((m) => [m.kind, m.tone]), [['zone-broken', 'bad']]);
+  assert.deepEqual(C.moments(st(1, { a: z(10) }), st(1, { a: z(0) })).map((m) => [m.kind, m.title]), [['zone-lost', 'DRIVEN OUT OF THE DOCKS']]);
+  assert.deepEqual(C.moments(st(1, { a: z(50) }), st(1, { a: z(60) })), [], 'a street more is not a moment');
+  assert.match(C.moment(down[0]), /class="moment bad"/); assert.match(C.moment(down[0]), /FALLS BACK/);
+});

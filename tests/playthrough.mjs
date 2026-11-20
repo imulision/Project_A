@@ -183,6 +183,8 @@ assert.match(await page.textContent('#wash'), /in \$[\d,]+ · out \$[\d,]+/);
 assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
 assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
 assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
+assert.ok((await page.evaluate(() => window.__ashport.map().labels().filter((l) => l.ground).map((l) => l.id))).length > 0);
+assert.match(await page.evaluate(() => [...document.querySelectorAll('.lab.sm')].map((e) => e.textContent).join(' | ')), /\d+%/, 'a street name says what the family holds of it');
 await page.evaluate(() => document.querySelector('[data-account]').click());
 assert.match(await page.textContent('#veil.on'), /Where the money goes[\s\S]*DIRTY CASH[\s\S]*CLEAN MONEY/);
 await shot('c2c-account');
