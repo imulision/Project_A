@@ -159,6 +159,13 @@
       T.underboss(c, g.family, o.capo);
       record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
     },
+    // the boss makes one of his capos a gift, in clean money: it warms a man who was turning sour
+    gift: function (g, o) {
+      var c = cityOf(g, o.city);
+      T.gift(c, g.family, o.capo);
+      var club = T.clubOf(c, o.capo);
+      record(g, { type: 'gift', capo: o.capo, city: c.id, cost: T.RULES.loyal.gift, x: club.x, y: club.y, label: 'You make ' + T.person(o.capo).name + ' a gift' }, g.month);
+    },
     welcome: function (g, o) {
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
