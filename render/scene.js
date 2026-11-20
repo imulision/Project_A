@@ -433,7 +433,7 @@ function buildNear(C) {
   }
   bake(cur); G.add(cur);
   for (const { name, mat, shadow, list } of inst.values()) {
-    const im = new THREE.InstancedMesh(GEO[name], mat, list.length);
+    const im = new THREE.InstancedMesh(GEO[name], mat, list.length); im.userData.model = name;
     list.forEach(([m, c], k) => { im.setMatrixAt(k, m); im.setColorAt(k, c); });
     im.castShadow = shadow; im.receiveShadow = true; im.computeBoundingSphere(); G.add(im);
   }
@@ -458,7 +458,10 @@ function batch(geo, mat, order) {
   if (!b) { b = new THREE.InstancedMesh(geo, mat, 384); b.count = 0; b.frustumCulled = false; b.castShadow = false; if (order) b.renderOrder = order; scene.add(b); batches.set(k, b); }
   return b;
 }
+// A car that is not on the screen is not drawn: a car is some 1,200 triangles, and most of a city's cars are out of sight.
+const _cv = new THREE.Vector3();
 function putCar(geo, mat, x, y, z, rot, scale) {
+  _cv.set(x, y, z).project(cam); if (_cv.x < -1.15 || _cv.x > 1.15 || _cv.y < -1.15 || _cv.y > 1.15) return;
   const b = batch(geo, mat); if (b.count >= 384) return;
   _bm.compose(_bp.set(x, y, z), _bq.setFromAxisAngle(UPY, rot), _bs.set(scale, scale, scale)); b.setMatrixAt(b.count++, _bm);
 }
@@ -787,7 +790,14 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true; stale = 3;
 });
 
+  // census(): the triangles in the scene by model, for the optimisation reviews (what is visible now, and everything built)
+  const census = () => { const out = {};
+    scene.traverse(o => { if (!o.isMesh && !o.isPoints) return; const g = o.geometry, n = (g.index ? g.index.count : g.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1);
+      let seen = true; for (let q = o; q; q = q.parent) if (!q.visible) seen = false;
+      const k = o.userData.model || (o.isInstancedMesh ? 'instances of ' + Math.round((g.index ? g.index.count : g.attributes.position.count) / 3) + ' triangles' : 'ground, streets and merged parts'), r = out[k] || (out[k] = { visible: 0, built: 0, meshes: 0 });
+      r.built += n; r.meshes++; r.count = (r.count || 0) + (o.isInstancedMesh ? o.count : 1); if (seen) r.visible += n; });
+    return out; };
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
