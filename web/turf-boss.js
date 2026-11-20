@@ -7,7 +7,7 @@
   var C = typeof require === 'function' ? require('./turf-city.js') : root.AshportTurfCity;
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
-  var RULES = R.RULES, key = R.key, far = R.far;
+  var RULES = R.RULES, key = R.key, far = R.far, owns = R.owns;
   var KEYS = P.KEYS, can = P.can, sway = P.sway;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
@@ -69,11 +69,14 @@
     // money that sleeps and blood in the streets draw the police
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
     var hidden = 2000 * Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'backroom'); }).length;
-    c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud - RULES.cools * (held(c, 'shield') ? 2 : 1)
+    var H = RULES.holdings;
+    hidden += H.company.hides * owns(f, 'company');                                   // the company's books
+    c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud * (1 - H.paper.hushes * owns(f, 'paper'))   // the paper tells it kindly
+      - RULES.cools * (held(c, 'shield') ? 2 : 1) - H.judge.cools * owns(f, 'judge')
       - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length - ((c.board && c.board.cools) || 0);
     c.heat = Math.max(0, Math.min(100, c.heat));
     if (c.heat >= 100) {
-      var seized = Math.round(Math.max(0, f.dirty) * RULES.bust);
+      var seized = Math.round(Math.max(0, f.dirty) * RULES.bust * (1 - H.lawyer.spares * owns(f, 'lawyer'))); // the lawyers get some of it back
       f.dirty -= seized; flow.seized = seized;
       c.heat = RULES.afterBust;
       events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
@@ -142,7 +145,34 @@
   // A price that grows with the family, rounded to the nearest $50.
   function swell(base, rate, n) { return Math.round(base * Math.pow(1 + rate, Math.max(0, n)) / 50) * 50; }
 
-  var api = { eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  // The boss's share in this city: light, normal or heavy.
+  function cutOf(c) { return RULES.cut[c.cut] ? c.cut : 'normal'; }
+  function cut(c, how) {
+    if (!RULES.cut[how]) throw new Error('no such share: ' + how);
+    c.cut = how;
+  }
+  function cuts() { return Object.keys(RULES.cut).map(function (id) { return { id: id, share: RULES.cut[id].share, loyal: RULES.cut[id].loyal }; }); }
+
+  // What clean money buys for good: what the family owns of each, and what the next size costs.
+  function holdings(f) {
+    return Object.keys(RULES.holdings).map(function (id) {
+      var h = RULES.holdings[id], level = owns(f, id);
+      return { id: id, name: h.name, gives: h.gives, level: level, most: h.cost.length, next: level < h.cost.length ? { level: level + 1, cost: h.cost[level] } : null };
+    });
+  }
+  function buy(f, id) {
+    var h = RULES.holdings[id];
+    if (!h) throw new Error('nothing of that name to buy: ' + id);
+    var level = owns(f, id);
+    if (level >= h.cost.length) throw new Error('there is nothing more to buy of the ' + h.name);
+    if ((f.clean || 0) < h.cost[level]) throw new Error('it takes $' + h.cost[level] + ' of clean money');
+    f.clean -= h.cost[level];
+    f.holdings = f.holdings || {};
+    f.holdings[id] = level + 1;
+    return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
+  }
+
+  var api = { holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;
