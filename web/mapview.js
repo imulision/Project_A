@@ -106,8 +106,16 @@
         }
         lots.push(lot);
       }
-      return { x: b.x, y: b.y, grip: b.grip, void: b.void || null, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
+      return { x: b.x, y: b.y, grip: b.grip, void: b.void || null, press: ours ? Math.min(1, b.rival / Math.max(1, b.family)) : 0, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
     });
+    // Men stand where the family is: a doorman at each of its places, two at a club, and a crew of three more where a capo faces the rivals.
+    var crews = [];
+    lots.forEach(function (l) { if (l.site && l.site.owner === 'family') l.men = l.hideout ? 2 : 1; });
+    c.capos.forEach(function (k) { if (k.at && k.at.why === 'raid') lots.forEach(function (l) { if (l.site && l.site.owner === 'family' && l.bx === k.at.x && l.by === k.at.y) { l.men += 3; crews.push(k.at.x + '.' + k.at.y); } }); });
+    // A place burnt out stays a black shell for a while (c.scars, kept by the page), and works under way show where they are built.
+    var marks = [], mark = function (x, y, what) { var l = lots[(y * c.w + x) * 6 + SPOT]; if (!l || (l.open && what !== 'works')) return; if (l.open && !c.blocks[y * c.w + x].void) l.open = null; if (l.open) return; l[what] = true; if (what === 'burnt' && !l.site) { l.shop = false; l.tower = false; } marks.push(what.charAt(0) + x + '.' + y); };
+    (c.scars || []).forEach(function (q) { if (!placeAt[q.x + ',' + q.y]) mark(q.x, q.y, 'burnt'); });
+    c.capos.forEach(function (k) { var pl = k.plan; if (pl && pl.waiting === 'time' && typeof pl.x === 'number') mark(pl.x, pl.y, 'works'); });
     // The streets of a capo in trouble go quiet: each street of the family follows the nearest place a capo runs.
     var ill = {}, run = c.places.filter(function (p) { return p.owner === 'family' && p.capo; });
     c.capos.forEach(function (k) { if (k.trouble) ill[k.id] = 1; });
@@ -126,7 +134,7 @@
       return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
-    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',');
+    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',');
     return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos };
@@ -200,6 +208,13 @@
         out.push({ id: c.id + ':' + id, round: true, loop: true, kind: t0.kind, city: c.id, color: FLOW[look.flow], vehicle: /:truck:/.test(id) ? 'truck' : look.vehicle, violent: false, home: spot,
                    path: path, stops: stops, cargo: t0.cargo, amount: t0.amount || 0, load: {}, capo: t0.capo || null, from: 'street', to: 'street', by: null, way: null, target: null, n: legs[0].n });
       });
+      // the police patrol a city that runs hot: one car more for every thirty points of heat, each on its own beat
+      var beats = Math.min(3, Math.floor((vc.heat || 0) / 30));
+      for (var q = 0; q < beats; q++) {
+        var pa = c.lots[Math.floor(hash(q, 1, ci * 7 + 21) * c.lots.length)], pb = c.lots[Math.floor(hash(q, 2, ci * 7 + 22) * c.lots.length)]; if (!pa || !pb || pa === pb) continue;
+        out.push({ id: c.id + ':patrol:' + q, loop: true, kind: 'patrol', city: c.id, color: '#4a7dff', vehicle: 'police', violent: false, path: route([pa.i, pa.j], [pb.i, pb.j]),
+                   cargo: null, amount: 0, load: {}, capo: null, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
+      }
       // the rest of the fleet waits by the club
       (vc.capos || []).forEach(function (k) {
         var h = typeof k.x === 'number' ? lotOfBlock(c, k.x, k.y) : null; if (!h) return;

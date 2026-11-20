@@ -10,7 +10,7 @@ import { makeTraffic } from './traffic.js';
 import { makeLabels } from './labels.js';
 import { makeTerrain } from './terrain.js';
 import { makeTouch } from './touch.js';
-import { lotLook, turned } from './look.mjs';
+import { lotLook, turned, front } from './look.mjs';
 import { makePeriod } from './period.mjs';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -301,7 +301,7 @@ function plan(C) {
   }
   for (const l of C.p.lots) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
-    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, low: !!l.low, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
+    C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
   nBuildings += C.lots.length;
 }
@@ -315,7 +315,9 @@ function borders(C) {       // district frontiers, drawn on the streets like on 
 }
 // the new game has no districts: who holds each block shows on its streets, and the family's frontier is one bright line.
 // It is its own small group, redrawn alone when the streets change hands, so the buildings are not rebuilt for it.
-const gripKey = p => p.blocks.map(b => (b.grip ? b.grip[0] : '-') + Math.round(b.hold * 2)).join('');
+const gripKey = p => p.blocks.map(b => (b.grip ? b.grip[0] : '-') + Math.round(b.hold * 2) + (b.press >= 0.6 ? 'p' : '')).join('');
+// the front line: one material for every pressed edge, its light beats with the frame (see the loop)
+const FRONTMAT = new THREE.MeshBasicMaterial({ color: 0xff2e1f, transparent: true, depthWrite: false, opacity: 0.7, toneMapped: false });
 function turfGround(C) {
   if (C.turf) { lods.remove(C.turf); dispose(C.turf); }
   cur = new THREE.Group();
@@ -332,6 +334,10 @@ function turfGround(C) {
       const n = at(b.x + dx, b.y + dy);
       if (!n || n.grip !== 'family') { strip(ax, az, ex, ez, 0.2, borderMat('family', 0), 0.135, 3); strip(ax, az, ex, ez, 1.3, borderMat('family', 1), 0.13, 3); }
     }
+  }
+  for (const f of front(C.p.blocks, C.bx, C.by)) {      // where a rival presses hard on a street of the family, the edge beats red
+    const x0 = C.ox + f.x * bw, z0 = C.oz + f.y * bd, ax = f.dx > 0 ? x0 + bw : x0, az = f.dy > 0 ? z0 + bd : z0;
+    strip(ax, az, f.dx ? ax : x0 + bw, f.dy ? az : z0 + bd, 0.5, FRONTMAT, 0.145, 5);
   }
   bake(cur); C.turf = cur; C.gripKey = gripKey(C.p); lods.add(cur);
 }
@@ -405,6 +411,9 @@ function buildFar(C) {
   if (C.p.turf) turfGround(C);
 }
 // near version: the real models, one instanced draw call per model and light level
+const COAT = new THREE.Color(0x1c1a1e), SKIN = new THREE.Color(0xd9a98a), SCAFFOLD = new THREE.Color(0xd9b077), SMOKE = new THREE.MeshBasicMaterial({ map: GLOW_SOFT, color: 0x77726c, transparent: true, depthWrite: false, opacity: 0.5 });
+function smoke(x, y, z, s, op) { const m = new THREE.Mesh(UNIT, SMOKEMATS[op > 0.4 ? 0 : op > 0.3 ? 1 : 2]); m.quaternion.copy(cam.quaternion); m.position.set(x, y, z); m.scale.set(s, s, 1); m.renderOrder = 5; cur.add(m); }
+const SMOKEMATS = [0.5, 0.37, 0.24].map((o) => { const m = SMOKE.clone(); m.opacity = o; return m; });
 const SHOPSIGNS = ['#ffb347', '#ff6b5e', '#7fe0a8', '#ffd9a0', '#7fc8ff', '#ff8fc0'], PARKED = ['car_sedan', 'car_hatchback', 'car_sedan', 'car_stationwagon'], KERB = 1.25;      // a parked car, this far from the middle of its building
 function buildNear(C) {
   const G = new THREE.Group(), inst = new Map(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
@@ -424,7 +433,17 @@ function buildNear(C) {
   for (const l of C.lots) {
     if (l.open) { openGround(l, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), h > 0.1, [w, h, d])); continue; }
     const k = lotLook(l);
-    add(l.name, ERAMATS[l.lit], l.x, 0, l.z, l.rot, l.sy, TINTS[l.tint].clone().multiplyScalar(k.shade));
+    add(l.name, ERAMATS[k.burnt ? 0 : l.lit], l.x, 0, l.z, l.rot, l.sy, TINTS[l.tint].clone().multiplyScalar(k.shade));
+    if (k.burnt) for (let n = 0; n < 3; n++) smoke(l.x + 0.25 * n, l.h + 0.5 + 0.8 * n, l.z - 0.2 * n, 1.3 + 0.7 * n, 0.5 - 0.13 * n);      // it still smokes
+    for (let n = 0; n < l.men; n++) {      // the family's men at the door: a dark coat, a face, a hat
+      const side = (n - (l.men - 1) / 2) * 0.42, mx = l.x + (l.rot ? 1.02 : side), mz = l.z + (l.rot ? side : 1.02);
+      add('slab', ROOFMAT, mx, 0.12, mz, 0, 1, COAT, false, [0.2, 0.42, 0.15]); add('slab', ROOFMAT, mx, 0.54, mz, 0, 1, SKIN, false, [0.13, 0.12, 0.13]); add('slab', ROOFMAT, mx, 0.66, mz, 0, 1, COAT, false, [0.24, 0.05, 0.24]);
+    }
+    if (l.works) {      // works under way: a scaffold of poles and planks around the building
+      const r = 0.98, top = Math.max(0.9, l.h * 0.8);
+      for (const [sx, sz] of [[-r, -r], [r, -r], [-r, r], [r, r]]) add('slab', ROOFMAT, l.x + sx, top / 2, l.z + sz, 0, 1, SCAFFOLD, false, [0.12, top, 0.12]);
+      for (let y = 0.45; y < top; y += 0.5) for (const [sx, sz, w, d] of [[0, r, 2 * r, 0.22], [r, 0, 0.22, 2 * r], [0, -r, 2 * r, 0.22], [-r, 0, 0.22, 2 * r]]) add('slab', ROOFMAT, l.x + sx, y, l.z + sz, 0, 1, SCAFFOLD, false, [w, 0.06, d]);
+    }
     if (k.roof) add('roofcap', ROOFMAT, l.x, l.h, l.z, l.rot, 1, roofColor(k, new THREE.Color()));
     if (l.tower) add('watertower', PLAINMAT, l.x + l.tx * 0.6, l.h, l.z - 0.2, l.tr, 1, PROPTINT);
     if (l.shop) {      // warm light spilling from the ground floor onto the pavement
@@ -660,7 +679,7 @@ function frame(now) {
     // while the game's time stands still nothing drives: every car waits where it is, and leaves again with the clock
     const drive = held ? 0 : dt;
     moveCars(trucks, drive); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, drive);
-    moveAgents(drive); animateFx(real, now);
+    moveAgents(drive); animateFx(real, now); FRONTMAT.opacity = 0.55 + 0.4 * Math.sin(now * 0.005);
     for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
     grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
     renderer.info.reset(); composer.render(); frames++;

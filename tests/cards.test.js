@@ -740,3 +740,26 @@ test('a promise is followed: what is owed is listed on the city sheet, and the d
   assert.doesNotMatch(kept, /class="news bad"/); assert.match(broken, /class="news bad"/);
   assert.match(kept, /as Dutch promised/);
 });
+
+test('the places burnt out these last months are remembered, city by city, for the map to keep them black', () => {
+  const journal = [{ month: 3, type: 'burnt', city: 'ashport', x: 4, y: 10 }, { month: 9, type: 'burnt', city: 'ashport', x: 5, y: 9 }, { month: 10, type: 'opened', city: 'ashport', x: 6, y: 9 }, { month: 10, type: 'burnt', city: 'dunmore', x: 1, y: 1 }];
+  assert.deepEqual(C.scars(journal, 11), { ashport: [{ x: 5, y: 9 }], dunmore: [{ x: 1, y: 1 }] });
+  assert.deepEqual(C.scars(journal, 30), {}); assert.deepEqual(C.scars(undefined, 3), {});
+  assert.match(C.carTip({ kind: 'patrol', vehicle: 'police' }), /Police patrol/);
+});
+
+test('the boss gives a city its line, sees who follows it, and each capo says why he does or does not', () => {
+  const lines = [{ id: 'grow', name: 'Grow', gives: 'They take two more places than their rank allows, and guard them less well' }, { id: 'earn', name: 'Earn', gives: 'They make their places bigger before opening new ones' }, { id: 'low', name: 'Lie low', gives: 'They take nothing from the rivals, and the heat falls faster' }];
+  const c = { id: 'ashport', held: true, line: 'earn', lines, lineHeld: { share: 2 / 3, follow: 2, of: 3, label: '2 of 3 capos follow' } };
+  const html = C.line(c);
+  assert.match(html, /Your line for the city/); assert.equal((html.match(/data-act="line"/g) || []).length, 3);
+  assert.match(html, /class="on" data-act="line" data-city="ashport" data-line=""/, 'a touch on the line in force lifts it');
+  assert.match(html, /data-act="line" data-city="ashport" data-line="grow">[\s\S]*?Grow[\s\S]*?two more places/);
+  assert.match(html, /2 of 3 capos follow/);
+  assert.doesNotMatch(C.line({ ...c, line: null, lineHeld: null }), /class="on"/);
+  assert.equal(C.line({ id: 'dunmore', held: false, lines }), ''); assert.equal(C.line({ id: 'ashport', held: true }), '', 'an old game has no line');
+  assert.match(C.follows({ follows: true, followsWhy: 'It is his way' }), /class="move yes"[\s\S]*Follows your line[\s\S]*It is his way/);
+  assert.match(C.follows({ follows: false, followsWhy: 'Not his way, and he is not loyal enough to bend' }), /class="move no"[\s\S]*Does not follow your line[\s\S]*not loyal enough/);
+  assert.equal(C.follows({ follows: null }), ''); assert.equal(C.follows({}), '');
+  assert.equal(C.EVENT.line, 'loyalty');
+});
