@@ -91,6 +91,10 @@
     // between two cities joined by a road: the loads one city makes and cannot sell that go, each way and each month,
     // to the family's sellers that went without in the other
     convoy: { loads: 2 },
+    // the boss's table: what a man who sits there is paid a month, what each point of the Bookkeeper's Business adds
+    // to every laundry, the points of Cunning Routes needs for one more load down every road, and the points of
+    // Charisma the Fixer needs to cool every city by one more
+    table: { pay: 300, wash: 0.05, cunning: 2, charisma: 4 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -205,8 +209,59 @@
     var school = schoolOf(capo), rank = (f.men[capo] || {}).rank || 0;
     return SCHOOLS[school].map(function (a, i) { return { id: a.id, name: a.name, gives: a.gives, school: school, rank: i + 1, has: rank >= i + 1 }; });
   }
+  // --- the boss's table ---
+  // Three chairs for the whole family, for men who run no street. Each serves every city by what the man is good at.
+  var CHAIRS = [{ post: 'bookkeeper', name: 'Bookkeeper', gives: function (p) { return 'Every laundry of the family washes ' + Math.round(100 * RULES.table.wash * p.business) + '% more'; } },
+                { post: 'routes', name: 'Routes', gives: function (p) { return Math.floor(p.cunning / RULES.table.cunning) + ' more loads go down every road each month'; } },
+                { post: 'fixer', name: 'Fixer', gives: function (p) { return 'Every city cools ' + Math.floor(p.charisma / RULES.table.charisma) + ' more a month'; } }];
+  function chairOf(post) {
+    var ch = CHAIRS.filter(function (q) { return q.post === post; })[0];
+    if (!ch) throw new Error('no such chair: ' + post);
+    return ch;
+  }
+  function sits(f, post) { return (f.table && f.table[post]) || null; }
+  function table(f) {
+    return CHAIRS.map(function (ch) {
+      var id = sits(f, ch.post);
+      return { post: ch.post, name: ch.name, capo: id, who: id ? who(id).name : null, specialty: id ? who(id).specialty : null, pay: RULES.table.pay,
+               paid: id ? !(f.owed && f.owed[ch.post]) : null, gives: id ? ch.gives(who(id)) : null };
+    });
+  }
+  // A man at the door takes a chair instead of a street, for what he would have cost on one.
+  function seat(c, f, capo, post) {
+    var ch = chairOf(post);
+    if (sits(f, post)) throw new Error('the ' + ch.name + '\'s chair is taken');
+    var d = doors(c, f).filter(function (q) { return q.capo === capo; })[0];
+    if (!d) throw new Error(capo + ' is not at the door');
+    if (d.door === 'poach') throw new Error(first(capo) + ' stays where his places are');
+    if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' ' + first(capo) + ' asks');
+    spend(f, d.cost);
+    f.table = f.table || {};
+    f.table[post] = capo;
+  }
+  // The boss takes the chair back: the man leaves the family for good.
+  function unseat(f, post) {
+    var ch = chairOf(post), id = sits(f, post);
+    if (!id) throw new Error('nobody sits there');
+    f.table[post] = null;
+    f.gone = f.gone || {}; f.gone[id] = 'left';
+    return ch;
+  }
+  function seated(f, id) { return CHAIRS.some(function (ch) { return sits(f, ch.post) === id; }); }
+  // The men of the table are paid like the others, dirty money first.
+  function payTable(f, events) {
+    f.owed = {};
+    CHAIRS.forEach(function (ch) {
+      var id = sits(f, ch.post);
+      if (!id) return;
+      if (funds(f) >= RULES.table.pay) spend(f, RULES.table.pay);
+      else { f.owed[ch.post] = true; events.push({ type: 'unpaid', capo: id, post: ch.post, due: RULES.table.pay, label: first(id) + ' has not been paid this month' }); }
+    });
+  }
   // The city remembers what its men know, so that every rule can ask without the family at hand.
   function learnt(c, f) {
+    var book = sits(f, 'bookkeeper'), fix = sits(f, 'fixer');
+    c.board = { wash: book ? 1 + RULES.table.wash * who(book).business : 1, cools: fix ? Math.floor(who(fix).charisma / RULES.table.charisma) : 0 };
     c.skills = {};
     Object.keys(f.men || {}).forEach(function (capo) {
       var rank = f.men[capo].rank || 0, list = SCHOOLS[schoolOf(capo)];
@@ -832,7 +887,7 @@
   function laundries(c) {
     var site = function (p) { return D.SITES[p.kind]; };
     return everyPlace(c).filter(function (p) { return p.owner === 'family' && site(p) && site(p).wash; }).map(function (p) {
-      return { x: p.x, y: p.y, most: site(p).wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5) * (can(c, p.capo, 'ledgers') ? 1.25 : 1), loss: site(p).loss };
+      return { x: p.x, y: p.y, most: site(p).wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5) * (can(c, p.capo, 'ledgers') ? 1.25 : 1) * ((c.board && c.board.wash) || 1), loss: site(p).loss };
     }).sort(function (a, b) { return a.loss - b.loss; });
   }
   function money(c, f, events) {
@@ -856,7 +911,7 @@
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
     var hidden = 2000 * Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'backroom'); }).length;
     c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud - RULES.cools * (held(c, 'shield') ? 2 : 1)
-      - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length;
+      - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length - ((c.board && c.board.cools) || 0);
     c.heat = Math.max(0, Math.min(100, c.heat));
     if (c.heat >= 100) {
       var seized = Math.round(Math.max(0, f.dirty) * RULES.bust);
@@ -923,7 +978,7 @@
   // Who would join the family in this city today, and through which door.
   function doors(c, f) {
     var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; }), out = [];
-    var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id); };
+    var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id) && !seated(f, id); };
     var add = function (id, door, by, why, price) {
       out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
       return out[out.length - 1];
@@ -1141,7 +1196,8 @@
     f.convoys = [];
     (roads || []).forEach(function (r) {
       [[r.from, r.to], [r.to, r.from]].forEach(function (way) {
-        var a = cities.filter(function (c) { return c.id === way[0]; })[0], b = cities.filter(function (c) { return c.id === way[1]; })[0], left = RULES.convoy.loads;
+        var a = cities.filter(function (c) { return c.id === way[0]; })[0], b = cities.filter(function (c) { return c.id === way[1]; })[0];
+        var left = RULES.convoy.loads + (sits(f, 'routes') ? Math.floor(who(sits(f, 'routes')).cunning / RULES.table.cunning) : 0);
         if (!a || !b) return;
         CHAINS.forEach(function (chain) {
           if (chain.bonus) return;
@@ -1165,6 +1221,7 @@
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
     ride(f, cities, roads);
+    payTable(f, events);
     if (f.study && --f.study.monthsLeft <= 0) {
       f.tech[f.study.kind] = f.study.tier;
       events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
@@ -1389,7 +1446,7 @@
     return events;
   }
 
-  var api = { abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
