@@ -47,6 +47,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
 
 await page.goto(page_url);
 await page.waitForSelector('#veil.on h2', { timeout: 120000 });
+await page.waitForFunction(() => { const s = window.AshportLoad.steps; return s.length && s[s.length - 1].part === 1; }, null, { timeout: 30000 }).catch(() => {});      // the last step is the first picture drawn
 const steps = await page.evaluate(() => window.AshportLoad.steps);
 assert.ok(steps.length >= 10 && steps[steps.length - 1].part === 1, 'the loading bar ends full (' + steps.length + ' steps)');
 assert.equal(await page.locator('#load').count(), 0);
