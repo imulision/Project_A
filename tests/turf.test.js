@@ -2130,3 +2130,52 @@ test('when the city is hot the police stop a truck every month and seize its loa
   assert.equal(play(T.RULES.road.heat - 10).e, undefined, 'a quiet city: nobody looks into a truck');
   assert.equal(play(T.RULES.road.heat + 10, true).e, undefined, 'with the precinct in its pocket the family drives through');
 });
+
+// --- between cities: what one city makes too much of goes down the road to the family's sellers that go without next door ---
+const twoTowns = (bars) => {
+  const a = town(), b = town(), f = family();
+  b.id = 'next';
+  T.settle(a, 'dutch', 2, 2); T.join(f, 'dutch'); kept(a, 'dutch');
+  T.open(a, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.settle(b, 'mae', 2, 2); T.join(f, 'mae'); kept(b, 'mae');
+  [[1, 1], [2, 1], [3, 1]].slice(0, bars).forEach(([x, y]) => T.open(b, x, y, { owner: 'family', kind: 'speakeasy', capo: 'mae' }));
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { a, b, f };
+};
+const ROAD = [{ from: 'town', to: 'next' }];
+
+test('liquor nobody drinks at home goes down the road to the family\'s dry bars in the next city, so many loads a month', () => {
+  const { a, b, f } = twoTowns(3);
+  T.month(f, [a, b], ROAD);
+  const went = T.convoys(f);
+  assert.equal(went.length, T.RULES.convoy.loads);
+  assert.deepEqual([went[0].from, went[0].to, went[0].cargo, went[0].amount, went[0].capo], ['town', 'next', 'liquor', CRATES, 'dutch']);
+  assert.deepEqual([went[0].x, went[0].y], [8, 2], 'it leaves from the still');
+  assert.equal(T.view(b, f).places.filter((p) => p.kind === 'speakeasy' && p.stock === CRATES).length, T.RULES.convoy.loads, 'and waits on the shelves of two bars');
+  T.month(f, [a, b], ROAD);
+  const dry = T.view(b, f).places.filter((p) => p.kind === 'speakeasy' && (p.strains || []).some((s) => s.kind === 'dry'));
+  assert.equal(dry.length, 3 - T.RULES.convoy.loads, 'the month after, those bars pour');
+});
+
+test('nothing leaves a city without a road, and nothing leaves that the city itself can drink', () => {
+  const far = twoTowns(3);
+  T.month(far.f, [far.a, far.b], []);
+  assert.deepEqual(T.convoys(far.f), []);
+  T.month(far.f, [far.a, far.b]);
+  assert.deepEqual(T.convoys(far.f), [], 'no roads given: every city for itself');
+  const { a, b, f } = twoTowns(3);
+  T.open(a, 1, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(a, 2, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.month(f, [a, b], ROAD);
+  assert.deepEqual(T.convoys(f), [], 'two bars at home drink all the still makes');
+});
+
+test('a road runs both ways, and carries goods for the fences like liquor for the bars', () => {
+  const { a, b, f } = twoTowns(0);
+  T.open(b, 8, 2, { owner: 'family', kind: 'warehouse', capo: 'mae' });
+  T.open(a, 1, 1, { owner: 'family', kind: 'fence', capo: 'dutch' });
+  T.month(f, [a, b], ROAD);
+  const went = T.convoys(f);
+  assert.equal(went.length, T.RULES.convoy.loads);
+  for (const v of went) assert.deepEqual([v.from, v.to, v.cargo, v.capo], ['next', 'town', 'goods', 'mae']);
+});

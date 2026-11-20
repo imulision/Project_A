@@ -77,7 +77,7 @@
     while (g.ticks >= TICKS_PER_MONTH && !g.paused) {
       g.ticks -= TICKS_PER_MONTH;
       var month = g.month, was = { dirty: g.family.dirty, clean: g.family.clean || 0 };
-      var happened = T.month(g.family, g.cities);
+      var happened = T.month(g.family, g.cities, W.ROUTES);
       g.change = { dirty: Math.round(g.family.dirty) - Math.round(was.dirty), clean: Math.round(g.family.clean || 0) - Math.round(was.clean) };
       g.waiting = g.waiting || {};
       happened.forEach(function (e) {
