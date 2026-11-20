@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { due } from './pace.mjs';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -29,7 +30,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 // ---------- renderer. Resolution is adaptive: it drops by itself when the device cannot hold the frame rate
 let pr = Math.min(devicePixelRatio, 2);
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
+const renderer = new THREE.WebGLRenderer({ antialias: Q.has('aa'),      // the picture goes through the effects, so smoothing the last buffer changes nothing that can be seen (measured: same as the grain's own noise)
+   powerPreference: 'high-performance', preserveDrawingBuffer: Q.has('shot') });
 renderer.setPixelRatio(pr);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
@@ -728,6 +730,7 @@ function pickAt(cx, cy) {
   return null;
 }
 function frame(now) {
+  if (!due(now, last)) { requestAnimationFrame(frame); return; }      // never more than 60 images a second (render/pace.mjs)
   const real = Math.min(1, (now - last) / 1000), dt = Math.min(0.05, real); last = now;      // cars never jump more than a twentieth of a second; a fire burns its real time, however slow the machine
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
