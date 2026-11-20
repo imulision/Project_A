@@ -2042,3 +2042,31 @@ test('weed nobody sells stays in the loft and says so only when the family has s
   assert.equal(loft.holds, 'weed');
   assert.equal(loft.strains.find((s) => s.kind === 'surplus').label, 'Stash full: ' + loft.stock + ' bags wait for a truck');
 });
+
+// --- what goes up to the boss: a share of everything the cars bring in, before the capo pays his men ---
+test('a capo kicks up a share of his takings, even the month his men cost him all the rest', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.cash = 500;
+  T.stepMonth(c, f);
+  const m = f.men.dutch, sent = c.flow.sent.dutch;
+  assert.ok(m.income > 0);
+  assert.ok(Math.abs(sent - T.RULES.tribute * m.income) < 1e-6, 'sent ' + sent + ' of ' + m.income);
+});
+
+test('a capo with an empty club sends up what he has and no more: he never owes the boss', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.cash = -2000; // deep in the red
+  T.stepMonth(c, f);
+  assert.equal(c.flow.sent.dutch, 0);
+});
+
+test('no capo opens one more still when the family already makes more liquor than its bars pour', () => {
+  const only = () => { const t = ALL(); for (const k of Object.keys(t)) t[k] = k === 'still' || k === 'rented' ? 3 : 0; return t; };
+  const next = (stills) => {
+    const c = town(); T.settle(c, 'sal', 8, 2);
+    [[7, 1], [8, 1], [9, 1]].slice(0, stills).forEach(([x, y]) => T.open(c, x, y, { owner: 'family', kind: 'still', capo: 'sal' }));
+    return T.wants(c, 'sal', { rank: 3, tech: only() }).kind;
+  };
+  assert.equal(next(0), 'still');
+  assert.equal(next(2), 'rented', 'two stills and not one bar: he puts his money elsewhere');
+});
