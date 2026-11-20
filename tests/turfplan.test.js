@@ -310,3 +310,16 @@ test('the edge of town thins out and stays low, the middle is full', () => {
   assert.ok(openShare(rim) > openShare(core) * 2, 'more open ground on the rim');
   assert.ok(tallShare(rim) < tallShare(core), 'and lower buildings');
 });
+
+test('a block the rules leave out of the town (water, rails, waste ground) is drawn as such, with nothing built on it', () => {
+  const c = JSON.parse(JSON.stringify(cityOf(play(1))));
+  const free = c.blocks.filter((b) => !c.places.some((p) => p.x === b.x && p.y === b.y)).slice(0, 3);
+  ['water', 'rail', 'waste'].forEach((v, n) => Object.assign(free[n], { void: v, grip: null, family: 0, rival: 0 }));
+  const p = M.planTurf(c);
+  free.forEach((b) => {
+    lotsOf(p, b.x, b.y).forEach((l) => assert.equal(l.open, b.void));
+    assert.equal(p.blocks.find((q) => q.x === b.x && q.y === b.y).void, b.void);
+  });
+  assert.equal(p.lots.length, c.w * c.h * 6);
+  assert.doesNotThrow(() => M.planTurf(cityOf(play(1))), 'a town without any gap is drawn as before');
+});

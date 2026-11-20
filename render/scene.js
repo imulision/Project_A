@@ -308,6 +308,7 @@ function turfGround(C) {
   const bw = 4 * T, bd = 3 * T, at = (x, y) => (x < 0 || y < 0 || x >= C.bx || y >= C.by) ? null : C.p.blocks[y * C.bx + x];
   for (const b of C.p.blocks) {
     if (!b.grip) continue;
+    if (b.void) continue;      // nobody holds water, rails or waste ground
     const ours = b.grip === 'family', x0 = C.ox + b.x * bw, z0 = C.oz + b.y * bd;
     const col = new THREE.Color(ours ? FAMILY.family : b.grip === 'contested' ? 0xffffff : FAMILY[C.p.rival] || FAMILY.other);
     const fill = new THREE.Mesh(UNIT, fxMat(null, col, ours ? 0.10 + 0.07 * Math.round(b.hold * 2) : b.grip === 'contested' ? 0.09 : 0.045));
@@ -323,7 +324,9 @@ function turfGround(C) {
 // Open ground, far and near alike: a park is a lawn with a few trees, an empty lot is bare earth. put(x, y, z, w, h, d, colour) draws one box.
 const LAWN = 0x4f6b45, EARTH = 0x4d4a3c, LEAF = [0x3d6144, 0x4a6b4a, 0x355543];
 function openGround(l, put) {
+  if (l.open === 'water') { put(l.x, 0.02, l.z, 2, 0.04, 2, 0x1f3550); return; }
   put(l.x, 0.1, l.z, 1.9, 0.05, 1.9, l.open === 'park' ? LAWN : EARTH);
+  if (l.open === 'rail') { put(l.x, 0.15, l.z - 0.35, 2, 0.05, 0.08, 0x8a8790); put(l.x, 0.15, l.z + 0.35, 2, 0.05, 0.08, 0x8a8790); return; }
   if (l.open !== 'park') return;
   for (let k = 0; k < 3; k++) { const a = hsh(l.i + k * 7, l.j), b = hsh(l.j, l.i + k * 5); if (a < 0.25) continue;
     put(l.x + (a - 0.5) * 1.4, 0.15, l.z + (b - 0.5) * 1.4, 0.42, 0.7 + b * 0.7, 0.42, LEAF[k]); }
@@ -349,6 +352,11 @@ function buildFar(C) {
   cur = new THREE.Group();
   for (const l of C.lots) if (l.shop && hsh(l.j, l.i) < 0.6) pool(l.x, l.z + 0.9, 3.2, l.ours ? 0xffc46a : 0xffa860, l.ours ? 0.6 : 0.3);
   for (const l of C.lots) if (l.site) pool(l.x, l.z + 0.9, 4.5, new THREE.Color(l.site.color), 0.8);     // the family's places show from afar
+  for (const l of C.lots) if (!l.open) {      // lamps in the windows of what the family holds: the firmer the hold, the more of them (look.mjs)
+    const n = lotLook(l, hsh(l.i + 3, l.j + 5)).lamps;
+    for (let k = 0; k < n; k++) { const a = hsh(l.i + k * 11, l.j + 1), b = hsh(l.j + k * 13, l.i + 2), front = a < 0.5;
+      glow(l.x + (front ? (b - 0.5) * 1.1 : 0.76), 0.25 + l.h * (0.25 + 0.6 * a), l.z + (front ? 0.76 : (b - 0.5) * 1.1), 0.55, GLOW_WARM, 0xffd9a0, 0.9); }
+  }
   bake(cur); C.farBody = new THREE.Group(); C.farBody.add(far, cur);
   cur = new THREE.Group(); if (!C.p.turf) borders(C); bake(cur);
   G.add(C.farBody, cur); lods.add(G); C.far = G;
