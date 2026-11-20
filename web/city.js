@@ -133,8 +133,19 @@
   setInterval(meter, 1000);
 
   // ---- a touch on the map: from afar it goes to the city, up close it names the street; while a club is being placed, it places it
-  function tap(hit) {
-    if (!hit || !g.started) return;
+  // Labels never take the finger themselves, so a drag that starts on one still moves the map. A short touch is sorted here:
+  // the label under the finger first (the most important one if several), then the street.
+  var shown = [], REACH = 8;
+  function labelAt(x, y) {
+    var best = null;
+    shown.forEach(function (b) { if (x >= b.x - REACH && x <= b.x + b.w + REACH && y >= b.y - REACH && y <= b.y + b.h + REACH && (!best || b.rank < best.rank)) best = b; });
+    return best && labs[best.id];
+  }
+  function tap(hit, x, y) {
+    if (!g.started) return;
+    var e = x == null ? null : labelAt(x, y);
+    if (e && !(picking && !e.l.car)) return tapLabel(e.l, e);
+    if (!hit) return;
     var c = view.cities.filter(function (q) { return q.id === hit.city; })[0], inside = c && hit.bx >= 0 && hit.by >= 0 && hit.bx < c.w && hit.by < c.h;
     if (picking) {
       if (hit.city !== picking.city || !hit.near || !inside) return map.focus(picking.city, inside && hit.city === picking.city ? zoneId(hit.city, hit.bx, hit.by) : undefined);
@@ -169,7 +180,6 @@
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
           else if (l.capo) e.className = 'lab capo';
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<b></b><span></span>'; e.b = e.firstChild; e.s = e.lastChild; }
-          if (!l.fx) e.onclick = function (ev) { ev.stopPropagation(); tapLabel(e.l, e); };
           $('labels').appendChild(e);
         }
         // a label is moved by the compositor alone, and only when it has moved by a whole pixel: no layout of the page per frame
@@ -187,6 +197,7 @@
       // a label that would sit on a more important one steps aside
       var off = C.crowded(boxes);
       boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
+      shown = boxes.filter(function (b) { return !off[b.id]; });
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
     requestAnimationFrame(drawLabels);
