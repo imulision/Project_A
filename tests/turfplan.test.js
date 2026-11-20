@@ -294,8 +294,10 @@ test('tall buildings stand together in neighbourhoods instead of being sprinkled
 
 test('some ground is left open, the same every time, and never where a place stands', () => {
   const g = play(18), c = cityOf(g), p = M.planTurf(c), again = M.planTurf(cityOf(g));
-  const open = p.lots.filter((l) => l.open), parks = open.filter((l) => l.open === 'park');
-  assert.ok(open.length > p.lots.length * 0.04 && open.length < p.lots.length * 0.25, 'a few lots in a hundred (' + open.length + ' of ' + p.lots.length + ')');
+  // (the blocks missing from the city's outline, water, rail or waste, are not ground left open in the town: they are counted apart)
+  const gap = (l) => ['water', 'rail', 'waste'].includes(l.open), town = p.lots.filter((l) => !gap(l));
+  const open = town.filter((l) => l.open), parks = open.filter((l) => l.open === 'park');
+  assert.ok(open.length > town.length * 0.04 && open.length < town.length * 0.25, 'a few lots in a hundred (' + open.length + ' of ' + town.length + ')');
   assert.ok(parks.length >= 6, 'and at least one whole park');
   assert.deepEqual(again.lots.map((l) => l.open || ''), p.lots.map((l) => l.open || ''));
   p.lots.forEach((l) => { if (l.site || l.hideout) assert.ok(!l.open, 'a place is never open ground'); });
