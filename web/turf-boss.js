@@ -8,7 +8,7 @@
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
   var RULES = R.RULES, key = R.key, far = R.far;
-  var KEYS = P.KEYS, can = P.can, sway = P.sway, loyalty = P.loyalty;
+  var KEYS = P.KEYS, can = P.can, sway = P.sway;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
   var first = S.first, funds = S.funds, spend = S.spend;
@@ -52,14 +52,13 @@
     f.clean = f.clean || 0;
     var flow = c.flow || (c.flow = { up: 0, sent: {} });
     flow.pay = 0; flow.cut = 0; flow.seized = 0; flow.wash = {};
-    // every man in the city is paid by his rank
+    // every man in the city is paid out of what he sent up: a share of it, and never more than his rank allows.
+    // The boss is never asked for money he was not sent.
     Object.keys(f.men).forEach(function (capo) {
       if (!clubOf(c, capo)) return;
-      var due = RULES.pay[f.men[capo].rank], dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
+      var due = Math.min(RULES.pay[f.men[capo].rank], RULES.payShare * (flow.sent[capo] || 0));
+      var dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
       f.dirty -= dirty; f.clean -= clean; flow.pay += dirty + clean;
-      // a man who is not paid grumbles, down to restless and no further: it takes an affront to make him bitter
-      if (dirty + clean < due) sway(f, capo, -Math.min(RULES.loyal.unpaid, Math.max(0, loyalty(f, capo) - RULES.loyal.bitter)));
-      if (dirty + clean < due) events.push({ type: 'unpaid', capo: capo, city: c.id, due: due, label: first(capo) + ' has not been paid this month' });
     });
     // the fronts wash what they can of what is left
     c.washed = 0;

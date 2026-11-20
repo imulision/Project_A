@@ -39,7 +39,8 @@
     keyMonths: 2,       // a key place takes this many times longer than a rival's bar
     sulk: 24,           // months a capo lets a key place rest after the boss said no
     soap: 4,            // how much more a capo wants a laundry while dirty money piles up in the boss's safe
-    pay: [0, 100, 250, 500], // $ a month the boss owes a Soldier, a Capo, a Veteran and a Legend
+    pay: [0, 100, 250, 500], // the most a Soldier, a Capo, a Veteran and a Legend is paid a month
+    payShare: 0.6,      // a man's wage is this share of what he sent up that month, up to what his rank allows
     stash: 3000,        // dirty $ the boss can keep without anybody noticing
     hot: 4,             // heat a month while more than that sleeps in his safe
     loud: 10,           // heat for every place burnt, raid thrown back or place taken by force
@@ -88,11 +89,11 @@
     // to every laundry, the points of Cunning Routes needs for one more load down every road, and the points of
     // Charisma the Fixer needs to cool every city by one more
     table: { pay: 300, wash: 0.05, cunning: 2, charisma: 4 },
-    // loyalty, out of 100: what a month without his wage, a feud lost, a key place refused and a killing in his city cost
+    // loyalty, out of 100: what a feud lost, a key place refused and a killing in his city cost
     // a man; what a key place granted and a rise in rank give; points a quiet month brings him back toward what he is;
     // below `restless` and `bitter` his mood changes; months a bitter man waits before he goes over to the rivals;
     // clean $ a gift costs, what it gives, months before the next one
-    loyal: { unpaid: 5, lost: 10, refused: 8, blood: 6, granted: 5, rank: 6, heals: 1, restless: 50, bitter: 25, turns: 6, gift: 1500, warms: 15, again: 12 },
+    loyal: { lost: 10, refused: 8, blood: 6, granted: 5, rank: 6, heals: 1, restless: 50, bitter: 25, turns: 6, gift: 1500, warms: 15, again: 12 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through

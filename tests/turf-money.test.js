@@ -35,21 +35,38 @@ test('without a front nothing is washed', () => {
   assert.deepEqual(T.washing(c), { washed: 0, most: 0 });
 });
 
-test('a man is paid by his rank: dirty money first, clean money if it must, and he says so when there is neither', () => {
-  const { c, f } = laundry(0);
-  f.men.mae.rank = 2;
-  const pay = T.RULES.pay[2];
-  f.dirty = pay; f.clean = pay;
-  let events = T.stepMonth(c, f);
-  assert.ok(f.dirty < pay && f.clean === pay, 'paid in dirty money');
-  assert.ok(!events.some((e) => e.type === 'unpaid'));
-  f.dirty = 0; f.clean = pay;
-  events = T.stepMonth(c, f);
-  assert.ok(f.clean < pay, 'then in clean');
-  f.dirty = 0; f.clean = 0; f.men.mae.cash = -1e6; // her club's tribute cannot cover it
-  events = T.stepMonth(c, f);
-  assert.ok(events.some((e) => e.type === 'unpaid' && e.capo === 'mae'));
+test('a man\'s wage is a cut of what he sends up, capped by his rank: the boss never owes more than he was sent', () => {
+  const paid = (rank, level, cash) => {
+    const c = town(), f = family({ dirty: 0, clean: 0 });
+    for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+    T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+    T.open(c, 3, 2, { owner: 'family', kind: 'gambling', capo: 'dutch', level });
+    f.men.dutch.rank = rank; f.men.dutch.xp = T.RULES.xp[rank];
+    if (cash) f.men.dutch.cash = cash; // spare cash he has no use for goes up with the rest
+    const events = T.stepMonth(c, f);
+    assert.ok(!events.some((e) => e.type === 'unpaid'), 'nobody is left unpaid');
+    return { pay: c.flow.pay, sent: c.flow.sent.dutch, left: f.dirty + f.clean };
+  };
   assert.equal(T.RULES.pay[0], 0, 'a Soldier lives off his streets');
+  assert.equal(paid(0, 1).pay, 0);
+  // a Legend with one small room: he sends little, and half of that is all he is owed
+  const small = paid(3, 1);
+  assert.ok(small.sent * T.RULES.payShare < T.RULES.pay[3]);
+  assert.equal(small.pay, small.sent * T.RULES.payShare);
+  assert.ok(small.left > 0, 'the boss keeps the rest');
+  // a Capo who sends a lot: his rank's wage and no more
+  const capo = paid(1, 3, 5000);
+  assert.ok(capo.sent * T.RULES.payShare > T.RULES.pay[1]);
+  assert.equal(capo.pay, T.RULES.pay[1]);
+});
+
+test('a wage is paid in dirty money first, in clean money if it must', () => {
+  const { c, f } = laundry(0);
+  f.men.mae.rank = 2; f.men.mae.cash = 5000; // she sends her spare cash up, and is owed a cut of it
+  f.dirty = 0; f.clean = 1000;
+  T.stepMonth(c, f);
+  assert.ok(c.flow.pay > 0);
+  assert.equal(f.clean, 1000, 'what she sent covers it: the clean money is not touched');
 });
 
 test('dirty money that sleeps in the boss\'s safe heats the city; an empty safe lets it cool', () => {
@@ -136,7 +153,7 @@ test('the bigger the man, the more he keeps: what a Soldier cannot use all goes 
     for (const k of Object.keys(f.tech)) f.tech[k] = 0; // nothing he may open: all he has is spare
     f.men.dutch.cash = T.RULES.pocket + spare + tribute - T.RULES.club;
     T.stepMonth(c, f);
-    return { sent: f.dirty - 1000 + T.RULES.pay[rank] - tribute, kept: f.men.dutch.cash };
+    return { sent: c.flow.sent.dutch - tribute, kept: f.men.dutch.cash };
   };
   assert.deepEqual(T.RULES.keeps, [0, 0.5, 0.75, 0.9]);
   assert.deepEqual([0, 1, 2, 3].map((r) => Math.round(up(r).sent)), [0, 1, 2, 3].map((r) => Math.round(spare * (1 - T.RULES.keeps[r]))));
@@ -192,7 +209,7 @@ test('the city says what came up to the boss last month, man by man, and what we
   const m = T.view(c, f).money, man = T.view(c, f).capos[0];
   assert.ok(m.up > 0);
   assert.equal(man.sent, m.up, 'one capo: all of it is his');
-  assert.equal(m.pay, T.RULES.pay[1]);
+  assert.equal(m.pay, Math.min(T.RULES.pay[1], m.up * T.RULES.payShare));
   assert.equal(m.seized, 0);
   assert.ok(m.cut > 0 && m.washed > m.cut);
   assert.ok(Math.abs(f.dirty - (before.dirty + m.up - m.pay - m.washed)) < 1e-6, 'dirty: what came up, less the pay, less what went to the wash');
