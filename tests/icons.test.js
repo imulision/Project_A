@@ -7,7 +7,7 @@ const D = require('../web/district.js');
 test('every place, stat, cargo and move the rules know has its icon', () => {
   const names = Object.keys(D.SITES).concat(['muscle', 'business', 'cunning', 'charisma', 'loyalty', 'ambition'],
     ['protection', 'seize', 'push', 'bribe'], ['liquor', 'takings', 'laundering', 'tribute', 'works', 'streets', 'collection', 'seizure', 'raid', 'attack', 'hit', 'kidnap'],
-    ['dirty', 'clean', 'men', 'heat', 'goodwill', 'truck', 'car', 'police']);
+    ['dirty', 'clean', 'men', 'heat', 'goodwill', 'truck', 'car', 'police'], ['gift', 'whispers', 'betrayal']);
   names.forEach((n) => { assert.ok(I.has(n), 'no icon for ' + n); assert.match(I.icon(n), /^<svg[^>]*class="ic"/); });
 });
 

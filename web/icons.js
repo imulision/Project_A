@@ -64,6 +64,10 @@
   P.raid = P.heat;
 
   P.cars = P.car;
+  // loyalty: a gift from the boss, word that gets around, a man who goes over
+  P.gift = '<path d="M9 2a3 3 0 0 1 3 2 3 3 0 0 1 3-2 2.800 2.800 0 0 1 2.300 4.500H21V11H3V6.500h3.700A2.800 2.800 0 0 1 9 2zm0 2.200a.900.900 0 0 0 0 1.800h1.600C10.400 5 9.800 4.200 9 4.200zm6 0c-.800 0-1.400.800-1.600 1.800H15a.900.900 0 0 0 0-1.800zM4.500 12.500h6.300V22H4.500zm8.700 0h6.300V22h-6.300z"/>';
+  P.whispers = P.charisma;
+  P.betrayal = '<path d="M20.500 2l1.500 1.500-9.500 11-2-2zM8.500 12.500l3 3-1.700 1.700 1.200 1.200-1.500 1.500-1.200-1.200L5.500 21.500 2.500 18.500l2.800-2.800-1.200-1.200 1.500-1.500 1.200 1.200z"/>';
   P.dirty = P.takings;      // dirty cash has one picture everywhere: the bag, on the top bar, on the cars and in the sheets
   function has(name) { return Object.prototype.hasOwnProperty.call(P, name) && name !== 'unknown'; }
   function icon(name, title) {

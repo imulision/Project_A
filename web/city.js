@@ -142,7 +142,8 @@
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') pick(d.city, d.city, d.capo);
-    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo)); } }
+    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
+    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g))); } }
     else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
@@ -150,7 +151,7 @@
     else if (act === 'requests') requests();
     else if (act === 'family') show(C.family(view, E.hud(g)));
     else if (act === 'road') pick(d.from, d.city, d.capo);
-    else if (act === 'capo') show(C.capo(view, d.city, d.capo));
+    else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g)));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));
     else if (act === 'part') { if (order({ type: 'part', city: d.city, capo: d.capo, way: d.way })) { close(); toast(g.journal[g.journal.length - 1].label, true); } }
     else if (act === 'city') show(C.city(view, d.city));
@@ -215,7 +216,7 @@
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
     else if (picking) return;
     else if (l.site) said(l.city, l.bx, l.by, e);
-    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo)); }
+    else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g))); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
   var MOVE = 'translate' in document.documentElement.style;

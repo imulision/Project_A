@@ -192,3 +192,5 @@ body.stopped .sub #sub{display:none}
 @keyframes newsin{from{opacity:0;transform:translateX(40px)}}
 .lab.fx.news{width:28px;height:28px}
 .slot.under{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+.move.mood.steady .ic{color:var(--good)}.move.mood.restless{border-left:3px solid var(--accent)}.move.mood.restless .ic{color:var(--accent)}.move.mood.bitter{border-left:3px solid var(--bad)}.move.mood.bitter .ic,.move.mood.bitter b{color:var(--bad)}
+.slot.restless{outline:2px solid var(--accent);outline-offset:1px}.slot.bitter{outline:2px solid var(--bad);outline-offset:1px}

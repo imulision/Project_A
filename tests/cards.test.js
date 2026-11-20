@@ -515,3 +515,42 @@ test('the sheet of requests opens whoever stands behind the man at the door', ()
   assert.match(html, /spoken for by Sal/);
   assert.equal(html.match(/spoken for by/g).length, 1, 'only a man of the family speaks for another');
 });
+
+// ---- loyalty: the screen gets a mood, never a number
+test('a capo sheet shows his mood, and a gift the boss can make when he has the clean money', () => {
+  const g = E.createGame(); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
+  const v = E.view(g), city = v.cities[0], k0 = city.capos[0];
+  const with_ = (more) => ({ ...v, cities: [{ ...city, capos: [{ ...k0, ...more }] }] });
+  const steady = C.capo(with_({ mood: 'steady', gift: { cost: 1500, wait: 0 } }), city.id, k0.id, { clean: 2000 });
+  assert.match(steady, /class="move mood steady"/); assert.match(steady, /Steady/);
+  assert.match(steady, /data-act="gift" data-city="ashport" data-capo="sal"[^>]*>.*?Make him a gift · \$1,500/);
+  assert.doesNotMatch(steady.match(/<button[^>]*data-act="gift"[^>]*>/)[0], /disabled/);
+  const bitter = C.capo(with_({ mood: 'bitter', gift: { cost: 1500, wait: 0 } }), city.id, k0.id, { clean: 400 });
+  assert.match(bitter, /class="move mood bitter"/); assert.match(bitter, /sends nothing up/);
+  assert.match(bitter.match(/<button[^>]*data-act="gift"[^>]*>/)[0], /disabled/, 'not without the clean money');
+  assert.match(bitter, /clean money/);
+  const waits = C.capo(with_({ mood: 'restless', gift: { cost: 1500, wait: 7 } }), city.id, k0.id, { clean: 9000 });
+  assert.match(waits, /class="move mood restless"/);
+  assert.match(waits.match(/<button[^>]*data-act="gift"[^>]*>/)[0], /disabled/, 'one gift a year');
+  assert.match(waits, /in 7 months/);
+  const old = C.capo(with_({ mood: undefined, gift: undefined }), city.id, k0.id);
+  assert.doesNotMatch(old, /class="move mood|data-act="gift"/, 'rules that say nothing of loyalty draw nothing');
+});
+
+test('a restless or bitter man is marked on his portrait in the city sheet', () => {
+  const g = E.createGame(); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
+  const v = E.view(g), city = v.cities[0], k0 = city.capos[0];
+  const of = (mood) => C.city({ ...v, cities: [{ ...city, capos: [{ ...k0, mood }] }] }, city.id);
+  assert.match(of('bitter'), /class="slot[^"]* bitter"[^>]*data-tip="[^"]*bitter/);
+  assert.match(of('restless'), /class="slot[^"]* restless"[^>]*data-tip="[^"]*restless/);
+  assert.doesNotMatch(of('steady'), /class="slot[^"]* (steady|restless|bitter)"/);
+});
+
+test('whispers, a betrayal and a gift have their tile and their line in the journal', () => {
+  const w = C.news({ type: 'whispers', label: 'Word gets around: Sal is bitter', city: 'ashport', x: 3, y: 4 });
+  assert.match(w, /class="news bad"/); assert.match(w, /data-x="3"/);
+  assert.match(C.news({ type: 'betrayal', label: 'Sal goes over to the Callahans', city: 'ashport', x: 3, y: 4 }), /class="news bad"/);
+  assert.doesNotMatch(C.news({ type: 'gift', label: 'A gift for Sal', city: 'ashport', x: 3, y: 4 }), /class="news bad"/);
+  ['whispers', 'betrayal', 'gift'].forEach((t) => assert.ok(C.EVENT[t], t + ' has its own icon'));
+  assert.notEqual(C.EVENT.betrayal, C.EVENT.gift);
+});

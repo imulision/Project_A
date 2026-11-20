@@ -81,6 +81,17 @@ await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
 await page.waitForSelector('#veil.on');
 assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
+// his sheet says how he stands with the boss, and a gift waits for clean money: once made, not again this year
+assert.ok(await page.locator('#sheet .move.mood').count() === 1, 'his mood is on his sheet');
+assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'no gift without clean money');
+await page.click('#sheet [data-act=close]');
+const kept = await page.evaluate(() => { const g = window.__ashport.game(), was = g.family.clean || 0; g.family.clean = 2000; return was; });
+await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
+await page.waitForSelector('#veil.on');
+await page.click('#sheet [data-act=gift]');
+assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'one gift a year');
+assert.match(await page.textContent('#sheet'), /again in 12 months/);
+assert.equal(await page.evaluate((kept) => { const g = window.__ashport.game(), left = g.family.clean; g.family.clean = kept; return left; }, kept), 500, 'the gift is paid in clean money');
 await page.click('#sheet [data-act=close]');
 // a real finger on a building: a small bubble beside it, the map stays in full view and time goes on
 await page.touchscreen.tap(moved.x + moved.width / 2, moved.y + moved.height + 12);
