@@ -15,6 +15,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|ERR_INTERNET|ERR_NAME|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const shot = async (name) => { if (shots) { await page.waitForTimeout(2500); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
+const window_change = (n) => (n > 0 ? '+$' + n.toLocaleString('en-US') : n < 0 ? '\u2212$' + (-n).toLocaleString('en-US') : '');
 const still = () => page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 60000 });
 const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men'].map((k) => document.getElementById(k).textContent).join(' | '));
 // Time, month by month. The boss answers as a player would, through the buttons of the sheets: yes when he can pay, no when he cannot;
@@ -62,6 +63,12 @@ await still();
 const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length, capos: document.querySelectorAll('.lab.capo').length }));
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
 await shot('c2-first-club');
+
+// money can be followed: every car of cash says how much it carries, and each total says what last month did to it
+await page.evaluate(() => { for (let i = 0; i < 8; i++) window.__ashport.beat(); });
+await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
+const change = await page.evaluate(() => ({ shown: document.getElementById('dirtyd').textContent, rules: window.AshportEmpire.hud(window.__ashport.game()).change.dirty }));
+assert.equal(change.shown, window_change(change.rules), 'the change of the month is written beside the dirty total');
 
 // a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens
 const face = await page.locator('.lab.capo').boundingBox(), fx = face.x + face.width / 2, fy = face.y + face.height / 2;

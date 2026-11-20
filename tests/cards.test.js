@@ -222,3 +222,26 @@ test('dirty cash has one picture everywhere: on the top bar, on the cars that ca
   assert.notEqual(C.HAUL.wash[1], C.HAUL.takings[1], 'the colour still tells the two trips apart');
   assert.notEqual(I.icon('dirty'), I.icon('clean'));
 });
+
+test('money that can be followed: the month\'s change beside a total, the amount a car carries, what a capo sent up', () => {
+  assert.equal(C.change(52), '+$52');
+  assert.equal(C.change(-1300), '−$1,300');
+  assert.equal(C.change(0), '');
+  assert.equal(C.change(undefined), '');
+  assert.equal(C.carLoad({ kind: 'takings', amount: 142 }), '$142');
+  assert.equal(C.carLoad({ kind: 'wash', amount: 80 }), '$80');
+  assert.equal(C.carLoad({ kind: 'takings', amount: 0 }), '');
+  assert.equal(C.carLoad({ kind: 'liquor', amount: 30 }), '', 'only cash is counted in dollars');
+  assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /\$142 on board/);
+  assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /Sal/);
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const v = E.view(g), k = v.cities[0].capos[0];
+  assert.ok(k.sent > 0, 'he sent something up');
+  const sheet = C.capo(v, v.cities[0].id, k.id);
+  assert.ok(sheet.includes('SENT UP</small><b>' + C.money(k.sent)), 'what he sent up');
+  assert.ok(sheet.includes('CARS</small><b>' + k.cars), 'his cars');
+  // cash that waits in a place's till for a car is said on the place and on the capo
+  const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club'); p.till = 90; k.waiting = 90;
+  assert.match(C.block(v, c.id, p.x, p.y), /\$90 in the till, waiting for a car/);
+  assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
+});

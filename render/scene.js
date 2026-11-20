@@ -605,7 +605,7 @@ const labels = () => {
   // what every car carries, when the cars themselves are drawn
   let shownCars = 0;
   for (const [id, a] of agents) { if (!a.seen || shownCars >= MAXTAGS) continue; shownCars++;
-    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, x, y }); }
+    const [x, y] = scr(a.x, a.z, 1.1); out.push({ id: 'v' + id, car: a.tag, back: a.dir < 0, x, y }); }
   const shown = new Set();      // one badge per kind and per block, however many shots are fired
   for (const f of fxList) { const k = f.kind + Math.round(f.x / 12) + ':' + Math.round(f.z / 12); if (shown.has(k)) continue; shown.add(k); const [x, y] = scr(f.x, f.z); out.push({ id: 'f' + k, fx: f.kind, part: Math.min(1, f.t / f.life), x, y }); }
   return out;
@@ -648,16 +648,16 @@ function agentFor(t) {
   for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
   if (!L) return null;
   // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
-  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0, sig: t.path.join(';'), leaving: false,
+  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: t.path.join(';'), leaving: false,
            geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-           tag: { cargo: t.cargo, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
+           tag: { cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null };
 }
 function traffic(trips) {
   const seen = new Set();
   for (const t of trips) {
     if (t.loop) { seen.add(t.id); const old = agents.get(t.id);
       if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (fxN++), old); }      // the route changed: the old car finishes its run
-      if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load }); }
+      if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load, amount: t.amount || 0 }); }
     else { const a = agentFor(t); if (a) agents.set('once' + (fxN++), a); }
   }
   // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there

@@ -40,6 +40,8 @@
   function home() { var c = view.cities.filter(function (q) { return q.held; })[0], k = c && c.capos[0]; if (k) map.focus(c.id, zoneId(c.id, k.x, k.y)); else map.focus(null); }
 
   // ---- the top of the screen
+  // what last month did to a total, beside it: green when it grew, red when it shrank
+  function delta(id, n) { var e = $(id), t = C.change(n); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('bad', n < 0); } }
   function showHud() {
     var h = E.hud(g);
     $('date').textContent = h.date;
@@ -47,6 +49,7 @@
     $('speed').textContent = h.speed + 'x';
     if (!h.started) return;
     $('dirty').textContent = C.money(h.dirty); $('clean').textContent = C.money(h.clean);
+    delta('dirtyd', (h.change || {}).dirty); delta('cleand', (h.change || {}).clean);
     $('share').textContent = h.share + '%'; $('cities').textContent = h.cities.held + ' / ' + h.cities.total;
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
@@ -180,7 +183,7 @@
         if (!e) {
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
-          else if (l.car) { var h = C.HAUL[l.car.kind] || C.HAUL.takings; e.className = 'lab tag'; e.style.setProperty('--c', h[1]); e.innerHTML = I.icon(h[0]); }
+          else if (l.car) { var h = C.HAUL[l.car.kind] || C.HAUL.takings; e.className = 'lab tag'; e.style.setProperty('--c', h[1]); e.innerHTML = I.icon(h[0]) + '<b></b>'; e.b = e.lastChild; }
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
           else if (l.capo) e.className = 'lab capo';
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<b></b><span></span>'; e.b = e.firstChild; e.s = e.lastChild; }
@@ -192,10 +195,11 @@
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); } }
+        else if (l.car) { var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!cash && l.back); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
         if (l.fx || l.role === 'club') return;
-        var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.site || l.car ? 22 : 46, h = name ? e.h : w;
+        var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
       // a label that would sit on a more important one steps aside
@@ -208,7 +212,7 @@
   }
 
   // ---- time
-  var LOUD = { burnt: 1, bust: 1, unpaid: 1, taken: 0, rank: 0, learned: 0, repelled: 0 };
+  var LOUD = { burnt: 1, bust: 1, unpaid: 1, taken: 0, rank: 0, learned: 0, repelled: 0, car: 0 };
   function beat() {
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g);

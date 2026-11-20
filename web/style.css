@@ -9,9 +9,9 @@ h1::after{content:"";display:block;width:44px;height:3px;background:var(--accent
 .sub{color:var(--dim);margin:6px 0 8px}
 .res{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .res div{border-top:1px solid var(--line);background:var(--panel);padding:5px 8px;pointer-events:auto}
-.res small i{font-style:normal;color:var(--good);float:right}
+.res small i{font-style:normal;color:var(--good);margin-left:auto;padding-left:4px}.res small i.bad{color:var(--bad)}
 .res small span{margin-right:3px}
-.res small{display:block;font-size:.72em;color:var(--dim);letter-spacing:.4px;white-space:nowrap}
+.res small{display:flex;align-items:center;font-size:.72em;color:var(--dim);letter-spacing:.4px;white-space:nowrap}
 .res b{font:500 1.45em/1.15 var(--title);letter-spacing:.5px;font-variant-numeric:tabular-nums;display:block}
 #alerts{margin-top:6px;display:grid;gap:4px}
 #alerts div{background:var(--panel);border-left:3px solid var(--bad);padding:4px 8px;font-size:.92em;pointer-events:auto}
@@ -165,3 +165,6 @@ button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
 .lab.pin.club{display:none}
 .lab.off{visibility:hidden;pointer-events:none}
 .lab,.lab *{pointer-events:none!important}
+
+/* a car that carries cash says how much: the month's takings of one place, or what goes to one laundry */
+.lab.tag.empty{display:none}.lab.tag.amt{width:auto;height:22px;border-radius:11px;display:flex;align-items:center;gap:3px;padding:0 7px 0 5px}.lab.tag b{display:none;font:600 12px/1 var(--title);letter-spacing:.3px;font-variant-numeric:tabular-nums;color:#fff}.lab.tag.amt b{display:block}
