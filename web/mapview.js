@@ -98,7 +98,9 @@
     });
     var capos = c.capos.map(function (k) {
       var lot = capoAt[k.id] || {}, pl = k.plan || {};
-      return { id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
+      // where he is this month (the rules say on which block and why); at his club when they say nothing
+      var there = k.at && k.at.why !== 'home' ? lotOfBlock({ lots: lots, bx: c.w }, k.at.x, k.at.y) : null;
+      return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
     var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('');
@@ -146,10 +148,26 @@
       var c = plan.cities[ci]; if (!c) return;
       var same = {};      // several loads can leave by the same way in a month: each is a car of its own, a moment after the one before
       (vc.trips || []).forEach(function (t, n) {
+        if (t.kind === 'capo') return;      // a capo's own car does not come and go: it drives once, when he moves (movesTurf)
         var a = lotOfBlock(c, t.from.x, t.from.y), b = lotOfBlock(c, t.to.x, t.to.y), look = HAUL[t.kind] || HAUL.takings; if (!a || !b || a === b) return;
         var way = c.id + ':' + t.kind + ':' + t.from.x + '.' + t.from.y + '>' + t.to.x + '.' + t.to.y, nth = same[way] = (same[way] || 0) + 1;
         out.push({ id: way + (nth > 1 ? '#' + nth : ''), delay: (nth - 1) * 1.6, kind: t.kind, city: c.id, loop: true, color: FLOW[look.flow], vehicle: look.vehicle, violent: t.kind === 'crew',
                    path: route([a.i, a.j], [b.i, b.j]), cargo: t.cargo, amount: t.amount || 0, load: {}, capo: t.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: t.kind === 'crew' ? t.cargo : null, target: null, n: n });
+      });
+    });
+    return out;
+  }
+  // movesTurf(before, after): a capo who is not where he was last month drives there once, in his own car.
+  function movesTurf(before, after) {
+    var out = [];
+    if (!before) return out;
+    after.cities.forEach(function (c) {
+      var was = before.cities.filter(function (x) { return x.id === c.id; })[0]; if (!was) return;
+      c.capos.forEach(function (k) {
+        var old = was.capos.filter(function (x) { return x.id === k.id; })[0];
+        if (!old || !old.at || !k.at || typeof k.at.i !== 'number' || typeof old.at.i !== 'number' || (old.at.i === k.at.i && old.at.j === k.at.j)) return;
+        out.push({ id: c.id + ':capo:' + k.id, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false,
+                   path: route([old.at.i, old.at.j], [k.at.i, k.at.j]), cargo: k.at.why, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
       });
     });
     return out;
@@ -169,7 +187,7 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, effectsTurf: effectsTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, effectsTurf: effectsTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -111,6 +111,7 @@ const carsOf = (g) => { const v = E.view(g), p = M.planEmpire(v, global.AshportW
 
 test('every trip of the rules is a car between the very buildings it names, along the streets', () => {
   const { v, p, cars } = carsOf(play(30)), c = v.cities[0], pc = p.cities[0];
+  c.trips = c.trips.filter((t) => t.kind !== 'capo');      // a capo's own car is not a car that comes and goes (see movesTurf)
   assert.ok(c.trips.length > 0); assert.equal(cars.length, c.trips.length);
   const siteAt = (x, y) => pc.lots.find((l) => l.site && l.bx === x && l.by === y);
   cars.forEach((car, n) => {
@@ -175,4 +176,26 @@ test('two loads on the same way are two cars, the second one leaving after the f
   assert.equal(new Set(cars.map((x) => x.id)).size, 3, 'each has its own name');
   assert.deepEqual(cars.map((x) => x.delay > 0), [false, true, true]);
   assert.ok(cars[2].delay > cars[1].delay);
+});
+
+// a game played until a capo is away from his club
+const away = () => { const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 400; i++) { E.tick(g); if (g.paused) E.command(g, { type: 'resume' }); const k = E.view(g).cities[0].capos[0]; if (k.at && k.at.why !== 'home') break; } return g; };
+
+test('a capo is seen where he is this month, and drives there in his own car when he moves', () => {
+  const g = away(), v = E.view(g), k = v.cities[0].capos[0];
+  assert.notEqual(k.at.why, 'home', 'he is out');
+  const p = M.planEmpire(v, global.AshportWorld.CITIES), pk = p.cities[0].capos[0];
+  const lot = p.cities[0].lots.find((l) => l && l.i === pk.at.i && l.j === pk.at.j);
+  assert.ok(lot && lot.bx === k.at.x && lot.by === k.at.y, 'the plan puts him on the block the rules name');
+  assert.equal(pk.at.why, k.at.why);
+  assert.equal(M.tripsTurf(p, v).filter((c) => c.kind === 'capo').length, 0, 'his car is not one more car that comes and goes');
+  // the month before he was at his club: one drive, from the club to where he is now, with him in it
+  const home = JSON.parse(JSON.stringify(p)); home.cities[0].capos[0].at = { i: pk.i, j: pk.j, why: 'home' };
+  const moves = M.movesTurf(home, p);
+  assert.equal(moves.length, 1);
+  assert.equal(moves[0].kind, 'capo'); assert.equal(moves[0].capo, 'sal'); assert.equal(moves[0].loop, false);
+  assert.deepEqual(moves[0].path[0], [pk.i, pk.j]);
+  assert.deepEqual(moves[0].path[moves[0].path.length - 1], [pk.at.i, pk.at.j]);
+  assert.equal(M.movesTurf(p, p).length, 0, 'a capo who stays where he is does not drive');
+  assert.equal(M.movesTurf(null, p).length, 0);
 });
