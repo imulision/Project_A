@@ -221,7 +221,8 @@
   var MOVE = 'translate' in document.documentElement.style;
   var hiddenLabs = {};      // the labels that had stepped aside at the last image: none blinks at the edge of another
   var drawnAt = -1;
-  function drawLabels() {
+  function drawLabels() { try { drawLabelsNow(); } catch (e) { console.error(e); } requestAnimationFrame(drawLabels); }      // one bad label never stops the others from following the map
+  function drawLabelsNow() {
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn;
@@ -259,7 +260,6 @@
       shown = boxes.filter(function (b) { return !off[b.id]; }).concat(badges);
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
-    requestAnimationFrame(drawLabels);
   }
 
   // ---- time
