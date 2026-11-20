@@ -241,7 +241,7 @@
     m = { family: new Float64Array(c.w * c.h), rival: new Float64Array(c.w * c.h) };
     m.places = Object.keys(c.blocks).map(function (k) {
       var p = c.blocks[k], xy = k.split(',');
-      var out = { x: Number(xy[0]), y: Number(xy[1]), owner: p.owner, kind: p.kind, level: p.level, capo: p.capo };
+      var out = { x: Number(xy[0]), y: Number(xy[1]), owner: p.owner, kind: p.kind, level: p.level, capo: p.capo, at: k };
       if (p.key) out.key = p.key;
       if (p.man) out.man = p.man;
       return out;
@@ -261,7 +261,7 @@
   function places(c, capo) {
     return memo(c).places.filter(function (p) { return capo === undefined || p.capo === capo; }).map(function (p) {
       var out = { x: p.x, y: p.y, owner: p.owner, kind: p.kind, level: p.level, capo: p.capo };
-      var till = c.blocks[key(p.x, p.y)].till;
+      var till = c.blocks[p.at].till;
       if (till) out.till = till;
       if (p.key) out.key = p.key;
       if (p.man) out.man = p.man;
@@ -381,16 +381,17 @@
   function wages(c, capo) { return RULES.wage * run(c, capo).length; }
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
   function collect(c, capo, cars) {
-    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = run(c, capo);
-    mine.forEach(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); });
+    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, load = RULES.car.load, waiting = 0;
+    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); return { p: p, b: b }; });
     while (left > 0) {
       var best = null;
-      mine.forEach(function (p) { var b = at(c, p.x, p.y); if (b.till >= RULES.car.load && (!best || b.till > best.b.till)) best = { p: p, b: b }; });
+      for (var i = 0; i < tills.length; i++) if (tills[i].b.till >= load && (!best || tills[i].b.till > best.b.till)) best = tills[i];
       if (!best) break;
-      best.b.till -= RULES.car.load; got += RULES.car.load; left -= 1;
-      c.flow.runs.push({ capo: capo, x: best.p.x, y: best.p.y, amount: RULES.car.load });
+      best.b.till -= load; got += load; left -= 1;
+      c.flow.runs.push({ capo: capo, x: best.p.x, y: best.p.y, amount: load });
     }
-    return { got: got, waiting: mine.reduce(function (n, p) { return n + at(c, p.x, p.y).till; }, 0), idle: left };
+    for (var j = 0; j < tills.length; j++) waiting += tills[j].b.till;
+    return { got: got, waiting: waiting, idle: left };
   }
 
   // How a capo takes what is not his: the hard men by force, the talkers with an envelope, the others with a cheque.
