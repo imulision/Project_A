@@ -87,7 +87,7 @@
         var dense = field(i, j, ci * 7 + 11, 6), works = field(i, j, ci * 7 + 13, 8) > 0.7, r = hash(i, j, ci * 7 + 2);
         var chance = (ours ? [0.2, 0.5, 0.8][w] : 0.3) * Math.max(0, dense * 3.2 - 0.9) * (rim === 0 ? 0.25 : rim === 1 ? 0.7 : 1);
         var tall = !works && hash(i, j, ci * 7 + 1) < chance;
-        var open = park ? 'park' : hash(i, j, ci * 7 + 14) < (rim === 0 ? 0.42 : rim === 1 ? 0.1 : dense < 0.3 ? 0.07 : 0.015) ? 'yard' : null;
+        var open = b.void ? b.void : park ? 'park' : hash(i, j, ci * 7 + 14) < (rim === 0 ? 0.42 : rim === 1 ? 0.1 : dense < 0.3 ? 0.07 : 0.015) ? 'yard' : null;
         var lot = { i: i, j: j, bx: b.x, by: b.y, district: zi, tall: tall, open: open,
                     model: tall ? (w === 2 && hash(i, j, ci * 7 + 3) < 0.45 ? pick(HIGH, r) : pick(MID, r)) : works ? pick(YARDS, r) : pick(LOW, r),
                     tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
@@ -106,7 +106,7 @@
         }
         lots.push(lot);
       }
-      return { x: b.x, y: b.y, grip: b.grip, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
+      return { x: b.x, y: b.y, grip: b.grip, void: b.void || null, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
     });
     zones.forEach(function (z, n) {
       var k = count[n]; z.share = k.all ? 100 * k.family / k.all : 0;
