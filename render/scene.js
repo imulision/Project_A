@@ -728,7 +728,7 @@ function pickAt(cx, cy) {
   return null;
 }
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const real = Math.min(1, (now - last) / 1000), dt = Math.min(0.05, real); last = now;      // cars never jump more than a twentieth of a second; a fire burns its real time, however slow the machine
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
   // Anything that changes the picture (the camera, an order to the map, the size of the window) asks for a few images more.
@@ -742,7 +742,7 @@ function frame(now) {
     // while the game's time stands still nothing drives: every car waits where it is, and leaves again with the clock
     const drive = held ? 0 : dt;
     moveCars(trucks, drive); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, drive);
-    moveAgents(drive); animateFx(dt, now);
+    moveAgents(drive); animateFx(real, now);
     for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
     grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
     renderer.info.reset(); composer.render(); frames++;
