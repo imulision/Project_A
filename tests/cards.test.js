@@ -379,3 +379,14 @@ test('a truck between two cities says what it hauls and where it goes', () => {
   const t = C.carTip({ kind: 'convoy', cargo: 'liquor', amount: 20, capo: 'sal', way: 'Ashport to Calder Falls' });
   assert.match(t, /20 cases on board/); assert.match(t, /Ashport to Calder Falls/);
 });
+
+test("a capo's sheet shows what he has learned and what waits at his next rank, each a touch away", () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], k0 = city.capos[0];
+  const k = { ...k0, abilities: [{ id: 'night', name: 'Night runs', gives: 'His trucks are held up half as often', school: 'Liquor', rank: 1, has: true }, { id: 'b', name: 'Cut liquor', gives: 'His bars sell a fifth more', school: 'Liquor', rank: 2, has: false }, { id: 'c', name: 'Own judge', gives: 'Seizures cost him half', school: 'Law', rank: 3, has: false }] };
+  const w = { ...v, cities: [{ ...city, capos: [k] }] }, html = C.capo(w, city.id, k.id);
+  assert.match(html, /class="skill on"[^>]*data-tip="Night runs: His trucks are held up half as often"/);
+  assert.match(html, /class="skill"[^>]*data-tip="At rank 2 · Cut liquor: His bars sell a fifth more"/);
+  assert.equal((html.match(/class="skill( on)?"/g) || []).length, 3);
+  assert.doesNotMatch(C.capo(v, city.id, k0.id).replace(/abilities/g, ''), /class="skills"><\/div>/, 'no empty row for a capo without any');
+});

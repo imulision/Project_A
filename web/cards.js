@@ -141,11 +141,17 @@
   }
 
   // ---- a capo
+  // What a capo has learned, rank after rank: a lit mark for what he has, a dim one for what waits. The words are a touch away.
+  var SCHOOL = { Muscle: 'muscle', Liquor: 'liquor', Money: 'clean', Law: 'heat', Vice: 'brothel', Games: 'gambling' };
+  function skills(k) {
+    var a = k.abilities || []; if (!a.length) return '';
+    return '<div class="skills">' + a.map(function (s) { return '<span class="skill' + (s.has ? ' on' : '') + '" data-tip="' + esc((s.has ? '' : 'At rank ' + s.rank + ' · ') + s.name + ': ' + s.gives) + '">' + icon(SCHOOL[s.school] || 'ambition') + '</span>'; }).join('') + '</div>';
+  }
   function capo(view, cityId, id) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
     var w = WAY[k.way] || WAY.force;
     return head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + esc(c.name) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      intent(k.plan) +
+      intent(k.plan) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'A MONTH', money(k.income), 'What reached his club last month') +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you last month: your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
