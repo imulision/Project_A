@@ -153,6 +153,12 @@
       T.unseat(g.family, o.post);
       record(g, { type: 'unseated', capo: chair.capo, post: o.post, label: chair.who + ' leaves the table, and the family' }, g.month);
     },
+    // the boss names the capo who holds a city for him: he takes in the men at its door from then on
+    underboss: function (g, o) {
+      var c = cityOf(g, o.city);
+      T.underboss(c, g.family, o.capo);
+      record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
+    },
     welcome: function (g, o) {
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
@@ -207,7 +213,7 @@
                v.held = held(g, c);
                // where each man at the door could be sent instead: the cities next door that still have a seat
                var free = T.table(g.family).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
-               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; });
+               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
                return v;
              }) };
   }

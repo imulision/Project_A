@@ -358,3 +358,43 @@ test('the door lists only the chairs still free', () => {
   assert.deepEqual(door().chairs, ['fixer']);
   assert.throws(() => E.command(g, { type: 'seat', city: knock.city, capo: knock.capo, post: 'routes' }), /the Routes's chair is taken/);
 });
+
+// --- the underboss, from the game ---
+test('the boss names an underboss; from then on the men at that city\'s door no longer wait for his word', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 20000; });
+  const c = g.cities.find((q) => q.id === knock.city), spot = T.spots(c)[0];
+  assert.throws(() => E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' }), /needs no underboss yet/);
+  E.command(g, { type: 'welcome', city: c.id, capo: knock.capo, x: spot.x, y: spot.y });
+  E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' });
+  const said = g.journal[g.journal.length - 1];
+  assert.deepEqual([said.type, said.capo, said.city], ['underboss', 'dutch', c.id]);
+  assert.equal(said.label, T.person('dutch').name + ' is now the family\'s underboss in ' + E.view(g).cities.find((q) => q.id === c.id).name);
+  assert.equal(E.view(g).cities.find((q) => q.id === c.id).under, 'dutch');
+  // twenty years: nobody knocks in that city any more, and the family still grows there
+  let knocks = 0, joined = 0;
+  for (let i = 0; i < 4 * 240; i++) {
+    g.paused = false;
+    for (const e of E.tick(g)) { if (e.type === 'knocks' && e.city === c.id && e.door !== 'poach') knocks++; if (e.type === 'welcomed' && e.by === 'dutch') joined++; }
+    const v = E.view(g).cities.find((q) => q.id === c.id);
+    for (const d of v.doors) if (d.door !== 'poach') assert.equal(d.handled, 'dutch');
+  }
+  assert.equal(knocks, 0);
+  assert.ok(joined >= 1, 'he took ' + joined + ' men in');
+});
+
+test('a man the underboss could not take in for want of money is not announced to the boss the day the money comes', () => {
+  const { g, knock } = firstKnock((g) => { g.family.dirty = 20000; });
+  const c = g.cities.find((q) => q.id === knock.city), spot = T.spots(c)[0];
+  E.command(g, { type: 'welcome', city: c.id, capo: knock.capo, x: spot.x, y: spot.y });
+  E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' });
+  const waiting = () => E.view(g).cities.find((q) => q.id === c.id).doors.filter((d) => d.door !== 'poach');
+  for (let i = 0; i < 4000 && !waiting().length; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
+  assert.ok(waiting().length, 'a man waits at the door of a broke family');
+  for (let i = 0; i < 8; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
+  assert.equal(E.hud(g).pending, E.view(g).cities.reduce((n, q) => n + q.asks.length + q.feuds.length + q.doors.filter((d) => d.open && !d.handled).length, 0), 'he does not count among what waits for the boss');
+  g.family.dirty = 20000;
+  const seen = [];
+  for (let i = 0; i < 8; i++) { g.paused = false; seen.push(...E.tick(g)); }
+  assert.ok(!seen.some((e) => e.type === 'knocks' && e.city === c.id && e.door !== 'poach'), 'no knock');
+  assert.ok(seen.some((e) => e.type === 'welcomed' && e.by === 'dutch'), 'the underboss took him in');
+});

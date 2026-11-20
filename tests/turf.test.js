@@ -2403,3 +2403,69 @@ test('a man at the table is paid every month, and the day the boss takes his cha
   assert.ok(!coming(c, f).includes('mae'), 'she does not come back');
   assert.throws(() => T.unseat(f, 'bookkeeper'), /nobody sits there/);
 });
+
+// --- the underboss: one capo the boss names to hold a city, who takes in the men at the door himself ---
+const twoCapos = () => {
+  const { c, f } = knocking(); // dutch, with mae, sal and danny at the door
+  T.welcome(c, f, 'mae', 8, 4);
+  return { c, f };
+};
+
+test('the boss names one of his capos underboss of a city where the family has two capos or more', () => {
+  const alone = knocking();
+  assert.throws(() => T.underboss(alone.c, alone.f, 'dutch'), /^Error: one capo holds town alone: it needs no underboss yet$/);
+  const { c, f } = twoCapos();
+  assert.equal(T.view(c, f).under, null);
+  assert.throws(() => T.underboss(c, f, 'sal'), /sal is not one of yours in town/);
+  T.underboss(c, f, 'dutch');
+  const v = T.view(c, f);
+  assert.equal(v.under, 'dutch');
+  assert.deepEqual(v.capos.map((k) => [k.id, !!k.under]), [['dutch', true], ['mae', false]]);
+  T.underboss(c, f, 'mae');
+  assert.equal(T.view(c, f).under, 'mae', 'the boss may change his mind');
+});
+
+test('the underboss takes in the men at the door himself: the boss pays, nobody knocks', () => {
+  const { c, f } = twoCapos();
+  T.underboss(c, f, 'dutch');
+  const cost = T.doors(c, f).find((d) => d.capo === 'sal').cost, had = T.funds(f);
+  const events = T.stepMonth(c, f);
+  assert.ok(!events.some((e) => e.type === 'knocks'));
+  const e = events.find((x) => x.type === 'welcomed');
+  assert.deepEqual([e.capo, e.by, e.cost], ['sal', 'dutch', cost]);
+  assert.equal(e.label, T.person('sal').name + ' joins the family: Dutch gives him a club in ' + T.zoneOf(c, e.x, e.y).name);
+  assert.deepEqual(T.clubOf(c, 'sal') && [T.clubOf(c, 'sal').x, T.clubOf(c, 'sal').y], [e.x, e.y]);
+  assert.ok(f.men.sal);
+  assert.ok(T.funds(f) <= had - cost + c.flow.up, 'the boss paid for him');
+  assert.equal(events.filter((x) => x.type === 'welcomed').length, 1, 'one man a month, and the city has three seats');
+});
+
+test('with no seat or no money the underboss lets a man wait, without a word to the boss', () => {
+  const { c, f } = twoCapos();
+  T.underboss(c, f, 'dutch');
+  f.dirty = 0; f.clean = 0;
+  const events = T.stepMonth(c, f);
+  assert.ok(!events.some((e) => e.type === 'knocks' || e.type === 'welcomed'));
+  assert.ok(coming(c, f).includes('sal'), 'he is still at the door');
+});
+
+test('without an underboss the men still knock; and the day the underboss leaves, the city has none', () => {
+  const plain = twoCapos();
+  assert.ok(T.stepMonth(plain.c, plain.f).some((e) => e.type === 'knocks'));
+  const { c, f } = twoCapos();
+  T.underboss(c, f, 'mae');
+  f.clean = 50000;
+  T.part(c, f, 'mae', 'retire');
+  assert.equal(T.view(c, f).under, null);
+});
+
+test('every event about one of the family\'s men says where it happens: at his place, or else at his club', () => {
+  const { c, f } = sixBars();
+  f.men.dutch.xp = T.RULES.xp[1] - 1; f.men.dutch.cash = 5000;
+  const seen = {};
+  for (let m = 0; m < 6; m++) for (const e of T.stepMonth(c, f)) seen[e.type] = e;
+  for (const type of ['rank', 'car']) {
+    assert.ok(seen[type], type + ' happened');
+    assert.deepEqual([seen[type].x, seen[type].y], [2, 2], type + ' is shown at his club');
+  }
+});
