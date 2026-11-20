@@ -354,3 +354,28 @@ test('a truck says what it hauls: liquor, crates, stolen cars or weed, each with
   assert.match(C.carTip({ kind: 'liquor', cargo: 'liquor', amount: 20, capo: 'sal' }), /20 cases on board/);
   assert.match(C.carTip({ kind: 'takings', cargo: 'cash', amount: 142, capo: 'sal' }, true), /Empty/, 'on its way out, it says it is empty');
 });
+
+test('a place says what it has in store, in the bubble and on its page', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club');
+  const see = (more) => { const p = { ...ours, ...more }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] }; return [C.blockTip(w, c.id, p.x, p.y), C.block(w, c.id, p.x, p.y)]; };
+  see({ stock: 40, holds: 'liquor' }).forEach((t) => assert.match(t, /40 cases of liquor in store/));
+  see({ stock: 8, holds: 'cars' }).forEach((t) => assert.match(t, /8 stolen cars in store/));
+  see({ stock: 20, holds: 'weed' }).forEach((t) => assert.match(t, /20 bags of weed in store/));
+  see({ stock: 12.6, holds: 'goods' }).forEach((t) => assert.match(t, /12 crates in store/));
+  see({ weed: 5 }).forEach((t) => assert.match(t, /5 bags of weed to sell/));
+  see({ stock: 0, holds: 'liquor' }).forEach((t) => assert.doesNotMatch(t, /in store/));
+});
+
+test('a hold-up or a seizure on the road is in the journal with its own picture', () => {
+  const j = C.journal([{ type: 'hijack', label: 'The Callahans hold up a truck', month: 3 }, { type: 'seizure', label: 'The police stop a truck', month: 4 }]);
+  assert.match(j, /hold up a truck/); assert.match(j, /police stop a truck/);
+  assert.ok(C.EVENT.hijack && C.EVENT.seizure && C.EVENT.truck);
+});
+
+test('a truck between two cities says what it hauls and where it goes', () => {
+  assert.equal(C.haul({ kind: 'convoy', cargo: 'liquor' })[0], 'liquor');
+  assert.equal(C.haul({ kind: 'convoy', cargo: 'cars' })[0], C.haul({ kind: 'goods', cargo: 'cars' })[0]);
+  const t = C.carTip({ kind: 'convoy', cargo: 'liquor', amount: 20, capo: 'sal', way: 'Ashport to Calder Falls' });
+  assert.match(t, /20 cases on board/); assert.match(t, /Ashport to Calder Falls/);
+});
