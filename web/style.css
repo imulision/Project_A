@@ -240,3 +240,7 @@ body.stopped .sub #sub{display:none}
 .move.power .spark{margin-left:auto;width:70px;height:22px}
 .ranks .rankrow{background:#ffffff08;color:var(--ink);border-top:0;border-right:0;border-bottom:0;font:inherit;width:100%}
 .move.next .rk{flex:1;font-size:1em}.move.next .rk b{font-size:1em}
+#stall{pointer-events:auto;margin:0 0 7px}#stall:empty{display:none}.stallline{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--panel);border-left:3px solid var(--accent);font-size:.9em;cursor:pointer}
+.stallline span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.stallline i{font-style:normal;color:var(--dim)}.stallline .ic{color:var(--accent)}
+.stall{position:relative;padding:8px 10px;margin:0 0 8px;background:#ffffff08;border-left:3px solid var(--accent)}.stall b{display:block;font-size:1.05em}.stall small{color:var(--dim)}.stall p{margin:5px 0 0}
+.stall .lever{color:var(--good)}.stall .lever .ic{margin-right:5px}.stall .nolever{color:var(--dim)}.stall button{margin-top:7px}

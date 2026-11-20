@@ -914,3 +914,18 @@ test('a capo\'s sheet shows how far he is from his next rank', () => {
   assert.match(html, /Capo/); assert.match(html, /width:68%/); assert.match(html, /102 \/ 150/);
   assert.equal(C.nextRank({ next: null }), ''); assert.equal(C.nextRank({}), '', 'an old save says nothing of it');
 });
+
+test('what holds the family back is said in plain words: what, since when, why, and what the boss can do', () => {
+  const idle = { id: 'idle', since: 43, what: '$5,536 of clean money sleeps', why: 'Nothing was bought or learned with it in 3 years', lever: 'A better gambling room costs $1,000' };
+  const boxed = { id: 'boxed:sal', city: 'ashport', capo: 'sal', x: 4, y: 9, since: 7, what: 'Sal cannot take the pier', why: 'The Callahans hold every street around it', lever: null };
+  const view = { stalls: [idle, boxed], cities: [{ id: 'ashport', name: 'Ashport', stalls: [boxed] }] };
+  assert.match(C.stallLine(view), /\$5,536 of clean money sleeps/); assert.match(C.stallLine(view), /data-stalls="1"/); assert.match(C.stallLine(view), /\+1/, 'and how many more');
+  assert.equal(C.stallLine({ stalls: [] }), ''); assert.equal(C.stallLine({}), '', 'an old game says nothing');
+  const one = C.stall(idle);
+  assert.match(one, /for 3 years/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.doesNotMatch(one, /data-act/);
+  const two = C.stall(boxed);
+  assert.match(two, /for 7 months/); assert.match(two, /Nothing you can do about it yet/); assert.match(two, /data-act="show" data-city="ashport" data-x="4" data-y="9"/);
+  assert.match(C.stall({ ...boxed, x: undefined, y: undefined }), /data-act="capo" data-city="ashport" data-capo="sal"/);
+  const card = C.stallsCard(view); assert.match(card, /What holds you back/); assert.match(card, /sleeps[\s\S]*pier/); assert.match(card, /data-act="close"/);
+  assert.match(C.stallsOf(view.cities[0]), /What holds this city back[\s\S]*pier/); assert.equal(C.stallsOf({ id: 'calder', stalls: [] }), ''); assert.equal(C.stallsOf({ id: 'calder' }), '');
+});

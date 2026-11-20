@@ -82,6 +82,7 @@
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
     $('rank').innerHTML = C.rankLine(C.rank(view));
+    var sl = C.stallLine(view); if ($('stall').dataset.was !== sl) { $('stall').dataset.was = sl; $('stall').innerHTML = sl; }      // what holds him back, the worst first: a touch tells why
     $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
     // time that stands still is said in large, with the reason, and framed all around the screen
@@ -149,6 +150,7 @@
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
     if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g))); return; }
     var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
   }, true);
