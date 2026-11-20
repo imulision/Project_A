@@ -650,15 +650,21 @@ const dots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMateri
 dots.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3)); dots.geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXDOTS * 3), 3));
 dots.geometry.setDrawRange(0, 0); dots.frustumCulled = false; dots.renderOrder = 5; scene.add(dots);
 const POLICEMAT = kitMat(0.35, -1, 0x27365f), MUSCLEMAT = kitMat(0.35, -1, 0x241f1f);
+// Between two cities there is no street plan: the truck follows the road drawn on the land (or the straight line, by sea).
+const OPEN = { near: { visible: true } };
+function roadBetween(a, b) {
+  const r = ROADS.find(r => (r.a === a && r.b === b) || (r.a === b && r.b === a)), A = CITIES[a], B = CITIES[b]; if (!A || !B) return null;
+  return r ? (r.a === a ? r.pts : r.pts.slice().reverse()) : [[A.cx, A.cz], [B.cx, B.cz]];
+}
 function agentFor(t) {
-  const C = CITIES.find(c => c.id === t.city); if (!C) return null;
-  const pts = t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
+  const road = t.kind === 'convoy' ? roadBetween(t.a, t.b) : null, C = road ? OPEN : CITIES.find(c => c.id === t.city); if (!C) return null;
+  const pts = road || t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
   for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
   if (!L && !t.round) return null;
   // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
-  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: t.path.join(';'), leaving: false,
+  return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: (t.path || []).join(';'), leaving: false,
            geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-           tag: { cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null,
+           tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 14 : t.loop ? 2.4 : 5, o: null,
            // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
            round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, lost: s.lost, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
 }
@@ -708,7 +714,7 @@ function moveAgents(dt) {
     a.seen = !!(a.C.near && a.C.near.visible); a.x = x; a.z = z;
     if (a.seen) {
       const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir; if (fx || fz) a.rot = Math.atan2(fx, fz);
-      putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.vehicle === 'truck' ? 1.2 : 1);
+      putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.kind === 'convoy' ? 3 : a.vehicle === 'truck' ? 1.2 : 1);      // seen from far above, a truck between two cities is drawn large
     }
     a.parked = a.round && (!a.L || (a.p === 0 && a.wait > 0));
     if (n < MAXDOTS && !a.parked) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }

@@ -202,6 +202,12 @@ const far = await page.evaluate(() => window.__ashport.map().stats());
 assert.ok(far.calls <= 240, 'draw calls from afar: ' + far.calls);
 await shot('c6-six-cities');
 
+// what one city sends to the next is a truck on the road between them, seen from afar, and gone once it has arrived
+const road = await page.evaluate(() => { const A = window.__ashport, v = A.view(), r = v.routes[0], m = A.map(), n = m.stats().cars;
+  m.traffic(window.AshportMapView.tripsTurf(window.AshportMapView.planEmpire(v, window.AshportWorld.CITIES), v).concat(window.AshportMapView.convoysTurf(window.AshportMapView.planEmpire(v, window.AshportWorld.CITIES), [{ from: r.from, to: r.to, cargo: 'liquor', amount: 20, capo: 'dutch' }])));
+  const on = () => m.labels().filter((l) => l.car && l.car.kind === 'convoy'); m.run(5); const tags = on(); m.run(30); return { n: tags.length, tag: tags[0], left: on().length }; });
+assert.equal(road.n, 1, 'one truck on the road'); assert.ok(/ to /.test(road.tag.car.way), 'with its tag'); assert.equal(road.left, 0, 'it is gone once arrived');
+
 // the game is saved: a reload picks it up where it was
 const before = await hud();
 await page.reload();

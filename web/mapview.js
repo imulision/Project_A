@@ -189,6 +189,17 @@
     });
     return out;
   }
+  // convoysTurf(plan, convoys): what one city sent to the next last month, each load a truck on the road between them, once.
+  function convoysTurf(plan, convoys) {
+    var out = [], same = {};
+    (convoys || []).forEach(function (v) {
+      var a = -1, b = -1; plan.cities.forEach(function (c, n) { if (c.id === v.from) a = n; if (c.id === v.to) b = n; }); if (a < 0 || b < 0 || a === b) return;
+      var nth = same[a + '>' + b] = (same[a + '>' + b] || 0) + 1;
+      out.push({ id: 'convoy:' + v.from + '>' + v.to + ':' + nth, kind: 'convoy', loop: false, a: a, b: b, delay: (nth - 1) * 1.5, color: FLOW.logistics, vehicle: 'truck', violent: false,
+                 cargo: v.cargo, amount: v.amount || 0, capo: v.capo || null, way: plan.cities[a].name + ' to ' + plan.cities[b].name, load: {}, from: 'street', to: 'street', by: null, target: null });
+    });
+    return out;
+  }
   // movesTurf(before, after): a capo who is not where he was last month drives there once, in his own car.
   function movesTurf(before, after) {
     var out = [];
@@ -219,7 +230,7 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, effectsTurf: effectsTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

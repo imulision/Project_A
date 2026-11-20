@@ -372,3 +372,10 @@ test('a hold-up or a seizure on the road is in the journal with its own picture'
   assert.match(j, /hold up a truck/); assert.match(j, /police stop a truck/);
   assert.ok(C.EVENT.hijack && C.EVENT.seizure && C.EVENT.truck);
 });
+
+test('a truck between two cities says what it hauls and where it goes', () => {
+  assert.equal(C.haul({ kind: 'convoy', cargo: 'liquor' })[0], 'liquor');
+  assert.equal(C.haul({ kind: 'convoy', cargo: 'cars' })[0], C.haul({ kind: 'goods', cargo: 'cars' })[0]);
+  const t = C.carTip({ kind: 'convoy', cargo: 'liquor', amount: 20, capo: 'sal', way: 'Ashport to Calder Falls' });
+  assert.match(t, /20 cases on board/); assert.match(t, /Ashport to Calder Falls/);
+});

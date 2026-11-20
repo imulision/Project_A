@@ -261,3 +261,15 @@ test('a load lost on the road: the vehicle is stopped half way, loses it there, 
   const fx = M.effectsTurf([{ type: 'hijack', city: 'ashport', x: c.trips[0].from.x, y: c.trips[0].from.y, label: 'held up' }, { type: 'seizure', city: 'ashport', x: c.trips[0].from.x, y: c.trips[0].from.y, label: 'seized' }], p);
   assert.deepEqual(fx.map((f) => f.kind + ':' + f.say), ['gunfire:held up', 'police:seized']);
 });
+
+test('what goes from one city to the next is a truck on the road between them, once', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), r = v.routes[0];
+  const list = [{ from: r.from, to: r.to, cargo: 'liquor', amount: 20, capo: 'sal', x: 1, y: 1, tx: 2, ty: 2 }, { from: r.from, to: r.to, cargo: 'cars', amount: 4, capo: 'sal', x: 1, y: 1, tx: 2, ty: 2 }, { from: 'nowhere', to: r.to, cargo: 'goods', amount: 20 }];
+  const out = M.convoysTurf(p, list);
+  assert.equal(out.length, 2, 'a convoy to or from a city that is not on the map is left out');
+  out.forEach((t) => { assert.equal(t.kind, 'convoy'); assert.equal(t.loop, false); assert.equal(t.vehicle, 'truck'); assert.equal(t.a, p.cities.findIndex((c) => c.id === r.from)); assert.equal(t.b, p.cities.findIndex((c) => c.id === r.to)); });
+  assert.deepEqual(out.map((t) => t.cargo), ['liquor', 'cars']); assert.equal(out[0].amount, 20);
+  assert.ok(out[1].delay > out[0].delay, 'two on the same road do not ride on top of each other');
+  assert.match(out[0].way, new RegExp(p.cities[out[0].a].name + '.*' + p.cities[out[0].b].name));
+  assert.deepEqual(M.convoysTurf(p, undefined), []);
+});
