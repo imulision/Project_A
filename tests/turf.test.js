@@ -1985,3 +1985,60 @@ test('no capo opens one more fence with nothing to sell in it: starved fences ca
   assert.notEqual(next(2, 0), 'fence', 'two fences and nothing to sell');
   assert.equal(next(0, 2), 'fence', 'two chop shops and nobody to sell the cars');
 });
+
+// --- weed is a bonus: the loft sells on the spot, and what it grows besides goes by truck to the bars and the brothels ---
+const grower = (sellers) => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  kept(c, 'dutch');
+  T.open(c, 8, 2, { owner: 'family', kind: 'loft', capo: 'dutch' });
+  sellers.forEach((kind, i) => T.open(c, 1 + i, 1, { owner: 'family', kind, capo: 'dutch' }));
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  return { c, f };
+};
+const weed = (c, f) => T.trips(c, f).filter((t) => t.cargo === 'weed');
+
+test('a loft sends a load of weed a month to a bar or a brothel of the family, by truck', () => {
+  const { c, f } = grower(['brothel', 'speakeasy']);
+  T.stepMonth(c, f);
+  const runs = weed(c, f);
+  assert.equal(runs.length, T.RULES.weed.makes);
+  assert.deepEqual([runs[0].kind, runs[0].amount, runs[0].vehicle, runs[0].from], ['goods', T.RULES.weed.load, 'dutch:truck:1', { x: 8, y: 2 }]);
+  assert.ok(['brothel', 'speakeasy'].includes(T.at(c, runs[0].to.x, runs[0].to.y).kind));
+});
+
+test('the place that has weed to sell earns more that month; the one that has none loses nothing', () => {
+  const { c, f } = grower(['brothel', 'brothel']);
+  const before = T.view(c, f).places.filter((p) => p.kind === 'brothel').map((p) => T.earns(c, p));
+  T.stepMonth(c, f);
+  const places = T.view(c, f).places.filter((p) => p.kind === 'brothel');
+  const served = weed(c, f).map((t) => t.to.x + ',' + t.to.y);
+  assert.equal(served.length, 1);
+  places.forEach((p, i) => {
+    const ratio = T.earns(c, p) / before[i];
+    assert.ok(Math.abs(ratio - (served.includes(p.x + ',' + p.y) ? 1 + T.RULES.weed.bonus : 1)) < 1e-6, p.x + ',' + p.y + ' ' + ratio);
+    assert.ok(!(p.strains || []).some((s) => s.kind === 'dry'), 'weed is a bonus: nobody is short of it');
+  });
+});
+
+test('a bar keeps its liquor and its weed apart', () => {
+  const { c, f } = grower(['speakeasy']);
+  T.open(c, 9, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  T.stepMonth(c, f);
+  assert.equal(hauls(c, f).length, 2);
+  assert.equal(weed(c, f).length, 1);
+  assert.equal(placeAt(c, f, 1, 1).stock, CRATES, 'one load of liquor poured, one on the shelf');
+});
+
+test('weed nobody sells stays in the loft and says so only when the family has somewhere to sell it', () => {
+  const alone = grower([]);
+  for (let m = 0; m < 6; m++) T.stepMonth(alone.c, alone.f);
+  assert.equal(placeAt(alone.c, alone.f, 8, 2).strains, undefined);
+  const { c, f } = grower(['brothel']);
+  T.stepMonth(c, f);
+  T.at(c, 8, 2).stock = T.RULES.truck.cellar * T.RULES.weed.makes; // as much as the loft keeps
+  const loft = placeAt(c, f, 8, 2);
+  assert.equal(loft.stock, T.RULES.truck.cellar * T.RULES.weed.makes * T.RULES.weed.load);
+  assert.equal(loft.holds, 'weed');
+  assert.equal(loft.strains.find((s) => s.kind === 'surplus').label, 'Stash full: ' + loft.stock + ' bags wait for a truck');
+});
