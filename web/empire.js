@@ -64,6 +64,36 @@
       return { name: d.name, x0: col * BLOCK.w, y0: row * BLOCK.h, x1: last ? cols * BLOCK.w - 1 : (col + 1) * BLOCK.w - 1, y1: (row + 1) * BLOCK.h - 1, traits: d.traits };
     }) });
   }
+  // --- what holds the family back, all cities together ---
+  var GRAVE = { unpaid: 0, losing: 1, boxed: 2, idle: 3, sulk: 4, nobody: 5 }, IDLE = 12; // months clean money sleeps before it is said
+  function dollars(n) { return '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  // The cheapest thing the family's clean money could buy today: a holding, or something to learn.
+  function cheapest(g) {
+    var f = g.family, has = f.clean || 0, best = null;
+    T.holdings(f).forEach(function (h) { if (h.next && h.next.cost <= has && (!best || h.next.cost < best.cost)) best = { name: h.name, cost: h.next.cost }; });
+    if (!f.study) T.tree(f).forEach(function (t) { if (t.next && t.next.cost <= has && (!best || t.next.cost < best.cost)) best = { name: 'A better ' + t.name.toLowerCase(), cost: t.next.cost }; });
+    return best;
+  }
+  function stalls(g) {
+    var out = [], f = g.family;
+    g.cities.forEach(function (c) { T.stalls(c, f).forEach(function (s) { s.city = c.id; out.push(s); }); });
+    // a man of the table with no club of his own, left unpaid
+    Object.keys(f.owed || {}).forEach(function (post) {
+      var id = f.table && f.table[post];
+      if (!id || g.cities.some(function (c) { return T.clubOf(c, id); })) return;
+      out.push({ id: 'unpaid:' + id, capo: id, since: 0, what: T.person(id).name.split(' ')[0] + ' was not paid',
+                 why: 'The table costs $' + T.RULES.table.pay + ' a man each month: the family had $' + Math.round(T.funds(f)) + ' in hand', lever: 'Free his chair, or wait for money to come up' });
+    });
+    var buy = cheapest(g), since = g.idle !== undefined && g.idle !== null ? g.month - g.idle : 0;
+    if (buy && since >= IDLE) {
+      out.push({ id: 'idle', since: since, what: dollars(f.clean) + ' of clean money sleeps',
+                 why: 'Nothing was bought or learned with it in ' + (since >= 24 ? Math.floor(since / 12) + ' years' : 'a year'), lever: buy.name + ' costs ' + dollars(buy.cost) });
+    }
+    var grave = function (s) { return GRAVE[s.id.split(':')[0]]; };
+    return out.map(function (s, i) { return { s: s, i: i }; }).sort(function (a, b) { return grave(a.s) - grave(b.s) || b.s.since - a.s.since || a.i - b.i; })
+              .slice(0, 3).map(function (q) { return q.s; });
+  }
+
   function linked(a, b) { return W.ROUTES.some(function (r) { return (r.from === a && r.to === b) || (r.from === b && r.to === a); }); }
   function held(g, c) { return Object.keys(g.family.men).some(function (id) { return T.clubOf(c, id); }); }
   function specOf(id) { return W.CITIES.filter(function (c) { return c.id === id; })[0]; }
@@ -153,6 +183,7 @@
       });
       g.month += 1;
       remember(g);
+      g.idle = cheapest(g) ? (g.idle !== undefined && g.idle !== null ? g.idle : g.month - 1) : null; // since when clean money could have been spent
     }
     return events;
   }
@@ -285,8 +316,8 @@
     });
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [] };
-    return { date: dateOf(g.month), month: g.month, history: g.history || [], holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [] };
+    return { date: dateOf(g.month), month: g.month, history: g.history || [], stalls: stalls(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
