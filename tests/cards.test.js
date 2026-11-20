@@ -439,3 +439,27 @@ test('an event is a small tile on the edge of the screen: its picture, its words
   assert.match(C.fxTip('news', 'Sal asks for a truck', 'asks'), /Sal asks for a truck/);
   assert.doesNotMatch(C.fxTip('news', 'Sal asks', 'asks'), /undefined|news/);
 });
+
+// ---- the underboss: one capo who holds a city for the boss
+test('a capo can be made underboss of his city once it has two capos, and the sheet says who holds it', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], k = { ...city.capos[0], under: false }, other = { ...k, id: 'mae', name: 'Mae Rourke' };
+  const two = { ...v, cities: [{ ...city, under: null, capos: [k, other] }] };
+  assert.match(C.capo(two, city.id, k.id), /data-act="underboss" data-city="ashport" data-capo="sal"/);
+  const alone = { ...v, cities: [{ ...city, under: null, capos: [k] }] };
+  assert.doesNotMatch(C.capo(alone, city.id, k.id), /data-act="underboss"/, 'a city with one capo needs none');
+  const held = { ...v, cities: [{ ...city, under: k.id, capos: [{ ...k, under: true }, other] }] };
+  assert.match(C.capo(held, city.id, k.id), /Underboss of Ashport/); assert.doesNotMatch(C.capo(held, city.id, k.id), /data-act="underboss"/);
+  assert.match(C.capo(held, city.id, 'mae'), /data-act="underboss"/, 'the boss can give the city to another man');
+  assert.match(C.city(held, city.id), /class="slot under"/, 'and the city sheet marks him');
+});
+
+test('a man at the door of a city that has an underboss is his to take in: no decision for the boss', () => {
+  const { v } = play((v) => v.month >= 2);
+  const door = { capo: 'mae', name: 'Mae Rourke', specialty: 'Madam', door: 'name', by: null, why: 'A city with nightlife', cost: 2500, roads: [], open: true, chairs: ['routes'], handled: 'sal' };
+  const html = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [door] }] }, { dirty: 9000, clean: 0 });
+  assert.match(html, /Sal will take (her|him) in himself|Sal takes him in himself/); assert.doesNotMatch(html, /data-act="seat"/);
+  assert.match(html, /data-act="chairs"/, 'the boss may still give him a chair at his table');
+  const poach = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [{ ...door, door: 'poach' }] }] }, { dirty: 9000, clean: 0 });
+  assert.match(poach, /data-act="welcome"/, 'a man taken from a rival stays the boss\'s call');
+});
