@@ -29,7 +29,7 @@
     wage: 120,          // dirty $ a month for the men of one place
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
-    tribute: 0.30,      // share of a capo's monthly profit owed to the boss
+    tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
     bigger: 0.5,        // what each level above the first adds to what a place earns
     dry: 1 / 3,         // what a speakeasy earns with nothing to pour
     pours: 2,           // speakeasies one still of level 1 keeps wet
@@ -548,7 +548,8 @@
     // no capo opens one more bar with nothing to pour in it, and a dry city calls for a still
     var thirst = function (kind) {
       if (kind === 'speakeasy') return drink.bars > 0 && drink.bars >= RULES.pours * drink.stills ? 0.4 : 1;
-      if (kind === 'still') return drink.bars > RULES.pours * drink.stills ? 1.5 : 1;
+      // and no one more still when the family already makes a still's worth more than its bars pour
+      if (kind === 'still') return drink.bars > RULES.pours * drink.stills ? 1.5 : RULES.pours * drink.stills >= drink.bars + RULES.pours ? 0.4 : 1;
       // and the same for a fence with nothing to sell, and for the warehouse or the chop shop that would fill it
       if (kind === 'fence') return stock.fences > 0 && stock.fences >= stock.makes ? 0.4 : 1;
       return RULES.goods.makes[kind] && stock.fences > stock.makes ? 1.5 : 1;
@@ -1225,9 +1226,9 @@
         events.push({ type: 'truck', capo: capo, city: c.id, trucks: m.trucks, cost: RULES.truck.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.trucks] || 'new') + ' truck: liquor sits in his cellar while bars go dry' });
       }
-      var due = RULES.tribute * willing(c, capo);
-      var sent = profit > 0 ? profit * due : 0;
-      if (profit > 0) { f.dirty += sent; m.cash += profit * (1 - due); } else m.cash += profit;
+      // the boss's share comes off the top, before the men are paid; a capo with nothing left sends what he has
+      var sent = Math.max(0, Math.min(RULES.tribute * willing(c, capo) * inc, m.cash + profit));
+      f.dirty += sent; m.cash += profit - sent;
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
         m.rank += 1;
