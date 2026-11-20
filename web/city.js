@@ -244,7 +244,7 @@
   }
 
   // ---- time
-  var LOUD = { burnt: 1, bust: 1, unpaid: 1, taken: 0, rank: 0, learned: 0, repelled: 0, car: 0 };
+  var LOUD = { hijack: 1, seizure: 1, truck: 0, burnt: 1, bust: 1, unpaid: 1, taken: 0, rank: 0, learned: 0, repelled: 0, car: 0 };
   function beat() {
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g);

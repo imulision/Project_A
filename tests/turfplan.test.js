@@ -250,3 +250,14 @@ test('a trip without a vehicle of its own still comes and goes as before', () =>
   const wash = cars.filter((t) => t.kind === 'wash');
   assert.equal(wash.length, 1); assert.ok(wash[0].loop && !wash[0].round);
 });
+
+test('a load lost on the road: the vehicle is stopped half way, loses it there, and the place of the hold-up lights up', () => {
+  const { v, c, k, p } = withRounds();
+  c.trips[0].lost = 'hijack';
+  const car = M.tripsTurf(p, v).find((t) => t.id === 'ashport:' + k.id + ':car:1');
+  assert.deepEqual(car.stops.map((s) => (s.load ? 'load' : s.lost || 'unload')), ['load', 'hijack', 'load', 'unload']);
+  assert.ok(car.stops[1].k > car.stops[0].k && car.stops[1].k < car.stops[2].k);
+  const there = car.path[car.stops[1].k]; assert.ok(there[0] % 4 === 0 || there[1] % 3 === 0, 'it is stopped in the street');
+  const fx = M.effectsTurf([{ type: 'hijack', city: 'ashport', x: c.trips[0].from.x, y: c.trips[0].from.y, label: 'held up' }, { type: 'seizure', city: 'ashport', x: c.trips[0].from.x, y: c.trips[0].from.y, label: 'seized' }], p);
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.say), ['gunfire:held up', 'police:seized']);
+});

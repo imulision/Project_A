@@ -169,8 +169,9 @@
         legs.forEach(function (l) {
           join(path, at === h ? route([h.i, h.j], [l.a.i, l.a.j]).slice(1) : route([at.i, at.j], [l.a.i, l.a.j]));
           stops.push({ k: path.length - 1, load: true, amount: l.t.amount || 0, kind: l.t.kind, cargo: l.t.cargo });
-          join(path, route([l.a.i, l.a.j], [l.b.i, l.b.j]));
-          stops.push({ k: path.length - 1, load: false, amount: 0, kind: l.t.kind, cargo: l.t.cargo }); at = l.b;
+          var before = path.length; join(path, route([l.a.i, l.a.j], [l.b.i, l.b.j]));
+          // a load lost on the road never arrives: the vehicle is stopped half way, and drives on empty
+          stops.push({ k: l.t.lost ? Math.min(path.length - 2, before + Math.max(0, Math.floor((path.length - before) / 2) - 1)) : path.length - 1, load: false, lost: l.t.lost || null, amount: 0, kind: l.t.kind, cargo: l.t.cargo }); at = l.b;
         });
         join(path, at === h ? [door] : route([at.i, at.j], [h.i, h.j]).slice(0, -1)); join(path, [door, spot]);
         out.push({ id: c.id + ':' + id, round: true, loop: true, kind: t0.kind, city: c.id, color: FLOW[look.flow], vehicle: /:truck:/.test(id) ? 'truck' : look.vehicle, violent: false, home: spot,
@@ -203,7 +204,7 @@
     });
     return out;
   }
-  var FXOF = { burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
+  var FXOF = { hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
     var out = [];

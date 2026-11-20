@@ -660,7 +660,7 @@ function agentFor(t) {
            geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
            tag: { cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.loop ? 2.4 : 5, o: null,
            // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
-           round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
+           round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, lost: s.lost, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
 }
 // A vehicle on its round takes the way of the new month once it is back by the club; parked, it takes it at once.
 function reroute(id, a, t) {
@@ -688,7 +688,7 @@ function moveAgents(dt) {
       if (!a.L) { if (a.leaving) { agents.delete(id); continue; } }
       else {
         a.p += a.speed * dt; const s = a.stops[a.si];
-        if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
+        if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.lost) { a.wait = 3; spawnFx(s.lost === 'seizure' ? 'police' : 'gunfire', a.x === undefined ? a.pts[0][0] : a.x, a.z === undefined ? a.pts[0][1] : a.z, 1, s.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone'); } if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
         else if (a.p >= a.L) {      // home again: it rests by the club, then goes out again, by the new way if the month changed it
           if (a.leaving) { agents.delete(id); continue; }
           if (a.next) { const b = agentFor(a.next); if (b) { b.wait = 3; b.rot = a.rot; agents.set(id, b); continue; } a.next = null; }
