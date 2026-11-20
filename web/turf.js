@@ -88,6 +88,9 @@
     // `hold` and `muscle`: the share of the family's grip on a street the rivals must pass to dare, for a capo of no
     // Muscle, and what each point of his Muscle adds
     road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08 },
+    // between two cities joined by a road: the loads one city makes and cannot sell that go, each way and each month,
+    // to the family's sellers that went without in the other
+    convoy: { loads: 2 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -1083,10 +1086,38 @@
     return out;
   }
   // One month for the whole family: every city, then what it is learning.
-  function month(f, cities) {
+  // What went down the roads last month, for the map of the cities.
+  function convoys(f) { return f.convoys || []; }
+  // Once every city has served itself, what waits in its cellars and stores goes down each road to the family's sellers
+  // that had nothing to sell next door. It is on their shelves for the month to come.
+  function ride(f, cities, roads) {
+    f.convoys = [];
+    (roads || []).forEach(function (r) {
+      [[r.from, r.to], [r.to, r.from]].forEach(function (way) {
+        var a = cities.filter(function (c) { return c.id === way[0]; })[0], b = cities.filter(function (c) { return c.id === way[1]; })[0], left = RULES.convoy.loads;
+        if (!a || !b) return;
+        CHAINS.forEach(function (chain) {
+          if (chain.bonus) return;
+          var src = cellars(a).filter(function (s) { return s.chain === chain.id; });
+          var sellers = everyPlace(b).filter(function (p) { return p.owner === 'family' && chain.sells.indexOf(p.kind) >= 0; })
+            .map(function (p) { return { p: p, b: b.blocks[key(p.x, p.y)] }; }).filter(function (q) { return (q.b[chain.sold] || 0) < 1; });
+          while (left > 0) {
+            var from = null, to = null;
+            src.forEach(function (s) { if (s.b.stock >= 1 && (!from || s.b.stock > from.b.stock)) from = s; });
+            sellers.forEach(function (q) { var has = q.b[chain.shelf] || 0; if (has + 1 <= RULES.truck.shelf && (!to || has < (to.b[chain.shelf] || 0))) to = q; });
+            if (!from || !to) break;
+            from.b.stock -= 1; to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1; left -= 1;
+            f.convoys.push({ from: a.id, to: b.id, cargo: from.cargo, amount: loadOfCargo(from.cargo), capo: from.p.capo, x: from.p.x, y: from.p.y, tx: to.p.x, ty: to.p.y });
+          }
+        });
+      });
+    });
+  }
+  function month(f, cities, roads) {
     var events = [];
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
+    ride(f, cities, roads);
     if (f.study && --f.study.monthsLeft <= 0) {
       f.tech[f.study.kind] = f.study.tier;
       events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
@@ -1308,7 +1339,7 @@
     return events;
   }
 
-  var api = { earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
