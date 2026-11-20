@@ -105,6 +105,13 @@ const carsAt = () => page.evaluate(() => { const m = window.__ashport.map(); ret
 const stood = await carsAt(); await page.waitForTimeout(900); const later = await carsAt();
 assert.equal(stood.held, true); assert.ok(stood.at.length > 0, 'cars are on the street');
 assert.equal(later.at, stood.at, 'no car moved while time stood still');
+// and the map is not drawn again while nothing changes: time stopped, camera still
+const drawnNow = () => page.evaluate(() => window.__ashport.map().stats().drawn);
+let d0 = await drawnNow(), quiet = false;      // a fire or a promotion still glowing keeps the map drawing until it is over
+for (let n = 0; n < 40 && !quiet; n++) { await page.waitForTimeout(2500); const d = await drawnNow(); quiet = d === d0; d0 = d; }
+assert.ok(quiet, 'no image is drawn while nothing changes');
+await page.mouse.move(200, 600); await page.mouse.down(); await page.mouse.move(230, 620, { steps: 3 }); await page.mouse.up();
+await page.waitForFunction((n) => window.__ashport.map().stats().drawn > n, d0, { timeout: 20000 });      // a finger on the map draws it again
 await page.click('#clock');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped') || window.__ashport.game().paused), false, 'the banner starts time again');
 await page.waitForFunction((was) => { const m = window.__ashport.map(); return !m.stats().held && m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') !== was; }, stood.at, { timeout: 20000 });      // the cars leave again with the clock

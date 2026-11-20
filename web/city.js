@@ -188,8 +188,11 @@
   }
   var MOVE = 'translate' in document.documentElement.style;
   var hiddenLabs = {};      // the labels that had stepped aside at the last image: none blinks at the edge of another
+  var drawnAt = -1;
   function drawLabels() {
-    if (map) {
+    // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
+    var drawn = map ? map.stats().drawn : -1;
+    if (map && drawn !== drawnAt) { drawnAt = drawn;
       var seen = {}, boxes = [];
       map.labels().forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];

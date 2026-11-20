@@ -515,6 +515,7 @@ function levelOfDetail(now) {
   const kept = CITIES.filter(C => C.near).sort((a, b) => b.nearAt - a.nearAt);
   for (const C of kept.slice(2)) if (!C.near.visible) { dispose(C.near); C.near = null; }
   updateShadow(tgt);
+  return built;
 }
 
 await stage(3);
@@ -571,10 +572,10 @@ let fxOn = !PLAIN;
 window.setFx = on => { fxOn = on; bloom.enabled = grade.enabled = on; };
 window.setFx(fxOn); if (Q.has('nobloom')) bloom.enabled = false; if (Q.has('nograde')) grade.enabled = false;
 
-function setPr(v) { pr = v; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); grade.uniforms.res.value.set(innerWidth * pr, innerHeight * pr); }
+function setPr(v) { pr = v; stale = 3; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); grade.uniforms.res.value.set(innerWidth * pr, innerHeight * pr); }
 window.__setPr = setPr;
 renderer.info.autoReset = false;
-let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0;
+let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0, held = false, stale = 3, lastView = '';
 const focus = (id, districtId) => {     // glide to the whole map, to a city, or to one of its districts
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
   goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
@@ -723,19 +724,28 @@ function pickAt(cx, cy) {
   }
   return null;
 }
-let held = false;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
-  levelOfDetail(now);
-  for (const b of batches.values()) b.count = 0;
-  // while the game's time stands still nothing drives: every car waits where it is, and leaves again with the clock
-  const drive = held ? 0 : dt;
-  moveCars(trucks, drive); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, drive);
-  moveAgents(drive); animateFx(dt, now);
-  for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
-  grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
-  renderer.info.reset(); composer.render(); frames++; fpsN++;
+  // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
+  // Anything that changes the picture (the camera, an order to the map, the size of the window) asks for a few images more.
+  const view = cam.position.x + ',' + cam.position.y + ',' + cam.position.z + ',' + cam.zoom;
+  if (view !== lastView || goal || !held || fxList.length || spotG || frames < 4) stale = 3;
+  lastView = view;
+  if (stale > 0) {
+    stale--;
+    if (levelOfDetail(now)) stale = 3;      // a city still being built
+    for (const b of batches.values()) b.count = 0;
+    // while the game's time stands still nothing drives: every car waits where it is, and leaves again with the clock
+    const drive = held ? 0 : dt;
+    moveCars(trucks, drive); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, drive);
+    moveAgents(drive); animateFx(dt, now);
+    for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
+    grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
+    renderer.info.reset(); composer.render(); frames++;
+    window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
+  }
+  fpsN++;
   if (now - fpsT > 1000) {
     const fps = Math.round(fpsN * 1000 / (now - fpsT)); window.__fps = fps; fpsT = now; fpsN = 0;
     // adaptive quality: below 40 images a second for two seconds, lower the resolution one step
@@ -744,7 +754,6 @@ function frame(now) {
     const el = document.getElementById('fps'); if (el && !el.classList.contains('on')) el.textContent = fps + ' fps';     // the page writes the full reading itself when the meter is open
   }
   if (frames === 3) { window.__ready = true; if (opt.onStage) opt.onStage(4); }
-  window.__stats = { cars: agents.size, buildings: nBuildings, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, pr };
   if (spotG) spotMat.opacity = 0.42 + 0.2 * Math.sin(performance.now() / 260);      // the streets on offer breathe
   requestAnimationFrame(frame);
 }
@@ -775,8 +784,10 @@ el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
 el.addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.1 : 0.9); }, { passive: false });
 addEventListener('resize', () => {
   aspect = innerWidth / innerHeight; cam.left = -VIEW * aspect; cam.right = VIEW * aspect; cam.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true;
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); setPr(pr); shadowDirty = true; stale = 3;
 });
 
-  return { update, effects, traffic, labels, focus, pickAt, spots, hold: (v) => { held = !!v; }, setLook: window.setLook, setFx: window.setFx, stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held }) };     // counted now, not at the last frame drawn; moving while the camera glides
+  const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
