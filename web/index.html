@@ -23,11 +23,12 @@ window.AshportLoad = (function () {
   <h1 id="date">January 1926</h1>
   <div class="sub"><span id="sub">Pick your first capo to begin</span><span id="heat" data-tip="Heat: how closely the police watch your hottest city. Too much brings busts."></span><span id="fps"></span></div>
   <div class="res">
-    <div data-tip="Dirty cash: what your capos send up from the streets. It pays for a new capo's club and for the key places they ask you for."><small><span data-ic="dirty"></span>DIRTY <i id="dirtyd"></i></small><b id="dirty">$0</b></div>
-    <div data-tip="Clean cash: money washed in the laundries and fronts. It pays for what the family learns, and the police cannot seize it."><small><span data-ic="clean"></span>CLEAN <i id="cleand"></i></small><b id="clean">$0</b></div>
+    <div data-tip="Dirty cash: what your capos send up from the streets. It pays for a new capo's club and for the key places they ask you for."><small><span data-ic="dirty"></span>DIRTY <i id="dirtyd"></i></small><b id="dirty">$0</b><em id="wash"></em></div>
+    <div data-tip="Clean cash: money washed in the laundries and fronts. It pays for what the family learns, and the police cannot seize it."><small><span data-ic="clean"></span>CLEAN <i id="cleand"></i></small><b id="clean">$0</b><em id="kept"></em></div>
     <div data-tip="Streets your family holds, out of all the streets of the six cities, and the cities where you have a man."><small><span data-ic="streets"></span>STREETS <i id="cities"></i></small><b id="share">0%</b></div>
     <div data-tip="Your capos, out of the seats your cities can carry. Each key place you hold adds a seat in its city."><small><span data-ic="men"></span>CAPOS</small><b id="men">0 / 0</b></div>
   </div>
+  <div id="clock"></div>
   <div id="alerts"></div>
 </div>
 <div id="toast"></div>
