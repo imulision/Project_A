@@ -22,13 +22,13 @@ const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men']
 // a man at the door gets a street chosen on the map when the family can pay for his club, and waits otherwise.
 const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   const A = window.__ashport, q = (s) => document.querySelector('#veil.on ' + s), seen = window.__seen = window.__seen || { answer: 0, rule: 0, seat: 0, waited: 0, away: 0, rides: 0 };
-  for (let i = 0; i < n * 4; i++) {
+  for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
     A.beat();
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
     const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
-    if (again && i % 24 === 0) again.click();
+    if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
     for (let guard = 0; guard < 12 && document.querySelector('#veil.on'); guard++) {
       const yes = q('[data-act=answer][data-yes="1"]:not([disabled])'), no = q('[data-act=answer][data-yes="0"]'), rule = q('[data-act=rule]'), seat = q('[data-act=seat]:not([disabled])');
       if (yes || no) { seen.answer++; (yes || no).click(); }
