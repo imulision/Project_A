@@ -167,6 +167,18 @@
     return l < RULES.loyal.bitter ? 'bitter' : l < RULES.loyal.restless ? 'restless' : 'steady';
   }
 
+  // The boss's line for the city, and whether this man follows it: it is his way, or he is loyal enough. A bitter man follows nothing.
+  function lineOf(c) { return RULES.line[c.line] && RULES.line[c.line].stat ? c.line : null; }
+  function follows(c, f, capo) {
+    var line = lineOf(c), m = f.men[capo];
+    if (!line || !m) return null;
+    var L = RULES.line[line], card = who(capo), name = card.name.split(' ')[0];
+    if (mood(f, capo) === 'bitter') return { follows: false, why: name + ' is bitter: he follows nobody\'s line' };
+    if (card[L.stat] >= L.from) return { follows: true, why: 'It is his way' };
+    if (loyalty(f, capo) >= RULES.line.loyal) return { follows: true, why: 'Not his way, but he is loyal' };
+    return { follows: false, why: 'Not his way, and he is not loyal enough to bend' };
+  }
+
   function can(c, capo, id) { var k = c.skills && c.skills[capo]; return !!(k && k[id]); }
 
   // The chief of the old family in this city, if it has one.
@@ -181,7 +193,7 @@
   }
 
   var api = { KEYS: KEYS, PEOPLE: PEOPLE, LURES: LURES, who: who, SCHOOLS: SCHOOLS, TRADE: TRADE, schoolOf: schoolOf, abilities: abilities,
-      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
+      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, lineOf: lineOf, follows: follows, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfPeople = api;
 })(typeof self !== 'undefined' ? self : this);

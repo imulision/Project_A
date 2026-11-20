@@ -114,6 +114,7 @@
     hidden += H.company.hides * owns(f, 'company');                                   // the company's books
     c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud * (1 - H.paper.hushes * owns(f, 'paper'))   // the paper tells it kindly
       - RULES.cools * (held(c, 'shield') ? 2 : 1) - H.judge.cools * owns(f, 'judge')
+      - (P.lineOf(c) === 'low' ? RULES.line.cools * followers(c, f).follow : 0)                                    // a city that lies low
       - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length - ((c.board && c.board.cools) || 0);
     c.heat = Math.max(0, Math.min(100, c.heat));
     if (c.heat >= 100) {
@@ -186,6 +187,24 @@
   // A price that grows with the family, rounded to the nearest $50.
   function swell(base, rate, n) { return Math.round(base * Math.pow(1 + rate, Math.max(0, n)) / 50) * 50; }
 
+  // The boss's line for this city: grow, earn, lie low, or none.
+  function line(c, how) {
+    if (how === null || how === undefined) { delete c.line; return; }
+    if (!RULES.line[how] || !RULES.line[how].stat) throw new Error('no such line: ' + how);
+    c.line = how;
+  }
+  function lines() { return ['grow', 'earn', 'low'].map(function (id) { return { id: id, name: RULES.line[id].name, gives: RULES.line[id].gives }; }); }
+  function followers(c, f) {
+    var here = Object.keys(f.men).filter(function (id) { return clubOf(c, id); });
+    return { of: here.length, follow: here.filter(function (id) { var l = P.follows(c, f, id); return l && l.follows; }).length };
+  }
+  // How well the line is held: the share of the city's capos who follow it.
+  function lineHeld(c, f) {
+    if (!P.lineOf(c)) return null;
+    var n = followers(c, f);
+    return { share: n.of ? n.follow / n.of : 0, follow: n.follow, of: n.of, label: n.follow + ' of ' + n.of + (n.of === 1 ? ' capo follows' : ' capos follow') };
+  }
+
   // The boss's share in this city: light, normal or heavy.
   function cutOf(c) { return RULES.cut[c.cut] ? c.cut : 'normal'; }
   function cut(c, how) {
@@ -213,7 +232,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;
