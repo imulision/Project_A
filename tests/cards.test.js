@@ -13,7 +13,8 @@ function play(until, months) {
     if (until(v, g)) return { g, v };
     v.cities.forEach((c) => {
       c.asks.forEach((a) => { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } });
-      c.doors.forEach((d) => { try { E.command(g, { type: 'welcome', city: c.id, from: c.id, capo: d.capo, x: 6, y: 11 }); } catch (e) { /* cannot pay yet */ } });
+      // (a free block next to the family's own, wherever the city's outline leaves one)
+      c.doors.forEach((d) => { const s = require('../web/turf.js').spots(g.cities.find((q) => q.id === c.id))[0]; try { E.command(g, { type: 'welcome', city: c.id, from: c.id, capo: d.capo, x: s.x, y: s.y }); } catch (e) { /* cannot pay yet */ } });
       c.feuds.forEach((f) => E.command(g, { type: 'rule', city: c.id, id: f.id, winner: f.a }));
     });
     if (g.paused) E.command(g, { type: 'resume' });

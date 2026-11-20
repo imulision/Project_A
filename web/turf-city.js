@@ -12,12 +12,25 @@
   var RULES = R.RULES, TERRAIN = R.TERRAIN, WORTH = R.WORTH, KINDS = R.KINDS, key = R.key, inside = R.inside, size = R.size, at = R.at, far = R.far;
   var KEYS = P.KEYS, PEOPLE = P.PEOPLE, who = P.who, SCHOOLS = P.SCHOOLS, schoolOf = P.schoolOf, sits = P.sits;
 
+  // A city is a rectangle of blocks. Each block is on a street name (a zone): either the zones are plain rectangles (x0, y0, x1, y1),
+  // or `streets` says, block by block and row after row, which zone it is on, and a zone can then be any shape.
   function createCity(spec) {
-    var voids = {};
+    var voids = {}, streets = spec.streets ? spec.streets.slice() : null;
     (spec.voids || []).forEach(function (v) { voids[key(v.x, v.y)] = v.kind; });
-    return { id: spec.id, w: spec.w, h: spec.h, voids: voids, zones: spec.zones.map(function (z) {
-      return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits };
-    }), blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
+    var zones = spec.zones.map(function (z) { return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1, traits: z.traits }; });
+    if (streets) {
+      if (streets.length !== spec.w * spec.h) throw new Error(spec.id + ': ' + spec.w * spec.h + ' blocks, ' + streets.length + ' street names');
+      // the box each street name fits in
+      zones.forEach(function (z) { z.x0 = spec.w; z.y0 = spec.h; z.x1 = -1; z.y1 = -1; });
+      streets.forEach(function (n, i) {
+        var z = zones[n], x = i % spec.w, y = Math.floor(i / spec.w);
+        if (!z) throw new Error(spec.id + ': no street name ' + n);
+        z.x0 = Math.min(z.x0, x); z.x1 = Math.max(z.x1, x); z.y0 = Math.min(z.y0, y); z.y1 = Math.max(z.y1, y);
+      });
+    }
+    var c = { id: spec.id, w: spec.w, h: spec.h, voids: voids, zones: zones, blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
+    if (streets) c.streets = streets;
+    return c;
   }
 
   // A throw of the city's own dice: the same city always plays out the same way.
@@ -82,13 +95,17 @@
     return best && { x: best.x, y: best.y };
   }
 
-  function zoneOf(c, x, y) {
+  // The street name a block is on: its number, then the zone itself.
+  function zoneAt(c, x, y) {
+    if (x < 0 || y < 0 || x >= c.w || y >= c.h) return -1;
+    if (c.streets) return c.streets[y * c.w + x];
     for (var i = 0; i < c.zones.length; i++) {
       var z = c.zones[i];
-      if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
+      if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return i;
     }
-    return null;
+    return -1;
   }
+  function zoneOf(c, x, y) { return c.zones[zoneAt(c, x, y)] || null; }
 
   // What is worked out once and kept until a place changes: the list of
   // places and how hard each side presses on every block. It lives beside the
@@ -266,7 +283,7 @@
   function others(c, f, capo) { return Object.keys(f.men).filter(function (id) { return id !== capo && clubOf(c, id); }); }
 
   var api = { learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
-      zoneOf: zoneOf, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
+      zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
       clubOf: clubOf, settle: settle, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
