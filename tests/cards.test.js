@@ -440,6 +440,70 @@ test('an event is a small tile on the edge of the screen: its picture, its words
   assert.doesNotMatch(C.fxTip('news', 'Sal asks', 'asks'), /undefined|news/);
 });
 
+// ---- the underboss: one capo who holds a city for the boss
+test('a capo can be made underboss of his city once it has two capos, and the sheet says who holds it', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], k = { ...city.capos[0], under: false }, other = { ...k, id: 'mae', name: 'Mae Rourke' };
+  const two = { ...v, cities: [{ ...city, under: null, capos: [k, other] }] };
+  assert.match(C.capo(two, city.id, k.id), /data-act="underboss" data-city="ashport" data-capo="sal"/);
+  const alone = { ...v, cities: [{ ...city, under: null, capos: [k] }] };
+  assert.doesNotMatch(C.capo(alone, city.id, k.id), /data-act="underboss"/, 'a city with one capo needs none');
+  const held = { ...v, cities: [{ ...city, under: k.id, capos: [{ ...k, under: true }, other] }] };
+  assert.match(C.capo(held, city.id, k.id), /Underboss of Ashport/); assert.doesNotMatch(C.capo(held, city.id, k.id), /data-act="underboss"/);
+  assert.match(C.capo(held, city.id, 'mae'), /data-act="underboss"/, 'the boss can give the city to another man');
+  assert.match(C.city(held, city.id), /class="slot under"/, 'and the city sheet marks him');
+});
+
+test('a man at the door of a city that has an underboss is his to take in: no decision for the boss', () => {
+  const { v } = play((v) => v.month >= 2);
+  const door = { capo: 'mae', name: 'Mae Rourke', specialty: 'Madam', door: 'name', by: null, why: 'A city with nightlife', cost: 2500, roads: [], open: true, chairs: ['routes'], handled: 'sal' };
+  const html = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [door] }] }, { dirty: 9000, clean: 0 });
+  assert.match(html, /Sal will take (her|him) in himself|Sal takes him in himself/); assert.doesNotMatch(html, /data-act="seat"/);
+  assert.match(html, /data-act="chairs"/, 'the boss may still give him a chair at his table');
+  const poach = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [{ ...door, door: 'poach' }] }] }, { dirty: 9000, clean: 0 });
+  assert.match(poach, /data-act="welcome"/, 'a man taken from a rival stays the boss\'s call');
+});
+
+// ---- a page that fails must never freeze the game
+test('a sheet that cannot be drawn says so and lets time go on, instead of throwing', () => {
+  const html = C.capo({ cities: [{ id: 'a', name: 'A', capos: [{ id: 'nobody at all' }] }] }, 'a', 'nobody at all');
+  assert.match(html, /could not be drawn/); assert.match(html, /data-act="later"/);
+  assert.match(C.requests({ cities: [{ id: 'a', feuds: null, asks: null, doors: null }] }, {}), /could not be drawn/);
+});
+
+test('whoever starts and whatever happens in fifteen years, every sheet of every month can be drawn', () => {
+  const broken = /could not be drawn/;
+  E.NAMES.forEach((name) => {
+    const g = E.createGame({ capo: name });
+    for (let m = 0; m < 180; m++) {
+      for (let i = 0; i < E.TICKS_PER_MONTH; i++) { E.tick(g); if (g.paused && !E.hud(g).pending) E.command(g, { type: 'resume' }); }
+      const v = E.view(g), h = E.hud(g), at = name + ', month ' + m + ': ';
+      const draw = (what, html) => { assert.ok(html == null || !broken.test(html), at + what + ' ' + String(html).slice(0, 300)); };
+      draw('requests', C.requests(v, h)); draw('family', C.family(v, h)); draw('journal', C.journal(g.journal));
+      (v.table || []).forEach((t) => draw('chair ' + t.post, C.chair(v, t.post)));
+      (v.tree || []).forEach((t) => draw('know ' + t.kind, C.know(v, t.kind, h)));
+      v.cities.forEach((c) => {
+        draw('city ' + c.id, C.city(v, c.id));
+        c.capos.forEach((k) => { draw('capo ' + k.id, C.capo(v, c.id, k.id)); (k.partings || []).forEach((p) => draw('parting', C.parting(v, c.id, k.id, p.way))); });
+        c.doors.forEach((d) => draw('chairs ' + d.capo, C.chairs(v, c.id, d.capo)));
+        c.places.forEach((p) => { draw('block', C.block(v, c.id, p.x, p.y)); draw('bubble', C.blockTip(v, c.id, p.x, p.y)); });
+        (c.trips || []).forEach((t) => C.carTip(t));
+      });
+      (g.journal.slice(-6)).forEach((e) => C.news(e));
+      // he answers as he can, differently from one month to the next, so that every kind of door and request is met
+      v.cities.forEach((c) => {
+        c.asks.forEach((a) => { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: m % 3 !== 0 }); } catch (e) { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } catch (e2) { /* gone */ } } });
+        c.feuds.forEach((f) => { try { E.command(g, { type: 'rule', city: c.id, id: f.id, winner: m % 2 ? f.a : f.b }); } catch (e) { /* gone */ } });
+        c.doors.forEach((d) => { if (d.handled) return;
+          const chair = (d.chairs || [])[0];
+          try { if (chair && m % 4 === 0) E.command(g, { type: 'seat', city: c.id, capo: d.capo, post: chair }); else { const s = global.AshportTurf.spots(g.cities.find((q) => q.id === c.id))[0]; E.command(g, { type: 'welcome', city: c.id, from: c.id, capo: d.capo, x: s.x, y: s.y }); } } catch (e) { /* cannot pay, or no seat */ } });
+        if (c.capos.length > 1 && !c.under) { try { E.command(g, { type: 'underboss', city: c.id, capo: c.capos[0].id }); } catch (e) { /* not yet */ } }
+      });
+      if (g.paused) E.command(g, { type: 'resume' });
+    }
+  });
+});
+
 // A man can come through a key place or from a rival family: what stands behind him is then not a person.
 test('the sheet of requests opens whoever stands behind the man at the door', () => {
   const door = (more) => Object.assign({ capo: 'gus', name: 'Gus Hartmann', specialty: 'Brewmaster', door: 'name', by: null, why: 'He comes with the brewery.', cost: 800, roads: [], chairs: [] }, more);

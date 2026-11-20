@@ -142,6 +142,7 @@
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') pick(d.city, d.city, d.capo);
+    else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo)); } }
     else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
@@ -220,7 +221,8 @@
   var MOVE = 'translate' in document.documentElement.style;
   var hiddenLabs = {};      // the labels that had stepped aside at the last image: none blinks at the edge of another
   var drawnAt = -1;
-  function drawLabels() {
+  function drawLabels() { try { drawLabelsNow(); } catch (e) { console.error(e); } requestAnimationFrame(drawLabels); }      // one bad label never stops the others from following the map
+  function drawLabelsNow() {
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn;
@@ -258,7 +260,6 @@
       shown = boxes.filter(function (b) { return !off[b.id]; }).concat(badges);
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
-    requestAnimationFrame(drawLabels);
   }
 
   // ---- time
