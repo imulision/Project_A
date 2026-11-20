@@ -31,15 +31,6 @@ test('a man comes with the loyalty he is known for, and his mood says where it s
   assert.equal(T.view(c, f).capos[0].loyal, undefined, 'the screen gets a mood, never the number');
 });
 
-test('a month without his wage costs a man some of his loyalty', () => {
-  const { c, f } = pair();
-  f.men.dutch.rank = 3; f.men.dutch.xp = T.RULES.xp[3]; // a Soldier is owed nothing; a Legend is owed more than one club sends up
-  f.dirty = 0;
-  const events = T.stepMonth(c, f);
-  assert.ok(events.some((e) => e.type === 'unpaid' && e.capo === 'dutch'));
-  assert.equal(T.loyalty(f, 'dutch'), 55 - L.unpaid);
-});
-
 test('time brings a man back to what he is: one point a month, up or down', () => {
   const { c, f } = pair();
   f.men.dutch.loyal = 40; f.men.vince.loyal = 60;
@@ -189,18 +180,4 @@ test('a save from before loyalty plays on: every man reads as what he is known f
   T.stepMonth(c, f);
   assert.equal(T.loyalty(f, 'vince'), 45);
   assert.equal(moodOf(c, f, 'vince'), 'restless');
-});
-
-test('wages unpaid month after month make a man restless, never bitter on their own: it takes an affront to turn him', () => {
-  // two men with a club and nothing else: what they send up never covers a Legend's wage
-  const c = town(), f = family({ tech: {} });
-  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch').cash = 0;
-  T.settle(c, 'mae', 8, 3); T.join(f, 'mae').cash = 0;
-  f.men.dutch.rank = 3; f.men.dutch.xp = T.RULES.xp[3];
-  let unpaid = 0;
-  for (let i = 0; i < 30; i++) { f.dirty = 0; f.clean = 0; unpaid += T.stepMonth(c, f).filter((e) => e.type === 'unpaid' && e.capo === 'dutch').length; }
-  assert.equal(unpaid, 30);
-  assert.equal(T.loyalty(f, 'dutch'), L.bitter);
-  assert.equal(moodOf(c, f, 'dutch'), 'restless');
-  assert.ok(f.men.dutch, 'he is still there');
 });

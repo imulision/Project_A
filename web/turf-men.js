@@ -275,11 +275,13 @@
 
   // The men of the table are paid like the others, dirty money first.
   function payTable(f, events) {
+    var was = f.owed || {};
     f.owed = {};
     CHAIRS.forEach(function (ch) {
       var id = sits(f, ch.post);
       if (!id) return;
       if (funds(f) >= RULES.table.pay) spend(f, RULES.table.pay);
+      else if (was[ch.post]) f.owed[ch.post] = true;   // still unpaid: it was said the first month
       else { f.owed[ch.post] = true; events.push({ type: 'unpaid', capo: id, post: ch.post, due: RULES.table.pay, label: first(id) + ' has not been paid this month' }); }
     });
   }
