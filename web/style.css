@@ -20,7 +20,7 @@ h1::after{content:"";display:block;width:44px;height:3px;background:var(--accent
 .lab b{display:block;font:500 1.35em/1.05 var(--title);letter-spacing:.6px;text-transform:uppercase}.lab span{color:var(--c)}
 .lab.sm{transform:translate(-50%,-50%);padding:2px 7px;background:#07080bb5}.lab.sm b{font-size:1.05em}.lab.sm span{font-size:.85em}
 .lab.fx{border:0;padding:0;background:none;width:36px;height:36px;transform:translate(-50%,-50%)}
-.lab.promotion{color:#ffd76a}.lab.fire{color:#ff7a3a}.lab.gunfire{color:#ff5a3a}.lab.police{color:#6a9bff}
+.lab.promotion{color:#ffd76a}.lab.fire{color:#ff7a3a}.lab.gunfire{color:#ff5a3a}.lab.police{color:#6a9bff}.lab.betrayal{color:#ff3b30}
 @keyframes pulse{from{opacity:1}to{opacity:.55}}
 .bot{position:fixed;left:0;right:0;bottom:0;padding:26px 12px 12px;background:linear-gradient(#07080b00,#07080be0 45%);z-index:2;display:flex;gap:6px;align-items:center}
 button{font:600 1em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:2px;padding:0 9px;min-height:42px}
@@ -194,3 +194,4 @@ body.stopped .sub #sub{display:none}
 .slot.under{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
 .move.mood.steady .ic{color:var(--good)}.move.mood.restless{border-left:3px solid var(--accent)}.move.mood.restless .ic{color:var(--accent)}.move.mood.bitter{border-left:3px solid var(--bad)}.move.mood.bitter .ic,.move.mood.bitter b{color:var(--bad)}
 .slot.restless{outline:2px solid var(--accent);outline-offset:1px}.slot.bitter{outline:2px solid var(--bad);outline-offset:1px}
+.lab.capo.restless .pf{box-shadow:0 0 0 2px var(--accent)}.lab.capo.bitter{color:var(--bad)}.lab.capo.bitter .pf{box-shadow:0 0 0 3px var(--bad);filter:saturate(.55)}

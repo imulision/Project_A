@@ -323,3 +323,10 @@ test('a block the rules leave out of the town (water, rails, waste ground) is dr
   assert.equal(p.lots.length, c.w * c.h * 6);
   assert.doesNotThrow(() => M.planTurf(cityOf(play(1))), 'a town without any gap is drawn as before');
 });
+
+test('a betrayal is marked on the map with a light of its own, where the man had his club', () => {
+  const g = play(2), p = M.planEmpire(E.view(g), AshportWorld.CITIES), k = E.view(g).cities[0].capos[0];
+  const fx = M.effectsTurf([{ type: 'betrayal', city: 'ashport', capo: k.id, x: k.x, y: k.y, label: 'Sal goes over to the Callahans' }, { type: 'whispers', city: 'ashport', capo: k.id, x: k.x, y: k.y, label: 'Word gets around' }], p);
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['betrayal:betrayal', 'news:whispers']);
+  assert.equal(fx[0].say, 'Sal goes over to the Callahans');
+});

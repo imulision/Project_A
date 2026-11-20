@@ -565,3 +565,13 @@ test('a tile that would say the same thing month after month is told once, and a
   assert.deepEqual(C.untold([e], seen, 14), [e], 'after a month without it, it is news again');
   assert.deepEqual(C.untold([other, other], seen, 14), [other], 'and never twice in the same month');
 });
+
+test('the capos whose mood the boss should see over the map: the restless and the bitter, not the steady', () => {
+  const view = { cities: [{ id: 'ashport', capos: [{ id: 'sal', mood: 'bitter' }, { id: 'mae', mood: 'steady' }, { id: 'vince' }] }, { id: 'dunmore', capos: [{ id: 'dutch', mood: 'restless' }] }] };
+  assert.deepEqual(C.moods(view), { ashportsal: 'bitter', dunmoredutch: 'restless' });
+});
+
+test('the mark of a betrayal on the map says what it is when touched', () => {
+  const t = C.fxTip('betrayal', 'Sal goes over to the Callahans', 'betrayal');
+  assert.match(t, /Betrayal/); assert.match(t, /Sal goes over/); assert.doesNotMatch(t, /undefined/);
+});

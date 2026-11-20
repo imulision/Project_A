@@ -77,7 +77,7 @@
     return '<b style="color:' + h[1] + '">' + icon(h[0]) + ' ' + esc(road ? 'On the road to the next city' : h[2]) + '</b>' + (road && car.way ? '<br>' + esc(car.way) : '') + (empty ? '<br>Empty, on its way to load' : n ? '<br>' + n + ' on board' : '') + (car.capo ? '<br>' + esc(nameOf(car.capo)) + (car.kind === 'crew' && WAY[car.cargo] ? ' · ' + WAY[car.cargo].word.toLowerCase() : '') : '');
   }
   // The badges that light up over the map when something happens, and what a touch on one says.
-  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'] };
+  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'], betrayal: ['betrayal', 'Betrayal'] };
   function fxTip(kind, say, type) {
     if (kind === 'news') return icon(EVENT[type] || 'time') + ' ' + esc(say || '');
     var f = FX[kind] || ['time', kind]; return '<b>' + icon(f[0]) + ' ' + esc(f[1]) + '</b>' + (say ? '<br>' + esc(say) : '');
@@ -201,6 +201,12 @@
   function mood(k) {
     var m = MOOD[k.mood]; if (!m) return '';
     return '<div class="move mood ' + k.mood + '" data-tip="' + esc(m[2]) + '">' + icon(m[0]) + '<span><b>' + m[1] + '.</b> ' + (k.mood === 'bitter' ? 'He sends nothing up.' : m[2].split(':')[0].replace(/\.$/, '') + '.') + '</span></div>';
+  }
+  // moods(view): the men whose mood must show on their face over the map, by city id + capo id
+  function moods(view) {
+    var out = {};
+    view.cities.forEach(function (c) { (c.capos || []).forEach(function (k) { if (k.mood === 'restless' || k.mood === 'bitter') out[c.id + k.id] = k.mood; }); });
+    return out;
   }
   function gift(c, k, hud) {
     var t = k.gift; if (!t) return '';
@@ -353,7 +359,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold,
+  var api = { esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

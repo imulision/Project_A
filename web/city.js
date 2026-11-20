@@ -8,7 +8,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var say = function (s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-  var g = null, map = null, view = null, labs = {}, waits = {}, picking = null, stopped = false;
+  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, picking = null, stopped = false;
 
   // A saved game is kept only if today's rules and today's screen can read all of it: otherwise it is set aside
   // (kept under another name) and the player is told. Never a dead screen at the door.
@@ -33,6 +33,7 @@
     view = E.view(g);
     if (!g.started) return;
     waits = {};
+    moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
@@ -245,8 +246,8 @@
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
         if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
-        else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask].join();
-          if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); } }
+        else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood].join();
+          if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site) { if (e.name !== l.name + l.sub) { e.name = l.name + l.sub; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = l.sub; e.w = e.offsetWidth; e.h = e.offsetHeight; } }
