@@ -857,7 +857,8 @@ test('the view of a city gives the map everything it draws', () => {
   assert.ok(b.family > 0 && b.rival === 0);
   assert.equal(v.blocks[3 * 12 + 9].grip, 'rival');
   const bar = v.places.find((p) => p.x === 3 && p.y === 2);
-  const { till, ...drawn } = bar;
+  const { till, strains, ...drawn } = bar;
+  assert.deepEqual(strains, [{ kind: 'dry', label: 'Nothing to pour: the family has no still' }]);
   assert.deepEqual(drawn, { x: 3, y: 2, owner: 'family', kind: 'speakeasy', name: D.SITES.speakeasy.name, level: 2, capo: 'dutch' });
   assert.ok(till > 0 && till < T.RULES.car.load, 'and what waits in its till for the next car');
   assert.equal(v.places.find((p) => p.kind === 'club').name, 'Social Club');
@@ -887,10 +888,10 @@ test('the view of a city gives the map everything it draws', () => {
 
 test('a new family knows the liquor trade and nothing else', () => {
   const f = T.createFamily();
-  assert.deepEqual(Object.keys(f.tech).filter((k) => f.tech[k] > 0).sort(), ['rented', 'speakeasy', 'still', 'warehouse']);
+  assert.deepEqual(Object.keys(f.tech).filter((k) => f.tech[k] > 0).sort(), ['cars', 'rented', 'speakeasy', 'still', 'warehouse'], 'four trades, and the cars to carry the money');
   assert.deepEqual([f.dirty, f.clean, f.study], [0, 0, null]);
   const tree = T.tree(f);
-  assert.equal(tree.length, Object.keys(T.TERRAIN).length);
+  assert.equal(tree.length, Object.keys(T.TERRAIN).length + 1, 'every trade, and the cars');
   const still = tree.find((t) => t.kind === 'still'), loans = tree.find((t) => t.kind === 'loans');
   assert.deepEqual([still.tier, still.next.tier, still.next.cost, still.next.months], [1, 2, T.RULES.learn.cost[1], T.RULES.learn.months[1]]);
   assert.deepEqual([loans.tier, loans.next.tier, loans.next.cost], [0, 1, T.RULES.learn.cost[0]]);
@@ -1670,4 +1671,97 @@ test('when his cars could not empty the tills last month, he drives the takings 
   assert.deepEqual([at.x, at.y, at.why], [mine.from.x, mine.from.y, 'carry']);
   assert.match(at.label, /Driving the takings/);
   assert.equal(f.men.dutch.income, T.RULES.club + runs.length * LOAD);
+});
+
+// --- bigger cars are learned by the family, like a trade ---
+test('the family tree has a line for cars: three sizes, the first one known from the start', () => {
+  const f = T.createFamily();
+  const cars = T.tree(f).find((t) => t.kind === 'cars');
+  assert.deepEqual([cars.name, cars.tier, cars.gives], ['Cars', 1, 'A car carries $' + T.RULES.car.loads[1] + ' a run']);
+  assert.deepEqual(cars.next, { tier: 2, cost: T.RULES.learn.cost[1], months: T.RULES.learn.months[1], gives: 'A car carries $' + T.RULES.car.loads[2] + ' a run' });
+  assert.equal(T.RULES.car.loads[1], T.RULES.car.load);
+  assert.ok(T.RULES.car.loads[1] < T.RULES.car.loads[2] && T.RULES.car.loads[2] < T.RULES.car.loads[3]);
+});
+
+test('once the family has learned bigger cars, every run carries the bigger load', () => {
+  const { c, f } = sixBars();
+  f.clean = 99999; f.study = null;
+  T.research(f, 'cars');
+  assert.equal(f.clean, 99999 - T.RULES.learn.cost[1]);
+  let learned = null;
+  for (let m = 0; m < 12 && !learned; m++) learned = T.month(f, [c]).find((e) => e.type === 'learned');
+  assert.deepEqual([learned.kind, learned.tier], ['cars', 2]);
+  assert.match(learned.label, /cars that carry \$250 a run/);
+  T.month(f, [c]);
+  const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
+  assert.ok(runs.length > 0 && runs.every((t) => t.amount === T.RULES.car.loads[2]));
+  assert.equal(T.tree(f).find((t) => t.kind === 'cars').tier, 2);
+});
+
+test('a capo whose tills are left full asks for bigger cars, and that halves the time it takes', () => {
+  const { c, f } = sixBars();
+  assert.deepEqual(T.tree(f).find((t) => t.kind === 'cars').wanted, []);
+  f.men.dutch.cash = 0;
+  T.stepMonth(c, f);
+  assert.ok(f.men.dutch.stuck);
+  const cars = T.tree(f).find((t) => t.kind === 'cars');
+  assert.deepEqual(cars.wanted, ['dutch']);
+  assert.equal(cars.next.months, T.RULES.learn.months[1] * T.RULES.learn.taught);
+  const wish = T.wishes(c, f).find((w) => w.kind === 'cars');
+  assert.deepEqual([wish.capo, wish.name], ['dutch', 'Cars']);
+  assert.match(wish.label, /Dutch wants bigger cars/);
+});
+
+test('there is nothing bigger than the biggest car', () => {
+  const f = T.createFamily(); f.tech.cars = 3; f.clean = 99999;
+  assert.equal(T.tree(f).find((t) => t.kind === 'cars').next, null);
+  assert.throws(() => T.research(f, 'cars'), /nothing more to learn about Cars/);
+});
+
+// --- a place that chokes says so ---
+const strainsAt = (c, f, x, y) => (T.view(c, f).places.find((p) => p.x === x && p.y === y).strains || []).map((s) => s.kind);
+
+test('a place whose till holds two loads or more shows cash piling up', () => {
+  const { c, f } = sixBars();
+  assert.deepEqual(strainsAt(c, f, 1, 1), [], 'nothing yet');
+  f.men.dutch.cash = 0;
+  T.stepMonth(c, f);
+  const full = T.view(c, f).places.filter((p) => (p.till || 0) >= 2 * LOAD);
+  assert.ok(full.length > 0);
+  for (const p of full) {
+    assert.deepEqual(p.strains.map((s) => s.kind), ['cash']);
+    assert.equal(p.strains[0].label, 'Cash piling up: $' + Math.round(p.till) + ' waits for a car');
+  }
+  const light = T.view(c, f).places.find((p) => p.kind === 'gambling' && (p.till || 0) < 2 * LOAD);
+  if (light) assert.equal(light.strains, undefined);
+});
+
+test('bars with too few stills show they run dry, and a still nobody drinks from shows its surplus', () => {
+  const c = town(), f = family();
+  T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
+  T.open(c, 8, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+  assert.deepEqual(strainsAt(c, f, 8, 2), ['surplus'], 'a still and no bar');
+  assert.match(T.view(c, f).places.find((p) => p.kind === 'still').strains[0].label, /More liquor than the bars can pour/);
+  T.open(c, 1, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  T.open(c, 2, 1, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.deepEqual([strainsAt(c, f, 8, 2), strainsAt(c, f, 1, 1)], [[], []], 'one still pours for two bars: nothing chokes');
+  for (const [x, y] of [[3, 1], [1, 3], [2, 3]]) T.open(c, x, y, { owner: 'family', kind: 'speakeasy', capo: 'dutch' });
+  assert.deepEqual(strainsAt(c, f, 1, 1), ['dry']);
+  assert.equal(T.view(c, f).places.find((p) => p.x === 1 && p.y === 1).strains[0].label, 'Running dry: liquor for ' + Math.round(100 * T.liquor(c).wet) + '% of what it could sell');
+  T.open(c, 9, 4, { owner: 'Callahan', kind: 'speakeasy' });
+  assert.deepEqual(strainsAt(c, f, 9, 4), [], 'the rivals\' places say nothing');
+});
+
+test('a laundry that washed all it could while dirty money still waits shows it is swamped', () => {
+  const c = town(), f = family({ dirty: 50000, clean: 0 });
+  T.settle(c, 'mae', 2, 2); T.join(f, 'mae');
+  T.open(c, 3, 2, { owner: 'family', kind: 'rented', capo: 'mae' });
+  for (const k of Object.keys(f.tech)) f.tech[k] = 0;
+  assert.deepEqual(strainsAt(c, f, 3, 2), [], 'no month has gone by');
+  T.stepMonth(c, f);
+  assert.deepEqual(strainsAt(c, f, 3, 2), ['swamped']);
+  assert.match(T.view(c, f).places.find((p) => p.kind === 'rented').strains[0].label, /^Washing all it can: \$[\d,]+ of dirty money still waits$/);
+  f.dirty = 0;
+  T.stepMonth(c, f);
+  assert.deepEqual(strainsAt(c, f, 3, 2), []);
 });
