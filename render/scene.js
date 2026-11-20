@@ -282,6 +282,7 @@ function plan(C) {
   for (let i = 0; i < C.W; i++) for (let j = 0; j < C.H; j++) {
     const x = C.ox + i * T, z = C.oz + j * T, ri = i % 4 === 0, rj = j % 3 === 0;
     if (ri && rj) continue;
+    if ((ri || rj) && !streetAt(C, i, j)) continue;
     if (ri) C.lamps.push([x + 0.82, z, Math.PI]);
     else if (rj && i % 2) C.lamps.push([x, z + 0.82, Math.PI / 2]);
   }
@@ -323,10 +324,32 @@ function turfGround(C) {
 }
 // Open ground, far and near alike: a park is a lawn with a few trees, an empty lot is bare earth. put(x, y, z, w, h, d, colour) draws one box.
 const LAWN = 0x4f6b45, EARTH = 0x4d4a3c, LEAF = [0x3d6144, 0x4a6b4a, 0x355543];
+// What the rules leave out of a town gives it its outline: water, a rail yard, waste ground. No street, no pavement, nothing built.
+const VOIDS = { water: 1, rail: 1, waste: 1 }, WATER = 0x223a4e, BALLAST = 0x4a4540, RAIL = 0x9a97a0;
+const isVoid = (C, bx, by) => bx < 0 || by < 0 || bx >= C.bx || by >= C.by || !!C.p.blocks[by * C.bx + bx].void;
+// a street tile is drawn when at least one block of the town touches it
+function streetAt(C, i, j) {
+  if (!C.p.blocks) return true;
+  const bxs = i % 4 === 0 ? [i / 4 - 1, i / 4] : [Math.floor(i / 4)], bys = j % 3 === 0 ? [j / 3 - 1, j / 3] : [Math.floor(j / 3)];
+  for (const bx of bxs) for (const by of bys) if (!isVoid(C, bx, by)) return true;
+  return false;
+}
+function voidGround(C, put) {
+  if (!C.p.blocks) return;
+  for (const b of C.p.blocks) {
+    if (!b.void) continue;
+    const x = C.ox + (b.x * 4 + 2) * T, z = C.oz + (b.y * 3 + 1.5) * T, w = 4 * T, d = 3 * T;
+    if (b.void === 'water') {      // on the rim of the town the water runs on past it: a river or a bay, not a pool
+      const wx0 = b.x === 0 ? 9 : 0, wx1 = b.x === C.bx - 1 ? 9 : 0, wz0 = b.y === 0 ? 9 : 0, wz1 = b.y === C.by - 1 ? 9 : 0;
+      put(x + (wx1 - wx0) / 2, 0.02, z + (wz1 - wz0) / 2, w + wx0 + wx1 + 0.4, 0.05, d + wz0 + wz1 + 0.4, WATER);
+    }
+    else if (b.void === 'rail') { put(x, 0.02, z, w, 0.07, d, BALLAST); for (const o of [-1.9, -1.3, 0.9, 1.5]) put(x, 0.09, z + o, w, 0.05, 0.1, RAIL); }
+    else for (let k = 0; k < 3; k++) { const a = hsh(b.x * 5 + k, b.y), c = hsh(b.y * 3 + k, b.x); if (a > 0.55) put(x + (a - 0.5) * w * 0.8, 0.02, z + (c - 0.5) * d * 0.8, 0.5, 0.35 + c * 0.4, 0.5, LEAF[k]); }      // waste ground: the land shows, with a few bushes
+  }
+}
 function openGround(l, put) {
-  if (l.open === 'water') { put(l.x, 0.02, l.z, 2, 0.04, 2, 0x1f3550); return; }
+  if (VOIDS[l.open]) return;      // not part of the town: drawn block by block (voidGround)
   put(l.x, 0.1, l.z, 1.9, 0.05, 1.9, l.open === 'park' ? LAWN : EARTH);
-  if (l.open === 'rail') { put(l.x, 0.15, l.z - 0.35, 2, 0.05, 0.08, 0x8a8790); put(l.x, 0.15, l.z + 0.35, 2, 0.05, 0.08, 0x8a8790); return; }
   if (l.open !== 'park') return;
   for (let k = 0; k < 3; k++) { const a = hsh(l.i + k * 7, l.j), b = hsh(l.j, l.i + k * 5); if (a < 0.25) continue;
     put(l.x + (a - 0.5) * 1.4, 0.15, l.z + (b - 0.5) * 1.4, 0.42, 0.7 + b * 0.7, 0.42, LEAF[k]); }
@@ -340,8 +363,14 @@ function colored(g, c) { const a = new Float32Array(g.attributes.position.count 
 function buildFar(C) {
   const G = new THREE.Group(), geos = [], m4 = new THREE.Matrix4(), box = (x, y, z, w, h, d, c) => geos.push(colored(BOX.clone().applyMatrix4(m4.makeScale(w, h, d).setPosition(x, y, z)), c));
   const street = new THREE.Color(0x4a454d), walk = new THREE.Color(0x77707a), tmp = new THREE.Color();
-  box((C.ox + C.x1) / 2, 0, (C.oz + C.z1) / 2, C.x1 - C.ox + 2, 0.05, C.z1 - C.oz + 2, street);
-  for (let bi = 0; bi < C.bx; bi++) for (let bj = 0; bj < C.by; bj++) box(C.ox + (bi * 4 + 2) * T, 0.04, C.oz + (bj * 3 + 1.5) * T, 3 * T, 0.08, 2 * T, walk);
+  const whole = !C.p.blocks || !C.p.blocks.some(b => b.void);
+  if (whole) box((C.ox + C.x1) / 2, 0, (C.oz + C.z1) / 2, C.x1 - C.ox + 2, 0.05, C.z1 - C.oz + 2, street);
+  for (let bi = 0; bi < C.bx; bi++) for (let bj = 0; bj < C.by; bj++) {
+    if (!whole && isVoid(C, bi, bj)) continue;      // the town stops where the rules leave a gap: its streets and pavements too
+    if (!whole) box(C.ox + (bi * 4 + 2) * T, 0, C.oz + (bj * 3 + 1.5) * T, 5.2 * T, 0.05, 4.2 * T, street);
+    box(C.ox + (bi * 4 + 2) * T, 0.04, C.oz + (bj * 3 + 1.5) * T, 3 * T, 0.08, 2 * T, walk);
+  }
+  voidGround(C, (x, y, z, w, h, d, c) => box(x, y, z, w, h, d, tmp.set(c)));
   for (const l of C.lots) {      // the family's roofs carry its colour, the rest of the town stays dark (look.mjs)
     if (l.open) { openGround(l, (x, y, z, w, h, d, c) => box(x, y, z, w, h, d, tmp.set(c))); continue; }      // a park or an empty lot: no building
     const k = lotLook(l);
@@ -371,10 +400,12 @@ function buildNear(C) {
   };
   for (let i = 0; i < C.W; i++) for (let j = 0; j < C.H; j++) {
     const x = C.ox + i * T, z = C.oz + j * T, ri = i % 4 === 0, rj = j % 3 === 0;
+    if ((ri || rj) && !streetAt(C, i, j)) continue;
     if (ri && rj) add('road_junction', PLAINMAT, x, 0, z, 0, 1, ROADTINT);
     else if (ri) add(j % 3 === 1 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, 0, 1, ROADTINT);
     else if (rj) add(i % 4 === 2 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, Math.PI / 2, 1, ROADTINT);
   }
+  voidGround(C, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), false, [w, h, d]));
   cur = new THREE.Group();
   for (const l of C.lots) {
     if (l.open) { openGround(l, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), h > 0.1, [w, h, d])); continue; }
@@ -547,9 +578,9 @@ function setPr(v) { pr = v; stale = 3; renderer.setPixelRatio(pr); composer.setP
 window.__setPr = setPr;
 renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0, held = false, stale = 3, lastView = '';
-const focus = (id, districtId) => {     // glide to the whole map, to a city, or to one of its districts
+const focus = (id, districtId, at) => {     // glide to the whole map, to a city, to one of its districts, or to one block of it (at: { x, y })
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
-  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
+  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + (d.c0 + d.c1) * 2 * T, 0, c.oz + (d.r0 + d.r1) * 1.5 * T).add(OFF), z: 11 * K }
     : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: K > 1 ? 2.4 * K : c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();

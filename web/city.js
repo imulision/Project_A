@@ -43,7 +43,7 @@
   }
   function zoneId(cityId, x, y) { var c = view.cities.filter(function (q) { return q.id === cityId; })[0], n = 0;
     if (c) c.zones.forEach(function (z, i) { if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) n = i; }); return cityId + '-' + n; }
-  function home() { var c = view.cities.filter(function (q) { return q.held; })[0], k = c && c.capos[0]; if (k) map.focus(c.id, zoneId(c.id, k.x, k.y)); else map.focus(null); }
+  function home() { var c = view.cities.filter(function (q) { return q.held; })[0], k = c && c.capos[0]; if (k) map.focus(c.id, zoneId(c.id, k.x, k.y), { x: k.x, y: k.y }); else map.focus(null); }
 
   // ---- the top of the screen
   // what last month did to a total, beside it: green when it grew, red when it shrank
@@ -86,7 +86,7 @@
   }
   $('feed').addEventListener('click', function (e) {
     var t = e.target.closest('.news'); if (!t) return; var d = t.dataset; t.remove();
-    if (d.city && map) map.focus(d.city, zoneId(d.city, +d.x, +d.y));
+    if (d.city && map) map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y });
   });
 
   // ---- sheets
@@ -127,7 +127,7 @@
     var list = spotsOf(city), c = view.cities.filter(function (q) { return q.id === city; })[0], k = c && c.capos[0], best = null;
     // the camera goes to the lit streets nearest the family's first club; in a city where it has nobody, to the whole city
     if (k) list.forEach(function (s) { var d = Math.abs(s.x - k.x) + Math.abs(s.y - k.y); if (!best || d < best.d) best = { d: d, s: s }; });
-    map.spots(city, list); if (best) map.focus(city, zoneId(city, best.s.x, best.s.y)); else map.focus(city); showHud(); }
+    map.spots(city, list); if (best) map.focus(city, zoneId(city, best.s.x, best.s.y), { x: best.s.x, y: best.s.y }); else map.focus(city); showHud(); }
   function unpick() { picking = null; map.spots(); }
   $('sheet').addEventListener('click', function (e) {
     var face = e.target.closest('[data-face]');
@@ -158,7 +158,7 @@
     else if (act === 'part') { if (order({ type: 'part', city: d.city, capo: d.capo, way: d.way })) { close(); toast(g.journal[g.journal.length - 1].label, true); } }
     else if (act === 'city') show(C.city(view, d.city));
     else if (act === 'focus') { close(); map.focus(d.city); }
-    else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y)); }
+    else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y }); }
     else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g))); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
     else if (act === 'new') { forget(); location.reload(); }
   });
