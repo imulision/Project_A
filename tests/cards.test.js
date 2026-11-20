@@ -622,3 +622,36 @@ test('the family sheet and the city sheets carry the curves of the last months',
   assert.equal(C.curves({ ...v, history: undefined }), '', 'an old game without history draws none');
   assert.doesNotMatch(C.city(v, 'dunmore'), /class="tile curve"/, 'nothing to follow where the family is not');
 });
+
+test('the city sheet lets the boss choose the share he takes, and says what each costs him in loyalty', () => {
+  const cuts = [{ id: 'light', share: 0.08, loyal: 10 }, { id: 'normal', share: 0.15, loyal: 0 }, { id: 'heavy', share: 0.25, loyal: -15 }];
+  const c = { id: 'ashport', held: true, cut: 'normal', cuts };
+  const html = C.cut(c);
+  assert.match(html, /Your share/);
+  assert.equal((html.match(/data-act="cut"/g) || []).length, 3);
+  assert.match(html, /data-cut="light"[^>]*>[\s\S]*?8%[\s\S]*?loyalty \+10/);
+  assert.match(html, /data-cut="heavy"[^>]*>[\s\S]*?25%[\s\S]*?loyalty −15/);
+  assert.match(html, /<button class="on" data-act="cut" data-city="ashport" data-cut="normal" disabled>/, 'the share in force is marked and cannot be chosen again');
+  assert.doesNotMatch(html.match(/data-cut="normal"[\s\S]*?<\/button>/)[0], /loyalty/, 'nothing to say where nothing changes');
+  assert.equal(C.cut({ id: 'dunmore', held: false, cut: 'normal', cuts }), '', 'no share where the family has no man');
+  assert.equal(C.cut({ id: 'ashport', held: true }), '', 'an old game without shares shows none');
+  const { v } = play((v) => v.month >= 2);
+  const town = { ...v, cities: v.cities.map((x) => (x.id === 'ashport' ? { ...x, cut: 'heavy', cuts } : x)) };
+  assert.match(C.city(town, 'ashport'), /class="on" data-act="cut" data-city="ashport" data-cut="heavy"/, 'it is on the city sheet');
+});
+
+test('the family sheet sells what clean money buys for good, with its price and why it cannot be bought', () => {
+  const holdings = [{ id: 'lawyer', name: 'Law Firm', gives: 'The police seize less', level: 1, most: 3, next: { level: 2, cost: 25000 } },
+    { id: 'judge', name: 'Judge', gives: 'Your men come out sooner', level: 0, most: 3, next: { level: 1, cost: 6000 } },
+    { id: 'paper', name: 'Newspaper', gives: 'Heat falls faster', level: 3, most: 3, next: null }];
+  const html = C.holdings({ holdings }, { clean: 7000 });
+  assert.match(html, /What clean money buys/);
+  assert.equal((html.match(/data-act="buy"/g) || []).length, 2, 'nothing more to buy of what is full');
+  assert.match(html, /data-act="buy" data-holding="judge">[\s\S]*?\$6,000/);
+  assert.match(html, /data-act="buy" data-holding="lawyer" disabled>[\s\S]*?\$25,000[\s\S]*?It takes \$25,000 of clean money/);
+  assert.match(html, /Law Firm[\s\S]*?1 \/ 3/); assert.match(html, /Newspaper[\s\S]*?3 \/ 3/);
+  assert.match(html, /The police seize less/);
+  assert.equal(C.holdings({}, { clean: 0 }), '', 'an old game without holdings shows none');
+  const { g, v } = play((v) => v.month >= 2);
+  assert.match(C.family({ ...v, holdings }, E.hud(g)), /What clean money buys/, 'it is on the family sheet');
+});

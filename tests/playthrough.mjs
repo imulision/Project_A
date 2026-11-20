@@ -200,6 +200,13 @@ await page.click('#tip');
 assert.match(await page.textContent('#sheet'), new RegExp(place.name));
 await page.click('#sheet [data-act=city]');
 assert.equal(await page.textContent('#sheet h2'), 'Ashport');
+// the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
+assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
+assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');
+await page.click('#sheet [data-act=cut][data-cut=light]');
+assert.ok(await page.locator('#sheet [data-act=cut][data-cut=light].on').count() === 1, 'the light share is in force');
+assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').cut), 'light');
+await page.click('#sheet [data-act=cut][data-cut=normal]');
 await shot('c4-city-sheet');
 await page.click('#sheet [data-act=close]');
 
@@ -208,6 +215,18 @@ await page.click('#family');
 assert.equal(await page.textContent('#sheet h2'), 'The family');
 await page.click('.know.shut');
 assert.match(await page.textContent('#know'), /not known yet/);
+// what clean money buys for good: too dear for now, then bought once the money is there
+const dear = page.locator('#sheet [data-act=buy]').first(), what = await dear.getAttribute('data-holding');
+const price = await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).next.cost, what);
+const had = await page.evaluate((price) => { const g = window.__ashport.game(), was = g.family.clean || 0; g.family.clean = 0; return was; }, price);
+await page.click('#sheet [data-act=close]'); await page.click('#family');
+assert.ok(await page.locator('#sheet [data-act=buy][data-holding=' + what + ']').isDisabled(), 'nothing is sold on credit');
+await page.evaluate((price) => { window.__ashport.game().family.clean = price; }, price);
+await page.click('#sheet [data-act=close]'); await page.click('#family');
+await page.click('#sheet [data-act=buy][data-holding=' + what + ']');
+assert.equal(await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).level, what), 1, 'it is the family\'s for good');
+assert.match(await page.textContent('#sheet li.hold'), /1 \/ 3/);
+await page.evaluate((had) => { window.__ashport.game().family.clean = had; }, had);
 await shot('c5-family');
 await page.click('#sheet [data-act=close]');
 await page.click('#journal');
