@@ -281,3 +281,45 @@ test('every event that has a place is marked on the map where it happens, and sa
   assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'promotion:opened'], 'what has no place of its own is not put on the map');
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].say, 'Sal asks');
 });
+
+// ---- a town is not a chessboard: heights come in neighbourhoods, some ground is left open, the edges thin out
+test('tall buildings stand together in neighbourhoods instead of being sprinkled evenly', () => {
+  const c = cityOf(play(1)), p = M.planTurf(c), at = {}; p.lots.forEach((l) => { at[l.i + ',' + l.j] = l; });
+  const built = p.lots.filter((l) => !l.open), share = built.filter((l) => l.tall).length / built.length;
+  let near = 0, n = 0;
+  built.filter((l) => l.tall).forEach((l) => [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([di, dj]) => { const o = at[(l.i + di) + ',' + (l.j + dj)]; if (o && !o.open) { n++; if (o.tall) near++; } }));
+  assert.ok(share > 0.08 && share < 0.6, 'some of the town is tall (' + share.toFixed(2) + ')');
+  assert.ok(near / n > share * 1.5, 'next to a tall building, another is much more likely (' + (near / n).toFixed(2) + ' against ' + share.toFixed(2) + ')');
+});
+
+test('some ground is left open, the same every time, and never where a place stands', () => {
+  const g = play(18), c = cityOf(g), p = M.planTurf(c), again = M.planTurf(cityOf(g));
+  const open = p.lots.filter((l) => l.open), parks = open.filter((l) => l.open === 'park');
+  assert.ok(open.length > p.lots.length * 0.04 && open.length < p.lots.length * 0.25, 'a few lots in a hundred (' + open.length + ' of ' + p.lots.length + ')');
+  assert.ok(parks.length >= 6, 'and at least one whole park');
+  assert.deepEqual(again.lots.map((l) => l.open || ''), p.lots.map((l) => l.open || ''));
+  p.lots.forEach((l) => { if (l.site || l.hideout) assert.ok(!l.open, 'a place is never open ground'); });
+  assert.equal(p.lots.length, c.w * c.h * 6, 'the plan keeps its six lots a block, built or not');
+});
+
+test('the edge of town thins out and stays low, the middle is full', () => {
+  const c = cityOf(play(1)), p = M.planTurf(c);
+  const edge = (l) => Math.min(l.bx, l.by, c.w - 1 - l.bx, c.h - 1 - l.by) === 0;
+  const rim = p.lots.filter(edge), core = p.lots.filter((l) => !edge(l));
+  const openShare = (ls) => ls.filter((l) => l.open).length / ls.length, tallShare = (ls) => ls.filter((l) => !l.open && l.tall).length / ls.length;
+  assert.ok(openShare(rim) > openShare(core) * 2, 'more open ground on the rim');
+  assert.ok(tallShare(rim) < tallShare(core), 'and lower buildings');
+});
+
+test('a block the rules leave out of the town (water, rails, waste ground) is drawn as such, with nothing built on it', () => {
+  const c = JSON.parse(JSON.stringify(cityOf(play(1))));
+  const free = c.blocks.filter((b) => !c.places.some((p) => p.x === b.x && p.y === b.y)).slice(0, 3);
+  ['water', 'rail', 'waste'].forEach((v, n) => Object.assign(free[n], { void: v, grip: null, family: 0, rival: 0 }));
+  const p = M.planTurf(c);
+  free.forEach((b) => {
+    lotsOf(p, b.x, b.y).forEach((l) => assert.equal(l.open, b.void));
+    assert.equal(p.blocks.find((q) => q.x === b.x && q.y === b.y).void, b.void);
+  });
+  assert.equal(p.lots.length, c.w * c.h * 6);
+  assert.doesNotThrow(() => M.planTurf(cityOf(play(1))), 'a town without any gap is drawn as before');
+});
