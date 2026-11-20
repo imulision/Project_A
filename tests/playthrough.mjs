@@ -26,6 +26,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     A.beat();
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
+    const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
     if (again && i % 24 === 0) again.click();
     for (let guard = 0; guard < 12 && document.querySelector('#veil.on'); guard++) {
@@ -65,6 +66,11 @@ assert.match(await hud(), /January 1926 .* \| 1 \/ \d+$/);
 await still();
 const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length, capos: document.querySelectorAll('.lab.capo').length }));
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
+// the first minutes: a strip says what to look at, and a touch puts it away for good
+assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
+await page.click('#hint [data-hint=capo]');
+assert.equal(await page.locator('#hint .hint').count(), 0, 'read once, never said again');
+assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ashport-hints')).capo), 1);
 await shot('c2-first-club');
 
 const parked = () => page.waitForFunction(() => !window.__ashport.map().labels().some((l) => l.capo && l.riding), null, { timeout: 30000 });      // his face rides his car while he drives
