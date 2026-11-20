@@ -1,5 +1,6 @@
 // What the page writes over the map, and where on the screen: names, capos, places, cars, and what just happened.
 // makeLabels(ctx) returns labels(), the list read by the page at each image drawn.
+import { midX, midY } from './look.mjs';
 export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS }) {
   // what the page writes over the map: city names from afar, district names up close, and what is happening
   const labels = () => {
@@ -7,7 +8,7 @@ export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxL
     CITIES.forEach(c => {
       if (!near) { const [x, y] = scr(c.ox - 2, c.oz - 2), k = c.p.held ? 'family' : c.p.rival, d = c.d.find(d => d.owner === k);
         out.push({ id: 'c' + c.id, city: c.id, name: c.name, sub: c.p.turf ? (c.p.present ? c.p.held + '% of the streets' : c.p.rivalName) : c.p.held ? `you hold ${c.p.held} of ${c.p.total}` : (d ? d.ownerName : ''), color: COLORS[c.p.turf ? (c.p.present ? 'family' : c.p.rival) : k], x, y }); }
-      else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + (d.c0 + d.c1) * 2 * T, c.oz + (d.r0 + d.r1) * 1.5 * T);
+      else if (c.near && c.near.visible) for (const d of c.d) { const [x, y] = scr(c.ox + midX(d) * 4 * T, c.oz + midY(d) * 3 * T);
         out.push(c.p.turf ? { id: 'd' + d.id, small: true, ground: true, city: c.id, name: d.name, sub: '', color: '#ffffff', x, y }
           : { id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
       // the capo is seen where he sits: over the hideout of his district

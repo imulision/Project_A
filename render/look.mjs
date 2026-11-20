@@ -47,3 +47,7 @@ export function front(blocks, w, h) {
   }
   return out;
 }
+
+// The middle of a street name, in blocks: where the page says it is (a name can be any shape), or the middle of its rectangle.
+export const midX = d => typeof d.cx === 'number' ? d.cx : (d.c0 + d.c1) / 2;
+export const midY = d => typeof d.cy === 'number' ? d.cy : (d.r0 + d.r1) / 2;

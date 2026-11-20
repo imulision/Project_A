@@ -22,7 +22,10 @@
   var data = function (o) { return Object.keys(o).map(function (k) { return ' data-' + k + '="' + esc(o[k]) + '"'; }).join(''); };
   var button = function (act, o, label, opt) { return '<button' + (opt && opt.cls ? ' class="' + opt.cls + '"' : '') + ' data-act="' + act + '"' + data(o || {}) + (opt && opt.off ? ' disabled' : '') + '>' + label + '</button>'; };
   var cityOf = function (view, id) { return view.cities.filter(function (c) { return c.id === id; })[0] || null; };
-  var zoneOf = function (c, x, y) { return c.zones.filter(function (z) { return x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1; })[0] || { name: c.name }; };
+  // The street name a block is on. The block says it itself (a name can be any shape); a city of an old save only has rectangles.
+  var zoneOf = function (c, x, y) { var b = c.blocks && c.blocks[y * c.w + x];
+    if (b && typeof b.zone === 'number' && c.zones[b.zone]) return c.zones[b.zone];
+    return c.zones.filter(function (z) { return x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1; })[0] || { name: c.name }; };
 
   // ---- words and pictures shared by the sheets
   var STATS = [['muscle', 'Muscle: takes and holds streets, wins fights'], ['business', 'Business: makes every place pay more'], ['cunning', 'Cunning: hides the money, sees traps'], ['charisma', 'Charisma: keeps the neighbourhood and his men on his side']];

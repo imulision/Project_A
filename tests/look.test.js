@@ -67,3 +67,9 @@ test('the front line: the edges of the family\'s streets that a rival presses on
   assert.deepEqual(front(blocks, 3, 2), [{ x: 1, y: 0, dx: 1, dy: 0 }, { x: 1, y: 0, dx: -1, dy: 0 }], 'only the pressed block, only towards the rival, never towards its own or the edge of town');
   assert.deepEqual(front([B(0, 0, 'family', 0.9)], 1, 1), []); assert.deepEqual(front(undefined, 0, 0), []);
 });
+
+test('a street name is written where the page says, or in the middle of its rectangle', async () => {
+  const { midX, midY } = await import('../render/look.mjs');
+  assert.deepEqual([midX({ c0: 2, c1: 6, r0: 0, r1: 3 }), midY({ c0: 2, c1: 6, r0: 0, r1: 3 })], [4, 1.5]);
+  assert.deepEqual([midX({ c0: 2, c1: 6, r0: 0, r1: 3, cx: 2.5, cy: 0.5 }), midY({ c0: 2, c1: 6, r0: 0, r1: 3, cx: 2.5, cy: 0.5 })], [2.5, 0.5]);
+});

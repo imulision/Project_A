@@ -44,7 +44,10 @@
     lastPlan = p;      // a capo who is not where he was last month drives there, once
   }
   function zoneId(cityId, x, y) { var c = view.cities.filter(function (q) { return q.id === cityId; })[0], n = 0;
-    if (c) c.zones.forEach(function (z, i) { if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) n = i; }); return cityId + '-' + n; }
+    var b = c && c.blocks && c.blocks[y * c.w + x];
+    if (b && typeof b.zone === 'number' && b.zone >= 0) n = b.zone;
+    else if (c) c.zones.forEach(function (z, i) { if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) n = i; });
+    return cityId + '-' + n; }
   function home() { var c = view.cities.filter(function (q) { return q.held; })[0], k = c && c.capos[0]; if (k) map.focus(c.id, zoneId(c.id, k.x, k.y), { x: k.x, y: k.y }); else map.focus(null); }
 
   // ---- the top of the screen
