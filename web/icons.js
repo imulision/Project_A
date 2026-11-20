@@ -15,7 +15,6 @@
     loyalty: '<path d="M12 2l8 3v6.500c0 5-3.400 8.700-8 10.500-4.600-1.800-8-5.500-8-10.500V5zm-1.200 12.800l5.700-5.700-1.500-1.500-4.200 4.200-1.800-1.800-1.500 1.500z"/>',
     ambition: '<path d="M2.500 7l4.500 4L12 4l5 7 4.500-4-1.800 11H4.300zM4.500 19.500h15V22h-15z"/>',
     // what the family counts
-    dirty: '<path d="M2 6h20v12H2zm2.500 2.500v7h15v-7zM12 9.500a2.500 2.500 0 1 1 0 5 2.500 2.500 0 0 1 0-5zM3 20l3-1.500L9 20l3-1.500 3 1.500 3-1.500 3 1.500v2H3z"/>',
     clean: '<path d="M2 7h20v12H2zm2.500 2.500v7h15v-7zM12 10.500a2.500 2.500 0 1 1 0 5 2.500 2.500 0 0 1 0-5zM19 1l.9 2.100L22 4l-2.100.9L19 7l-.9-2.100L16 4l2.100-.9z"/>',
     men: '<path d="M12 2.500a4.500 4.500 0 1 1 0 9 4.500 4.500 0 0 1 0-9zM3.500 21.500c0-4.700 3.800-8 8.500-8s8.500 3.300 8.500 8z"/>',
     streets: '<path d="M9 2h6l4 20H5zm2.300 3l-.3 3h2l-.3-3zm-.5 5.500l-.4 4h3.200l-.4-4zm-.7 6.500l-.300 3h4.400l-.3-3z"/>',
@@ -64,6 +63,7 @@
   P.streetsCrew = P.streets; P.seizure = P.seize;
   P.raid = P.heat;
 
+  P.dirty = P.takings;      // dirty cash has one picture everywhere: the bag, on the top bar, on the cars and in the sheets
   function has(name) { return Object.prototype.hasOwnProperty.call(P, name) && name !== 'unknown'; }
   function icon(name, title) {
     return '<svg class="ic" viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" aria-hidden="true">' + (title ? '<title>' + title + '</title>' : '') + (has(name) ? P[name] : P.unknown) + '</svg>';
