@@ -89,6 +89,7 @@
       });
       changed(to);
       join(f, capo);
+      from.joined = from.month; to.joined = to.month;
       return;
     }
     if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + to.id);
@@ -96,6 +97,7 @@
     if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
     if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' it takes to set ' + first(capo) + ' up');
     spend(f, cost);
+    from.joined = from.month; to.joined = to.month; // the month the last man was taken in, here and where he goes
     if (away && !known(to)) to.quiet = to.month + RULES.respite;
     settle(to, capo, x, y);
     join(f, capo);

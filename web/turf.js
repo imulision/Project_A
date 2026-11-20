@@ -104,6 +104,75 @@
     return out;
   }
 
+  // --- what holds the family back in a city ---
+  // Each trouble says what is happening, since when (in months), why, and what the boss can do about it (lever, or null when
+  // there is nothing he can do). The gravest first, three at most. Nothing here changes how the game plays.
+  var STALL = { nobody: 24, boxed: 3, lost: 3 }; // months without a new man, months a capo saves alone, places lost in a year
+  function troubles(c, f) {
+    var out = [], here = Object.keys(f.men).filter(function (id) { return clubOf(c, id); });
+    if (!here.length) return out;
+    var began = function (id) { return c.stalled && c.stalled[id] !== undefined ? c.month - c.stalled[id] : 0; };
+    var dollars = function (n) { return '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
+    var sentence = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
+    // a man of the table who was not paid
+    Object.keys(f.owed || {}).forEach(function (post) {
+      var id = f.table && f.table[post];
+      if (!id || !clubOf(c, id)) return;
+      out.push({ id: 'unpaid:' + id, capo: id, since: began('unpaid:' + id), what: first(id) + ' was not paid',
+                 why: 'The table costs $' + RULES.table.pay + ' a man each month: the family had $' + Math.round(funds(f)) + ' in hand',
+                 lever: 'Free his chair, or wait for money to come up' });
+    });
+    // ground lost over the last year
+    var ago = (c.tally || []).filter(function (q) { return q.month <= c.month - 12; }).pop();
+    var mine = everyPlace(c).filter(function (p) { return p.owner === 'family'; }).length;
+    if (ago && ago.places - mine >= STALL.lost) {
+      var lost = ago.places - mine, burnt = Math.min(lost, (c.burnt || 0) - ago.burnt);
+      out.push({ id: 'losing', since: began('losing'), what: 'The family lost ' + lost + ' places here in a year',
+                 why: burnt > 0 ? 'The ' + c.rival + 's burnt ' + burnt + ' of them' : 'Your capos could not hold them',
+                 lever: P.lineOf(c) === 'grow' ? 'Under Grow your capos guard their places less well: change the line' : null });
+    }
+    // a capo with no free street left, who saves alone to take a place from the rivals
+    here.forEach(function (id) {
+      var p = plan(c, f, id);
+      if (p.move !== 'take' || p.waiting !== 'money') return;
+      out.push({ id: 'boxed:' + id, capo: id, x: p.x, y: p.y, since: began('boxed:' + id), min: STALL.boxed, cost: p.cost,
+                 what: first(id) + ' is saving alone to take a place: ' + dollars(p.saved) + ' of ' + dollars(p.cost), why: sentence(p.why), lever: null });
+    });
+    // a capo who sulks
+    here.forEach(function (id) {
+      var left = ((c.sulk || {})[id] || 0) - c.month;
+      if (left <= 0) return;
+      out.push({ id: 'sulk:' + id, capo: id, since: began('sulk:' + id), what: first(id) + ' sends nothing up',
+                 why: 'He sulks for ' + left + ' more month' + (left > 1 ? 's' : ''), lever: 'A gift of $' + RULES.loyal.gift + ' may bring him round' });
+    });
+    // nobody new for a long time, and nobody at the door
+    var quiet = c.month - (c.joined || 0);
+    if (quiet >= STALL.nobody && !doors(c, f).length) {
+      var gone = f.gone || {};
+      var mentors = here.filter(function (id) { return Object.keys(PEOPLE).some(function (q) { return PEOPLE[q].mentor === id && !f.men[q] && !gone[q]; }); });
+      out.push({ id: 'nobody', since: quiet, what: 'No new man in ' + Math.floor(quiet / 12) + ' years',
+                 why: mentors.length ? 'A capo brings a man in when he runs all he can: ' + mentors.map(function (id) { return first(id) + ' runs ' + run(c, id).length + ' of ' + RULES.reach[f.men[id].rank]; }).join(', ')
+                                     : 'None of your capos here has a man of his own left to bring in',
+                 lever: mentors.length && P.lineOf(c) !== 'grow' ? 'Set the line to Grow: your capos run more places' : null });
+    }
+    return out;
+  }
+  function stalls(c, f) {
+    var all = troubles(c, f).filter(function (s) { return !s.min || s.since >= s.min; });
+    // of the capos boxed in, only the one who has the most to save is named
+    var dearest = all.filter(function (s) { return s.cost; }).sort(function (a, b) { return b.cost - a.cost; })[0];
+    return all.filter(function (s) { return !s.cost || s === dearest; }).slice(0, 3).map(function (s) { delete s.min; delete s.cost; return s; });
+  }
+  // The city's own count, kept for a year, and the month each trouble began.
+  function mark(c, f) {
+    c.tally = c.tally || [];
+    c.tally.push({ month: c.month, places: everyPlace(c).filter(function (p) { return p.owner === 'family'; }).length, burnt: c.burnt || 0 });
+    if (c.tally.length > 13) c.tally.splice(0, c.tally.length - 13);
+    var was = c.stalled || {}, now = {};
+    troubles(c, f).forEach(function (s) { now[s.id] = was[s.id] !== undefined ? was[s.id] : c.month - 1; });
+    c.stalled = now;
+  }
+
   function view(c, f) {
     var m = memo(c), blocks = [], flow = c.flow || {};
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
@@ -137,7 +206,7 @@
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
-      keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
+      keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id), led = P.follows(c, f, id);
@@ -280,6 +349,7 @@
       c.knocked[d.capo] = true;
       events.push({ type: 'knocks', capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' would join the family. ' + d.why });
     });
+    mark(c, f);
     return events;
   }
 
@@ -299,7 +369,7 @@
     return events;
   }
 
-  var api = { zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
