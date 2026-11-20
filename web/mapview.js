@@ -232,7 +232,7 @@
     });
     return out;
   }
-  var FXOF = { hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
+  var FXOF = { betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
     var out = [];
