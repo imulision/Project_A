@@ -10,7 +10,7 @@ import { makeTraffic } from './traffic.js';
 import { makeLabels } from './labels.js';
 import { makeTerrain } from './terrain.js';
 import { makeTouch } from './touch.js';
-import { lotLook } from './look.mjs';
+import { lotLook, turned } from './look.mjs';
 import { makePeriod } from './period.mjs';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -607,9 +607,11 @@ const focus = (id, districtId, at) => {     // glide to the whole map, to a city
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
 // the state of the game changed: rebuild only the cities that look different
+let nWaves = 0;
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
-    const C = CITIES[ci], changed = pc.key !== C.p.key; C.p = pc; C.d = pc.districts; C.held = pc.held;
+    const C = CITIES[ci], changed = pc.key !== C.p.key, flips = pc.turf && C.p.turf ? turned(C.p.blocks, pc.blocks).slice(0, 8) : []; C.p = pc; C.d = pc.districts; C.held = pc.held;
+    nWaves += flips.length; for (const b of flips) spawnFx(b.won ? 'won' : 'lost', C.ox + (b.x * 4 + 2) * T, C.oz + (b.y * 3 + 1.5) * T);      // a street changes hands: it is seen
     if (!changed) { if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); return; }
     if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null;
     nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true;
@@ -696,5 +698,5 @@ addEventListener('resize', () => {
   // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
   return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }

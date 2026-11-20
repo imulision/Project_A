@@ -252,6 +252,7 @@ assert.ok(near.stats.calls <= 240, 'draw calls up close: ' + near.stats.calls);
 assert.ok(near.labels <= 90, 'labels up close: ' + near.labels);
 await page.click('#map'); await still();
 const far = await page.evaluate(() => window.__ashport.map().stats());
+assert.ok(far.waves > 0, 'a street that changes hands lights up in a wave (' + far.waves + ')');
 assert.ok(far.calls <= 240, 'draw calls from afar: ' + far.calls);
 await shot('c6-six-cities');
 

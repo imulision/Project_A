@@ -3,12 +3,14 @@
 // makeFx(ctx) returns { fxList, pops, spawnFx, spawnPop, effects, animateFx }; ctx gives the scene, the camera and the cities.
 export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp }) {
   const fxList = []; let fxN = 0;
-  const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12], news: [0xffe6b0, 10], betrayal: [0xff2a2a, 45] };
+  const FXLOOK = { fire: [0xff6a1a, 30], gunfire: [0xfff2c0, 6], police: [0x4a7dff, 16], promotion: [0xffd76a, 12], news: [0xffe6b0, 10], betrayal: [0xff2a2a, 45],
+                   won: [0xffd27a, 3.2], lost: [0xff4a3a, 3.2] };      // a street changes hands: a wave of light on the ground, with no badge
   function spawnFx(kind, x, z, h = 1, say, type) {
     const look = FXLOOK[kind]; if (!look) return;
     const m = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ map: GLOW_WARM, color: look[0], blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, transparent: true }));
-    m.quaternion.copy(cam.quaternion); m.position.set(x, h + 0.6, z); m.renderOrder = 6; scene.add(m);
-    fxList.push({ n: fxN++, kind, type, x, z, m, say, t: 0, life: look[1] });
+    const flat = kind === 'won' || kind === 'lost';
+    if (flat) { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.16, z); } else { m.quaternion.copy(cam.quaternion); m.position.set(x, h + 0.6, z); } m.renderOrder = 6; scene.add(m);
+    fxList.push({ n: fxN++, kind, type, x, z, m, say, t: 0, life: look[1], quiet: flat });
   }
   const pops = []; let popN = 0;
   function spawnPop(x, z, h, amount) { if (amount && pops.length < 12) pops.push({ n: popN++, x, z, h, amount, t: 0, life: 2.6 }); }
@@ -26,6 +28,7 @@ export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp })
       const f = fxList[k]; f.t += dt;
       if (f.t > f.life) { f.m.removeFromParent(); f.m.material.dispose(); fxList.splice(k, 1); continue; }
       const far = clamp(4 / cam.zoom, 0.6, 4), fade = Math.min(1, (f.life - f.t) / 2); let s, o = 0.95;
+      if (f.quiet) { const k = f.t / f.life, grow = f.kind === 'won' ? k : 1 - k; s = 6 + 22 * grow; f.m.scale.set(s, s, 1); f.m.material.opacity = 0.75 * (1 - k); continue; }      // the wave spreads when a street is won, and draws back when one is lost
       if (f.kind === 'fire') s = (5 + 1.5 * Math.sin(now * 0.013 + f.n) + Math.sin(now * 0.031)) * far;
       else if (f.kind === 'promotion') { s = (6 + 2 * Math.sin(now * 0.004)) * far; o = 0.7; }
       else if (f.kind === 'gunfire') { o = Math.sin(now * 0.045 + f.n * 2) > 0.5 ? 1 : 0; s = 3.5 * far; }
