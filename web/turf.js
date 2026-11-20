@@ -188,7 +188,11 @@
       m.stuck = haul.full > 0;
       if (haul.went) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind };
       var inc = haul.got + RULES.club, makes = drink.idle[capo] !== undefined,
-          pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1) + (makes ? RULES.truck.upkeep * (m.trucks - 1) : 0), profit = inc - pay;
+          pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1) + (makes ? RULES.truck.upkeep * (m.trucks - 1) : 0);
+      // his men are paid out of what his places brought in: a bad month never puts him in debt, and what his club
+      // makes on its own stays his, so that he can always save for his next move
+      pay = Math.min(pay, haul.got);
+      var profit = inc - pay;
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
       if (!haul.idle && haul.waiting >= 2 * load && m.cash - pay >= RULES.car.cost) {

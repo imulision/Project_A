@@ -9,7 +9,7 @@
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
   var RULES = R.RULES, key = R.key, at = R.at, far = R.far;
   var KEYS = P.KEYS, who = P.who, can = P.can;
-  var bestKind = C.bestKind, zoneOf = C.zoneOf, changed = C.changed, everyPlace = C.everyPlace, held = C.held, open = C.open, clubOf = C.clubOf,
+  var run = C.run, bestKind = C.bestKind, zoneOf = C.zoneOf, changed = C.changed, everyPlace = C.everyPlace, held = C.held, open = C.open, clubOf = C.clubOf,
       hold = C.hold, grip = C.grip;
   var wages = G.wages, busy = G.busy, wants = G.wants, washing = G.washing;
 
@@ -92,6 +92,7 @@
     var target = null;
     everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || can(c, p.capo, 'feared')) return;
+      if (c.sated && c.sated[p.capo] > c.month) return;   // they burnt one of his not long ago
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach) return;
       if (!target || h.rival - h.family > target.margin) target = { margin: h.rival - h.family, p: p, h: h };
@@ -110,6 +111,8 @@
       delete c.blocks[key(p.x, p.y)];
       changed(c);
       e.type = 'burnt';
+      // they have had their fill of this man for a while; the bigger the family, the sooner they are back
+      c.sated = c.sated || {}; c.sated[p.capo] = c.month + Math.round(RULES.sated / fury);
       c.burnt = (c.burnt || 0) + 1;
       e.label = 'The ' + by + 's burn out ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where;
     }
