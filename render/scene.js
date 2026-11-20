@@ -109,7 +109,7 @@ function strip(ax, az, bx, bz, wd, mat, y, order = 0) {
   m.rotation.x = -Math.PI / 2; m.position.set((ax + bx) / 2, y, (az + bz) / 2); m.renderOrder = order; cur.add(m); return m;
 }
 const SIGNS = {}, SIGNGEO = new THREE.PlaneGeometry(1.5, 1.5 / 4);
-function sign(text, color) {     // glowing shop sign
+function sign(text, color, keep = true) {     // glowing shop sign; the ones not kept apart are merged, one draw call a name
   const key = text + color;
   if (!SIGNS[key]) {
     const c = document.createElement('canvas'); c.width = 512; c.height = 128;
@@ -122,7 +122,7 @@ function sign(text, color) {     // glowing shop sign
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
     SIGNS[key] = new THREE.MeshBasicMaterial({ map: t, toneMapped: false }); SIGNS[key].color.setScalar(1.6);
   }
-  const m = new THREE.Mesh(SIGNGEO, SIGNS[key]); m.userData.keep = true;
+  const m = new THREE.Mesh(SIGNGEO, SIGNS[key]); m.userData.keep = keep;
   return m;
 }
 // merge every static mesh of a group into one mesh per material: a handful of draw calls instead of hundreds
@@ -405,6 +405,7 @@ function buildFar(C) {
   if (C.p.turf) turfGround(C);
 }
 // near version: the real models, one instanced draw call per model and light level
+const SHOPSIGNS = ['#ffb347', '#ff6b5e', '#7fe0a8', '#ffd9a0', '#7fc8ff', '#ff8fc0'], PARKED = ['car_sedan', 'car_hatchback', 'car_sedan', 'car_stationwagon'], KERB = 1.25;      // a parked car, this far from the middle of its building
 function buildNear(C) {
   const G = new THREE.Group(), inst = new Map(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const add = (name, mat, x, y, z, rot, sy, color, shadow = true, size = null) => {
@@ -431,6 +432,13 @@ function buildNear(C) {
       pool(l.x + dx, l.z + dz, 1.9, l.ours ? 0xffc46a : 0xffa860, l.ours ? 0.45 : 0.25);
       glow(l.x + dx * 0.78, 0.42, l.z + dz * 0.78, 0.8, GLOW_SOFT, 0xffd08a, 0.5);
     }
+    const life = lotLook(l, hsh(l.i + 7, l.j + 11)), fx = l.rot ? 1 : 0, fz = l.rot ? 0 : 1;      // a street the family holds comes alive
+    if (life.sign) {
+      const col = SHOPSIGNS[life.sign.length % SHOPSIGNS.length], sg = sign(life.sign, col, false);      // one colour a trade, so one draw call a trade
+      sg.scale.setScalar(0.8); sg.position.set(l.x + fx * 0.84, 0.72, l.z + fz * 0.84); if (l.rot) sg.rotation.y = Math.PI / 2; cur.add(sg);
+      pool(l.x + fx * 1.2, l.z + fz * 1.2, 2, new THREE.Color(col), 0.32);
+    }
+    if (life.parked) add(PARKED[(l.i + l.j) % PARKED.length], CARMATS[(l.i * 3 + l.j) % CARMATS.length], l.x + fx * KERB, 0.17, l.z + fz * KERB, l.rot ? 0 : Math.PI / 2, 1, WHITE, false);
   }
   for (const [x, z, r] of C.lamps) {
     add('streetlight', LAMPMAT, x, 0, z, r, 1, WHITE, false);
