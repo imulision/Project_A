@@ -163,7 +163,7 @@ button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
 #alerts div .ic.ok{color:var(--accent)}
 .lab.pin.theirs{background:#6b6f86;color:#fff}
 .lab.pin.club{display:none}
-.lab.off{visibility:hidden;pointer-events:none}
+.lab{transition:opacity .18s}.lab.off{opacity:0!important;pointer-events:none}
 .lab,.lab *{pointer-events:none!important}
 
 /* a car that carries cash says how much: the month's takings of one place, or what goes to one laundry */

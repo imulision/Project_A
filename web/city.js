@@ -187,8 +187,12 @@
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
   }
   var MOVE = 'translate' in document.documentElement.style;
+  var hiddenLabs = {};      // the labels that had stepped aside at the last image: none blinks at the edge of another
+  var drawnAt = -1;
   function drawLabels() {
-    if (map) {
+    // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
+    var drawn = map ? map.stats().drawn : -1;
+    if (map && drawn !== drawnAt) { drawnAt = drawn;
       var seen = {}, boxes = [];
       map.labels().forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
@@ -215,7 +219,7 @@
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
       // a label that would sit on a more important one steps aside
-      var off = C.crowded(boxes);
+      var off = C.crowded(boxes, hiddenLabs); hiddenLabs = off;
       boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
       shown = boxes.filter(function (b) { return !off[b.id]; });
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
