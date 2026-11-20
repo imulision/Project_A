@@ -83,6 +83,11 @@
     // weed is a bonus: a loft sells on the spot, and the loads it grows besides go to the bars and the brothels with
     // the truck runs nothing else needs. The bags in a load, and what a place with weed to sell earns more that month
     weed: { makes: 1, load: 10, bonus: 0.2 },
+    // the road is not safe. Once they have struck the rivals lie low for so many months, then hold up one load that leaves the street they press on
+    // hardest, unless its capo is hard enough to hold it (they wait there until one passes); and from this heat on the police stop one truck a month
+    // `hold` and `muscle`: the share of the family's grip on a street the rivals must pass to dare, for a capo of no
+    // Muscle, and what each point of his Muscle adds
+    road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08 },
     crowd: 0.12,        // every man the family already counts makes the next one this much dearer
     greed: 0.2,         // and every key place it holds, in any city, the next key place
     turn: 25,           // share of the city the family must hold before a rival's lieutenant will listen // dirty $ the boss pays to set a man up, by the door he came through
@@ -439,10 +444,26 @@
     });
     return out;
   }
+  // Where the rivals lie in wait this month: every place of the family they press on hard enough for its capo's Muscle
+  // (his own: the cars are his business). The
+  // first load that leaves one of them is theirs.
+  function ambush(c) {
+    if (c.month < (c.lurk || 0) || c.month <= (c.quiet || 0)) return null;
+    var out = { at: {}, done: null }, any = false, shield = held(c, 'shield');
+    everyPlace(c).forEach(function (p) {
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key') return;
+      var h = hold(c, p.x, p.y);
+      if (h.rival < RULES.rivalReach || h.rival <= h.family * (RULES.road.hold + RULES.road.muscle * who(p.capo).muscle + shield)) return;
+      out.at[p.y * c.w + p.x] = true; any = true;
+    });
+    return any ? out : null;
+  }
+  var CARGOES = { liquor: ' crates of liquor', goods: ' crates of goods', cars: ' stolen cars', weed: ' bags of weed' };
   // One month of goods: every cellar and store fills with what was made, the trucks of the men who make it drive full
   // loads to the family's emptiest sellers, liquor first, and every seller sells what it has.
-  function distil(c, f) {
-    var all = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {} };
+  function distil(c, f, trap) {
+    var all = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {}, seized: null };
+    var police = (c.heat || 0) >= RULES.road.heat && !held(c, 'shield');
     all.forEach(function (s) {
       s.b.stock = Math.min(RULES.truck.cellar * s.makes, (s.b.stock || 0) + s.makes);
       var m = f.men[s.p.capo];
@@ -462,10 +483,14 @@
           if (!to || has < (to.b[chain.shelf] || 0) || (has === (to.b[chain.shelf] || 0) && far(from.p.x, from.p.y, q.p.x, q.p.y) < far(from.p.x, from.p.y, to.p.x, to.p.y))) to = q;
         });
         if (!to) break;
-        from.b.stock -= 1; to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1; left[from.p.capo] -= 1;
         var who2 = from.p.capo, n = made[who2] || 0, trucks = f.men[who2].trucks;
-        made[who2] = n + 1;
-        c.flow.hauls.push({ capo: who2, cargo: from.cargo, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo), truck: n % trucks + 1, leg: Math.floor(n / trucks) });
+        var h = { capo: who2, cargo: from.cargo, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo), truck: n % trucks + 1, leg: Math.floor(n / trucks) };
+        // a load the rivals or the police take on the road never reaches the shelf
+        if (trap && !trap.done && (trap.at[from.p.y * c.w + from.p.x] || trap.at[to.p.y * c.w + to.p.x])) { h.lost = 'hijack'; trap.done = h; trap.x = trap.at[from.p.y * c.w + from.p.x] ? from.p.x : to.p.x; trap.y = trap.at[from.p.y * c.w + from.p.x] ? from.p.y : to.p.y; }
+        else if (police && !out.seized) { h.lost = 'seizure'; out.seized = h; }
+        from.b.stock -= 1; left[who2] -= 1; made[who2] = n + 1;
+        if (!h.lost) to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1;
+        c.flow.hauls.push(h);
       }
       bars.forEach(function (q) {
         var sold = Math.min(1, q.b[chain.shelf] || 0);
@@ -494,15 +519,17 @@
   }
   function wages(c, capo) { return RULES.wage * run(c, capo).length; }
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
-  function collect(c, capo, cars, own, load) {
+  function collect(c, capo, cars, own, load, trap) {
     var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
     var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); return { p: p, b: b }; });
     while (left + mine > 0) {
       var best = null;
       for (var i = 0; i < tills.length; i++) if (tills[i].b.till >= load && (!best || tills[i].b.till > best.b.till)) best = tills[i];
       if (!best) break;
-      best.b.till -= load; got += load;
+      best.b.till -= load;
       var r = { capo: capo, x: best.p.x, y: best.p.y, amount: load };
+      // the car the rivals wait for never reaches the club
+      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else got += load;
       if (left > 0) { r.car = done % cars + 1; r.leg = Math.floor(done / cars); done += 1; left -= 1; }
       else { r.own = true; r.leg = drove; drove += 1; mine -= 1; went = went || { x: r.x, y: r.y }; }
       c.flow.runs.push(r);
@@ -1083,6 +1110,7 @@
       if (garage && at(c, h.from.x, h.from.y) && at(c, h.to.x, h.to.y)) {
         out.push({ kind: h.cargo && h.cargo !== 'liquor' ? 'goods' : 'liquor', cargo: h.cargo || 'liquor', capo: h.capo, from: { x: h.from.x, y: h.from.y }, to: { x: h.to.x, y: h.to.y }, amount: h.amount,
                    vehicle: h.capo + ':truck:' + (h.truck || 1), leg: h.leg || 0, home: { x: garage.x, y: garage.y } });
+        if (h.lost) out[out.length - 1].lost = h.lost; // held up by the rivals or stopped by the police on the way
       }
     });
     ((c.flow && c.flow.runs) || []).forEach(function (r) {
@@ -1091,6 +1119,7 @@
       var t = { kind: 'takings', cargo: 'cash', capo: r.capo, from: { x: r.x, y: r.y }, to: club, amount: r.amount,
                 vehicle: r.capo + (r.own ? ':own' : ':car:' + (r.car || 1)), leg: r.leg || 0, home: { x: club.x, y: club.y } };
       if (r.own) t.own = true; // the capo drove this one himself
+      if (r.lost) t.lost = r.lost;
       out.push(t);
     });
     Object.keys(f.men || {}).forEach(function (id) {
@@ -1203,12 +1232,16 @@
       if (p) m.help = { x: p.x, y: p.y, why: 'boost', kind: p.kind };
     });
     Object.keys(f.men).forEach(function (capo) { var h = clubOf(c, capo) && f.men[capo].help; if (h) c.push[h.y * c.w + h.x] = true; });
-    var drink = distil(c, f);
+    var trap = ambush(c), drink = distil(c, f, trap);
+    if (drink.seized) {
+      events.push({ type: 'seizure', capo: drink.seized.capo, city: c.id, x: drink.seized.from.x, y: drink.seized.from.y, cargo: drink.seized.cargo, amount: drink.seized.amount,
+                    label: 'The police stop ' + first(drink.seized.capo) + '\'s truck: ' + drink.seized.amount + CARGOES[drink.seized.cargo] + ' seized' });
+    }
     Object.keys(f.men).forEach(function (capo) {
       if (!clubOf(c, capo)) return;
       var m = f.men[capo];
       m.cars = m.cars || 1;
-      var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load);
+      var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load, trap);
       m.stuck = haul.full > 0;
       if (haul.went) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind };
       var inc = haul.got + RULES.club, makes = drink.idle[capo] !== undefined,
@@ -1254,6 +1287,14 @@
       events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
                     label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
     });
+    if (trap && trap.done) {
+      var held2 = trap.done, cash = held2.cargo === 'cash', gang = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner;
+      if (cash) c.flow.hijacked = held2.amount;
+      c.lurk = c.month + RULES.road.every; // they lie low for a while
+      events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
+                    label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
+                      + (cash ? '$' + held2.amount : held2.amount + CARGOES[held2.cargo]) + ' gone' });
+    }
     rivalGrows(c);
     rivalRaids(c, events);
     revenge(c, events);
