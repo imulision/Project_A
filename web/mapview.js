@@ -68,17 +68,18 @@
   var WASH = { rented: 1, front: 1 };
   var SPOT = 1;      // which of the six lots of a block carries its place
 
-  function planTurf(c, ci) {
+  // `was`, when given, is what the family held of each street name a year ago, in percent (the history of the rules).
+  function planTurf(c, ci, was) {
     ci = ci || 0;
     var zones = c.zones.map(function (z, n) { return { id: c.id + '-' + n, name: z.name, c0: z.x0, c1: z.x1 + 1, r0: z.y0, r1: z.y1 + 1, capo: null }; });
     var zoneOf = function (x, y) { var q = c.blocks[y * c.w + x]; if (q && typeof q.zone === 'number' && zones[q.zone]) return q.zone;      // the block says its street name; an old save only has rectangles
       for (var n = 0; n < zones.length; n++) { var z = zones[n]; if (x >= z.c0 && x < z.c1 && y >= z.r0 && y < z.r1) return n; } return 0; };
     var rival = ownerKey(c.rival), placeAt = {}, capoAt = {};
     c.places.forEach(function (p) { placeAt[p.x + ',' + p.y] = p; });
-    var lots = [], looks = [], count = zones.map(function () { return { all: 0, family: 0, rival: 0 }; });
+    var lots = [], looks = [], count = zones.map(function () { return { all: 0, real: 0, family: 0, rival: 0 }; });
     var blocks = c.blocks.map(function (b) {
       var ours = b.grip === 'family', w = !ours ? -1 : b.family >= 66 ? 2 : b.family >= 33 ? 1 : 0, zi = zoneOf(b.x, b.y), n = 0;
-      count[zi].all++; if (ours) count[zi].family++; else if (b.grip === 'rival') count[zi].rival++;
+      count[zi].all++; if (!b.void) count[zi].real++; if (ours) count[zi].family++; else if (b.grip === 'rival') count[zi].rival++;
       looks.push(w);
       // A town is not a chessboard. How far the block is from the edge, and three slow fields, shape it: the middle is
       // full and tall in places, the rim thins out and stays low, a block here and there is a park, sheds stand together.
@@ -109,6 +110,10 @@
       }
       return { x: b.x, y: b.y, zone: zi, grip: b.grip, void: b.void || null, press: ours ? Math.min(1, b.rival / Math.max(1, b.family)) : 0, hold: Math.max(0, Math.min(1, (ours ? b.family : b.grip === 'rival' ? b.rival : Math.max(b.family, b.rival)) / 100)) };
     });
+    // A street name that grew over the year thrives, one that shrank goes quiet: five points of it either way.
+    var trends = zones.map(function (z, n) { var k = count[n], old = was && typeof was[n] === 'number' ? was[n] : null, d = old == null || !k.real ? 0 : Math.round(100 * k.family / k.real) - old;
+      z.trend = d >= 5 ? 'up' : d <= -5 ? 'down' : null; return z.trend ? z.trend.charAt(0) : '-'; });
+    lots.forEach(function (l) { var t = zones[l.district].trend; if (!t || !l.ours || l.site) return; if (t === 'up') l.boom = true; else l.low = true; });
     // A town is not a grid either: here and there the street between two blocks side by side is built over, and they stand as one
     // long block. Never two in a row, so that every crossing keeps its ways out; the cars drive round (route).
     var shut = [], shutAt = {}, gone = function (x, y) { return x < 0 || y < 0 || x >= c.w || y >= c.h || !!c.blocks[y * c.w + x].void; }, infill = [];
@@ -155,7 +160,7 @@
       return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
-    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',');
+    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',') + '|' + trends.join('');
     return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos, shut: shut, infill: infill };
@@ -167,7 +172,8 @@
   function planEmpire(view, where) {
     var at = {}, index = {};
     (where || []).forEach(function (c) { at[c.id] = c; });
-    var cities = view.cities.map(function (c, n) { var p = planTurf(c, n), w = at[c.id] || { x: 0, y: 200 }; index[c.id] = n; p.u = w.x * SCALE; p.v = w.y * SCALE; p.home = n === 0; p.present = !!c.held; return p; });
+    var hist = view.history || [], old = hist.length > 1 ? hist[Math.max(0, hist.length - 13)] : null;
+    var cities = view.cities.map(function (c, n) { var p = planTurf(c, n, old && ((old.cities || {})[c.id] || {}).zones), w = at[c.id] || { x: 0, y: 200 }; index[c.id] = n; p.u = w.x * SCALE; p.v = w.y * SCALE; p.home = n === 0; p.present = !!c.held; return p; });
     var routes = (view.routes || []).filter(function (r) { return index[r.from] !== undefined && index[r.to] !== undefined; })
       .map(function (r) { return { a: index[r.from], b: index[r.to], kind: r.kind }; });
     return { cities: cities, routes: routes, scale: SCALE };

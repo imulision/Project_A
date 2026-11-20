@@ -20,8 +20,9 @@ export function lotLook(l, r = 0.5) {
   if (l.ours) {
     const lit = Math.max(1, Math.min(3, l.lit || 1)), want = LAMPS[lit];
     if (l.low) return { shade: 1 + 0.02 * lit, roof: 'family', gain: (0.4 + 0.13 * lit) * 0.8, lamps: Math.floor((Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0)) / 2), ...QUIET };      // his capo is in trouble: the street goes quiet
-    return { shade: 1 + 0.04 * lit, roof: 'family', gain: 0.4 + 0.13 * lit, lamps: Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0),
-      sign: l.shop && frac(r * 7.31) < SIGNED[lit] ? TRADES[Math.floor(frac(r * 53.7) * TRADES.length)] : null, parked: frac(r * 3.17) < PARKED[lit] };
+    const up = l.boom ? 1 : 0;      // its street name grew over the year: it thrives, and it shows
+    return { shade: 1 + 0.04 * lit + 0.05 * up, roof: 'family', gain: 0.4 + 0.13 * lit + 0.1 * up, lamps: Math.floor(want) + (r < want - Math.floor(want) ? 1 : 0) + up,
+      sign: l.shop && frac(r * 7.31) < SIGNED[lit] + 0.4 * up ? TRADES[Math.floor(frac(r * 53.7) * TRADES.length)] : null, parked: frac(r * 3.17) < PARKED[lit] + 0.3 * up };
   }
   return { shade: 0.62, roof: null, gain: 0, lamps: 0, ...QUIET };
 }

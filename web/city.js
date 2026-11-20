@@ -276,7 +276,7 @@
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, l.fx === 'news' ? C.EVENT[l.type] || 'time' : (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
           else if (l.pop) { var pp = C.pop(l.pop); e.className = 'lab pop ' + pp.cls; e.textContent = pp.text; if (l.pop > 0) bump('dirty'); }      // money seen coming in: the figure at the top of the screen answers
           else if (l.car) { e.className = 'lab tag'; e.innerHTML = '<span></span><b></b>'; e.pic = e.firstChild; e.b = e.lastChild; }
-          else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = I.icon(C.iconName(l.key || l.site)); }
+          else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = C.pin(l); e.lv = l.level; }
           else if (l.capo) e.className = 'lab capo';
           else { e.className = 'lab' + (l.small ? ' sm' : ''); e.innerHTML = '<b></b><span></span>'; e.b = e.firstChild; e.s = e.lastChild; }
           $('labels').appendChild(e);
@@ -286,7 +286,8 @@
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
         if (l.pop) { var up = Math.round((l.part || 0) * 10); if (e.up !== up) { e.up = up; e.style.setProperty('--up', up / 10); } }
         else if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
-        else if (l.site) { var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
+        else if (l.site) { if (e.lv !== l.level) { e.lv = l.level; e.innerHTML = C.pin(l); e.warn = null; e.st = ''; }      // enlarged: its level shows under the mark
+          var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', hp = healths[l.city + l.capo], dg = doings[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood, hp ? hp.money + hp.men + hp.threat : '', dg ? dg.word + dg.tone + (dg.power ? dg.power.now + dg.power.tone : '') : ''].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp, dg); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next

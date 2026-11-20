@@ -73,3 +73,13 @@ test('a street name is written where the page says, or in the middle of its rect
   assert.deepEqual([midX({ c0: 2, c1: 6, r0: 0, r1: 3 }), midY({ c0: 2, c1: 6, r0: 0, r1: 3 })], [4, 1.5]);
   assert.deepEqual([midX({ c0: 2, c1: 6, r0: 0, r1: 3, cx: 2.5, cy: 0.5 }), midY({ c0: 2, c1: 6, r0: 0, r1: 3, cx: 2.5, cy: 0.5 })], [2.5, 0.5]);
 });
+
+test('a street name that grew over the year thrives: more signs, more cars, a lamp more', async () => {
+  const { lotLook } = await import('../render/look.mjs');
+  let signs = 0, cars = 0, signs0 = 0, cars0 = 0;
+  for (let k = 0; k < 200; k++) { const plain = lotLook({ ours: true, lit: 1, site: null, shop: true }, k / 200), boom = lotLook({ ours: true, lit: 1, site: null, shop: true, boom: true }, k / 200);
+    assert.equal(boom.lamps, plain.lamps + 1); assert.ok(boom.gain > plain.gain);
+    if (boom.sign) signs++; if (boom.parked) cars++; if (plain.sign) signs0++; if (plain.parked) cars0++; }
+  assert.ok(signs > signs0 * 1.5 && cars > cars0 * 1.5, signs + ' signs against ' + signs0 + ', ' + cars + ' cars against ' + cars0);
+  assert.equal(lotLook({ ours: false, boom: true }, 0.3).lamps, 0, 'only the family\'s streets');
+});

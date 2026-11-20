@@ -447,3 +447,19 @@ test('a car never drives over the water, nor through a street that is built over
     const mid = t.round ? t.path.slice(1, -1) : t.path;
     tilesOf(mid).forEach((q) => assert.ok(!closed(p, q[0], q[1]), t.id + ' drives through ' + q)); });
 });
+
+test('a street name that grew over the year thrives, one that shrank goes quiet, and the plan is redrawn when that changes', () => {
+  const c = cityOf(play(30)), p0 = M.planTurf(c), n = c.blocks.find((b) => b.grip === 'family').zone;
+  const real = c.blocks.filter((b) => b.zone === n && !b.void), share = Math.round(100 * real.filter((b) => b.grip === 'family').length / real.length);
+  const was = (v) => c.zones.map((z, k) => (k === n ? v : 0));
+  const ours = (p) => p.lots.filter((l) => l.district === n && l.ours && !l.site);
+  assert.equal(p0.districts[n].trend, null); ours(p0).forEach((l) => assert.ok(!l.boom));
+  const up = M.planTurf(c, 0, was(share - 10)); assert.equal(up.districts[n].trend, 'up'); assert.ok(ours(up).length > 0); ours(up).forEach((l) => assert.equal(l.boom, true));
+  const down = M.planTurf(c, 0, was(share + 10)); assert.equal(down.districts[n].trend, 'down'); ours(down).forEach((l) => { assert.equal(l.low, true); assert.ok(!l.boom); });
+  assert.equal(M.planTurf(c, 0, was(share + 2)).districts[n].trend, null, 'a street more or less is not a trend');
+  assert.notEqual(up.key, p0.key); assert.notEqual(down.key, up.key);
+  // the whole map reads the year in the history of the rules
+  const v = E.view(play(30)), h = v.history, row = h[Math.max(0, h.length - 13)];
+  const older = { ...v, history: h.map((r) => (r === row ? { ...r, cities: { ...r.cities, [v.cities[0].id]: { ...r.cities[v.cities[0].id], zones: v.cities[0].zones.map(() => 100) } } } : r)) };
+  assert.ok(M.planEmpire(older, global.AshportWorld.CITIES).cities[0].districts.some((d) => d.trend === 'down'));
+});
