@@ -138,6 +138,25 @@
 
   function seated(f, id) { return CHAIRS.some(function (ch) { return sits(f, ch.post) === id; }); }
 
+  // --- loyalty ---
+  // What a man feels for the boss today, out of 100. He comes with what he is known for, and the boss's gestures move it.
+  function loyalty(f, capo) {
+    var m = f.men[capo];
+    return m && m.loyal !== undefined ? m.loyal : who(capo).loyalty;
+  }
+  // A gesture he will remember. The month it happens, time does not pull him back.
+  function sway(f, capo, by) {
+    var m = f.men[capo];
+    if (!m) return;
+    m.loyal = Math.max(0, Math.min(100, loyalty(f, capo) + by));
+    m.moved = true;
+  }
+  // What the boss can read of it: the number stays in the man's head.
+  function mood(f, capo) {
+    var l = loyalty(f, capo);
+    return l < RULES.loyal.bitter ? 'bitter' : l < RULES.loyal.restless ? 'restless' : 'steady';
+  }
+
   function can(c, capo, id) { var k = c.skills && c.skills[capo]; return !!(k && k[id]); }
 
   function person(id) {
@@ -146,7 +165,7 @@
   }
 
   var api = { KEYS: KEYS, PEOPLE: PEOPLE, LURES: LURES, who: who, SCHOOLS: SCHOOLS, TRADE: TRADE, schoolOf: schoolOf, abilities: abilities,
-      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person };
+      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, loyalty: loyalty, sway: sway, mood: mood };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfPeople = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -8,7 +8,7 @@
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
   var RULES = R.RULES, key = R.key, far = R.far;
-  var KEYS = P.KEYS, can = P.can;
+  var KEYS = P.KEYS, can = P.can, sway = P.sway, loyalty = P.loyalty;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
   var first = S.first, funds = S.funds, spend = S.spend;
@@ -42,6 +42,7 @@
       spend(f, a.cost);
       c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months });
     } else c.refused[a.key] = c.month + RULES.sulk;
+    sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }
 
@@ -56,6 +57,8 @@
       if (!clubOf(c, capo)) return;
       var due = RULES.pay[f.men[capo].rank], dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
       f.dirty -= dirty; f.clean -= clean; flow.pay += dirty + clean;
+      // a man who is not paid grumbles, down to restless and no further: it takes an affront to make him bitter
+      if (dirty + clean < due) sway(f, capo, -Math.min(RULES.loyal.unpaid, Math.max(0, loyalty(f, capo) - RULES.loyal.bitter)));
       if (dirty + clean < due) events.push({ type: 'unpaid', capo: capo, city: c.id, due: due, label: first(capo) + ' has not been paid this month' });
     });
     // the fronts wash what they can of what is left
@@ -133,6 +136,7 @@
     delete c.grudge[id];
     c.sulk = c.sulk || {};
     c.sulk[loser] = c.month + RULES.sulks;
+    sway(f, loser, -RULES.loyal.lost);
     return { winner: winner, loser: loser };
   }
 

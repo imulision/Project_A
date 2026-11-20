@@ -9,7 +9,8 @@
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
   var B = typeof require === 'function' ? require('./turf-boss.js') : root.AshportTurfBoss;
   var RULES = R.RULES, key = R.key, inside = R.inside, at = R.at, far = R.far;
-  var KEYS = P.KEYS, PEOPLE = P.PEOPLE, LURES = P.LURES, who = P.who, CHAIRS = P.CHAIRS, chairOf = P.chairOf, sits = P.sits, seated = P.seated;
+  var KEYS = P.KEYS, PEOPLE = P.PEOPLE, LURES = P.LURES, who = P.who, CHAIRS = P.CHAIRS, chairOf = P.chairOf, sits = P.sits, seated = P.seated,
+      loyalty = P.loyalty, sway = P.sway, mood = P.mood;
   var lieutenantsOf = C.lieutenantsOf, zoneOf = C.zoneOf, changed = C.changed, memo = C.memo, everyPlace = C.everyPlace, places = C.places,
       run = C.run, clubOf = C.clubOf, settle = C.settle, grip = C.grip, share = C.share, price = C.price, others = C.others;
   var join = S.join, first = S.first, funds = S.funds, spend = S.spend;
@@ -125,6 +126,18 @@
     });
   }
 
+  // A man is out of the family: his quarrels, his plans and his sulks go with him, and he never knocks again.
+  function forget(c, f, capo, way) {
+    c.ops = c.ops.filter(function (o) { return o.capo !== capo; });
+    c.asks = c.asks.filter(function (a) { return a.capo !== capo; });
+    c.feuds = (c.feuds || []).filter(function (q) { return q.a !== capo && q.b !== capo; });
+    Object.keys(c.grudge || {}).forEach(function (k) { if (k.split('|').indexOf(capo) >= 0) delete c.grudge[k]; });
+    if (c.sulk) delete c.sulk[capo];
+    delete f.men[capo];
+    f.gone = f.gone || {};
+    f.gone[capo] = way;
+  }
+
   function part(c, f, capo, way) {
     if (!f.men[capo] || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
     if (!PARTINGS[way]) throw new Error('no such way to part with a man: ' + way);
@@ -156,20 +169,13 @@
     });
     delete c.blocks[key(club.x, club.y)];
     changed(c);
-    // his quarrels, his plans and his sulks go with him
-    c.ops = c.ops.filter(function (o) { return o.capo !== capo; });
-    c.asks = c.asks.filter(function (a) { return a.capo !== capo; });
-    c.feuds = (c.feuds || []).filter(function (q) { return q.a !== capo && q.b !== capo; });
-    Object.keys(c.grudge || {}).forEach(function (k) { if (k.split('|').indexOf(capo) >= 0) delete c.grudge[k]; });
-    if (c.sulk) delete c.sulk[capo];
-    delete f.men[capo];
-    f.gone = f.gone || {};
-    f.gone[capo] = way;
+    forget(c, f, capo, way);
     if (way === 'kill') {
       c.heat = Math.min(100, (c.heat || 0) + RULES.out.blood);
       c.sulk = c.sulk || {};
       left.forEach(function (id) {
-        if (who(id).loyalty < RULES.out.steady) c.sulk[id] = Math.max(c.sulk[id] || 0, c.month + RULES.out.shaken);
+        if (loyalty(f, id) < RULES.out.steady) c.sulk[id] = Math.max(c.sulk[id] || 0, c.month + RULES.out.shaken);
+        sway(f, id, -RULES.loyal.blood);
       });
     }
     if (way === 'jail') {
@@ -194,6 +200,53 @@
       });
       changed(c);
       return false;
+    });
+  }
+
+  // --- loyalty and betrayal ---
+  // The family the men of a city would go over to.
+  function rivalOf(c) {
+    var theirs = everyPlace(c).filter(function (p) { return p.owner !== 'family'; })[0];
+    return c.rival || (theirs && theirs.owner) || null;
+  }
+
+  // The boss makes a man a gift, in money that can be shown. Once a year at most.
+  function gift(c, f, capo) {
+    var m = f.men[capo], L = RULES.loyal;
+    if (!m || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
+    if (giftWait(c, m) > 0) throw new Error(first(capo) + ' has had his gift this year');
+    if ((f.clean || 0) < L.gift) throw new Error('it takes $' + L.gift + ' of clean money to make ' + first(capo) + ' a gift');
+    f.clean -= L.gift;
+    sway(f, capo, L.warms);
+    m.gifted = c.month;
+  }
+  function giftWait(c, m) { return m.gifted === undefined ? 0 : Math.max(0, RULES.loyal.again - (c.month - m.gifted)); }
+  function gifts(c, f, capo) { return { cost: RULES.loyal.gift, wait: giftWait(c, f.men[capo]) }; }
+
+  // The month's hearts. A quiet month brings a man back toward what he is. A bitter man is talked about the first
+  // month, and after enough of them he goes over to the rivals with all he runs, unless he is the last capo in the city.
+  function hearts(c, f, events) {
+    Object.keys(f.men).forEach(function (capo) {
+      var m = f.men[capo], club = clubOf(c, capo), L = RULES.loyal;
+      if (!club) return;
+      var is = loyalty(f, capo), born = who(capo).loyalty;
+      if (m.moved) m.moved = false;
+      else if (is !== born) m.loyal = is + (is < born ? 1 : -1) * Math.min(L.heals, Math.abs(born - is));
+      if (mood(f, capo) !== 'bitter') { m.sour = 0; return; }
+      m.sour = (m.sour || 0) + 1;
+      var gang = rivalOf(c);
+      if (m.sour === 1) {
+        events.push({ type: 'whispers', capo: capo, city: c.id, x: club.x, y: club.y,
+                      label: 'Word is that ' + first(capo) + (gang ? ' talks to the ' + gang + 's' : ' speaks against you') });
+      }
+      if (m.sour < L.turns || !gang || !others(c, f, capo).length) return;
+      var his = places(c, capo).filter(function (p) { return p.kind !== 'club'; });
+      his.forEach(function (p) { var b = c.blocks[key(p.x, p.y)]; b.owner = gang; delete b.capo; });
+      delete c.blocks[key(club.x, club.y)];
+      changed(c);
+      forget(c, f, capo, 'turned');
+      events.push({ type: 'betrayal', capo: capo, city: c.id, x: club.x, y: club.y, to: gang, places: his.length,
+                    label: first(capo) + ' goes over to the ' + gang + 's and takes his ' + his.length + (his.length === 1 ? ' place' : ' places') + ' with him' });
     });
   }
 
@@ -231,7 +284,7 @@
     });
   }
 
-  var api = { seat: seat, unseat: unseat, payTable: payTable, doors: doors, spots: spots, seats: seats, welcome: welcome, send: send,
+  var api = { gift: gift, gifts: gifts, hearts: hearts, seat: seat, unseat: unseat, payTable: payTable, doors: doors, spots: spots, seats: seats, welcome: welcome, send: send,
       underOf: underOf, underboss: underboss, partings: partings, part: part, revenge: revenge };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfMen = api;
