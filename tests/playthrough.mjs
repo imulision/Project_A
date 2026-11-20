@@ -178,7 +178,15 @@ const came = await page.evaluate(async () => { const m = window.__ashport.map(),
 assert.match(came.text || '', /^\+\$\d/, 'the takings are written over the club');
 assert.ok(came.bump, 'the total at the top answers');
 await shot('c2b-money-in');
-assert.match(await page.textContent('#wash'), /washes \$\d|no laundry yet/);
+// is he getting anywhere? Both moneys say what came in and what went out, the family has a rank, each capo a word and a power
+assert.match(await page.textContent('#wash'), /in \$[\d,]+ · out \$[\d,]+/);
+assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
+assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
+assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
+await page.evaluate(() => document.querySelector('[data-account]').click());
+assert.match(await page.textContent('#veil.on'), /Where the money goes[\s\S]*DIRTY CASH[\s\S]*CLEAN MONEY/);
+await shot('c2c-account');
+await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
 
 // a finger that lands on his face and slides moves the map: no label holds the finger, and no sheet opens
 

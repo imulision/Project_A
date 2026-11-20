@@ -766,3 +766,100 @@ test('the boss gives a city its line, sees who follows it, and each capo says wh
   assert.equal(C.follows({ follows: null }), ''); assert.equal(C.follows({}), '');
   assert.equal(C.EVENT.line, 'loyalty');
 });
+
+// ---- is the family getting anywhere? One verdict over the last year, and one word under each capo
+const past = (rows) => ({ history: rows.map(([share, income, dirty, clean], n) => ({ month: n + 1, dirty: dirty || 0, clean: clean || 0, cities: { ashport: { share, income }, calder: { share: 0, income: 0 } } })) });
+const flat = (n, row) => Array.from({ length: n }, () => row);
+
+test('the boss reads whether his family grows, stands still or loses ground over the last year', () => {
+  assert.equal(C.trend({ history: [] }), null); assert.equal(C.trend(past(flat(2, [4, 100]))), null, 'too early to say');
+  const up = C.trend(past(flat(12, [4, 100]).concat([[8, 100]])));
+  assert.equal(up.tone, 'good'); assert.equal(up.word, 'GROWING'); assert.equal(up.streets.diff, 2, 'two points of the whole map'); assert.equal(up.months, 12);
+  assert.match(up.say, /\+2% of the streets in a year/);
+  const down = C.trend(past([[8, 100]].concat(flat(12, [4, 100]))));
+  assert.equal(down.tone, 'bad'); assert.equal(down.word, 'LOSING GROUND'); assert.match(down.say, /−2% of the streets/);
+  const still = C.trend(past(flat(24, [4, 100])));
+  assert.equal(still.tone, 'warn'); assert.equal(still.word, 'STANDING STILL'); assert.match(still.say, /No street won in a year/);
+  const richer = C.trend(past(flat(12, [4, 100]).concat([[4, 400]])));
+  assert.equal(richer.tone, 'good'); assert.equal(richer.word, 'EARNING MORE'); assert.match(richer.say, /\+\$300 a month/);
+  const poorer = C.trend(past(flat(12, [4, 400]).concat([[4, 100]])));
+  assert.equal(poorer.tone, 'bad'); assert.equal(poorer.word, 'EARNING LESS'); assert.match(poorer.say, /−\$300 a month/);
+  const young = C.trend(past(flat(5, [0, 0]).concat([[6, 50]])));
+  assert.equal(young.months, 5); assert.match(young.say, /in 5 months/);
+  // on the screen: an arrow, the word in its colour, the figure
+  const line = C.trendLine(up); assert.match(line, /class="trend good"/); assert.match(line, /GROWING/); assert.match(line, /▲/);
+  assert.match(C.trendLine(down), /▼/); assert.equal(C.trendLine(null), 'Your capos are at work');
+  assert.match(C.trendMark(up), /class="good"/); assert.match(C.trendMark(up), /\+2/); assert.equal(C.trendMark(still), ''); assert.equal(C.trendMark(null), '');
+});
+
+test('under each capo, one word says what he is doing and whether it works, with what his streets earn', () => {
+  const town = { id: 'ashport', places: [], heat: 0 }, man = (o) => ({ id: 'dutch', name: 'Dutch', income: 400, places: 3, mood: 'steady', plan: { move: 'hold' }, ...o });
+  const of = (o, c) => C.doing({ ...town, ...c }, man(o));
+  assert.deepEqual(of({}), { word: 'HOLDING', tone: 'idle', earns: '$400' });
+  assert.deepEqual(of({ plan: { move: 'open', kind: 'speakeasy', name: 'Speakeasy', waiting: 'time', progress: 0.5 } }), { word: 'OPENING', tone: 'good', earns: '$400' });
+  assert.equal(of({ plan: { move: 'take', way: 'force' } }).word, 'TAKING'); assert.equal(of({ plan: { move: 'enlarge' } }).word, 'ENLARGING');
+  const saving = of({ plan: { move: 'open', waiting: 'money', cost: 1000, saved: 900, progress: 0.9 } });
+  assert.equal(saving.word, 'SAVING 90%'); assert.equal(saving.tone, 'good');
+  assert.equal(of({ income: 0, plan: { move: 'open', waiting: 'money', cost: 1000, saved: 0, progress: 0 } }).tone, 'bad', 'saving with nothing coming in is going nowhere');
+  assert.deepEqual(of({ income: 0 }), { word: 'EARNS NOTHING', tone: 'bad', earns: '$0' });
+  assert.deepEqual(of({ income: 0, places: 0 }), { word: 'SETTLING IN', tone: 'idle', earns: '$0' });
+  assert.equal(of({ mood: 'bitter' }).word, 'BITTER'); assert.equal(of({ mood: 'bitter' }).tone, 'bad');
+  assert.equal(of({}, { chief: { name: 'Seamus', vendetta: 3 } }).word, 'VENDETTA');
+  const raid = of({ at: { why: 'raid', label: 'Facing the Callahans' } }); assert.equal(raid.word, 'UNDER ATTACK'); assert.equal(raid.tone, 'warn');
+  const html = C.mark({ capo: 'dutch', move: 'hold' }, C.health(town, man()), of({}));
+  assert.match(html, /class="say idle"/); assert.match(html, /HOLDING/); assert.match(html, /\$400/);
+  assert.doesNotMatch(C.mark({ capo: 'dutch', move: 'hold' }), /class="say/);
+});
+
+test('the month\'s account: where the dirty cash came from and went, what came back clean, said the same way for both', () => {
+  const view = { cities: [{ money: { up: 135, pay: 81, washed: 210, washes: 1418, cut: 52.5, seized: 0 } }, { money: { up: 65, pay: 0, washed: 0, washes: 0, cut: 0, seized: 40 } }] };
+  const a = C.account(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
+  assert.deepEqual(a.dirty.map((l) => [l.key, l.amount]), [['up', 200], ['pay', -81], ['wash', -210], ['seized', -40], ['other', -100]]);
+  assert.deepEqual(a.clean.map((l) => [l.key, l.amount]), [['back', 158], ['other', -100]]);
+  assert.deepEqual([a.dirtyIn, a.dirtyOut, a.cleanIn, a.cleanOut], [200, 431, 158, 100]);
+  assert.equal(a.dirtyLine, 'in $200 · out $431'); assert.equal(a.cleanLine, 'in $158 · out $100', 'the two tiles speak the same way');
+  assert.match(a.room, /can wash \$1,418 a month.*only \$210/);
+  const html = C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
+  assert.match(html, /Sent up by your capos/); assert.match(html, /\+\$200/); assert.match(html, /Wages/); assert.match(html, /−\$81/); assert.match(html, /Seized by the police/);
+  assert.match(html, /kept \$53 as their cut/); assert.match(html, /−\$231/); assert.match(html, /data-act="close"/);
+  // nothing to tell that is not there: no line at zero, no laundry said plainly
+  const bare = C.account({ cities: [{ money: { up: 50, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 } }] }, { dirty: 50, clean: 0, change: { dirty: 50, clean: 0 } });
+  assert.deepEqual(bare.dirty.map((l) => l.key), ['up']); assert.deepEqual(bare.clean, []); assert.equal(bare.cleanLine, 'no laundry yet'); assert.match(bare.room, /No laundry yet/);
+});
+
+test('the family has a rank, a bar towards the next one, and a mark where it stood a year ago', () => {
+  const at = (now, was) => C.rank(past(flat(12, [was * 2, 0]).concat([[now * 2, 0]])));      // (two cities in `past`: the map share is half of Ashport's)
+  const gang = at(1.5, 1.5);
+  assert.equal(gang.name, 'Street gang'); assert.equal(gang.next, 'Crew'); assert.equal(gang.to, 3); assert.equal(gang.part, 0.5); assert.equal(gang.was, 0.5); assert.equal(gang.moved, null);
+  const crew = at(6.5, 1.5);
+  assert.equal(crew.name, 'Crew'); assert.equal(crew.next, 'Family'); assert.deepEqual([crew.from, crew.to], [3, 10]); assert.equal(crew.part, 0.5); assert.equal(crew.was, 0, 'a year ago it was below this rank'); assert.equal(crew.moved, 'up');
+  const fallen = at(1.5, 6.5); assert.equal(fallen.name, 'Street gang'); assert.equal(fallen.moved, 'down'); assert.equal(fallen.was, 1, 'it stood higher');
+  assert.equal(at(12, 12).name, 'Family'); assert.equal(at(30, 30).name, 'Syndicate');
+  const top = at(60, 60); assert.equal(top.name, 'Commission'); assert.equal(top.next, null); assert.equal(top.part, 1);
+  assert.equal(C.rank({ history: [] }).name, 'Street gang');
+  const html = C.rankLine(crew);
+  assert.match(html, /CREW/i); assert.match(html, /Family at 10%/); assert.match(html, /width:50%/); assert.match(html, /class="was"[^>]*left:0%/); assert.match(html, /class="rk up"/);
+  assert.match(C.rankLine(fallen), /class="rk down"/); assert.doesNotMatch(C.rankLine(top), /class="bar"/);
+});
+
+test('each capo has a power, and the page remembers a year of it to say whether he rises or falls', () => {
+  assert.equal(C.power({ places: 5, income: 900 }), 140, 'ten a place, one for every ten dollars a month'); assert.equal(C.power({}), 0);
+  const v = (month, places, income) => ({ month, cities: [{ id: 'ashport', capos: [{ id: 'sal', places, income }] }] });
+  let log = {};
+  for (let m = 1; m <= 14; m++) log = C.powerLog(log, v(m, 2, 100));
+  assert.equal(log.ashportsal.length, 13, 'a year and the month in hand, no more'); assert.deepEqual(log.ashportsal[12], [14, 30]);
+  assert.deepEqual(C.powerLog(log, v(14, 2, 100)), log, 'a month is written once');
+  log = C.powerLog(log, v(15, 5, 900));
+  assert.deepEqual(C.powerTrend(log, 'ashportsal'), { now: 140, diff: 110, tone: 'good', months: 12 });
+  const fall = C.powerLog(log, v(16, 1, 0)); assert.equal(C.powerTrend(fall, 'ashportsal').tone, 'bad'); assert.equal(C.powerTrend(fall, 'ashportsal').diff, -20);
+  assert.equal(C.powerTrend(C.powerLog({}, v(1, 2, 100)), 'ashportsal').tone, 'idle', 'nothing to compare with yet'); assert.equal(C.powerTrend({}, 'nobody'), null);
+  // a new game starts its own memory, and a man who left is forgotten
+  assert.deepEqual(C.powerLog(log, v(1, 1, 0)), { ashportsal: [[1, 10]] });
+  assert.deepEqual(Object.keys(C.powerLog(log, { month: 16, cities: [{ id: 'ashport', capos: [{ id: 'mae', places: 1, income: 0 }] }] })), ['ashportmae']);
+  // on the map and on his sheet
+  const d = C.doing({ id: 'ashport', places: [] }, { id: 'sal', income: 900, places: 5, plan: { move: 'hold' } }, C.powerTrend(log, 'ashportsal'));
+  assert.deepEqual(d.power, { now: 140, diff: 110, tone: 'good', months: 12 });
+  const html = C.mark({ capo: 'sal', move: 'hold' }, null, d); assert.match(html, /class="pw good"/); assert.match(html, /▲/); assert.match(html, /140/);
+  const line = C.powerLine(C.powerTrend(log, 'ashportsal')); assert.match(line, /POWER/); assert.match(line, /140/); assert.match(line, /\+110 in a year/);
+  assert.match(C.powerLine(C.powerTrend(fall, 'ashportsal')), /−20/); assert.equal(C.powerLine(null), '');
+});
