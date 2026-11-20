@@ -328,3 +328,22 @@ test('Games: the house edge, markers that pay, and a back room that hides the bo
   const over = T.RULES.stash + 1500;
   assert.deepEqual([heat(2, over), heat(3, over), heat(3, over + 2000)], [true, false, true], 'his back room hides $2,000 more of the boss\'s dirty money from the police');
 });
+
+// --- what a trade is, and what the next tier brings: the boss reads it before he pays ---
+
+test('every trade says in a line what it does, and every tier on offer says what it brings', () => {
+  const f = H.family(); f.tech = { still: 1, speakeasy: 1, rented: 2, warehouse: 1 };
+  const tree = T.tree(f);
+  for (const t of tree) {
+    assert.ok(t.gives && t.gives.length > 10 && t.gives.length < 90, t.kind + ' says what it does: ' + t.gives);
+    if (t.next) assert.ok(t.next.gives && t.next.gives.length > 10 && t.next.gives.length < 90, t.kind + ' says what tier ' + t.next.tier + ' brings: ' + t.next.gives);
+  }
+  assert.equal(new Set(tree.map((t) => t.gives)).size, tree.length, 'no two trades say the same thing');
+  const of = (kind) => tree.find((t) => t.kind === kind);
+  assert.match(of('gambling').next.gives, /open/i, 'a trade not known yet: the first tier lets the capos open it');
+  assert.match(of('warehouse').next.gives, /bigger/i, 'a known trade: the next tier lets them make it bigger');
+  assert.match(of('warehouse').next.gives, /50 %/, 'and says by how much');
+  assert.match(of('rented').next.gives, /wash/i, 'a laundry washes more');
+  assert.match(of('warehouse').gives, /fence/i);
+  assert.match(of('still').gives, /liquor/i);
+});

@@ -20,6 +20,15 @@
 
   function carries(tier) { return 'A car carries $' + RULES.car.loads[tier] + ' a run'; }
 
+  // What a trade is, in a line; and what a tier of it brings: the right to open it, then bigger places.
+  function brings(kind, tier) {
+    var site = D.SITES[kind], more = Math.round(RULES.bigger * 100) + ' %';
+    if (tier === 1) return 'Your capos can open it';
+    if (site.wash) return 'They can make it bigger: it washes 150 % more';
+    if (RULES.goods.makes[kind] || kind === 'still' || kind === 'loft') return 'They can make it bigger: it makes ' + more + ' more';
+    return 'They can make it bigger: it earns ' + more + ' more';
+  }
+
   function nameOf(kind) { return kind === 'cars' ? 'Cars' : D.SITES[kind].name; }
 
   function createFamily() {
@@ -37,10 +46,10 @@
   function tree(f) {
     var out = KINDS.map(function (kind) {
       var tier = f.tech[kind] || 0, wanted = likedBy(f, kind);
-      return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted,
+      return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted, gives: D.SITES[kind].does,
                studying: f.study && f.study.kind === kind ? f.study.monthsLeft : 0,
                next: tier >= RULES.learn.cost.length ? null
-                 : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (wanted.length ? RULES.learn.taught : 1) } };
+                 : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (wanted.length ? RULES.learn.taught : 1), gives: brings(kind, tier + 1) } };
     });
     // the cars: not a place, but learned the same way; asked for by the men whose tills were left full
     var cars = Math.max(1, f.tech.cars || 1), stuck = Object.keys(f.men).filter(function (id) { return f.men[id].stuck; });
