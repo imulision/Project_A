@@ -210,6 +210,7 @@ await page.click('#tip');
 assert.match(await page.textContent('#sheet'), new RegExp(place.name));
 await page.click('#sheet [data-act=city]');
 assert.equal(await page.textContent('#sheet h2'), 'Ashport');
+assert.match(await page.textContent('#sheet .chief'), /Seamus Callahan.*Head of the Callahan family.*% of the streets/, 'the rival of the city has a face');
 // the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
 assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
 assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');

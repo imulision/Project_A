@@ -699,3 +699,44 @@ test('the health of a capo\'s streets is read in three lights, money, men and th
   const line = C.healthLine(feud);
   assert.match(line, /class="move health bad"/); assert.match(line, /MONEY[\s\S]*MEN[\s\S]*THREAT/); assert.match(line, /Seamus Callahan/);
 });
+
+test('a capo\'s ask is laid out as a choice: what a yes costs and what he promises, what a no leaves behind', () => {
+  const ask = { id: 'sal:brewery', capo: 'sal', key: 'brewery', name: 'Brewery', x: 12, y: 8, gives: 'Pours for eight speakeasies', way: 'force', cost: 1800, months: 4, why: 'It pours for his bars', expects: { gain: 340, months: 10 } };
+  const v = E.view(E.createGame({ capo: 'sal' })); v.cities[0].asks = [ask];
+  const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
+  const sides = html.match(/<div class="sides">([\s\S]*?)<\/div><\/div><\/div>/)[0];
+  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 a month[\s\S]*promised[\s\S]*10 months[\s\S]*data-yes="1"/);
+  assert.match(sides, /class="side no"[\s\S]*IF YOU SAY NO[\s\S]*Sal[\s\S]*data-yes="0"/);
+  assert.ok(sides.indexOf('class="side yes"') < sides.indexOf('class="side no"'));
+  v.cities[0].asks = [{ ...ask, expects: null }];
+  const hall = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
+  assert.doesNotMatch(hall, /a month, promised/); assert.match(hall, /No money promised/, 'a place that earns nothing says so');
+  v.cities[0].asks = [{ ...ask, expects: undefined }];
+  assert.doesNotMatch(C.requests(v, { dirty: 5000, clean: 0, pending: 1 }), /promised/, 'an old game makes no promise');
+});
+
+test('the rival of a city has a face: his name, how strong he is, what he last did, and his vendetta', () => {
+  const c = { id: 'ashport', rival: 'Callahan', chief: { id: 'seamus', name: 'Seamus Callahan', family: 'Callahan', strength: 91, last: { type: 'burnt', month: 6, x: 4, y: 10, label: 'Burnt Dutch\'s speakeasy in Little Calabria' }, vendetta: 0 } };
+  const html = C.chief(c);
+  assert.match(html, /class="chief"/); assert.match(html, /<svg class="face"/); assert.match(html, /Seamus Callahan/); assert.match(html, /Head of the Callahan family/);
+  assert.match(html, /91% of the streets/); assert.match(html, /style="width:91%"/);
+  assert.match(html, /data-act="show" data-city="ashport" data-x="4" data-y="10"[^>]*>[\s\S]*Burnt Dutch&#39;s speakeasy|Burnt Dutch's speakeasy/);
+  assert.doesNotMatch(html, /Vendetta/);
+  const feud = C.chief({ ...c, chief: { ...c.chief, vendetta: 7, last: null } });
+  assert.match(feud, /class="move no"[\s\S]*Vendetta: 7 months[\s\S]*twice as hard/); assert.doesNotMatch(feud, /data-act="show"/);
+  assert.equal(C.chief({ id: 'ashport', chief: null }), ''); assert.equal(C.chief({ id: 'ashport' }), '');
+  const { v } = play((v) => v.month >= 2);
+  assert.match(C.city(v, 'ashport'), /class="chief"/, 'he is on the city sheet');
+  assert.equal(C.EVENT.vendetta, 'attack'); assert.ok(C.BAD.vendetta);
+});
+
+test('a promise is followed: what is owed is listed on the city sheet, and the day it is judged the news says kept or broken', () => {
+  const promises = [{ capo: 'dutch', key: 'brewery', name: 'Brewery', x: 12, y: 8, expected: 340, months: 4 }];
+  const html = C.promises({ id: 'ashport', promises });
+  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 a month from the Brewery/); assert.match(html, /judged in 4 months/);
+  assert.equal(C.promises({ id: 'ashport', promises: [] }), ''); assert.equal(C.promises({ id: 'ashport' }), '');
+  const kept = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 410, kept: true, label: 'The Brewery pays $410 a month, as Dutch promised' });
+  const broken = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 120, kept: false, label: 'The Brewery pays $120 a month, not the $340 Dutch promised' });
+  assert.doesNotMatch(kept, /class="news bad"/); assert.match(broken, /class="news bad"/);
+  assert.match(kept, /as Dutch promised/);
+});
