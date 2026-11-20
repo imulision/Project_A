@@ -345,7 +345,8 @@
     var t = view.tree.filter(function (q) { return q.kind === kind; })[0]; if (!t) return '';
     var busy = view.tree.filter(function (q) { return q.studying; })[0], wanted = (t.wanted || []).map(function (id) { return first(nameOf(id)); });
     var html = '<b>' + esc(t.name) + (t.tier ? ' · tier ' + t.tier : ' · not known yet') + '</b>' + (wanted.length ? '<small>Asked for by ' + esc(wanted.join(', ')) + '</small>' : '') +
-      (t.gives ? '<small>' + esc(t.gives) + (t.next && t.next.gives && !t.studying ? ' · next: ' + esc(t.next.gives) : '') + '</small>' : '');
+      (t.gives ? '<p class="gives">' + esc(t.gives) + '</p>' : '') +
+      (t.next && t.next.gives ? '<div class="move next">' + I.icon('yes') + '<span><b>' + (t.tier ? 'Tier ' + t.next.tier + ' brings' : 'Learning it brings') + '</b> ' + esc(t.next.gives) + '</span></div>' : '');
     if (t.studying) return html + '<div class="move">' + I.icon('time') + '<span>Learning: ' + months(t.studying) + ' left</span></div>';
     if (!t.next) return html + '<div class="move yes">' + I.icon('yes') + '<span>Nothing more to learn</span></div>';
     var what = (t.tier ? 'Tier ' + t.next.tier : 'Learn it') + ' · ' + money(t.next.cost) + ' clean · ready in ' + months(t.next.months);

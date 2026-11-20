@@ -661,3 +661,14 @@ test('money seen on the map: what comes in is written with a plus, what leaves w
   assert.deepEqual(C.pop(-1500), { text: '−$1,500', cls: 'out' });
   assert.equal(C.pop(0), null); assert.equal(C.pop(undefined), null);
 });
+
+test('the detail of a trade says in plain sight what it gives, and what the next tier would add', () => {
+  const tree = [{ kind: 'still', name: 'Stills', tier: 1, gives: 'Makes the liquor your bars sell', next: { tier: 2, cost: 3500, months: 6, gives: 'They can make it bigger: it makes 50 % more' } }];
+  const html = C.know({ tree }, 'still', { clean: 5000 });
+  assert.match(html, /<p class="gives">Makes the liquor your bars sell<\/p>/);
+  assert.match(html, /<div class="move next">.*?<span><b>Tier 2 brings<\/b> They can make it bigger: it makes 50 % more<\/span><\/div>/);
+  assert.ok(html.indexOf('class="move next"') < html.indexOf('data-act="research"'), 'what it brings is read before the price');
+  const fresh = C.know({ tree: [{ ...tree[0], tier: 0, next: { ...tree[0].next, tier: 1 } }] }, 'still', { clean: 0 });
+  assert.match(fresh, /<b>Learning it brings<\/b>/);
+  assert.doesNotMatch(C.know({ tree: [{ ...tree[0], next: null }] }, 'still', { clean: 0 }), /class="move next"/);
+});
