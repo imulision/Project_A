@@ -138,10 +138,31 @@
 
   // --- two kinds of money ---
   // The month's money: wages by rank, the share each capo sends up, what the fronts wash, and the heat that follows.
-  function money(c, f, events, heard) {
+  // The fronts wash what they can of the dirty money: a whole cycle's worth, or the part of it one day washes.
+  function launder(c, f, part) {
+    var flow = c.flow || (c.flow = { up: 0, sent: {} });
+    flow.wash = flow.wash || {};
+    f.clean = f.clean || 0;
+    laundries(c).forEach(function (l) {
+      var n = Math.max(0, Math.min(f.dirty, l.most * part));
+      f.dirty -= n; f.clean += n * (1 - l.loss); c.washing = (c.washing || 0) + n; flow.cut = (flow.cut || 0) + n * l.loss;
+      flow.wash[key(l.x, l.y)] = (flow.wash[key(l.x, l.y)] || 0) + n;
+    });
+  }
+  // The police raid the counting rooms.
+  function bust(c, f, events) {
+    var H = RULES.holdings;
+    var seized = Math.round(Math.max(0, f.dirty) * RULES.bust * (1 - H.lawyer.spares * owns(f, 'lawyer'))); // the lawyers get some of it back
+    f.dirty -= seized; (c.flow || (c.flow = { up: 0, sent: {} })).seized = seized;
+    c.heat = RULES.afterBust;
+    events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
+  }
+  // `daily`: the city is played day by day, the fronts have washed as the days went and the police pick their own day.
+  function money(c, f, events, heard, daily) {
     f.clean = f.clean || 0;
     var flow = c.flow || (c.flow = { up: 0, sent: {} });
-    flow.pay = 0; flow.cut = 0; flow.seized = 0; flow.wash = {};
+    flow.pay = 0;
+    if (!daily) { flow.cut = 0; flow.seized = 0; flow.wash = {}; c.washing = 0; }
     // every man in the city is paid out of what he sent up: a share of it, and never more than his rank allows.
     // The boss is never asked for money he was not sent.
     Object.keys(f.men).forEach(function (capo) {
@@ -151,11 +172,8 @@
       f.dirty -= dirty; f.clean -= clean; flow.pay += dirty + clean;
     });
     // the fronts wash what they can of what is left
-    c.washed = 0;
-    laundries(c).forEach(function (l) {
-      var n = Math.max(0, Math.min(f.dirty, l.most));
-      f.dirty -= n; f.clean += n * (1 - l.loss); c.washed += n; flow.cut += n * l.loss; flow.wash[key(l.x, l.y)] = n;
-    });
+    if (!daily) launder(c, f, 1);
+    c.washed = c.washing || 0; c.washing = 0;
     // money that sleeps and blood in the streets draw the police
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
     loud += heard || 0; // what was loud on the days of the cycle, in a city played day by day
@@ -167,12 +185,7 @@
       - (P.lineOf(c) === 'low' ? RULES.line.cools * followers(c, f).follow : 0)                                    // a city that lies low
       - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length - ((c.board && c.board.cools) || 0);
     c.heat = Math.max(0, Math.min(100, c.heat));
-    if (c.heat >= 100) {
-      var seized = Math.round(Math.max(0, f.dirty) * RULES.bust * (1 - H.lawyer.spares * owns(f, 'lawyer'))); // the lawyers get some of it back
-      f.dirty -= seized; flow.seized = seized;
-      c.heat = RULES.afterBust;
-      events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
-    }
+    if (c.heat >= 100) { if (daily) c.bust = true; else bust(c, f, events); }
   }
 
   // --- capos who share a city ---
@@ -282,7 +295,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { launder: launder, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

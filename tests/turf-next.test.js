@@ -110,3 +110,23 @@ test('nothing coming: the city says so with null, and the family names its soone
   if (all.length) { assert.equal(v.next.advance, Math.max(...all.map((n) => n.advance))); assert.ok(v.next.city); }
   else assert.equal(v.next, null);
 });
+
+test('a capo who has just paid for a place is not said to put nothing aside: his pace is counted before what he buys', () => {
+  for (const daily of [false, true]) {
+    const c = town(), f = family({ dirty: 0 });
+    T.settle(c, 'dutch', 2, 3); T.join(f, 'dutch'); c.quiet = 999;
+    T.open(c, 3, 3, { owner: 'family', kind: 'speakeasy', capo: 'dutch', level: 2 });
+    T.open(c, 2, 2, { owner: 'family', kind: 'still', capo: 'dutch' });
+    f.men.dutch.cash = 0;
+    let bought = 0, checked = 0;
+    for (let i = 0; i < 40; i++) {
+      const was = T.places(c, 'dutch').reduce((n, p) => n + p.level, 0);
+      if (!daily) T.stepMonth(c, f);
+      else { T.begin(f, [c]); for (let d = 0; d < T.RULES.days; d++) { T.pass(f, [c], d); if (T.dayOf('dutch') === d) T.act(f, [c], 'dutch'); } T.end(f, [c], []); }
+      const k = T.view(c, f).capos[0];
+      if (T.places(c, 'dutch').reduce((n, p) => n + p.level, 0) > was) bought++;
+      if (bought && k.plan.waiting === 'money' && !k.book.spent.himself && k.book.made > k.book.wages + k.book.sent + 1) { /* a man with nothing to save for keeps nothing back */ checked++; assert.ok(k.pace > 0, (daily ? 'day by day' : 'by cycle') + ', cycle ' + i + ': pace ' + k.pace + ' ' + JSON.stringify(k.book)); }
+    }
+    assert.ok(bought > 0 && checked > 0);
+  }
+});

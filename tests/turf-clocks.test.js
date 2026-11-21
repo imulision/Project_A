@@ -98,3 +98,63 @@ test('in the game, the rivals and the door never speak on the last day of a cycl
   }
   assert.ok(days.size >= 6, 'days ' + [...days].join(', '));
 });
+
+const washer = () => {
+  const c = town(), f = family({ dirty: 2000, clean: 0 });
+  T.settle(c, 'mae', 2, 3); T.join(f, 'mae'); c.quiet = 999;
+  T.open(c, 3, 3, { owner: 'family', kind: 'rented', capo: 'mae' });
+  f.men.mae.cash = 0;
+  return { c, f };
+};
+
+test('dirty money is washed a little every day, and no more in a cycle than the fronts can wash', () => {
+  const { c, f } = washer();
+  const most = T.washing(c).most;
+  assert.ok(most > 0);
+  let days = 0, clean = f.clean, start = f.clean, dirty = f.dirty, washed = 0;
+  cycle(c, f, (d, ev, from) => {
+    if (from !== 'pass') return;
+    if (f.clean > clean + 1e-9) days++;
+    clean = f.clean;
+  });
+  assert.ok(days >= T.RULES.days - 1, 'clean money grew on ' + days + ' days');
+  assert.ok(Math.abs(c.washed - most) < 1e-6, c.washed + ' washed, the fronts can wash ' + most);
+  assert.ok(f.clean - start > 0 && f.clean - start < most);
+  assert.ok(Math.abs(Object.values(c.flow.wash).reduce((a, b) => a + b, 0) - c.washed) < 1e-6);
+});
+
+test('cycle after cycle, with money to wash, the fronts wash all they can and no more', () => {
+  const { c, f } = washer();
+  f.dirty = 500000;
+  for (let i = 0; i < 12; i++) {
+    const before = T.washing(c).most;
+    cycle(c, f);
+    assert.ok(c.washed >= before - 1e-6 && c.washed <= T.washing(c).most + 1e-6, 'cycle ' + i + ': ' + c.washed + ' washed, between ' + before + ' and ' + T.washing(c).most);
+  }
+});
+
+test('when the heat boils over the police come on a day of their own, not as the cycle closes', () => {
+  const { c, f } = washer();
+  f.dirty = 90000; c.heat = 99;
+  let seen = null;
+  for (let i = 0; i < 4 && !seen; i++) cycle(c, f, (d, ev, from) => ev.forEach((e) => { if (e.type === 'bust') seen = { from, d, seized: e.seized }; }));
+  assert.ok(seen, 'the police came');
+  assert.equal(seen.from, 'pass');
+  assert.ok(seen.seized > 0 && f.dirty < 90000);
+  assert.equal(c.heat <= T.RULES.afterBust + T.RULES.hot, true);
+});
+
+test('what the family learns is learned on the day the boss paid for it, so many cycles later', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  g.family.clean = 50000;
+  for (let i = 0; i < 9; i++) { E.tick(g); g.paused = false; }
+  const kind = E.view(g).tree.filter((t) => t.next && t.kind !== 'cars')[0];
+  E.command(g, { type: 'research', building: kind.kind });
+  const started = { month: g.month, day: g.ticks };
+  assert.equal(g.family.study.day, started.day);
+  let learned = null;
+  for (let i = 0; i < DAYS * 14 && !learned; i++) { const at = { month: g.month, day: g.ticks }; if (E.tick(g).some((e) => e.type === 'learned')) learned = at; g.paused = false; }
+  assert.ok(learned);
+  assert.equal(learned.day, started.day);
+  assert.equal(learned.month - started.month, kind.next.months);
+});
