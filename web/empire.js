@@ -265,7 +265,9 @@
       tell(g, T.begin(f, g.cities), month, events);
     }
     // the cars that leave today are for the screen to drive: they are not news for the journal
-    T.pass(f, g.cities, d).forEach(function (e) { events.push(e); });
+    var passed = T.pass(f, g.cities, d);
+    passed.forEach(function (e) { if (e.type === 'run') events.push(e); });
+    tell(g, passed.filter(function (e) { return e.type !== 'run'; }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     g.ticks = last ? 0 : d + 1;
     if (!last) return;

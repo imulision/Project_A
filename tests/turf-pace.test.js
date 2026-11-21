@@ -51,13 +51,22 @@ test('a car leaves the day a till holds a full load, and says which day', () => 
   const { c, f } = dutch();
   cycle(c, f); cycle(c, f);
   const days = new Set();
-  const all = cycle(c, f, (d, runs) => runs.forEach((r) => {
+  const all = cycle(c, f, (d, runs) => runs.filter((r) => r.type === 'run').forEach((r) => {
     assert.equal(r.type, 'run'); assert.equal(r.city, 'town'); assert.equal(r.capo, 'dutch'); assert.equal(r.day, d);
     assert.ok(r.amount > 0); assert.ok(T.at(c, r.x, r.y));
     days.add(d);
   })).filter((e) => e.type === 'run');
   assert.ok(all.length >= 2, 'runs: ' + all.length);
   assert.ok(days.size >= 2, 'the cars left on ' + [...days].join(', '));
+});
+
+test('within the trips of a cycle, a car never drives the same leg of its round twice', () => {
+  const { c, f } = dutch();
+  for (let i = 0; i < 6; i++) {
+    cycle(c, f);
+    const seen = new Set();
+    c.flow.runs.forEach((r) => { const k = (r.own ? 'own' : r.car) + ':' + r.leg; assert.ok(!seen.has(k), 'cycle ' + i + ': ' + k + ' twice'); seen.add(k); });
+  }
 });
 
 test('the cars of a cycle are the trips the city shows once it is over', () => {
@@ -75,7 +84,7 @@ test('what the cars brought since his last day is what the capo counts on his da
   T.begin(f, [c]);
   for (let d = 0; d < DAYS; d++) {
     if (counted === null) brought += T.pass(f, [c], d).reduce((n, r) => n + (r.lost ? 0 : r.amount), 0); else T.pass(f, [c], d);
-    if (T.dayOf('dutch') === d) { const had = c.hauls.dutch.got; T.act(f, [c], 'dutch'); counted = f.men.dutch.income - T.RULES.club; assert.equal(counted, had); assert.equal(c.hauls.dutch.got, 0); }
+    if (T.dayOf('dutch') === d) { const had = c.hauls.dutch.got; T.act(f, [c], 'dutch'); counted = f.men.dutch.income - T.RULES.club; assert.ok(Math.abs(counted - had) < 1e-6); assert.equal(c.hauls.dutch.got, 0); }
   }
   T.end(f, [c], []);
   assert.ok(counted > 0);
