@@ -25,6 +25,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay'), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
     if (document.getElementById('date').textContent !== 'Day ' + (A.game().month * AshportEmpire.TICKS_PER_MONTH + day + 1)) seen.date = (seen.date || 0) + 1;      // the date is a count of days
+    if (A.map().labels().some((l) => l.pop < 0)) seen.paid = (seen.paid || 0) + 1;      // a pay packet is seen leaving its place
     if (document.querySelector('#next .nx')) seen.next = (seen.next || 0) + 1; if (/month/i.test(document.getElementById('next').textContent)) seen.nextMonths = 1; if (A.map().labels().some((l) => l.claim)) seen.claims = (seen.claims || 0) + 1;      // the streets about to be won are told at the top and marked on the map
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
@@ -231,6 +232,7 @@ if (await page.locator('#next .nx').count()) {
   await page.evaluate(() => window.__ashport.home()); await still();
 }
 assert.ok(seen.next > 0 && seen.claims > 0 && !seen.nextMonths, 'the next streets are told at the top with a bar and marked on the map, without a count of months (' + seen.next + ', ' + seen.claims + ')');
+assert.ok(seen.paid > 0, 'what a place pays rises over it the day it is paid');
 assert.ok(!seen.date, 'the date at the top is a count of days, and follows every day');
 assert.ok(seen.away > 0 && seen.rides > 0, 'a capo is seen where he works, and in his own car on the way there (' + seen.away + ', ' + seen.rides + ')');
 assert.ok(seen.news > 0 && seen.marks > 0, 'events are told by tiles on the edge and marked where they happen (' + seen.news + ', ' + seen.marks + ')');

@@ -370,6 +370,19 @@
     return out;
   }
 
+  // What a place pays, the day it pays it: one figure over the place (wages and upkeep together), read by the map as money that leaves.
+  function paysTurf(events, plan) {
+    var by = {}, out = [];
+    if (!plan) return out;
+    (events || []).forEach(function (e) {
+      if (e.type !== 'pay' || typeof e.x !== 'number') return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], lot = c && lotOfBlock(c, e.x, e.y); if (!lot) return;
+      var k = c.id + ':' + lot.i + ',' + lot.j, o = by[k];
+      if (!o) { o = by[k] = { kind: 'pay', type: 'pay', city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: null, spent: 0 }; out.push(o); }
+      o.spent += +e.amount || 0;
+    });
+    return out.map(function (o) { o.spent = Math.round(o.spent); return o; }).filter(function (o) { return o.spent >= 1; });
+  }
   // The streets about to be won: one claim for each capo whose plan wins streets, the furthest along first and those who put nothing aside last.
   // { id, city, capo, who, does, x, y, streets, advance (0 to 1), state: 'money' | 'men' | 'ready' | 'stuck', stuck, gains: [{ x, y }] }
   var DOES = { open: 'opens a ', take: 'takes a ', enlarge: 'enlarges his ', convert: 'turns a place into a ' };
@@ -385,7 +398,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);
