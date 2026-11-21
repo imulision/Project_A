@@ -194,6 +194,13 @@
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo, till: p.till };
       }).map(function (p) {
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
+        if (p.owner === 'family') {
+          // its books: what it made last month, what it makes on average over the last six, what its men cost a month
+          var mades = c.blocks[key(p.x, p.y)].mades || [];
+          p.made = mades.length ? Math.round(mades[mades.length - 1]) : 0;
+          p.made6 = mades.length ? Math.round(mades.reduce(function (a, b) { return a + b; }, 0) / mades.length) : 0;
+          p.costs = p.kind === 'club' || p.kind === 'key' ? 0 : Math.round(RULES.wage * (can(c, p.capo, 'tight') ? 0.85 : 1));
+        }
         var holds = p.kind === 'speakeasy' ? 'liquor' : p.kind === 'fence' ? 'goods' : (choke.cellar[key(p.x, p.y)] || {}).cargo;
         var crates = p.owner === 'family' && holds ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * loadOfCargo(holds)) : 0;
         var bags = p.owner === 'family' ? Math.round((c.blocks[key(p.x, p.y)].weed || 0) * RULES.weed.load) : 0;
@@ -207,20 +214,45 @@
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
+      trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id), led = P.follows(c, f, id);
         return { follows: led ? led.follows : null, followsWhy: led ? led.why : null, id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: plan(c, f, id), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: dated(plan(c, f, id), paceOf(man)), pace: paceOf(man), book: bookOf(man), partings: partings(c, f, id) };
       })
     };
+  }
+
+  // --- the books ---
+  // What each trade put in the tills last month, in whole dollars.
+  function trades(c) {
+    var made = (c.flow && c.flow.made) || {}, out = {};
+    Object.keys(made).forEach(function (k) { if (Math.round(made[k]) > 0) out[k] = Math.round(made[k]); });
+    return out;
+  }
+  // A capo's books for the last month, in whole dollars.
+  function bookOf(man) {
+    var b = man.book || { made: 0, wages: 0, sent: 0, spent: {}, saved: man.cash, put: 0 }, spent = {};
+    Object.keys(b.spent).forEach(function (k) { if (Math.round(b.spent[k]) > 0) spent[k] = Math.round(b.spent[k]); });
+    return { made: Math.round(b.made), wages: Math.round(b.wages), sent: Math.round(b.sent), spent: spent, saved: Math.round(man.cash), put: Math.round(b.put) };
+  }
+  // What he puts aside a month before he buys anything, over the last six months.
+  function paceOf(man) {
+    var puts = man.puts || [];
+    return puts.length ? Math.max(0, Math.round(puts.reduce(function (a, b) { return a + b; }, 0) / puts.length)) : 0;
+  }
+  // The months his plan is from being paid at that pace; null when he puts nothing aside.
+  function dated(p, pace) {
+    p.monthsLeft = p.waiting !== 'money' ? 0 : pace > 0 ? Math.ceil((p.cost - p.saved) / pace) : null;
+    return p;
   }
 
   function stepMonth(c, f) {
     var events = [];
     c.month += 1;
     learnt(c, f);
-    c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {}, runs: [] }; // last month's money, for the screen
+    c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {}, runs: [], made: {} }; // last month's money, for the screen
     settleTakes(c, events);
     Object.keys(f.men).forEach(function (capo) {
       var k = clubOf(c, capo) && !c.asks.some(function (a) { return a.capo === capo; }) && eyes(c, capo);
@@ -256,6 +288,10 @@
       if (!clubOf(c, capo)) return;
       var m = f.men[capo];
       m.cars = m.cars || 1;
+      // his books for the month: what he put into a place between two months is counted with this one
+      var spent = m.paid || {}, before = m.cash + Object.keys(spent).reduce(function (n, k) { return n + spent[k]; }, 0);
+      m.paid = null;
+      var buys = function (on, cost) { if (cost > 0) spent[on] = (spent[on] || 0) + cost; if (m.book) { m.book.saved = m.cash; m.book.put = m.cash - before; } };
       var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load, trap);
       m.stuck = haul.full > 0;
       if (haul.went) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind };
@@ -268,13 +304,13 @@
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
       if (!haul.idle && haul.waiting >= 2 * load && m.cash - pay >= RULES.car.cost) {
-        m.cash -= RULES.car.cost; m.cars += 1;
+        m.cash -= RULES.car.cost; m.cars += 1; buys('car', RULES.car.cost);
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
       }
       // loads that wait in his cellars while bars go dry, and no truck free: he buys another one
       if (makes && drink.dry && drink.idle[capo] === 0 && drink.waits[capo] >= 2 && m.cash - pay >= RULES.truck.cost) {
-        m.cash -= RULES.truck.cost; m.trucks += 1;
+        m.cash -= RULES.truck.cost; m.trucks += 1; buys('truck', RULES.truck.cost);
         events.push({ type: 'truck', capo: capo, city: c.id, trucks: m.trucks, cost: RULES.truck.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.trucks] || 'new') + ' truck: liquor sits in his cellar while bars go dry' });
       }
@@ -295,11 +331,16 @@
       var p = plan(c, f, capo);
       // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
-      if (spare > 0 && gives === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); }
+      if (spare > 0 && gives === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); buys('himself', spare * his); }
       c.flow.sent[capo] = sent; c.flow.up += sent;
       B.patience(c, f, capo, p, events);
+      m.book = { made: inc, wages: pay, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
+      c.flow.made.club = (c.flow.made.club || 0) + RULES.club;
+      var home = clubOf(c, capo), den = at(c, home.x, home.y); den.mades = (den.mades || []).concat([RULES.club]).slice(-6);
+      m.puts = (m.puts || []).concat([m.book.put]).slice(-6);
       if (p.move === 'hold' || p.waiting) return;
-      m.cash -= p.cost;
+      m.cash -= p.cost; buys(p.move, p.cost);
+      m.puts[m.puts.length - 1] = m.book.put;
       if (p.move === 'convert') {
         var turned = at(c, p.x, p.y);
         turned.kind = p.kind; turned.level = Math.max(1, Math.min(turned.level, f.tech[p.kind] || 1)); turned.turned = c.month;

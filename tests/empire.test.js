@@ -405,7 +405,8 @@ test('the last twenty-four months also say, city by city: the rival\'s strength,
   for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   const v = E.view(g), a = v.cities[0], last = v.history[v.history.length - 1].cities.ashport, k = a.capos[0];
   assert.equal(last.rival, a.chief.strength);
-  assert.deepEqual(last.capos, { dutch: { places: k.places, income: k.income, rank: k.rank } });
+  assert.deepEqual([last.capos.dutch.places, last.capos.dutch.income, last.capos.dutch.rank], [k.places, k.income, k.rank]); // (his books are there too: tests/turf-ledger.test.js)
+  assert.deepEqual(Object.keys(last.capos), ['dutch']);
   assert.equal(last.zones.length, a.zones.length);
   a.zones.forEach((z, n) => {
     const real = a.blocks.filter((b) => b.zone === n && !b.void), ours = real.filter((b) => b.grip === 'family');
