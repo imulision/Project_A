@@ -463,3 +463,22 @@ test('a street name that grew over the year thrives, one that shrank goes quiet,
   const older = { ...v, history: h.map((r) => (r === row ? { ...r, cities: { ...r.cities, [v.cities[0].id]: { ...r.cities[v.cities[0].id], zones: v.cities[0].zones.map(() => 100) } } } : r)) };
   assert.ok(M.planEmpire(older, global.AshportWorld.CITIES).cities[0].districts.some((d) => d.trend === 'down'));
 });
+
+test('a capo who opens a place drives to it and back to his club, once', () => {
+  const g = E.createGame({ capo: 'sal' });
+  const mine = (p) => p.cities[0].lots.filter((l) => l && l.site && l.site.owner === 'family' && l.site.capo === 'sal' && l.site.type !== 'club' && l.site.type !== 'key');
+  let p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
+  for (let i = 0; i < 400 && !mine(p).length; i++) { E.tick(g); if (g.paused) E.command(g, { type: 'resume' }); p = M.planEmpire(E.view(g), global.AshportWorld.CITIES); }
+  const lot = mine(p)[0], k = p.cities[0].capos[0];
+  assert.ok(lot, 'he runs a place');
+  k.at = { i: k.i, j: k.j, why: 'home' };
+  const before = JSON.parse(JSON.stringify(p));
+  before.cities[0].lots.forEach((l) => { if (l && l.i === lot.i && l.j === lot.j) l.site = null; });
+  const moves = M.movesTurf(before, p);
+  assert.equal(moves.length, 1);
+  assert.equal(moves[0].capo, 'sal'); assert.equal(moves[0].cargo, 'open'); assert.equal(moves[0].loop, false);
+  assert.deepEqual(moves[0].path[0], [k.i, k.j]);
+  assert.deepEqual(moves[0].path[moves[0].path.length - 1], [k.i, k.j], 'he comes home');
+  assert.ok(moves[0].path.some((q) => q[0] === lot.i && q[1] === lot.j), 'by way of the new place');
+  assert.equal(M.movesTurf(p, p).length, 0);
+});
