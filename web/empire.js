@@ -211,13 +211,27 @@
   // The month that just ended, kept for the curves of the screen: the last HISTORY months, oldest first.
   function remember(g) {
     var line = { month: g.month, dirty: Math.round(g.family.dirty), clean: Math.round(g.family.clean || 0), cities: {} };
+    // the family's money lines for the month, and what each trade put in the tills
+    var lines = { up: 0, pay: 0, washed: 0, cut: 0, seized: 0, hijacked: 0 }, made = {};
+    g.cities.forEach(function (c) {
+      var flow = c.flow || {};
+      lines.up += flow.up || 0; lines.pay += flow.pay || 0; lines.washed += c.washed || 0; lines.cut += flow.cut || 0; lines.seized += flow.seized || 0; lines.hijacked += flow.hijacked || 0;
+      Object.keys(flow.made || {}).forEach(function (k) { made[k] = (made[k] || 0) + flow.made[k]; });
+    });
+    Object.keys(lines).forEach(function (k) { lines[k] = Math.round(lines[k]); });
+    line.money = lines; line.trades = {};
+    Object.keys(made).forEach(function (k) { if (Math.round(made[k]) > 0) line.trades[k] = Math.round(made[k]); });
     g.cities.forEach(function (c) {
       var share = T.share(c), here = line.cities[c.id] = { share: Math.round(share.family * 10) / 10, income: Math.round((c.flow && c.flow.up) || 0) };
       // for the curves of the screen: how strong the rival is, what each capo runs and earns, and how much of each street name is ours
       here.rival = Math.round(share.rival);
       here.capos = {};
       Object.keys(g.family.men).forEach(function (id) {
-        if (T.clubOf(c, id)) here.capos[id] = { places: T.run(c, id).length, income: g.family.men[id].income, rank: g.family.men[id].rank };
+        if (!T.clubOf(c, id)) return;
+        var b = g.family.men[id].book || { made: 0, wages: 0, sent: 0, spent: {}, saved: g.family.men[id].cash }, on = {}, total = 0;
+        Object.keys(b.spent).forEach(function (k) { var n = Math.round(b.spent[k]); if (n > 0) { on[k] = n; total += n; } });
+        here.capos[id] = { places: T.run(c, id).length, income: g.family.men[id].income, rank: g.family.men[id].rank,
+                           made: Math.round(b.made), wages: Math.round(b.wages), sent: Math.round(b.sent), spent: total, spentOn: on, saved: Math.round(g.family.men[id].cash) };
       });
       var all = c.zones.map(function () { return 0; }), ours = all.slice();
       for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {

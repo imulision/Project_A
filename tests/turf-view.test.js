@@ -37,7 +37,7 @@ test('the view of a city gives the map everything it draws', () => {
   assert.deepEqual([dutch.id, dutch.name, dutch.rank, dutch.rankName, dutch.x, dutch.y], ['dutch', 'Dutch Keller', 0, 'Soldier', 2, 2]);
   assert.equal(dutch.places, T.places(c, 'dutch').length - 1);
   assert.equal(dutch.reach, T.RULES.reach[0]);
-  assert.deepEqual(dutch.plan, T.plan(c, f, 'dutch'));
+  assert.deepEqual(dutch.plan, Object.assign(T.plan(c, f, 'dutch'), { monthsLeft: dutch.plan.monthsLeft })); // (and how far his money is from it: tests/turf-ledger.test.js)
   assert.ok(dutch.income > 0 && typeof dutch.cash === 'number' && dutch.way === 'buy');
   assert.deepEqual([v.money.dirty, v.money.clean, v.money.washed, v.money.washes], [f.dirty, f.clean, T.washing(c).washed, T.washing(c).most]);
   assert.deepEqual(Object.keys(v.money).sort(), ['clean', 'cut', 'dirty', 'pay', 'seized', 'up', 'washed', 'washes']);

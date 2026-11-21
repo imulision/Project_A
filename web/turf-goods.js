@@ -156,7 +156,8 @@
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
   function collect(c, capo, cars, own, load, trap) {
     var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
-    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y); b.till = (b.till || 0) + earns(c, p, wet); return { p: p, b: b }; });
+    var made = c.flow.made || (c.flow.made = {});
+    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y), e = earns(c, p, wet); b.till = (b.till || 0) + e; made[p.kind] = (made[p.kind] || 0) + e; return { p: p, b: b }; });
     while (left + mine > 0) {
       var best = null;
       for (var i = 0; i < tills.length; i++) if (tills[i].b.till >= load && (!best || tills[i].b.till > best.b.till)) best = tills[i];
