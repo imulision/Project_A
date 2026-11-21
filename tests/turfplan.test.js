@@ -530,6 +530,11 @@ test('a plan that is paid for and only waits for its day is said ready', () => {
   const [c] = M.claimsTurf({ cities: [planned([{ id: 'sal', name: 'Sal Moretti', plan: { move: 'open', kind: 'still', name: 'Cellar still', x: 7, y: 9, advance: 1, due: 0, waiting: null, gains: [{ x: 8, y: 8 }] } }]).cities[0]] });
   assert.equal(c.state, 'ready'); assert.equal(c.stuck, false);
 });
+test('a man whose pace is not known yet is not said stalled', () => {
+  const plan = { move: 'open', kind: 'still', name: 'Cellar still', x: 7, y: 9, advance: 0.2, due: null, waiting: 'money', gains: [{ x: 8, y: 8 }] };
+  assert.equal(M.claimsTurf({ cities: [{ id: 'ashport', capos: [{ id: 'sal', name: 'Sal', counts: 1, plan }] }] })[0].stuck, false);
+  assert.equal(M.claimsTurf({ cities: [{ id: 'ashport', capos: [{ id: 'sal', name: 'Sal', counts: 2, plan }] }] })[0].stuck, true);
+});
 test('the game itself gives claims the map can light', () => {
   const g = E.createGame({ capo: 'sal' }); let list = [];
   for (let i = 0; i < E.TICKS_PER_MONTH * 12 && !list.length; i++) { E.tick(g); if (g.paused) E.command(g, { type: 'resume' }); list = M.claimsTurf(E.view(g)); }

@@ -94,7 +94,7 @@ test('a capo asks for a key place: what it gives, what it costs, yes or no', () 
   const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
   assert.match(html, /Brewery/);
   assert.match(html, /\$1,800/);
-  assert.match(html, /4 months/);
+  assert.match(html, /96 days/);
   assert.match(html, /Pours for eight speakeasies/, 'what the place gives is told');
   assert.match(html, /data-act="answer" data-city="ashport" data-id="sal:brewery" data-yes="1"/);
   assert.match(html, /data-act="answer" data-city="ashport" data-id="sal:brewery" data-yes="0"/);
@@ -177,8 +177,8 @@ test('the journal reads newest first, each line with its date', () => {
   const { g } = play((v) => v.month >= 24);
   const html = C.journal(g.journal);
   const last = g.journal[g.journal.length - 1];
-  assert.ok(html.indexOf(last.label.replace(/'/g, '&#39;').replace(/"/g, '&quot;')) < html.indexOf(g.journal[0].date + '<') || g.journal.length === 1);
-  assert.match(html, new RegExp(last.date));
+  assert.ok(html.indexOf(last.label.replace(/'/g, '&#39;').replace(/"/g, '&quot;')) < html.lastIndexOf(C.day(g.journal[0].month, g.journal[0].day) + '<') || g.journal.length === 1);
+  assert.match(html, new RegExp(C.day(last.month, last.day) + '<')); assert.doesNotMatch(html, /January|19\d\d</, 'no date in months');
   assert.match(C.journal([]), /Nothing yet/);
 });
 
@@ -535,7 +535,7 @@ test('a capo sheet shows his mood, and a gift the boss can make when he has the 
   const waits = C.capo(with_({ mood: 'restless', gift: { cost: 1500, wait: 7 } }), city.id, k0.id, { clean: 9000 });
   assert.match(waits, /class="move mood restless"/);
   assert.match(waits.match(/<button[^>]*data-act="gift"[^>]*>/)[0], /disabled/, 'one gift a year');
-  assert.match(waits, /in 7 months/);
+  assert.match(waits, /in 168 days/);
   const old = C.capo(with_({ mood: undefined, gift: undefined }), city.id, k0.id);
   assert.doesNotMatch(old, /class="move mood|data-act="gift"/, 'rules that say nothing of loyalty draw nothing');
 });
@@ -690,7 +690,7 @@ test('the health of a capo\'s streets is read in three lights, money, men and th
   const raided = C.health(city(), man({ at: { why: 'raid', label: 'Facing the Callahans in Little Calabria' } }));
   assert.equal(raided.threat, 'warn'); assert.equal(raided.say, 'Facing the Callahans in Little Calabria');
   const feud = C.health(city({ chief: { id: 'seamus', name: 'Seamus Callahan', vendetta: 7 } }), man());
-  assert.equal(feud.threat, 'bad'); assert.match(feud.say, /Seamus Callahan.*7 months/);
+  assert.equal(feud.threat, 'bad'); assert.match(feud.say, /Seamus Callahan.*168 days/);
   assert.equal(C.health(city(), man({ income: 0, mood: 'restless' })).worst, 'bad', 'the worst of the three sets the colour');
   assert.equal(C.health(city({ chief: undefined }), man({ at: undefined, income: undefined, mood: undefined })).worst, 'good', 'an old game is not alarmed');
   // over the map: three small lights under his face; on his sheet: the same, named
@@ -708,7 +708,7 @@ test('a capo\'s ask is laid out as a choice: what a yes costs and what he promis
   const v = E.view(E.createGame({ capo: 'sal' })); v.cities[0].asks = [ask];
   const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
   const sides = html.match(/<div class="sides">([\s\S]*?)<\/div><\/div><\/div>/)[0];
-  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 a month[\s\S]*promised[\s\S]*10 months[\s\S]*data-yes="1"/);
+  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 a month[\s\S]*promised[\s\S]*240 days[\s\S]*data-yes="1"/);
   assert.match(sides, /class="side no"[\s\S]*IF YOU SAY NO[\s\S]*Sal[\s\S]*data-yes="0"/);
   assert.ok(sides.indexOf('class="side yes"') < sides.indexOf('class="side no"'));
   v.cities[0].asks = [{ ...ask, expects: null }];
@@ -726,7 +726,7 @@ test('the rival of a city has a face: his name, how strong he is, what he last d
   assert.match(html, /data-act="show" data-city="ashport" data-x="4" data-y="10"[^>]*>[\s\S]*Burnt Dutch&#39;s speakeasy|Burnt Dutch's speakeasy/);
   assert.doesNotMatch(html, /Vendetta/);
   const feud = C.chief({ ...c, chief: { ...c.chief, vendetta: 7, last: null } });
-  assert.match(feud, /class="move no"[\s\S]*Vendetta: 7 months[\s\S]*twice as hard/); assert.doesNotMatch(feud, /data-act="show"/);
+  assert.match(feud, /class="move no"[\s\S]*Vendetta: 168 days[\s\S]*twice as hard/); assert.doesNotMatch(feud, /data-act="show"/);
   assert.equal(C.chief({ id: 'ashport', chief: null }), ''); assert.equal(C.chief({ id: 'ashport' }), '');
   const { v } = play((v) => v.month >= 2);
   assert.match(C.city(v, 'ashport'), /class="chief"/, 'he is on the city sheet');
@@ -736,7 +736,7 @@ test('the rival of a city has a face: his name, how strong he is, what he last d
 test('a promise is followed: what is owed is listed on the city sheet, and the day it is judged the news says kept or broken', () => {
   const promises = [{ capo: 'dutch', key: 'brewery', name: 'Brewery', x: 12, y: 8, expected: 340, months: 4 }];
   const html = C.promises({ id: 'ashport', promises });
-  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 a month from the Brewery/); assert.match(html, /judged in 4 months/);
+  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 a month from the Brewery/); assert.match(html, /judged in 96 days/);
   assert.equal(C.promises({ id: 'ashport', promises: [] }), ''); assert.equal(C.promises({ id: 'ashport' }), '');
   const kept = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 410, kept: true, label: 'The Brewery pays $410 a month, as Dutch promised' });
   const broken = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 120, kept: false, label: 'The Brewery pays $120 a month, not the $340 Dutch promised' });
@@ -775,17 +775,17 @@ test('the boss reads whether his family grows, stands still or loses ground over
   assert.equal(C.trend({ history: [] }), null); assert.equal(C.trend(past(flat(2, [4, 100]))), null, 'too early to say');
   const up = C.trend(past(flat(12, [4, 100]).concat([[8, 100]])));
   assert.equal(up.tone, 'good'); assert.equal(up.word, 'GROWING'); assert.equal(up.streets.diff, 2, 'two points of the whole map'); assert.equal(up.months, 12);
-  assert.match(up.say, /\+2% of the streets in a year/);
+  assert.match(up.say, /\+2% of the streets in 288 days/);
   const down = C.trend(past([[8, 100]].concat(flat(12, [4, 100]))));
   assert.equal(down.tone, 'bad'); assert.equal(down.word, 'LOSING GROUND'); assert.match(down.say, /−2% of the streets/);
   const still = C.trend(past(flat(24, [4, 100])));
-  assert.equal(still.tone, 'warn'); assert.equal(still.word, 'STANDING STILL'); assert.match(still.say, /No street won in a year/);
+  assert.equal(still.tone, 'warn'); assert.equal(still.word, 'STANDING STILL'); assert.match(still.say, /No street won in 288 days/);
   const richer = C.trend(past(flat(12, [4, 100]).concat([[4, 400]])));
   assert.equal(richer.tone, 'good'); assert.equal(richer.word, 'EARNING MORE'); assert.match(richer.say, /\+\$300 a month/);
   const poorer = C.trend(past(flat(12, [4, 400]).concat([[4, 100]])));
   assert.equal(poorer.tone, 'bad'); assert.equal(poorer.word, 'EARNING LESS'); assert.match(poorer.say, /−\$300 a month/);
   const young = C.trend(past(flat(5, [0, 0]).concat([[6, 50]])));
-  assert.equal(young.months, 5); assert.match(young.say, /in 5 months/);
+  assert.equal(young.months, 5); assert.match(young.say, /in 120 days/);
   // on the screen: an arrow, the word in its colour, the figure
   const line = C.trendLine(up); assert.match(line, /class="trend good"/); assert.match(line, /GROWING/); assert.match(line, /▲/);
   assert.match(C.trendLine(down), /▼/); assert.equal(C.trendLine(null), 'Your capos are at work');
@@ -860,7 +860,7 @@ test('each capo has a power, and the page remembers a year of it to say whether 
   const d = C.doing({ id: 'ashport', places: [] }, { id: 'sal', income: 900, places: 5, plan: { move: 'hold' } }, C.powerTrend(log, 'ashportsal'));
   assert.deepEqual(d.power, { now: 140, diff: 110, tone: 'good', months: 12 });
   const html = C.mark({ capo: 'sal', move: 'hold' }, null, d); assert.match(html, /class="pw good"/); assert.match(html, /▲/); assert.match(html, /140/);
-  const line = C.powerLine(C.powerTrend(log, 'ashportsal')); assert.match(line, /POWER/); assert.match(line, /140/); assert.match(line, /\+110 in a year/);
+  const line = C.powerLine(C.powerTrend(log, 'ashportsal')); assert.match(line, /POWER/); assert.match(line, /140/); assert.match(line, /\+110 in 288 days/);
   assert.match(C.powerLine(C.powerTrend(fall, 'ashportsal')), /−20/); assert.equal(C.powerLine(null), '');
 });
 
@@ -922,9 +922,9 @@ test('what holds the family back is said in plain words: what, since when, why, 
   assert.match(C.stallLine(view), /\$5,536 of clean money sleeps/); assert.match(C.stallLine(view), /data-stalls="1"/); assert.match(C.stallLine(view), /\+1/, 'and how many more');
   assert.equal(C.stallLine({ stalls: [] }), ''); assert.equal(C.stallLine({}), '', 'an old game says nothing');
   const one = C.stall(idle);
-  assert.match(one, /for 3 years/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.doesNotMatch(one, /data-act/);
+  assert.match(one, /for 1032 days/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.doesNotMatch(one, /data-act/);
   const two = C.stall(boxed);
-  assert.match(two, /for 7 months/); assert.match(two, /Nothing you can do about it yet/); assert.match(two, /data-act="show" data-city="ashport" data-x="4" data-y="9"/);
+  assert.match(two, /for 168 days/); assert.match(two, /Nothing you can do about it yet/); assert.match(two, /data-act="show" data-city="ashport" data-x="4" data-y="9"/);
   assert.match(C.stall({ ...boxed, x: undefined, y: undefined }), /data-act="capo" data-city="ashport" data-capo="sal"/);
   const card = C.stallsCard(view); assert.match(card, /What holds you back/); assert.match(card, /sleeps[\s\S]*pier/); assert.match(card, /data-act="close"/);
   assert.match(C.stallsOf(view.cities[0]), /What holds this city back[\s\S]*pier/); assert.equal(C.stallsOf({ id: 'calder', stalls: [] }), ''); assert.equal(C.stallsOf({ id: 'calder' }), '');
@@ -938,7 +938,7 @@ test('the boss reads what became of his decisions: each one, and a year on what 
     d({ id: 'd0', type: 'denied', label: 'You refused Sal the pier', result: { month: 12, date: 'January 1927', label: 'Sal lost two places since', good: false } })] };
   const html = C.decisions(view);
   assert.match(html, /Your decisions/); assert.ok(html.indexOf('Otto') < html.indexOf('30%'), 'the latest first');
-  assert.match(html, /You took in Otto Brenner[\s\S]*?class="then wait"[^>]*>Its result in 11 months/);
+  assert.match(html, /You took in Otto Brenner[\s\S]*?class="then wait"[^>]*>Its result in 264 days/);
   assert.match(html, /class="then good"[^>]*>A year on under Grow/); assert.match(html, /class="then bad"[^>]*>Sal lost two places/); assert.match(html, /class="then idle"[^>]*>You changed your word/);
   assert.match(html, /data-act="close"/);
   assert.match(C.decisions({ month: 3, decisions: [] }), /Nothing decided yet/); assert.match(C.decisions({ month: 3 }), /Nothing decided yet/);
@@ -956,7 +956,7 @@ test('the rival\'s strength has its arrow too, and a place wears its level', () 
   assert.deepEqual(C.rivalTrend(weaker, 'ashport'), { now: 40, diff: -15, tone: 'good' }, 'a rival who weakens is good news');
   assert.equal(C.rivalTrend({ history: [row(40)].concat(flat(11, row(40)), [row(52)]) }, 'ashport').tone, 'bad');
   assert.equal(C.rivalTrend({ history: flat(13, { month: 1, cities: { ashport: { share: 5 } } }) }, 'ashport'), null, 'an old save keeps no trace of it');
-  assert.match(C.chief(c, weaker), /class="rt good"[^>]*>▼ −15 in a year/); assert.doesNotMatch(C.chief(c), /class="rt/);
+  assert.match(C.chief(c, weaker), /class="rt good"[^>]*>▼ −15 in 288 days/); assert.doesNotMatch(C.chief(c), /class="rt/);
   assert.equal(C.pin({ site: 'speakeasy', owner: 'family', level: 1 }), C.pin({ site: 'speakeasy', owner: 'family' }));
   assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 2 }), /class="lv">II</); assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 3 }), /class="lv">III</);
   assert.doesNotMatch(C.pin({ site: 'speakeasy', owner: 'Callahan', level: 3 }), /class="lv"/, 'a rival does not show his books');
@@ -968,9 +968,9 @@ test('a new game is asked for from the family page or the journal, and erases no
   assert.match(C.family(v, h), /data-act="restart"/);
   assert.match(C.journal(g.journal), /data-act="restart"/);
   assert.doesNotMatch(C.family(v, h) + C.journal(g.journal), /data-act="new"/, 'no button erases the game in one touch');
-  const ask = C.restart(h);
+  const ask = C.restart({ month: 30, day: 4 });
   assert.match(ask, /data-act="new"/); assert.match(ask, /data-act="close"/);
-  assert.ok(ask.includes(h.date), 'it says which game is lost');
+  assert.match(ask, /stops on day 725/, 'it says which game is lost'); assert.match(C.restart(), /its first day/);
 });
 
 test('a money tile: what came in against what went out as a bar, and the two amounts under it', () => {
@@ -1060,9 +1060,10 @@ test('the page of a capo\'s books: his month step by step, place by place, what 
   assert.match(html, /His places made[^]*\+\$483[^]*Men paid[^]*−\$240[^]*Sent up to you[^]*−\$73[^]*He keeps[^]*\$170/);
   assert.equal((html.match(/<tr class="pl"/g) || []).length, 3); assert.match(html, /Speakeasy[^]*\+\$200[^]*−\$120[^]*\$80/);
   assert.match(html, /class="sum"[^]*\+\$483[^]*−\$240[^]*\$243/, 'the table adds up to his month');
-  assert.match(html, /\$2,588 of \$6,546/); assert.match(html, /about 18 months/); assert.match(html, /needs \$3,958 more/);
-  assert.match(html, /What he bought[^]*\$2,300 in 6 months/); assert.match(html, /1 month ago[^]*Opened a place[^]*−\$1,400/); assert.match(html, /6 months ago[^]*Made a place bigger[^]*−\$900/);
+  assert.match(html, /\$2,588 of \$6,546/); assert.match(html, /about 432 days/); assert.match(html, /needs \$3,958 more/);
+  assert.match(html, /What he bought[^]*\$2,300 in 144 days/); assert.match(html, /24 days ago[^]*Opened a place[^]*−\$1,400/); assert.match(html, /144 days ago[^]*Made a place bigger[^]*−\$900/);
   assert.match(html, /data-act="capo"/, 'back to the man');
+  assert.match(html, /What he wants[^]*class="nxb"><u style="width:\d+%"/, 'how far his plan is, as a bar');
   const one = C.booksCard(v, 'ashport', 'danny', 1);
   assert.match(one, /Last month alone/); assert.match(one, /class="tab on" data-act="books"[^>]*data-span="1"/); assert.match(one, /\+\$600/);
   // he has the money, or he saves nothing: said plainly
@@ -1125,4 +1126,10 @@ test('the mark of a claim over the map: a ring that fills and the streets it win
   const h = C.claim({ streets: 3, advance: 0.5, stuck: false });
   assert.match(h, /<svg class="ring"/); assert.match(h, /\+3<\/i> streets/);
   assert.match(h, /stroke-dasharray="47\.12/);
+});
+
+// ---- time is counted in days
+test('the day the game has reached is counted from the first one, and a length the rules give in turns is said in days', () => {
+  assert.equal(C.day(0, 0), 'Day 1'); assert.equal(C.day(13, 0), 'Day 313'); assert.equal(C.day(13, 23), 'Day 336');
+  assert.equal(C.day({ month: 2, day: 5 }), 'Day 54'); assert.equal(C.dayNo(1), 25);
 });

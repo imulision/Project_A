@@ -25,7 +25,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
     const ev = (A.beat() || []).filter((e) => e.type !== 'run'), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
-    if (+document.getElementById('date').style.getPropertyValue('--day') !== day / AshportEmpire.TICKS_PER_MONTH) seen.gauge = (seen.gauge || 0) + 1;
+    if (document.getElementById('date').textContent !== 'Day ' + (A.game().month * AshportEmpire.TICKS_PER_MONTH + day + 1)) seen.date = (seen.date || 0) + 1;      // the date is a count of days
     if (document.querySelector('#next .nx')) seen.next = (seen.next || 0) + 1; if (/month/i.test(document.getElementById('next').textContent)) seen.nextMonths = 1; if (A.map().labels().some((l) => l.claim)) seen.claims = (seen.claims || 0) + 1;      // the streets about to be won are told at the top and marked on the map
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
@@ -65,7 +65,7 @@ await page.click('[data-face=dutch]');
 assert.match(await page.textContent('#who h3'), /Dutch/);
 await page.click('#who [data-act=start]');
 await page.waitForSelector('#veil:not(.on)', { state: 'attached' });
-assert.match(await hud(), /January 1926 .* \| 1 \/ \d+$/);
+assert.match(await hud(), /^Day 1 .* \| 1 \/ \d+$/);
 await still();
 const first = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length, capos: document.querySelectorAll('.lab.capo').length }));
 assert.ok(first.capos === 1, 'the capo is seen over his club (' + first.capos + ')');
@@ -109,7 +109,7 @@ await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
 await page.waitForSelector('#veil.on');
 await page.click('#sheet [data-act=gift]');
 assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'one gift a year');
-assert.match(await page.textContent('#sheet'), /again in 12 months/);
+assert.match(await page.textContent('#sheet'), /again in 288 days/);
 assert.equal(await page.evaluate((kept) => { const g = window.__ashport.game(), left = g.family.clean; g.family.clean = kept; return left; }, kept), 500, 'the gift is paid in clean money');
 await page.click('#sheet [data-act=close]');
 // a real finger on a building: a small bubble beside it, the map stays in full view and time goes on
@@ -233,7 +233,7 @@ if (await page.locator('#next .nx').count()) {
   await page.evaluate(() => window.__ashport.home()); await still();
 }
 assert.ok(seen.next > 0 && seen.claims > 0 && !seen.nextMonths, 'the next streets are told at the top with a bar and marked on the map, without a count of months (' + seen.next + ', ' + seen.claims + ')');
-assert.ok(!seen.gauge, 'the bar under the date says how far the month has gone');
+assert.ok(!seen.date, 'the date at the top is a count of days, and follows every day');
 assert.ok(seen.away > 0 && seen.rides > 0, 'a capo is seen where he works, and in his own car on the way there (' + seen.away + ', ' + seen.rides + ')');
 assert.ok(seen.news > 0 && seen.marks > 0, 'events are told by tiles on the edge and marked where they happen (' + seen.news + ', ' + seen.marks + ')');
 assert.ok(seen.lit > 0 && seen.out === 0, 'the streets where a club can open are lit during the choice, and put out after (' + seen.lit + ', ' + seen.out + ')');

@@ -69,7 +69,7 @@
   function bump(id) { var e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   function showHud() {
     var h = E.hud(g);
-    $('date').textContent = h.date; gauge();
+    $('date').textContent = g.started ? C.day(g.month, g.ticks) : 'Ashport';
     $('pause').textContent = h.paused ? 'Play' : 'Pause'; $('pause').classList.toggle('on', !!h.paused);
     $('speed').textContent = h.speed + 'x';
     if (!h.started) return;
@@ -210,7 +210,7 @@
     else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
     else if (act === 'account') show(C.accountCard(view, E.hud(g), d.which, +d.span || 6));
     else if (act === 'books') show(C.booksCard(view, d.city, d.capo, +d.span || 6));
-    else if (act === 'restart') show(C.restart(E.hud(g)));
+    else if (act === 'restart') show(C.restart({ month: g.month, day: g.ticks }));
     else if (act === 'new') { forget(); location.reload(); }
   });
   // A touch beside the sheet closes it, but only a touch that began there: the click a phone sends after the touch
@@ -328,14 +328,12 @@
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
-    if (!turned && !events.some(function (e) { return e.type !== 'run'; })) return events;      // a day when nothing happened: only the month's gauge moves
+    if (!turned && !events.some(function (e) { return e.type !== 'run'; })) return events;      // a day when nothing happened on the map
     C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;
   }
-  // how far the month has gone: the bar under the date fills day by day
-  function gauge() { $('date').style.setProperty('--day', E.TICKS_PER_MONTH ? (g.ticks || 0) / E.TICKS_PER_MONTH : 0); }
 
   // ---- start
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
