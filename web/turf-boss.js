@@ -115,7 +115,7 @@
       spend(f, a.cost);
       m.cash -= a.full - a.cost;
       m.paid = m.paid || {}; m.paid.take = (m.paid.take || 0) + a.full - a.cost; // for his books
-      c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, kind: a.trade, cost: a.full, month: c.month, months: a.months });
+      c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, kind: a.trade, cost: a.full, month: c.month, months: a.months, day: c.turn && c.turn.daily ? c.turn.day || 0 : undefined });
     } else { m.shuns = m.shuns || {}; m.shuns[key(a.x, a.y)] = c.month + RULES.patience.sore; }
     m.aim = null; m.begged = c.month + RULES.patience.sore;
     sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
@@ -129,7 +129,7 @@
     if (yes) {
       if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' the ' + KEYS[a.key].name + ' takes');
       spend(f, a.cost);
-      c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months });
+      c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months, day: c.turn && c.turn.daily ? c.turn.day || 0 : undefined });
       if (a.expects) { c.promises = c.promises || []; c.promises.push({ capo: a.capo, key: a.key, x: a.x, y: a.y, expected: a.expects.gain, due: c.month + a.expects.months }); }
     } else c.refused[a.key] = c.month + RULES.sulk;
     sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
@@ -138,7 +138,7 @@
 
   // --- two kinds of money ---
   // The month's money: wages by rank, the share each capo sends up, what the fronts wash, and the heat that follows.
-  function money(c, f, events) {
+  function money(c, f, events, heard) {
     f.clean = f.clean || 0;
     var flow = c.flow || (c.flow = { up: 0, sent: {} });
     flow.pay = 0; flow.cut = 0; flow.seized = 0; flow.wash = {};
@@ -158,6 +158,7 @@
     });
     // money that sleeps and blood in the streets draw the police
     var loud = events.filter(function (e) { return e.type === 'burnt' || e.type === 'repelled' || (e.type === 'taken' && e.way === 'force'); }).length;
+    loud += heard || 0; // what was loud on the days of the cycle, in a city played day by day
     var hidden = 2000 * Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'backroom'); }).length;
     var H = RULES.holdings;
     hidden += H.company.hides * owns(f, 'company');                                   // the company's books

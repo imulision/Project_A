@@ -52,7 +52,9 @@
   }
   function settle(c, events, hit) {
     c.ops = c.ops.filter(function (o) {
-      if (c.month - o.month < o.months) return true;
+      // men who left on a day of a cycle get there on that day, so many cycles later
+      var gone = c.month - o.month, today = c.turn ? c.turn.day || 0 : 0;
+      if (gone < o.months || (gone === o.months && o.day !== undefined && today < o.day)) return true;
       var was = at(c, o.x, o.y);
       if (!was || was.owner === 'family') return false; // nothing left to take
       if (o.key) {
