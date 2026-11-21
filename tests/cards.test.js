@@ -237,7 +237,7 @@ test('money that can be followed: the month\'s change beside a total, the amount
   assert.equal(C.carLoad({ kind: 'liquor', amount: 30 }), '', 'only cash is counted in dollars');
   assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /\$142 on board/);
   assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /Sal/);
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), k = v.cities[0].capos[0];
   assert.ok(k.sent > 0, 'he sent something up');
   const sheet = C.capo(v, v.cities[0].id, k.id);
@@ -278,7 +278,7 @@ test('an answer the boss cannot pay says how far he is from it, and the sheet sa
 });
 
 test('a capo\'s sheet says where he is this month', () => {
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 8; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), c = v.cities[0], k = c.capos[0];
   k.at = { x: 1, y: 1, why: 'take', label: 'Taking the speakeasy in Little Calabria' };
   assert.match(C.capo(v, c.id, k.id), /Taking the speakeasy in Little Calabria/);
@@ -963,7 +963,7 @@ test('the rival\'s strength has its arrow too, and a place wears its level', () 
 });
 
 test('a new game is asked for from the family page or the journal, and erases nothing before the boss says so', () => {
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 40; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 5 * E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), h = E.hud(g);
   assert.match(C.family(v, h), /data-act="restart"/);
   assert.match(C.journal(g.journal), /data-act="restart"/);
