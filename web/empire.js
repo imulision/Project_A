@@ -445,8 +445,8 @@
     });
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [] };
-    return { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null };
+    var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -458,6 +458,9 @@
                v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
                return v;
              }) };
+    // the next streets to fall anywhere: the move that is furthest along
+    out.next = out.cities.reduce(function (best, c) { return c.next && (!best || c.next.advance > best.advance) ? Object.assign({ city: c.id }, c.next) : best; }, null);
+    return out;
   }
   function hud(g) {
     var out = { date: dateOf(g.month), paused: g.paused, speed: g.speed, started: g.started };

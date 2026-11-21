@@ -233,6 +233,24 @@
     return 'contested';
   }
 
+  // The streets a move would bring to the family: the blocks that are not its own today and would be once the place
+  // stands (opened, taken from a rival, or made one level bigger). Nothing is changed in the city.
+  function gains(c, move) {
+    if (!move || ['open', 'take', 'enlarge'].indexOf(move.move) < 0) return [];
+    var m = memo(c), was = at(c, move.x, move.y), out = [];
+    var level = move.move === 'enlarge' ? (was ? was.level : 1) + 1 : 1, r = Math.max(level, was ? was.level : 0) + 1;
+    var reach = function (lv, x, y) { return lv && Math.abs(x - move.x) <= lv + 1 && Math.abs(y - move.y) <= lv + 1 ? RULES.press * lv / (1 + far(x, y, move.x, move.y)) : 0; };
+    for (var y = Math.max(0, move.y - r); y <= Math.min(c.h - 1, move.y + r); y++) {
+      for (var x = Math.max(0, move.x - r); x <= Math.min(c.w - 1, move.x + r); x++) {
+        if (!inside(c, x, y) || (c.voids && c.voids[key(x, y)]) || grip(c, x, y) === 'family') continue;
+        var i = y * c.w + x, old = was ? reach(was.level, x, y) : 0;
+        var family = m.family[i] + reach(level, x, y) - (was && was.owner === 'family' ? old : 0), rival = m.rival[i] - (was && was.owner !== 'family' ? old : 0);
+        if (Math.max(family, rival) >= RULES.minHold && family >= rival * RULES.edge) out.push({ x: x, y: y });
+      }
+    }
+    return out;
+  }
+
   // The city in hundredths: what the family holds, what its rivals hold, what is fought over, what is nobody's.
   function share(c) {
     var n = { family: 0, rival: 0, contested: 0, free: 0 };
@@ -284,7 +302,7 @@
 
   var api = { learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
-      clubOf: clubOf, settle: settle, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
+      clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfCity = api;
