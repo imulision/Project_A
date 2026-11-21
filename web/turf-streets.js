@@ -29,10 +29,10 @@
     var m = f.men[capo], busy = c.ops.filter(function (o) { return o.capo === capo && !o.key; })[0]; // a key place is the boss's affair: the capo goes on with his own
     if (busy) return { move: 'take', way: busy.way, x: busy.x, y: busy.y, cost: busy.cost, saved: busy.cost, progress: 1, waiting: 'time', why: 'his men are on their way' };
     var led = P.follows(c, f, capo);
-    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash, line: led && led.follows ? P.lineOf(c) : null });
+    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash, line: led && led.follows ? P.lineOf(c) : null, shun: m.shuns });
     if (!w) return { move: 'hold', waiting: 'rank', cost: 0, saved: 0, progress: 1, why: 'he runs all he can at his rank' };
     var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
-    return { move: w.move, way: w.way, months: w.months, kind: w.kind, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
+    return { move: w.move, way: w.way, months: w.months, kind: w.kind, from: w.from, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
              waiting: saved >= w.cost ? null : 'money', why: w.why };
   }
 
@@ -156,7 +156,7 @@
     var feud = (c.feuds || []).filter(function (q) { return q.a === capo && clubOf(c, q.b); })[0];
     if (feud) { var other = clubOf(c, feud.b); return { x: other.x, y: other.y, why: 'feud', label: 'Having it out with ' + first(feud.b) }; }
     var ask = c.asks.filter(function (a) { return a.capo === capo; })[0];
-    if (ask) return { x: ask.x, y: ask.y, why: 'asks', label: 'Waiting for your word in front of the ' + KEYS[ask.key].name };
+    if (ask) return { x: ask.x, y: ask.y, why: 'asks', label: 'Waiting for your word in front of the ' + (ask.fund ? ask.name : KEYS[ask.key].name) };
     var h = f.men && f.men[capo] && f.men[capo].help;
     if (h && at(c, h.x, h.y)) {
       return { x: h.x, y: h.y, why: h.why, label: h.why === 'carry' ? 'Driving the takings of his ' + site(h.kind) + ' home himself'

@@ -151,7 +151,7 @@
       var gone = f.gone || {};
       var mentors = here.filter(function (id) { return Object.keys(PEOPLE).some(function (q) { return PEOPLE[q].mentor === id && !f.men[q] && !gone[q]; }); });
       out.push({ id: 'nobody', since: quiet, what: 'No new man in ' + Math.floor(quiet / 12) + ' years',
-                 why: mentors.length ? 'A capo brings a man in when he runs all he can: ' + mentors.map(function (id) { return first(id) + ' runs ' + run(c, id).length + ' of ' + RULES.reach[f.men[id].rank]; }).join(', ')
+                 why: mentors.length ? 'A capo brings a man in when he runs ' + R.NUMBER[RULES.vouch] + ' places: ' + mentors.map(function (id) { return first(id) + ' runs ' + run(c, id).length; }).join(', ')
                                      : 'None of your capos here has a man of his own left to bring in',
                  lever: mentors.length && P.lineOf(c) !== 'grow' ? 'Set the line to Grow: your capos run more places' : null });
     }
@@ -297,8 +297,17 @@
       var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
       if (spare > 0 && gives === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); }
       c.flow.sent[capo] = sent; c.flow.up += sent;
+      B.patience(c, f, capo, p, events);
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost;
+      if (p.move === 'convert') {
+        var turned = at(c, p.x, p.y);
+        turned.kind = p.kind; turned.level = Math.max(1, Math.min(turned.level, f.tech[p.kind] || 1)); turned.turned = c.month;
+        changed(c);
+        events.push({ type: 'converted', capo: capo, city: c.id, x: p.x, y: p.y, from: p.from, kind: p.kind, cost: p.cost, why: p.why,
+                      label: first(capo) + ' turns his ' + D.SITES[p.from].name.toLowerCase() + ' into a ' + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+        return;
+      }
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);
       if (p.move === 'take') {
         c.ops.push({ capo: capo, x: p.x, y: p.y, way: p.way, kind: p.kind, cost: p.cost, month: c.month, months: p.months });
@@ -306,7 +315,7 @@
                       label: first(capo) + ' goes for the ' + at(c, p.x, p.y).owner + 's\' place in ' + zoneOf(c, p.x, p.y).name });
         return;
       }
-      if (p.move === 'open') open(c, p.x, p.y, { owner: 'family', kind: p.kind, capo: capo });
+      if (p.move === 'open') { open(c, p.x, p.y, { owner: 'family', kind: p.kind, capo: capo }); at(c, p.x, p.y).turned = c.month; } // (and he does not turn it into something else the year after)
       else { at(c, p.x, p.y).level += 1; changed(c); }
       events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
                     label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });

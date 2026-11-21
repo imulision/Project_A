@@ -209,6 +209,8 @@
   // `tech` is the family's building tree (0 = the trade is closed).
   function wants(c, capo, o) {
     var card = who(capo), mine = run(c, capo), club = clubOf(c, capo), best = null;
+    // what he gave up on, or was refused, he leaves alone for a while
+    var shunned = function (x, y) { return o.shun && o.shun[key(x, y)] > c.month; };
     var count = {}, drink = liquor(c), stock = supplied(c);
     mine.forEach(function (p) { count[p.kind] = (count[p.kind] || 0) + 1; });
     // no capo opens one more bar with nothing to pour in it, and a dry city calls for a still
@@ -225,6 +227,7 @@
     var opens = function () {
       if (!room) return null;
       frontier(c, capo).forEach(function (b) {
+        if (shunned(b.x, b.y)) return;
         KINDS.forEach(function (kind) {
           if (!(o.tech[kind] >= 1) || card.refuses.indexOf(kind) >= 0) return;
           var soap = o.wash && D.SITES[kind].wash ? RULES.soap : 1;
@@ -245,7 +248,7 @@
       // hemmed in: the weakest rival place within reach, taken his own way
       var all = places(c, capo), prey = null;
       everyPlace(c).forEach(function (p) {
-        if (p.owner === 'family' || p.kind === 'key') return;
+        if (p.owner === 'family' || p.kind === 'key' || shunned(p.x, p.y)) return;
         if (!all.some(function (q) { return far(p.x, p.y, q.x, q.y) <= RULES.near; })) return;
         var r = hold(c, p.x, p.y).rival;
         if (!prey || r < prey.r) prey = { r: r, p: p };
@@ -259,15 +262,34 @@
       return null;
     };
     var grows = function () {
-    var small = mine.filter(function (p) { return p.kind !== 'key' && p.level < Math.min(D.RULES.maxLevel, o.tech[p.kind] || 0); });
+    var small = mine.filter(function (p) { return p.kind !== 'key' && !shunned(p.x, p.y) && p.level < Math.min(D.RULES.maxLevel, o.tech[p.kind] || 0); });
     small.sort(function (a, b) { return a.level - b.level || WORTH[b.kind] * taste(capo, b.kind) - WORTH[a.kind] * taste(capo, a.kind) || a.y - b.y || a.x - b.x; });
     if (!small.length) return null;
     var p = small[0];
     return { move: 'enlarge', x: p.x, y: p.y, kind: p.kind, name: D.SITES[p.kind].name, cost: Math.round(RULES.enlarge * D.SITES[p.kind].cost * p.level),
              why: mine.length >= RULES.reach[o.rank] ? 'he runs all the places his rank allows: he makes them bigger' : 'no street left to open on' };
     };
+    // a place on a street that is not made for it, turned into a trade that street suits and that is worth far more there.
+    // A place that washes, or that makes what the family is short of, is left alone.
+    var converts = function () {
+      var turn = null;
+      mine.forEach(function (p) {
+        var since = at(c, p.x, p.y).turned;
+        if (p.kind === 'key' || p.kind === 'club' || shunned(p.x, p.y) || (since !== undefined && c.month - since < RULES.convert.rest)) return;
+        if (worth(c, p.x, p.y, p.kind) >= 1 || D.SITES[p.kind].wash || thirst(p.kind) > 1) return;
+        var value = function (kind) { return worth(c, p.x, p.y, kind) * taste(capo, kind) * WORTH[kind] * thirst(kind); };
+        KINDS.forEach(function (kind) {
+          if (kind === p.kind || !(o.tech[kind] >= 1) || card.refuses.indexOf(kind) >= 0 || worth(c, p.x, p.y, kind) < 1) return;
+          var gain = value(kind) / value(p.kind);
+          if (gain >= RULES.convert.gain && (!turn || gain > turn.gain + 1e-9)) turn = { gain: gain, p: p, kind: kind };
+        });
+      });
+      if (!turn) return null;
+      return { move: 'convert', x: turn.p.x, y: turn.p.y, kind: turn.kind, from: turn.p.kind, name: D.SITES[turn.kind].name, cost: Math.round(RULES.convert.cost * price(c, capo, turn.kind)),
+               why: zoneOf(c, turn.p.x, turn.p.y).name + ' suits a ' + D.SITES[turn.kind].name.toLowerCase() + ' far better than his ' + D.SITES[turn.p.kind].name.toLowerCase() };
+    };
     // the order he tries them in: his own, or the one the boss's line asks for
-    var order = o.line === 'earn' ? [grows, opens, takes] : o.line === 'low' ? [opens, grows] : [opens, takes, grows];
+    var order = o.line === 'earn' ? [converts, grows, opens, takes] : o.line === 'low' ? [opens, converts, grows] : [opens, converts, takes, grows];
     for (var i = 0; i < order.length; i++) { var w = order[i](); if (w) return w; }
     return null;
   }
