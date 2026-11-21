@@ -507,7 +507,7 @@
                v.capos.forEach(function (k) { k.day = dayOf(k.id); }); // the day of the month he makes his move
                // where each man at the door could be sent instead: the cities next door that still have a seat
                var free = T.table(g.family).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
-               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
+               v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); var own = d.door === 'poach' ? null : T.clubSpot(c, d.capo); d.spot = own && { x: own.x, y: own.y, street: T.zoneOf(c, own.x, own.y).name }; d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along

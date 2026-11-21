@@ -61,6 +61,17 @@
     return out;
   }
 
+  // Where a man plants his club when he is taken in: he chooses himself, the boss never does. A street made for his
+  // trade first, then the one the rivals press on least. null when the city has no block for him.
+  function clubSpot(c, capo) {
+    var trade = C.tradeOf(capo), best = null;
+    spots(c).forEach(function (s) {
+      var w = trade ? C.worth(c, s.x, s.y, trade) : 1, r = C.hold(c, s.x, s.y).rival;
+      if (!best || w > best.w || (w === best.w && r < best.r)) best = { x: s.x, y: s.y, w: w, r: r };
+    });
+    return best && { x: best.x, y: best.y };
+  }
+
   // How many capos the city carries, and how many are there.
   function seats(c) {
     var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; });
@@ -73,6 +84,7 @@
 
   // Or he sends him to plant it in another city: the man knocked in `from`, and opens `to`. The road has its price.
   function send(from, to, f, capo, x, y) {
+    if (x === undefined || x === null) { var own = clubSpot(to, capo); if (own) { x = own.x; y = own.y; } }
     var d = doors(from, f).filter(function (q) { return q.capo === capo; })[0];
     if (!d) throw new Error(capo + ' is not at the door');
     var away = to !== from, cost = d.cost + (away ? RULES.doors.road : 0);
@@ -288,7 +300,7 @@
     });
   }
 
-  var api = { gift: gift, gifts: gifts, hearts: hearts, seat: seat, unseat: unseat, payTable: payTable, doors: doors, spots: spots, seats: seats, welcome: welcome, send: send,
+  var api = { gift: gift, gifts: gifts, hearts: hearts, seat: seat, unseat: unseat, payTable: payTable, doors: doors, spots: spots, clubSpot: clubSpot, seats: seats, welcome: welcome, send: send,
       underOf: underOf, underboss: underboss, partings: partings, part: part, revenge: revenge };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfMen = api;
