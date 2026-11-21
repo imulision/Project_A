@@ -170,7 +170,7 @@ test('a bar earns in full only the month it has a load to pour', () => {
     const wet = served.includes(b.x + ',' + b.y);
     assert.deepEqual((b.strains || []).map((s) => s.kind).filter((k) => k === 'dry'), wet ? [] : ['dry'], b.x + ',' + b.y);
   }
-  assert.match(bars.find((b) => !served.includes(b.x + ',' + b.y)).strains.find((s) => s.kind === 'dry').label, /^Nothing to pour: no truck came this month$/);
+  assert.match(bars.find((b) => !served.includes(b.x + ',' + b.y)).strains.find((s) => s.kind === 'dry').label, /^Nothing to pour: no truck came$/);
   assert.ok(one > 0);
 });
 
@@ -308,7 +308,7 @@ test('a fence with nothing to sell earns a share of what it could, and says why'
   T.stepMonth(thin.c, thin.f);
   const starved = T.view(thin.c, thin.f).places.filter((p) => p.kind === 'fence' && p.strains);
   assert.equal(starved.length, 2);
-  assert.equal(starved[0].strains[0].label, 'Nothing to sell: no truck came this month');
+  assert.equal(starved[0].strains[0].label, 'Nothing to sell: no truck came');
 });
 
 test('goods nobody sells fill the store, stop there, and say so', () => {
