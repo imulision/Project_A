@@ -29,6 +29,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     if (document.querySelector('#next .nx')) seen.next = (seen.next || 0) + 1; if (/month/i.test(document.getElementById('next').textContent)) seen.nextMonths = 1; if (A.map().labels().some((l) => l.claim)) seen.claims = (seen.claims || 0) + 1;      // the streets about to be won are told at the top and marked on the map
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
+    if (document.body.classList.contains('live')) { const b = document.querySelector('#call .end [data-act=unlive]') || document.querySelector('#call [data-call=press]') || document.querySelector('#call [data-act=unlive]'); seen.hits = (seen.hits || 0) + 1; if (b) b.click(); }      // a hit that begins on its own is watched: he presses on, reads the end, and goes back to the town
     const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
     if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
@@ -40,6 +41,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
         const men = () => A.view().cities.reduce((n, c) => n + c.capos.length, 0), had = men();
         seat.click();      // the man opens his club where he sees fit: the boss is never asked for a street
         if (men() === had + 1 && !document.querySelector('#alerts .pick')) seen.seat++;
+        A.home();      // the camera went to see where he settled; the boss comes back to his first streets
         seen.out = A.map().stats().spots;
       }
       else { seen.waited++; (q('[data-act=later]') || q('[data-act=close]')).click(); }
@@ -234,6 +236,8 @@ await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').cl
 // time runs at full speed until a second capo has his club, placed by a touch on the map
 await page.click('#speed'); await page.click('#speed');
 assert.equal(await page.textContent('#speed'), '4x');
+await page.evaluate(() => window.__ashport.home());      // the boss looks at his first streets while the years go by
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });
 await months(240, 'seat');
 const seated = await page.evaluate(() => window.__seen);
 assert.ok(seated.seat >= 1, 'a man at the door was given a street (' + JSON.stringify(seated) + ')');
