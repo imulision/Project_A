@@ -35,18 +35,18 @@ test('the game starts in Ashport: the Callahans hold the six key places, the fir
   assert.throws(() => E.command(g, { type: 'start', capo: 'sal' }), /already started/);
 });
 
-test('eight ticks make a month, the date moves, and what happens is written in the journal', () => {
+test('twenty-four ticks make a month, the date moves, and what happens is written in the journal', () => {
   const g = E.createGame({ capo: 'dutch' });
   assert.equal(E.hud(g).date, 'January 1926');
-  for (let i = 0; i < E.TICKS_PER_MONTH - 1; i++) assert.deepEqual(E.tick(g), []);
-  const events = E.tick(g);
+  const events = [];
+  for (let i = 0; i < E.TICKS_PER_MONTH - 1; i++) { events.push(...E.tick(g)); assert.equal(E.hud(g).date, 'January 1926'); }
+  events.push(...E.tick(g));
   assert.ok(events.some((e) => e.type === 'opened'));
   assert.equal(E.hud(g).date, 'February 1926');
   assert.deepEqual([g.journal[0].type, g.journal[0].date], ['opened', 'January 1926']);
   assert.ok(g.journal[0].label);
   E.command(g, { type: 'speed', speed: 4 });
-  E.tick(g); // at speed 4 a month is two beats
-  assert.equal(E.tick(g).length > 0 || E.hud(g).date === 'March 1926', true);
+  for (let i = 0; i < E.TICKS_PER_MONTH / 4; i++) E.tick(g); // at speed 4 a month is six beats
   assert.equal(E.hud(g).date, 'March 1926');
   E.command(g, { type: 'pause' });
   assert.deepEqual(E.tick(g), []);
@@ -391,11 +391,11 @@ test('a man the underboss could not take in for want of money is not announced t
   const waiting = () => E.view(g).cities.find((q) => q.id === c.id).doors.filter((d) => d.door !== 'poach');
   for (let i = 0; i < 4000 && !waiting().length; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
   assert.ok(waiting().length, 'a man waits at the door of a broke family');
-  for (let i = 0; i < 8; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
+  for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
   assert.equal(E.hud(g).pending, E.view(g).cities.reduce((n, q) => n + q.asks.length + q.feuds.length + q.doors.filter((d) => d.open && !d.handled).length, 0), 'he does not count among what waits for the boss');
   g.family.dirty = 20000;
   const seen = [];
-  for (let i = 0; i < 8; i++) { g.paused = false; seen.push(...E.tick(g)); }
+  for (let i = 0; i < 2 * E.TICKS_PER_MONTH; i++) { g.paused = false; seen.push(...E.tick(g)); }
   assert.ok(!seen.some((e) => e.type === 'knocks' && e.city === c.id && e.door !== 'poach'), 'no knock');
   assert.ok(seen.some((e) => e.type === 'welcomed' && e.by === 'dutch'), 'the underboss took him in');
 });
@@ -493,9 +493,9 @@ test('the months kept are saved with the game, and a game saved before starts wi
   assert.equal(E.view(back).history.length, 1);
 });
 
-test('a month lasts eight beats at speed 1, four at speed 2 and two at speed 4', () => {
-  assert.equal(E.TICKS_PER_MONTH, 8);
-  for (const [speed, beats] of [[1, 8], [2, 4], [4, 2]]) {
+test('a month lasts twenty-four beats at speed 1, twelve at speed 2 and six at speed 4', () => {
+  assert.equal(E.TICKS_PER_MONTH, 24);
+  for (const [speed, beats] of [[1, 24], [2, 12], [4, 6]]) {
     const g = E.createGame({ capo: 'dutch' });
     E.command(g, { type: 'speed', speed });
     for (let i = 0; i < beats - 1; i++) { E.tick(g); assert.equal(g.month, 0); }
