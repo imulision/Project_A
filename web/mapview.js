@@ -379,7 +379,7 @@
       (c.capos || []).forEach(function (k) {
         var p = k.plan; if (!p || !p.gains || !p.gains.length) return;
         var adv = Math.max(0, Math.min(1, +p.advance || 0)), stuck = adv < 1 && (p.due === null || p.due === undefined) && !(k.counts < 2);      // (before his second day of accounts his pace is not known yet)
-        list.push({ id: c.id + ':' + k.id, city: c.id, capo: k.id, who: String(k.name || k.id).split(' ')[0], does: (DOES[p.move] || p.move + ' a ') + String(p.name || p.kind).toLowerCase(), x: p.x, y: p.y, streets: p.gains.length, advance: adv,
+        list.push({ id: c.id + ':' + k.id, city: c.id, capo: k.id, who: String(k.name || k.id).split(' ')[0], does: (DOES[p.move] || p.move + ' a ') + String(p.name || p.kind).toLowerCase(), x: p.x, y: p.y, streets: p.gains.length, advance: adv, due: typeof p.due === 'number' ? p.due : null,
                     state: stuck ? 'stuck' : adv >= 1 ? 'ready' : p.waiting === 'money' ? 'money' : 'men', stuck: stuck, gains: p.gains.map(function (b) { return { x: b.x, y: b.y }; }) });
       });
     });

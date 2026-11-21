@@ -65,7 +65,6 @@
 
   // ---- the top of the screen
   // what last month did to a total, beside it: green when it grew, red when it shrank
-  function delta(id, n) { var e = $(id), t = C.change(n); if (e.textContent !== t) { e.textContent = t; e.classList.toggle('bad', n < 0); } }
   function bump(id) { var e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   function showHud() {
     var h = E.hud(g);
@@ -74,14 +73,14 @@
     $('speed').textContent = h.speed + 'x';
     if (!h.started) return;
     $('dirty').textContent = C.money(h.dirty); $('clean').textContent = C.money(h.clean);
-    delta('dirtyd', (h.change || {}).dirty); delta('cleand', (h.change || {}).clean);
+
     $('share').textContent = h.share + '%'; $('cities').textContent = h.cities.held + ' / ' + h.cities.total;
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
     showHint(h);
     var w = C.wash(view, h), k = C.clock(h, !!picking);
-    // the two moneys speak the same way: what came in and what went out last month (a touch opens the account, line by line)
-    var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty'), ct = C.moneyTile(acc, 'clean'); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
+    // the two moneys are totals alone; under the dirty one, what waits in the tills (a touch opens the account, line by line)
+    var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty', view), ct = C.moneyTile(acc, 'clean', view); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
     $('rank').innerHTML = C.rankLine(C.rank(view));

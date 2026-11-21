@@ -293,3 +293,4 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .lab.claim::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:14px;background:currentColor;opacity:.8}
 .lab.claim.stuck{color:var(--bad);border-color:var(--bad)}.lab.claim.stuck b i{color:var(--bad)}
 .nxb.stuck u{background:repeating-linear-gradient(135deg,#e2695c 0 5px,#e2695c66 5px 10px)}.card .nxb,#sheet .nxb{margin:6px 0 10px}
+.move.till .nxb{display:block;margin-top:5px}
