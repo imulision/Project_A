@@ -413,7 +413,7 @@
       }
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);
       if (p.move === 'take') {
-        c.ops.push({ capo: capo, x: p.x, y: p.y, way: p.way, kind: p.kind, cost: p.cost, month: c.month, months: p.months });
+        c.ops.push(leaving(c, { capo: capo, x: p.x, y: p.y, way: p.way, kind: p.kind, cost: p.cost, month: c.month, months: p.months }));
         events.push({ type: 'moving', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, way: p.way, months: p.months, cost: p.cost,
                       label: first(capo) + ' goes for the ' + at(c, p.x, p.y).owner + 's\' place in ' + zoneOf(c, p.x, p.y).name });
         return;
@@ -431,25 +431,34 @@
       if (club) { e.x = club.x; e.y = club.y; }
     });
   }
-  function closing(c, f, events) {
-    var trap = c.turn.trap;
-    c.turn = null;
-    if (trap && trap.done) {
-      var held2 = trap.done, cash = held2.cargo === 'cash', gang = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner;
-      if (cash) c.flow.hijacked = held2.amount;
-      c.lurk = c.month + RULES.road.every; // they lie low for a while
-      events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
-                    label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
-                      + (cash ? '$' + held2.amount : held2.amount + CARGOES[held2.cargo]) + ' gone' });
-    }
+  // In a city played day by day a man who sets out is expected on the same day of a later cycle.
+  function leaving(c, o) { if (c.turn && c.turn.daily) o.day = c.turn.day || 0; return o; }
+  // The day of this cycle a city sees to one of its affairs: its own, and never the same two cycles running.
+  function choreDay(c, name) {
+    var n = c.month * 7;
+    for (var i = 0; i < c.id.length; i++) n += c.id.charCodeAt(i) * (i + 3);
+    for (var k = 0; k < name.length; k++) n += name.charCodeAt(k) * (k + 5);
+    return 1 + n % (RULES.days - 2);
+  }
+  // A car or a truck the rivals held up: told once, the day it happens.
+  function heldUp(c, trap, events) {
+    if (!trap || !trap.done || trap.told) return;
+    trap.told = true;
+    var held2 = trap.done, cash = held2.cargo === 'cash', gang = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner;
+    if (cash) c.flow.hijacked = held2.amount;
+    c.lurk = c.month + RULES.road.every; // they lie low for a while
+    events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
+              label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
+                + (cash ? '$' + held2.amount : held2.amount + CARGOES[held2.cargo]) + ' gone' });
+  }
+  function rivals(c, f, events) {
     rivalGrows(c);
     rivalRaids(c, events, f);
     revenge(c, events);
     tempers(c, events);
-    money(c, f, events);
-    hearts(c, f, events);
-    B.judge(c, events);
-    homed(c, f, events);
+  }
+  // The men at the door: an underboss takes one in himself, the others knock for the boss.
+  function door(c, f, events) {
     var under = underOf(c), taken = false;
     doors(c, f).forEach(function (d) {
       // a city with an underboss: he takes one man in a month himself, where the rivals press least, with the boss's
@@ -468,6 +477,32 @@
       c.knocked[d.capo] = true;
       events.push({ type: 'knocks', capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' would join the family. ' + d.why });
     });
+  }
+  var LOUD = { burnt: true, repelled: true };
+  function noisy(e) { return LOUD[e.type] || (e.type === 'taken' && e.way === 'force'); }
+  // One day of a city's own affairs: men who get where they were sent, a hold-up told, the rivals and the door on
+  // the day this cycle gives them.
+  function chores(c, f, day, events) {
+    var t = c.turn, mine = [];
+    t.day = day; t.done = t.done || {};
+    settleTakes(c, mine);
+    if (!t.done.rivals && day >= choreDay(c, 'rivals')) { t.done.rivals = true; rivals(c, f, mine); }
+    if (!t.done.door && day >= choreDay(c, 'door')) { t.done.door = true; door(c, f, mine); }
+    homed(c, f, mine);
+    t.noise = (t.noise || 0) + mine.filter(noisy).length;
+    mine.forEach(function (e) { events.push(e); });
+  }
+  function closing(c, f, events) {
+    var t = c.turn, done = t.done || {};
+    c.turn = null;
+    heldUp(c, t.trap, events);
+    if (!done.rivals) rivals(c, f, events);
+    // what was loud on the days of the cycle counts with what is loud at its close
+    money(c, f, events, t.noise || 0);
+    hearts(c, f, events);
+    B.judge(c, events);
+    homed(c, f, events);
+    if (!done.door) door(c, f, events);
     mark(c, f);
   }
   function stepMonth(c, f) {
@@ -499,7 +534,9 @@
       c.turn.daily = true;
       c.flow = c.turn.flow;
       var got = {}, mine = [];
+      chores(c, f, day, events);
       G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); if (!e.lost) got[e.capo] = (got[e.capo] || 0) + e.amount; });
+      heldUp(c, c.turn.trap, mine);
       Object.keys(f.men).forEach(function (capo) { if (clubOf(c, capo)) ready(c, f, capo, got[capo] || 0, mine); });
       homed(c, f, mine);
       mine.forEach(function (e) { events.push(e); });
