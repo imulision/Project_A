@@ -328,8 +328,9 @@
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
-    if (!turned && !events.some(function (e) { return e.type !== 'run'; })) return events;      // a day when nothing happened on the map
-    C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    if (!turned && !news.length) return events;      // a day when nothing happened on the map
+    C.untold(news, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;

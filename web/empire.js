@@ -82,12 +82,12 @@
       var id = f.table && f.table[post];
       if (!id || g.cities.some(function (c) { return T.clubOf(c, id); })) return;
       out.push({ id: 'unpaid:' + id, capo: id, since: 0, what: T.person(id).name.split(' ')[0] + ' was not paid',
-                 why: 'The table costs $' + T.RULES.table.pay + ' a man each month: the family had $' + Math.round(T.funds(f)) + ' in hand', lever: 'Free his chair, or wait for money to come up' });
+                 why: 'The table costs $' + T.RULES.table.pay + ' a man ' + T.EVERY + ': the family had $' + Math.round(T.funds(f)) + ' in hand', lever: 'Free his chair, or wait for money to come up' });
     });
     var buy = cheapest(g), since = g.idle !== undefined && g.idle !== null ? g.month - g.idle : 0;
     if (buy && since >= IDLE) {
       out.push({ id: 'idle', since: since, what: dollars(f.clean) + ' of clean money sleeps',
-                 why: 'Nothing was bought or learned with it in ' + (since >= 24 ? Math.floor(since / 12) + ' years' : 'a year'), lever: buy.name + ' costs ' + dollars(buy.cost) });
+                 why: 'Nothing was bought or learned with it in ' + T.days(12 * Math.max(1, Math.floor(since / 12))), lever: buy.name + ' costs ' + dollars(buy.cost) });
     }
     var grave = function (s) { return GRAVE[s.id.split(':')[0]]; };
     return out.map(function (s, i) { return { s: s, i: i }; }).sort(function (a, b) { return grave(a.s) - grave(b.s) || b.s.since - a.s.since || a.i - b.i; })
@@ -110,7 +110,7 @@
     d.id = 'd' + g.seq; d.month = g.month; d.date = dateOf(g.month); d.due = g.month + YEAR; d.result = null;
     // a word given again for the same city closes the one before it
     if (d.type === 'line' || d.type === 'cut') g.decisions.forEach(function (q) {
-      if (q.type === d.type && q.city === d.city && !q.result) close(g, q, 'You changed your word after ' + plural(g.month - q.month, 'month'), null);
+      if (q.type === d.type && q.city === d.city && !q.result) close(g, q, 'You changed your word after ' + T.days(g.month - q.month), null);
     });
     g.decisions.push(d);
     if (g.decisions.length > DECISIONS) g.decisions.splice(0, g.decisions.length - DECISIONS);
@@ -119,7 +119,7 @@
     welcomed: function (g, c, d) {
       if (!g.family.men[d.capo] || !T.clubOf(c, d.capo)) return { label: firstName(d.capo) + ' is gone from ' + specOf(c.id).name, good: false };
       var n = T.run(c, d.capo).length;
-      return { label: firstName(d.capo) + ' runs ' + plural(n, 'place') + ' in ' + specOf(c.id).name + ' and makes ' + dollars(g.family.men[d.capo].income) + ' a month', good: n >= 2 };
+      return { label: firstName(d.capo) + ' runs ' + plural(n, 'place') + ' in ' + specOf(c.id).name + ' and makes ' + dollars(g.family.men[d.capo].income) + ' ' + T.EVERY, good: n >= 2 };
     },
     granted: function (g, c, d) {
       var k = T.keys(c).filter(function (q) { return q.key === d.key; })[0];
@@ -143,24 +143,24 @@
     line: function (g, c, d) {
       var now = sight(g, c), was = d.was, by = { grow: now.places - was.places, earn: now.up - was.up, low: was.heat - now.heat }[d.line];
       return { under: d.line ? ' under ' + T.RULES.line[d.line].name : ' with no word given', good: by === undefined || by === 0 ? null : by > 0,
-               label: now.places + ' places (was ' + was.places + '), ' + dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + '), heat ' + now.heat + ' (was ' + was.heat + ')' };
+               label: now.places + ' places (was ' + was.places + '), ' + dollars(now.up) + ' ' + T.EVERY + ' sent up (was ' + dollars(was.up) + '), heat ' + now.heat + ' (was ' + was.heat + ')' };
     },
     cut: function (g, c, d) {
       var now = sight(g, c), was = d.was;
       return { under: ' with a ' + d.cut + ' share', good: now.sour > was.sour ? false : now.up > was.up ? true : null,
-               label: dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + '), ' + plural(now.sour, 'sour capo') + ' (was ' + was.sour + ')' };
+               label: dollars(now.up) + ' ' + T.EVERY + ' sent up (was ' + dollars(was.up) + '), ' + plural(now.sour, 'sour capo') + ' (was ' + was.sour + ')' };
     },
     parted: function (g, c, d) {
       var now = sight(g, c), was = d.was;
       return { under: ' without ' + firstName(d.capo), good: now.up > was.up ? true : now.up < was.up ? false : null,
-               label: now.places + ' places in ' + specOf(c.id).name + ' (was ' + was.places + '), ' + dollars(now.up) + ' a month sent up (was ' + dollars(was.up) + ')' };
+               label: now.places + ' places in ' + specOf(c.id).name + ' (was ' + was.places + '), ' + dollars(now.up) + ' ' + T.EVERY + ' sent up (was ' + dollars(was.up) + ')' };
     }
   };
   // The decisions that are a year old today.
   function outcomes(g, events) {
     (g.decisions || []).forEach(function (d) {
       if (d.result || g.month < d.due || !OUTCOMES[d.type]) return;
-      var o = OUTCOMES[d.type](g, cityOf(g, d.city), d), label = 'A year on' + (o.under || '') + ': ' + o.label;
+      var o = OUTCOMES[d.type](g, cityOf(g, d.city), d), label = T.days(12) + ' on' + (o.under || '') + ': ' + o.label;
       close(g, d, label, o.good);
       var e = { type: 'outcome', decision: d.id, city: d.city, good: o.good, label: label };
       if (d.capo) e.capo = d.capo;
@@ -247,6 +247,7 @@
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
+  var PASSING = { run: true, pay: true }; // told to the screen as they happen, never written in the journal
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
     happened.forEach(function (e) {
@@ -266,8 +267,8 @@
     }
     // the cars that leave today are for the screen to drive: they are not news for the journal
     var passed = T.pass(f, g.cities, d);
-    passed.forEach(function (e) { if (e.type === 'run') events.push(e); });
-    tell(g, passed.filter(function (e) { return e.type !== 'run'; }), month, events);
+    passed.forEach(function (e) { if (PASSING[e.type]) events.push(e); });
+    tell(g, passed.filter(function (e) { return !PASSING[e.type]; }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     g.ticks = last ? 0 : d + 1;
     if (!last) return;

@@ -87,11 +87,11 @@
     if ((p.till || 0) >= 2 * k.load) out.push({ kind: 'cash', label: 'Cash piling up: ' + dollars(p.till) + ' waits for a car' });
     var b = c.blocks[key(p.x, p.y)], wet = b.wet !== undefined ? b.wet : p.kind === 'fence' ? k.goods.fed : k.drink.wet, cell = k.cellar[key(p.x, p.y)];
     if (p.kind === 'speakeasy' && wet < 1) {
-      out.push({ kind: 'dry', label: !k.drink.stills ? 'Nothing to pour: the family has no still' : b.wet === 0 ? 'Nothing to pour: no truck came this month'
+      out.push({ kind: 'dry', label: !k.drink.stills ? 'Nothing to pour: the family has no still' : b.wet === 0 ? 'Nothing to pour: no truck came'
         : 'Running dry: liquor for ' + Math.round(100 * wet) + '% of what it could sell' });
     }
     if (p.kind === 'fence' && wet < 1) {
-      out.push({ kind: 'dry', label: !k.goods.makers ? 'Nothing to sell: the family has no warehouse and no chop shop' : b.wet === 0 ? 'Nothing to sell: no truck came this month'
+      out.push({ kind: 'dry', label: !k.goods.makers ? 'Nothing to sell: the family has no warehouse and no chop shop' : b.wet === 0 ? 'Nothing to sell: no truck came'
         : 'Running short: goods for ' + Math.round(100 * wet) + '% of what it could sell' });
     }
     if (cell && (b.stock || 0) >= cell.most - 1e-9) {
@@ -119,7 +119,7 @@
       var id = f.table && f.table[post];
       if (!id || !clubOf(c, id)) return;
       out.push({ id: 'unpaid:' + id, capo: id, since: began('unpaid:' + id), what: first(id) + ' was not paid',
-                 why: 'The table costs $' + RULES.table.pay + ' a man each month: the family had $' + Math.round(funds(f)) + ' in hand',
+                 why: 'The table costs $' + RULES.table.pay + ' a man ' + R.EVERY + ': the family had $' + Math.round(funds(f)) + ' in hand',
                  lever: 'Free his chair, or wait for money to come up' });
     });
     // ground lost over the last year
@@ -127,7 +127,7 @@
     var mine = everyPlace(c).filter(function (p) { return p.owner === 'family'; }).length;
     if (ago && ago.places - mine >= STALL.lost) {
       var lost = ago.places - mine, burnt = Math.min(lost, (c.burnt || 0) - ago.burnt);
-      out.push({ id: 'losing', since: began('losing'), what: 'The family lost ' + lost + ' places here in a year',
+      out.push({ id: 'losing', since: began('losing'), what: 'The family lost ' + lost + ' places here in ' + R.days(12),
                  why: burnt > 0 ? 'The ' + c.rival + 's burnt ' + burnt + ' of them' : 'Your capos could not hold them',
                  lever: P.lineOf(c) === 'grow' ? 'Under Grow your capos guard their places less well: change the line' : null });
     }
@@ -143,14 +143,14 @@
       var left = ((c.sulk || {})[id] || 0) - c.month;
       if (left <= 0) return;
       out.push({ id: 'sulk:' + id, capo: id, since: began('sulk:' + id), what: first(id) + ' sends nothing up',
-                 why: 'He sulks for ' + left + ' more month' + (left > 1 ? 's' : ''), lever: 'A gift of $' + RULES.loyal.gift + ' may bring him round' });
+                 why: 'He sulks for ' + R.days(left) + ' more', lever: 'A gift of $' + RULES.loyal.gift + ' may bring him round' });
     });
     // nobody new for a long time, and nobody at the door
     var quiet = c.month - (c.joined || 0);
     if (quiet >= STALL.nobody && !doors(c, f).length) {
       var gone = f.gone || {};
       var mentors = here.filter(function (id) { return Object.keys(PEOPLE).some(function (q) { return PEOPLE[q].mentor === id && !f.men[q] && !gone[q]; }); });
-      out.push({ id: 'nobody', since: quiet, what: 'No new man in ' + Math.floor(quiet / 12) + ' years',
+      out.push({ id: 'nobody', since: quiet, what: 'No new man in ' + R.days(12 * Math.floor(quiet / 12)),
                  why: mentors.length ? 'A capo brings a man in when he runs ' + R.NUMBER[RULES.vouch] + ' places: ' + mentors.map(function (id) { return first(id) + ' runs ' + run(c, id).length; }).join(', ')
                                      : 'None of your capos here has a man of his own left to bring in',
                  lever: mentors.length && P.lineOf(c) !== 'grow' ? 'Set the line to Grow: your capos run more places' : null });
@@ -195,6 +195,7 @@
       }).map(function (p) {
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
         if (p.owner === 'family') {
+          p.load = loadOf(f); // what its till must hold before a car comes for it
           // its books: what it made last month, what it makes on average over the last six, what its men cost a month
           var mades = c.blocks[key(p.x, p.y)].mades || [];
           p.made = mades.length ? Math.round(mades[mades.length - 1]) : 0;
@@ -393,6 +394,13 @@
     tab.owed += dues(c, f, capo, c.turn.drink.idle[capo] !== undefined) / RULES.days;
     var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed);
     tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.sent += r.sent;
+    // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
+    if (r.pay > 0) {
+      var mine = run(c, capo), all = dues(c, f, capo, c.turn.drink.idle[capo] !== undefined), men = wages(c, capo), club = clubOf(c, capo);
+      var each = all > 0 && mine.length ? r.pay * (men / all) / mine.length : 0, garage = all > 0 ? r.pay * (1 - men / all) : 0;
+      if (each > 0) mine.forEach(function (q) { events.push({ type: 'pay', what: 'wages', city: c.id, capo: capo, x: q.x, y: q.y, amount: each }); });
+      if (garage > 0) events.push({ type: 'pay', what: 'upkeep', city: c.id, capo: capo, x: club.x, y: club.y, amount: garage });
+    }
     // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
     if (h.need !== undefined && m.cash < h.need) return;
     var p = plan(c, f, capo);
@@ -599,7 +607,7 @@
     f.study = null;
   }
 
-  var api = { pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

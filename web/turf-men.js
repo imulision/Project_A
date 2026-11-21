@@ -216,7 +216,7 @@
   function gift(c, f, capo) {
     var m = f.men[capo], L = RULES.loyal;
     if (!m || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
-    if (giftWait(c, m) > 0) throw new Error(first(capo) + ' has had his gift this year');
+    if (giftWait(c, m) > 0) throw new Error(first(capo) + ' has had his gift not long ago');
     if ((f.clean || 0) < L.gift) throw new Error('it takes $' + L.gift + ' of clean money to make ' + first(capo) + ' a gift');
     f.clean -= L.gift;
     sway(f, capo, L.warms);
@@ -284,7 +284,7 @@
       if (!id) return;
       if (funds(f) >= RULES.table.pay) spend(f, RULES.table.pay);
       else if (was[ch.post]) f.owed[ch.post] = true;   // still unpaid: it was said the first month
-      else { f.owed[ch.post] = true; events.push({ type: 'unpaid', capo: id, post: ch.post, due: RULES.table.pay, label: first(id) + ' has not been paid this month' }); }
+      else { f.owed[ch.post] = true; events.push({ type: 'unpaid', capo: id, post: ch.post, due: RULES.table.pay, label: first(id) + ' has not been paid' }); }
     });
   }
 

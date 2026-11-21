@@ -158,3 +158,23 @@ test('what the family learns is learned on the day the boss paid for it, so many
   assert.equal(learned.day, started.day);
   assert.equal(learned.month - started.month, kind.next.months);
 });
+
+test('no text the rules write for the player says month or year: time is told in days', () => {
+  assert.equal(T.EVERY, 'every ' + DAYS + ' days');
+  assert.equal(T.days(1), DAYS + ' days'); assert.equal(T.days(1 / DAYS), '1 day');
+  const said = [];
+  const read = (o) => { if (typeof o === 'string') said.push(o); else if (o && typeof o === 'object') Object.keys(o).forEach((k) => { if (['label', 'why', 'what', 'lever', 'gives', 'does', 'say'].includes(k) || typeof o[k] === 'object') read(o[k]); }); };
+  for (const start of ['sal', 'dutch', 'mae']) {
+    const g = E.createGame({ capo: start });
+    for (let i = 0; i < DAYS * 150; i++) {
+      read(E.tick(g));
+      if (i % DAYS === 0) { const v = E.view(g); read(v.stalls); read(v.decisions); read(v.table); v.cities.forEach((c) => { read(c.stalls); read(c.asks); read(c.doors); read(c.promises); read(c.capos.map((k) => [k.plan, k.abilities, k.partings])); read(c.places.map((p) => p.strains)); }); }
+      g.paused = false;
+    }
+    read(g.journal);
+  }
+  read(T.SCHOOLS);
+  const bad = [...new Set(said.filter((s) => /\b(months?|years?|monthly|yearly)\b/i.test(s)))];
+  assert.ok(said.length > 500);
+  assert.deepEqual(bad.slice(0, 8), []);
+});

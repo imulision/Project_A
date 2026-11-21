@@ -155,7 +155,10 @@
 
   var NUMBER = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
-  var api = { NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
+  // Time in words: the rules count in cycles of RULES.days days, the player reads days and never a month or a year.
+  var EVERY = 'every ' + RULES.days + ' days';
+  function days(cycles) { var n = Math.round(cycles * RULES.days); return n + (n === 1 ? ' day' : ' days'); }
+  var api = { EVERY: EVERY, days: days, NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);

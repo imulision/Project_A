@@ -558,7 +558,7 @@ test('a man at the table is paid every month, and the day the boss takes his cha
   assert.ok(T.funds(f) < 500 + c.flow.up + 1, 'her pay left the boss\'s money');
   f.dirty = 0; f.clean = 0;
   const broke = T.month(f, [c]).find((e) => e.type === 'unpaid' && e.capo === 'mae');
-  assert.equal(broke.label, 'Mae has not been paid this month');
+  assert.equal(broke.label, 'Mae has not been paid');
   assert.equal(T.table(f)[0].paid, false);
   f.dirty = 0; f.clean = 0;
   assert.ok(!T.month(f, [c]).some((e) => e.type === 'unpaid'), 'said once, not every month');

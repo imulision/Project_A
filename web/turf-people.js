@@ -96,7 +96,7 @@
     Muscle: [{ id: 'escorts', name: 'Escorts', gives: 'Nobody holds up his cars or his trucks' },
              { id: 'hard', name: 'Hard streets', gives: 'Two points of Muscle more against a raid' },
              { id: 'feared', name: 'Feared', gives: 'The rivals no longer raid the places he runs' }],
-    Liquor: [{ id: 'nightruns', name: 'Night runs', gives: 'Each of his trucks makes two more runs a month' },
+    Liquor: [{ id: 'nightruns', name: 'Night runs', gives: 'Each of his trucks makes two more runs ' + R.EVERY },
              { id: 'deep', name: 'Deep cellars', gives: 'His stills and stores keep twice as much' },
              { id: 'label', name: 'House label', gives: 'His bars earn 15% more' }],
     Money:  [{ id: 'tight', name: 'Tight books', gives: 'His men cost 15% less' },
@@ -104,7 +104,7 @@
              { id: 'silent', name: 'Silent partner', gives: 'He keeps half as much for himself' }],
     Law:    [{ id: 'friends', name: 'Friends downtown', gives: 'The police never stop his trucks' },
              { id: 'envelopes', name: 'Envelopes', gives: 'Taking a rival\'s place costs him 25% less' },
-             { id: 'judge', name: 'The judge', gives: 'His city cools one point more a month' }],
+             { id: 'judge', name: 'The judge', gives: 'His city cools one point more ' + R.EVERY }],
     Vice:   [{ id: 'regulars', name: 'Regulars', gives: 'His brothels and lofts earn 15% more' },
              { id: 'dealers', name: 'House dealers', gives: 'Weed brings his places twice the bonus' },
              { id: 'harvest', name: 'Big harvest', gives: 'His lofts grow twice the weed' }],
@@ -127,8 +127,8 @@
   // --- the boss's table ---
   // Three chairs for the whole family, for men who run no street. Each serves every city by what the man is good at.
   var CHAIRS = [{ post: 'bookkeeper', name: 'Bookkeeper', gives: function (p) { return 'Every laundry of the family washes ' + Math.round(100 * RULES.table.wash * p.business) + '% more'; } },
-                { post: 'routes', name: 'Routes', gives: function (p) { return Math.floor(p.cunning / RULES.table.cunning) + ' more loads go down every road each month'; } },
-                { post: 'fixer', name: 'Fixer', gives: function (p) { return 'Every city cools ' + Math.floor(p.charisma / RULES.table.charisma) + ' more a month'; } }];
+                { post: 'routes', name: 'Routes', gives: function (p) { return Math.floor(p.cunning / RULES.table.cunning) + ' more loads go down every road ' + R.EVERY; } },
+                { post: 'fixer', name: 'Fixer', gives: function (p) { return 'Every city cools ' + Math.floor(p.charisma / RULES.table.charisma) + ' more ' + R.EVERY; } }];
 
   function chairOf(post) {
     var ch = CHAIRS.filter(function (q) { return q.post === post; })[0];
