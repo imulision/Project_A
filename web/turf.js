@@ -219,7 +219,7 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id), led = P.follows(c, f, id);
         return { follows: led ? led.follows : null, followsWhy: led ? led.why : null, id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), book: bookOf(man), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), counts: (man.puts || []).length, book: bookOf(man), partings: partings(c, f, id) };
       })
     };
     out.next = nextOf(out.capos); // the next streets to fall, or null
@@ -263,7 +263,7 @@
     capos.forEach(function (k) {
       var p = k.plan;
       if (!p.gains.length || p.waiting === 'rank') return;
-      if (!best || p.advance > best.advance) best = { capo: k.id, move: p.move, kind: p.kind, name: p.name, x: p.x, y: p.y, months: p.due, streets: p.gains.length, waiting: p.waiting, advance: p.advance, stuck: p.waiting === 'money' && p.monthsLeft === null };
+      if (!best || p.advance > best.advance) best = { capo: k.id, move: p.move, kind: p.kind, name: p.name, x: p.x, y: p.y, months: p.due, streets: p.gains.length, waiting: p.waiting, advance: p.advance, stuck: p.waiting === 'money' && p.monthsLeft === null && k.counts >= 2 };
     });
     if (best) best.label = who(best.capo).name.split(' ')[0] + ' ' + DOES[best.move] + ' a ' + (best.name || 'place').toLowerCase() + ': +' + best.streets + (best.streets === 1 ? ' street' : ' streets');
     return best;
@@ -362,10 +362,12 @@
       m.book = { made: inc, wages: pay, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
       c.flow.made.club = (c.flow.made.club || 0) + RULES.club;
       var home = clubOf(c, capo), den = at(c, home.x, home.y); if (!den.mades) den.mades = []; den.mades.push(RULES.club); if (den.mades.length > 6) den.mades.shift();
-      if (!m.puts) m.puts = []; m.puts.push(m.book.put); if (m.puts.length > 6) m.puts.shift();
+      // what he puts aside is counted before what he pays for his moves: buying a place is what he was saving for
+      var moved = function () { return (spent.open || 0) + (spent.enlarge || 0) + (spent.take || 0) + (spent.convert || 0); };
+      if (!m.puts) m.puts = []; m.puts.push(m.book.put + moved()); if (m.puts.length > 6) m.puts.shift();
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost; buys(p.move, p.cost);
-      m.puts[m.puts.length - 1] = m.book.put;
+      m.puts[m.puts.length - 1] = m.book.put + moved();
       enact(c, f, capo, p, events);
     })();
   }
@@ -488,6 +490,8 @@
     settleTakes(c, mine);
     if (!t.done.rivals && day >= choreDay(c, 'rivals')) { t.done.rivals = true; rivals(c, f, mine); }
     if (!t.done.door && day >= choreDay(c, 'door')) { t.done.door = true; door(c, f, mine); }
+    B.launder(c, f, 1 / RULES.days);
+    if (c.bust && day >= choreDay(c, 'police')) { c.bust = false; B.bust(c, f, mine); }
     homed(c, f, mine);
     t.noise = (t.noise || 0) + mine.filter(noisy).length;
     mine.forEach(function (e) { events.push(e); });
@@ -498,7 +502,7 @@
     heldUp(c, t.trap, events);
     if (!done.rivals) rivals(c, f, events);
     // what was loud on the days of the cycle counts with what is loud at its close
-    money(c, f, events, t.noise || 0);
+    money(c, f, events, t.noise || 0, !!t.daily);
     hearts(c, f, events);
     B.judge(c, events);
     homed(c, f, events);
@@ -529,6 +533,7 @@
   // One day goes by: the tills fill and the cars leave for those that are full. Returns the cars that left.
   function pass(f, cities, day) {
     var events = [];
+    if (f.study && f.study.day !== undefined && f.study.monthsLeft <= 0 && day >= f.study.day) learn(f, events);
     cities.forEach(function (c) {
       if (!c.turn) return;
       c.turn.daily = true;
@@ -584,12 +589,14 @@
   function after(f, cities, roads, events) {
     ride(f, cities, roads);
     payTable(f, events);
-    if (f.study && --f.study.monthsLeft <= 0) {
-      f.tech[f.study.kind] = f.study.tier;
-      events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
-        : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
-      f.study = null;
-    }
+    // what was paid for on a day of a cycle is learned on that day (T.pass); otherwise as the cycle closes
+    if (f.study && --f.study.monthsLeft <= 0 && f.study.day === undefined) learn(f, events);
+  }
+  function learn(f, events) {
+    f.tech[f.study.kind] = f.study.tier;
+    events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
+      : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
+    f.study = null;
   }
 
   var api = { pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
