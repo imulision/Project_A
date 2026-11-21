@@ -47,14 +47,14 @@
     var out = KINDS.map(function (kind) {
       var tier = f.tech[kind] || 0, wanted = likedBy(f, kind);
       return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted, gives: D.SITES[kind].does,
-               studying: f.study && f.study.kind === kind ? f.study.monthsLeft : 0,
+               studying: f.study && f.study.kind === kind ? Math.max(1, f.study.monthsLeft) : 0,
                next: tier >= RULES.learn.cost.length ? null
                  : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (wanted.length ? RULES.learn.taught : 1), gives: brings(kind, tier + 1) } };
     });
     // the cars: not a place, but learned the same way; asked for by the men whose tills were left full
     var cars = Math.max(1, f.tech.cars || 1), stuck = Object.keys(f.men).filter(function (id) { return f.men[id].stuck; });
     out.push({ kind: 'cars', name: 'Cars', street: null, tier: cars, wanted: cars < 3 ? stuck : [], gives: carries(cars),
-               studying: f.study && f.study.kind === 'cars' ? f.study.monthsLeft : 0,
+               studying: f.study && f.study.kind === 'cars' ? Math.max(1, f.study.monthsLeft) : 0,
                next: cars >= 3 ? null : { tier: cars + 1, cost: RULES.learn.cost[cars], months: RULES.learn.months[cars] * (stuck.length ? RULES.learn.taught : 1), gives: carries(cars + 1) } });
     return out;
   }

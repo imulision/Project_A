@@ -424,6 +424,7 @@
     },
     research: function (g, o) {
       T.research(g.family, o.building);
+      g.family.study.day = g.ticks; // learned on this day of a later cycle
       record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + (o.building === 'cars' ? 'bigger cars' : D.SITES[o.building].name) }, g.month);
     }
   };
