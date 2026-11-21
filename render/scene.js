@@ -213,9 +213,11 @@ function eraMat(lit) {
         diffuseColor.rgb *= 0.5 + 0.5 * smoothstep(0., 0.7, vFoot);     // contact shading written into the wall: darker where it meets the street, at no extra draw
         float isWin = step(0.5, vWin), shopW = step(1.5, vWin);
         float rr = fract(sin(fract(vWin) * 91.7 + vSeed * 37.3) * 43758.5453);
-        float on = step(rr, uLit + shopW * 0.4);
+        float sign = step(2.5, vWin);      // the signs of a headquarters never go out
+        float on = max(step(rr, uLit + shopW * 0.4), sign);
         vec3 lamp = mix(vec3(1.0, 0.58, 0.2), vec3(1.0, 0.84, 0.52), fract(rr * 7.31));
-        totalEmissiveRadiance += isWin * on * lamp * (0.3 + 0.35 * fract(rr * 3.7) + shopW * 0.35);
+        lamp = mix(lamp, vec3(1.0, 0.8, 0.36), sign);
+        totalEmissiveRadiance += isWin * on * lamp * (0.3 + 0.35 * fract(rr * 3.7) + shopW * 0.35 + sign * 0.9);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.035, 0.045, 0.07), isWin * (1. - on));`);
   };
   m.customProgramCacheKey = () => 'era' + lit;
