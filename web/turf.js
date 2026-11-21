@@ -194,6 +194,13 @@
         return { x: p.x, y: p.y, owner: p.owner, kind: p.kind, key: p.key, man: p.man, name: p.name, level: p.level, capo: p.capo, till: p.till };
       }).map(function (p) {
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
+        if (p.owner === 'family') {
+          // its books: what it made last month, what it makes on average over the last six, what its men cost a month
+          var mades = c.blocks[key(p.x, p.y)].mades || [];
+          p.made = mades.length ? Math.round(mades[mades.length - 1]) : 0;
+          p.made6 = mades.length ? Math.round(mades.reduce(function (a, b) { return a + b; }, 0) / mades.length) : 0;
+          p.costs = p.kind === 'club' || p.kind === 'key' ? 0 : Math.round(RULES.wage * (can(c, p.capo, 'tight') ? 0.85 : 1));
+        }
         var holds = p.kind === 'speakeasy' ? 'liquor' : p.kind === 'fence' ? 'goods' : (choke.cellar[key(p.x, p.y)] || {}).cargo;
         var crates = p.owner === 'family' && holds ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * loadOfCargo(holds)) : 0;
         var bags = p.owner === 'family' ? Math.round((c.blocks[key(p.x, p.y)].weed || 0) * RULES.weed.load) : 0;
@@ -329,6 +336,7 @@
       B.patience(c, f, capo, p, events);
       m.book = { made: inc, wages: pay, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
       c.flow.made.club = (c.flow.made.club || 0) + RULES.club;
+      var home = clubOf(c, capo), den = at(c, home.x, home.y); den.mades = (den.mades || []).concat([RULES.club]).slice(-6);
       m.puts = (m.puts || []).concat([m.book.put]).slice(-6);
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost; buys(p.move, p.cost);
