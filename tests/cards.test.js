@@ -1092,3 +1092,14 @@ test('the money page speaks in the same unit as a capo\'s books: a month average
   // the tiles at the top of the screen stay on the real month
   assert.match(C.moneyTile(C.account(view, hud), 'dirty'), /IN <b>\$600<\/b>/);
 });
+
+test('a capo short of money for a rival\'s place asks the boss for the rest, and the card says so in its own words', () => {
+  const v = booksView();
+  v.cities[0].feuds = []; v.cities[0].doors = [];
+  v.cities[0].asks = [{ id: 7, capo: 'danny', kind: 'fund', key: 'gambling', name: 'Kesslers\' gambling room', gives: 'A second room for his tables', x: 0, y: 3, way: 'buy', cost: 3958, months: 2, why: 'no free street left around him', expects: null }];
+  const html = C.requests(v, { dirty: 5000, clean: 0 });
+  assert.match(html, /Danny asks for \$3,958/); assert.match(html, /Kesslers&#39; gambling room|Kesslers' gambling room/);
+  assert.doesNotMatch(html, /wants the/); assert.doesNotMatch(html, /No money promised/);
+  assert.match(html, /He puts in his own savings/); assert.match(html, /Yes, pay the rest/); assert.match(html, /lets the place go/);
+  assert.match(html, /data-act="answer"[^>]*data-yes="1"/); assert.match(html, /data-act="answer"[^>]*data-yes="0"/);
+});
