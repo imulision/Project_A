@@ -391,7 +391,10 @@
     tab.owed += dues(c, f, capo, c.turn.drink.idle[capo] !== undefined) / RULES.days;
     var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed);
     tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.sent += r.sent;
+    // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
+    if (h.need !== undefined && m.cash < h.need) return;
     var p = plan(c, f, capo);
+    h.need = p.move === 'hold' || p.waiting === 'time' ? Infinity : p.waiting === 'money' ? m.cash + (p.cost - p.saved) : undefined;
     if (p.move === 'hold' || p.waiting) return;
     m.cash -= p.cost;
     if (p.cost > 0) { m.paid = m.paid || {}; m.paid[p.move] = (m.paid[p.move] || 0) + p.cost; } // counted in his books at his next count
