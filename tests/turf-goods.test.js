@@ -130,8 +130,10 @@ test('when the bars run dry he stands over his still, and it pours more', () => 
 
 test('when his cars could not empty the tills last month, he drives the takings home himself', () => {
   const { c, f } = sixBars(true);
+  f.men.dutch.cash = 0; // (no money for a second car)
   T.stepMonth(c, f);
   assert.ok(f.men.dutch.waiting >= LOAD, 'tills were left full');
+  f.men.dutch.cash = 0;
   T.stepMonth(c, f);
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.equal(runs.length, RUNS * f.men.dutch.cars + T.RULES.own.runs);
