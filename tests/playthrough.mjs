@@ -29,6 +29,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     if (document.querySelector('#next .nx')) seen.next = (seen.next || 0) + 1; if (/month/i.test(document.getElementById('next').textContent)) seen.nextMonths = 1; if (A.map().labels().some((l) => l.claim)) seen.claims = (seen.claims || 0) + 1;      // the streets about to be won are told at the top and marked on the map
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
+    if (document.body.classList.contains('live')) { const b = document.querySelector('#call .end [data-act=unlive]') || document.querySelector('#call [data-call=press]') || document.querySelector('#call [data-act=unlive]'); seen.hits = (seen.hits || 0) + 1; if (b) b.click(); }      // a hit that begins on its own is watched: he presses on, reads the end, and goes back to the town
     const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
     if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
@@ -40,6 +41,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
         const men = () => A.view().cities.reduce((n, c) => n + c.capos.length, 0), had = men();
         seat.click();      // the man opens his club where he sees fit: the boss is never asked for a street
         if (men() === had + 1 && !document.querySelector('#alerts .pick')) seen.seat++;
+        A.home();      // the camera went to see where he settled; the boss comes back to his first streets
         seen.out = A.map().stats().spots;
       }
       else { seen.waited++; (q('[data-act=later]') || q('[data-act=close]')).click(); }
@@ -159,9 +161,33 @@ await page.evaluate(() => { const A = window.__ashport, m = A.map(), loaded = ()
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
 assert.equal(await page.locator('.res .net').count(), 0, 'the totals at the top stand alone: no gain or loss beside them');
 
+// a live hit: a capo goes for a guarded place, the screen goes to the street, the boss calls each step, and the end says what it cost
+const hit = await page.evaluate(() => {
+  const A = window.__ashport, g = A.game(), v = A.view().cities.find((c) => c.held), c = g.cities.find((x) => x.id === v.id), o = {};
+  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club'); if (!p) return { none: true };
+  c.turn = Object.assign(c.turn || {}, { daily: true });
+  AshportTurfHit.open(c, g.family, { capo: v.capos[0].id, x: p.x, y: p.y, way: 'force', kind: p.kind, cost: 0, month: c.month, months: 0 }, []);
+  A.beat();
+  const q = (s) => document.querySelector(s), shown = (s) => !!q(s) && getComputedStyle(q(s)).display !== 'none' && getComputedStyle(q(s)).visibility !== 'hidden';
+  o.live = document.body.classList.contains('live'); o.band = q('#live').textContent; o.calls = document.querySelectorAll('#call [data-act=call]').length;
+  o.alone = (q('#call .own') || {}).textContent || ''; o.hud = shown('.top'); o.bar = shown('.bot'); o.lit = A.map().stats().spots; o.speed = g.speed;
+  for (let i = 0; i < 3 && !q('#call .end'); i++) { const b = q('#call [data-call=press]'); if (b) b.click(); A.beat(); }
+  o.end = (q('#call .end') || {}).textContent || ''; o.tally = document.querySelectorAll('#call .tally div').length;
+  const back = q('#call [data-act=unlive]'); if (back) back.click();
+  o.after = document.body.classList.contains('live'); o.hudBack = shown('.top'); o.out = A.map().stats().spots;
+  return o;
+});
+assert.ok(!hit.none, 'a rival place to hit');
+assert.ok(hit.live && /hits the/.test(hit.band) && /ours/.test(hit.band), 'a hit that begins is watched: its band says who hits what (' + hit.band + ')');
+assert.equal(hit.calls, 3, 'three calls for the boss'); assert.match(hit.alone, /Left alone, \w+ (presses on|holds|pulls out)/);
+assert.ok(!hit.hud && !hit.bar, 'the usual figures step aside during a hit'); assert.ok(hit.lit > 0, 'the place hit is lit');
+assert.ok(hit.end.length > 0 && hit.tally > 0, 'the end says what was won and what it cost (' + hit.end + ')');
+assert.ok(!hit.after && hit.hudBack && hit.out === 0, 'back to the town: the figures are back, nothing stays lit');
+
 // time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
 await page.click('#pause');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped')), true);
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });      // the camera has come back from the hit
 assert.match(await page.textContent('#clock'), /TIME STOPPED.*Tap Play/);
 // and nothing drives while it stands still: the cars wait where they are
 const carsAt = () => page.evaluate(() => { const m = window.__ashport.map(); return { held: m.stats().held, at: m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') }; });
@@ -210,6 +236,8 @@ await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').cl
 // time runs at full speed until a second capo has his club, placed by a touch on the map
 await page.click('#speed'); await page.click('#speed');
 assert.equal(await page.textContent('#speed'), '4x');
+await page.evaluate(() => window.__ashport.home());      // the boss looks at his first streets while the years go by
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });
 await months(240, 'seat');
 const seated = await page.evaluate(() => window.__seen);
 assert.ok(seated.seat >= 1, 'a man at the door was given a street (' + JSON.stringify(seated) + ')');

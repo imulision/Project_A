@@ -1148,3 +1148,61 @@ test('the day the game has reached is counted from the first one, and a length t
   assert.equal(C.day(0, 0), 'Day 1'); assert.equal(C.day(13, 0), 'Day 313'); assert.equal(C.day(13, 23), 'Day 336');
   assert.equal(C.day({ month: 2, day: 5 }), 'Day 54'); assert.equal(C.dayNo(1), 25);
 });
+
+test('a new act and what the hidden director sends each have their picture, and say what they change', () => {
+  const act = C.news({ type: 'act', act: 2, up: true, label: 'Act II: The City', gives: 'The table opens' });
+  assert.match(act, /data-ic="ambition"|<svg/); assert.doesNotMatch(act, /class="news bad"/);
+  assert.match(act, /Act II: The City/); assert.match(act, /<small>The table opens<\/small>/);
+  const good = C.news({ type: 'beat', kind: 'truce', tone: 'good', city: 'ashport', label: 'The Callahans ask for a truce', gives: 'No attack for a while' });
+  assert.match(good, /class="news good"/); assert.match(good, /<small>No attack for a while<\/small>/);
+  const ill = C.news({ type: 'beat', kind: 'thief', tone: 'bad', city: 'ashport', label: 'A thief in the house', gives: 'The till is short' });
+  assert.match(ill, /class="news bad"/);
+  assert.notEqual(C.eventIcon({ type: 'beat', tone: 'bad' }), 'time'); assert.notEqual(C.eventIcon({ type: 'beat', tone: 'good' }), 'time'); assert.equal(C.eventIcon({ type: 'act' }), 'ambition');
+  assert.match(C.news({ type: 'act', up: false, label: 'The family falls back to Act I: The Street' }), /class="news bad"/);
+  const j = C.journal([{ type: 'beat', tone: 'bad', label: 'A thief in the house', gives: 'The till is short', month: 3 }]);
+  assert.match(j, /class="i no"/); assert.match(j, /The till is short/);
+});
+
+// ---- the live hit
+const HIT = { id: 'ashport:hit1', capo: 'sal', x: 5, y: 10, kind: 'chopshop', name: 'Chop shop', rival: 'Callahan', stage: 1, stages: ['The street', 'The door', 'Inside'], ours: 7, theirs: 6, lost: 2,
+  title: 'They were waiting at the door', say: 'Two of ours are down. Sal holds the street and waits for your word.',
+  calls: [{ id: 'press', name: 'Press on', gains: ['The door, then the chop shop'], risks: ['2 to 3 men', 'Heat'] }, { id: 'hold', name: 'Hold', gains: ['The street: their place burns'], risks: ['No chop shop', '1 or 2 men'] },
+          { id: 'pull', name: 'Pull out', gains: ['No more men lost'], risks: ['Nothing won', 'Sal loses face'] }], alone: 'press', left: 9, of: 12 };
+
+test('a live hit has its band: who hits what, both sides, and the three steps with the one being played', () => {
+  const html = C.hitBand(HIT);
+  assert.match(html, /Live/); assert.match(html, /Callahan family/); assert.match(html, /Sal hits the Chop shop/);
+  assert.match(html, /<b>7<\/b>/); assert.match(html, /<b class="r">6<\/b>/);
+  assert.match(html, /style="width:54%"/, 'the bar is shared by the men of each side');
+  assert.match(html, /class="done">The street/); assert.match(html, /class="now">The door/); assert.match(html, /class="">Inside/);
+});
+
+test('the boss is given the three calls with what each wins and costs, and is told what the capo does if left alone', () => {
+  const html = C.hitCall(HIT, 'ashport');
+  assert.match(html, /They were waiting at the door/); assert.match(html, /Two of ours are down/);
+  const calls = acts(html, 'call');
+  assert.equal(calls.length, 3);
+  assert.match(calls[0], /data-city="ashport"/); assert.match(calls[0], /data-hit="ashport:hit1"/); assert.match(calls[0], /data-call="press"/);
+  assert.match(html, /<span class="g">The door, then the chop shop<\/span>/); assert.match(html, /<span class="b">Heat<\/span>/);
+  assert.match(html, /Left alone, Sal <em>presses on<\/em>/);
+  assert.match(html, /style="width:75%"/, 'the time he still waits');
+  assert.match(calls[0], /class="[^"]*hot/, 'the call he would make himself is marked');
+  assert.equal(acts(html, 'unlive').length, 1, 'the boss can look away');
+  assert.match(C.hitCall(Object.assign({}, HIT, { alone: 'pull' }), 'ashport'), /Sal <em>pulls out<\/em>/);
+  assert.equal(C.hitCall(Object.assign({}, HIT, { calls: [] }), 'ashport'), '', 'nothing to call, nothing shown');
+});
+
+test('the end of a hit says what was won and what it cost', () => {
+  const last = { id: 'ashport:hit1', capo: 'sal', x: 5, y: 10, kind: 'chopshop', name: 'Chop shop', rival: 'Callahan',
+    result: { outcome: 'won', won: true, call: 'press', watched: true, place: 1, streets: 4, till: 1200, lost: 4, heat: 8, title: 'The Chop shop is ours', say: 'Sal went in on your word. He lost four men and took $1200 from the till.' } };
+  const html = C.hitEnd(last);
+  assert.match(html, /The Chop shop is ours/); assert.match(html, /Sal went in on your word/);
+  assert.match(html, /<b>\+1<\/b><span>Place<\/span>/); assert.match(html, /<b>\+4<\/b><span>Streets<\/span>/); assert.match(html, /<b>\$1,200<\/b><span>Till<\/span>/);
+  assert.match(html, /class="b"><b>4<\/b><span>Men lost<\/span>/); assert.match(html, /class="b"><b>\+8<\/b><span>Heat<\/span>/);
+  assert.equal(acts(html, 'unlive').length, 1);
+  const lost = C.hitEnd({ capo: 'sal', name: 'Chop shop', result: { outcome: 'pulled', won: false, place: 0, streets: 0, till: 0, lost: 1, heat: 2, title: 'Sal pulled out of the chop shop', say: 'You called him back. He lost one man and kept the rest.' } });
+  assert.match(lost, /class="[^"]*lost/); assert.doesNotMatch(lost, /Place<\/span>/); assert.doesNotMatch(lost, /Till<\/span>/);
+  assert.equal(C.eventIcon({ type: 'hit' }), 'muscle');
+  assert.match(C.news({ type: 'hit', step: 'end', result: { won: false }, label: 'Sal pulled out' }), /class="news bad"/);
+  assert.match(C.news({ type: 'hit', step: 'end', result: { won: true }, label: 'The chop shop is ours' }), /class="news good"/);
+});
