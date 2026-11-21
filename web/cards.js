@@ -287,6 +287,7 @@
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you last month: your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
       tile('car', 'CARS', (k.cars || 1) + '', 'His cars fetch the takings of his places, one full load of cash at a time') + '</div>' +
+      '<div class="acts col">' + button('books', { city: c.id, capo: k.id }, 'His books: what he makes, spends and wants') + '</div>' +
       (k.waiting > 0 ? '<div class="move">' + icon('time') + '<span>' + money(k.waiting) + ' waits in his tills for a car</span></div>' : '') +
       (k.at && k.at.label ? '<div class="move" data-tip="Where he is this month. He has a car of his own and goes where he is needed.">' + icon('car') + '<span>' + esc(k.at.label) + '</span></div>' : '') +
       '<div class="move" style="--c:' + w.color + '" data-tip="' + esc(w.tip) + '">' + icon(w.icon) + '<span>His way of taking a place: ' + w.word.toLowerCase() + '</span></div>' +
@@ -295,6 +296,53 @@
       '<h3 class="sub2">Part with him</h3>' + ((k.partings || []).length ? '<div class="acts col">' + k.partings.map(function (p) { return button('parting', { city: c.id, capo: k.id, way: p.way }, esc(p.name) + (p.cost ? ' · ' + money(p.cost) : '')); }).join('') + '</div>'
         : '<p>He is your only capo: the family cannot do without him.</p>') +
       '<div class="acts">' + button('show', { city: c.id, x: k.x, y: k.y }, 'Show his club') + button('close', {}, 'Close') + '</div>';
+  }
+  // ---- a capo's books. One unit of time for every figure: a month, averaged over the last `span` finished months (six unless told one).
+  // What flows (made, wages, sent up, kept) is a mean; what he bought is the total of those same months; what he holds is today's.
+  function books(view, cityId, id, span) {
+    var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
+    var n = span === 1 ? 1 : 6, rows = (view.history || []).map(function (m) { var r = ((((m.cities || {})[cityId] || {}).capos || {})[id]); return r && typeof r.made === 'number' ? { month: m.month, r: r } : null; }).filter(Boolean).slice(-n);
+    var mean = function (key) { return Math.round(rows.reduce(function (s, q) { return s + (q.r[key] || 0); }, 0) / rows.length); };
+    var o = { span: n, months: rows.length, capo: k, city: c, spent: 0, bought: [], places: [] };
+    if (!rows.length) { o.made = Math.round(k.income || 0); o.sent = Math.round(k.sent || 0); o.wages = null; o.kept = null; return o; }      // (a game saved before the rules kept his books)
+    o.made = mean('made'); o.wages = mean('wages'); o.sent = mean('sent'); o.kept = o.made - o.wages - o.sent;
+    var last = rows[rows.length - 1].month;
+    rows.forEach(function (q) { o.spent += q.r.spent || 0; for (var what in q.r.spentOn || {}) o.bought.push({ what: what, amount: Math.round(q.r.spentOn[what]), ago: last - q.month }); });
+    o.spent = Math.round(o.spent); o.bought.sort(function (a, b) { return a.ago - b.ago; });
+    var key = n === 1 ? 'made' : 'made6';
+    o.places = (c.places || []).filter(function (p) { return p.owner === 'family' && p.capo === id && typeof p[key] === 'number'; })
+      .map(function (p) { return { kind: p.kind, key: p.key || null, name: p.name, level: p.level || 1, x: p.x, y: p.y, made: p[key], costs: p.costs || 0, left: p[key] - (p.costs || 0) }; })
+      .sort(function (a, b) { return b.made - a.made; });
+    return o;
+  }
+  var BOUGHT = { open: 'Opened a place', enlarge: 'Made a place bigger', take: 'Took a place', convert: 'Changed the trade of a place', car: 'Bought a car', truck: 'Bought a truck', himself: 'Spent on himself' };
+  var BOUGHTICON = { open: 'works', enlarge: 'works', take: 'seize', convert: 'works', car: 'car', truck: 'truck', himself: 'dirty' };
+  function booksCard(view, cityId, id, span) {
+    var b = books(view, cityId, id, span); if (!b) return null;
+    var k = b.capo, c = b.city, p = k.plan, o = { city: c.id, capo: k.id };
+    var tab = function (n, label) { return '<button class="tab' + (b.span === n ? ' on' : '') + '" data-act="books"' + data(o) + ' data-span="' + n + '">' + label + '</button>'; };
+    var unit = b.span === 1 ? 'Last month alone' : b.months >= 6 ? 'A month, averaged over the last 6 months' : b.months ? 'A month, averaged over the ' + b.months + (b.months === 1 ? ' month' : ' months') + ' his books go back' : 'Last month: his books start with the month to come';
+    var step = function (ic, label, sub, from, to, cls, shown) { var top = Math.max(1, b.made); return '<div class="wf ' + cls + '">' + icon(ic) + '<div>' + label + '<small>' + sub + '</small></div><span class="tr"><i style="left:' + Math.round(Math.max(0, Math.min(from, to)) * 100 / top) + '%;width:' + Math.max(2, Math.round(Math.abs(to - from) * 100 / top)) + '%"></i></span><b>' + shown + '</b></div>'; };
+    var steps = step('profit', 'His places made', k.places + (k.places === 1 ? ' place' : ' places'), 0, b.made, 'in', '+' + money(b.made));
+    if (b.wages !== null) steps += step('men', 'Men paid', 'the men of his places', b.made - b.wages, b.made, 'out', '−' + money(b.wages));
+    steps += step('tribute', 'Sent up to you', 'your share', b.wages === null ? b.made - b.sent : b.kept, b.wages === null ? b.made : b.kept + b.sent, 'up', '−' + money(b.sent));
+    if (b.kept !== null) steps += step('dirty', 'He keeps', 'for his next move', 0, Math.max(0, b.kept), 'kept', (b.kept < 0 ? '−' : '') + money(Math.abs(b.kept)));
+    var sum = b.places.reduce(function (s, q) { return { made: s.made + q.made, costs: s.costs + q.costs }; }, { made: 0, costs: 0 });
+    var table = !b.places.length ? '' : '<h4 class="mh"><span>Place by place</span></h4><table class="tb"><tr><th>PLACE</th><th>MAKES</th><th>COSTS</th><th>LEFT</th></tr>' +
+      b.places.map(function (q) { return '<tr class="pl" data-act="show"' + data({ city: c.id, x: q.x, y: q.y }) + '><td>' + icon(q.kind === 'key' ? q.key : q.kind) + '<span>' + esc(q.name) + '<small>' + esc(zoneOf(c, q.x, q.y).name) + (q.level > 1 ? ' · ' + ['', 'I', 'II', 'III'][q.level] : '') + '</small></span></td><td class="in">+' + money(q.made) + '</td><td class="out">' + (q.costs ? '−' + money(q.costs) : '') + '</td><td><b>' + (q.left < 0 ? '−' : '') + money(Math.abs(q.left)) + '</b></td></tr>'; }).join('') +
+      '<tr class="sum"><td>' + b.places.length + (b.places.length === 1 ? ' place' : ' places') + '</td><td class="in">+' + money(sum.made) + '</td><td class="out">−' + money(sum.costs) + '</td><td><b>' + money(sum.made - sum.costs) + '</b></td></tr></table>';
+    var missing = p && p.cost ? Math.max(0, Math.round(p.cost - (p.saved || 0))) : 0, pace = Math.round(k.pace || 0);
+    var when = !p || !p.cost ? '' : !missing || p.monthsLeft === 0 ? 'He has the money.' : p.monthsLeft == null ? 'He needs ' + money(missing) + ' more, and puts nothing aside: at this pace he never gets there.'
+      : 'He needs ' + money(missing) + ' more: about ' + p.monthsLeft + (p.monthsLeft === 1 ? ' month' : ' months') + (pace > 0 ? ' at ' + money(pace) + ' a month' : '') + '.';
+    var fund = (c.asks || []).filter(function (a) { return a.kind === 'fund' && a.capo === k.id; })[0];
+    var ago = function (n) { return (n + 1) + (n ? ' months ago' : ' month ago'); };
+    var bought = b.wages === null ? '' : '<h4 class="mh"><span>What he bought</span><span>' + money(b.spent) + ' in ' + b.months + (b.months === 1 ? ' month' : ' months') + '</span></h4>' +
+      (b.bought.length ? b.bought.map(function (q) { return '<div class="sp2"><em>' + ago(q.ago) + '</em>' + icon(BOUGHTICON[q.what] || 'dirty') + '<span>' + (BOUGHT[q.what] || 'Spent') + '</span><b>−' + money(q.amount) + '</b></div>'; }).join('') : '<p>Nothing.</p>');
+    return head(k.id, first(k.name) + '\'s books', esc(k.rankName) + ' · ' + esc(k.specialty) + ' · ' + k.places + ' of ' + k.reach + ' places') +
+      '<div class="tabs">' + tab(6, '6 MONTHS') + tab(1, 'LAST MONTH') + '</div><p class="unit">' + unit + '</p>' + steps + table +
+      '<h4 class="mh"><span>What he wants</span></h4>' + (p ? intent(p) : '') + (when ? '<p>' + when + '</p>' : '') +
+      (fund ? '<div class="acts col">' + button('requests', {}, 'He asks you for ' + money(fund.cost) + ': answer him') + '</div>' : '') + bought +
+      '<div class="acts">' + button('capo', o, 'Back to ' + esc(first(k.name))) + button('close', {}, 'Close') + '</div>';
   }
   function parting(view, cityId, id, way) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0], p = k && (k.partings || []).filter(function (q) { return q.way === way; })[0]; if (!p) return null;
@@ -590,9 +638,18 @@
   }
   function stallsOf(c) { var l = c.stalls || []; return l.length ? '<h3 class="sub2">What holds this city back</h3>' + l.map(function (q) { return stall(q, c.id); }).join('') : ''; }
   // The month's account. Dirty cash and clean money are told the same way: what came in, what went out, line by line.
-  function account(view, hud) {
-    var m = { up: 0, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 }, ch = hud.change || {};
+  // account(view, hud): last month. account(view, hud, 6): a month averaged over the last six the rules kept line by line
+  // (fewer in a young game; last month when they kept none).
+  function account(view, hud, span) {
+    var m = { up: 0, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 }, ch = hud.change || {}, months = 1;
     view.cities.forEach(function (c) { for (var k in m) m[k] += (c.money || {})[k] || 0; });
+    var h = view.history || [], kept = h.filter(function (r) { return r.money; }).slice(-6);
+    if (span === 6 && kept.length > 1) {
+      months = kept.length;
+      ['up', 'pay', 'washed', 'cut', 'seized'].forEach(function (k) { m[k] = kept.reduce(function (s, r) { return s + (r.money[k] || 0); }, 0) / months; });
+      var before = h[h.indexOf(kept[0]) - 1], lastRow = kept[kept.length - 1], n = before ? months : months - 1, from = before || kept[0];
+      ch = { dirty: n ? (lastRow.dirty - from.dirty) / n : 0, clean: n ? (lastRow.clean - from.clean) / n : 0 };
+    }
     var back = Math.round(m.washed - m.cut), line = function (key, label, amount) { return { key: key, label: label, amount: Math.round(amount) }; };
     var dirty = [line('up', 'Sent up by your capos', m.up), line('pay', 'Wages of your capos', -m.pay), line('wash', 'Sent to the laundries', -m.washed), line('seized', 'Seized by the police', -m.seized)];
     var known = dirty.reduce(function (s, l) { return s + l.amount; }, 0), rest = Math.round((ch.dirty || 0) - known);
@@ -600,7 +657,7 @@
     var clean = [line('back', 'Back from the laundries', back)], rest2 = Math.round((ch.clean || 0) - back);
     clean.push(line('other', rest2 < 0 ? 'Spent: what the family learns, gifts, purchases' : 'Other income', rest2));
     var some = function (l) { return l.amount !== 0; }, sum = function (list, sign) { return list.reduce(function (s, l) { return s + (l.amount * sign > 0 ? Math.abs(l.amount) : 0); }, 0); };
-    var o = { dirty: dirty.filter(some), clean: clean.filter(some), dirtyNet: Math.round(ch.dirty || 0), cleanNet: Math.round(ch.clean || 0), cut: Math.round(m.cut) };
+    var o = { dirty: dirty.filter(some), clean: clean.filter(some), dirtyNet: Math.round(ch.dirty || 0), cleanNet: Math.round(ch.clean || 0), cut: Math.round(m.cut), months: months, span: span === 6 && months > 1 ? 6 : 1 };
     o.dirtyIn = sum(o.dirty, 1); o.dirtyOut = sum(o.dirty, -1); o.cleanIn = sum(o.clean, 1); o.cleanOut = sum(o.clean, -1);
     var io = function (i, out) { return '+' + money(i) + ' \u2212' + money(out); };      // (short: it has to fit under the figure on a phone)
     o.dirtyLine = io(o.dirtyIn, o.dirtyOut); o.cleanLine = m.washes > 0 || o.clean.length ? io(o.cleanIn, o.cleanOut) : 'no laundry yet';
@@ -634,14 +691,17 @@
       '<text x="' + L + '" y="' + (H - 3) + '">' + ago + ' mo ago</text>' + (ago >= 8 ? '<text x="' + x(ago / 2).toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle">' + Math.round(ago / 2) + ' mo ago</text>' : '') + '<text x="' + W + '" y="' + (H - 3) + '" text-anchor="end">now</text></svg></div>' +
       '<div class="lg"><span><i class="dirty"></i>Dirty cash ' + money(hud.dirty || 0) + '</span><span><i class="clean"></i>Clean money ' + money(hud.clean || 0) + '</span></div>';
   }
-  function accountCard(view, hud, which) {
-    var a = account(view, hud), w = which === 'clean' ? 'clean' : 'dirty', lines = a[w], net = a[w + 'Net'];
+  function accountCard(view, hud, which, span) {
+    var a = account(view, hud, span === 1 ? 1 : 6), w = which === 'clean' ? 'clean' : 'dirty', lines = a[w], net = a[w + 'Net'];
     var top = Math.max.apply(null, lines.map(function (l) { return Math.abs(l.amount); }).concat([1]));
     var row = function (l) { return '<div class="mrow ' + (l.amount < 0 ? 'out' : 'in') + '">' + icon(LINEICON[l.key] || 'profit') + '<span>' + esc(l.label) + '</span><span class="mb"><i style="width:' + Math.max(3, Math.round(Math.abs(l.amount) * 100 / top)) + '%"></i></span><b>' + signed(l.amount, money) + '</b></div>'; };
-    var tab = function (k, title) { return '<button class="tab' + (k === w ? ' on' : '') + '" data-act="account" data-which="' + k + '">' + title + ' · ' + money(hud[k] || 0) + '</button>'; };
+    var tab = function (k, title) { return '<button class="tab' + (k === w ? ' on' : '') + '" data-act="account" data-which="' + k + '" data-span="' + a.span + '">' + title + ' · ' + money(hud[k] || 0) + '</button>'; };
+    var unitTab = function (n, label) { return '<button class="tab' + (a.span === n ? ' on' : '') + '" data-act="account" data-which="' + w + '" data-span="' + n + '">' + label + '</button>'; };
+    var unit = a.span === 1 ? 'Last month alone' : 'A month, averaged over the last ' + a.months + ' months';
     var kp = function (label, n, cls) { return '<div><small>' + label + '</small><b class="' + cls + '">' + (n ? signed(n, money) : money(0)) + '</b></div>'; };
     return '<h2>Where the money goes</h2><p>' + esc(hud.date || 'Last month') + '</p><div class="tabs">' + tab('dirty', 'DIRTY CASH') + tab('clean', 'CLEAN MONEY') + '</div>' +
-      '<div class="kp">' + kp('IN', a[w + 'In'], 'up') + kp('OUT', -a[w + 'Out'], 'dn') + kp('LEFT', net, net > 0 ? 'up' : net < 0 ? 'dn' : '') + '</div>' + heldChart(view.history, hud) + '<h4 class="mh"><span>This month</span></h4>' +
+      '<div class="tabs unit">' + unitTab(6, '6 MONTHS') + unitTab(1, 'LAST MONTH') + '</div><p class="unit">' + unit + '</p>' +
+      '<div class="kp">' + kp('IN', a[w + 'In'], 'up') + kp('OUT', -a[w + 'Out'], 'dn') + kp('LEFT', net, net > 0 ? 'up' : net < 0 ? 'dn' : '') + '</div>' + heldChart(view.history, hud) + '<h4 class="mh"><span>' + (a.span === 1 ? 'Last month' : 'A month, line by line') + '</span></h4>' +
       (lines.length ? lines.map(row).join('') : '<div class="mrow"><span></span><span>Nothing moved</span><span></span><b></b></div>') +
       (w === 'clean' ? '<p>' + esc(a.room) + (a.cut > 0 ? ' They kept ' + money(a.cut) + ' as their cut.' : '') + '</p>' : '') +
       '<div class="acts">' + button('close', {}, 'Close') + '</div>';
@@ -722,7 +782,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { moneyTile: moneyTile, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { books: books, booksCard: booksCard, moneyTile: moneyTile, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

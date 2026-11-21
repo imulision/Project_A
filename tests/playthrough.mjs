@@ -88,6 +88,14 @@ await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
 await page.waitForSelector('#veil.on');
 assert.match(await page.textContent('#sheet h2'), /Dutch/);
 assert.match(await page.textContent('#sheet'), /only capo/);
+// his books: what he makes, pays, sends up and wants, in one unit of time, and back to his sheet
+await page.evaluate(() => document.querySelector('#sheet [data-act=books]').click());
+assert.match(await page.textContent('#sheet h2'), /Dutch's books/);
+assert.match(await page.textContent('#sheet'), /His places made[\s\S]*Sent up to you[\s\S]*What he wants/);
+await page.evaluate(() => document.querySelector('#sheet [data-act=books][data-span="1"]').click());
+assert.match(await page.textContent('#sheet .unit'), /Last month/);
+await page.evaluate(() => document.querySelector('#sheet [data-act=capo]').click());
+assert.match(await page.textContent('#sheet'), /only capo/);
 // his sheet says how he stands with the boss, and a gift waits for clean money: once made, not again this year
 assert.ok(await page.locator('#sheet .move.mood').count() === 1, 'his mood is on his sheet');
 assert.match(await page.textContent('#sheet .move.health'), /MONEY.*MEN.*THREAT/, 'and the health of his streets, named');
