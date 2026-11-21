@@ -619,24 +619,32 @@
   // The money page: one money at a time. Each line of the month has its icon, a bar as long as its amount and the amount;
   // under them a bar a month for what this money gained or lost (from the balances the rules keep).
   var LINEICON = { up: 'tribute', pay: 'men', wash: 'laundering', seized: 'seize', back: 'laundering', other: 'profit' };
-  function monthBars(values) {
-    var d = []; for (var n = 1; n < values.length; n++) d.push(Math.round(values[n] - values[n - 1]));
-    d = d.slice(-12); if (!d.length) return '';
-    var top = Math.max.apply(null, d.map(Math.abs)) || 1;
-    return '<h4 class="mh"><span>Last ' + d.length + (d.length === 1 ? ' month' : ' months') + '</span><span><i class="up"></i>gained <i class="dn"></i>lost</span></h4><div class="mchart">' +
-      d.map(function (x, n) { var h = Math.max(x ? 3 : 0, Math.round(Math.abs(x) * 50 / top)); return '<span class="mbar ' + (x < 0 ? 'dn' : 'up') + (n === d.length - 1 ? ' now' : '') + '" data-tip="' + (x ? signed(x, money) : money(0)) + '">' + (x ? '<i style="height:' + h + '%"></i>' : '') + '</span>'; }).join('') + '</div>';
+  // Both monies held, month after month, on one chart: is the dirty cash piling up, is the clean money building.
+  function heldChart(history, hud) {
+    var h = (history || []).slice(-24); if (h.length < 2) return '';
+    var W = 420, H = 150, L = 36, B = 18, T = 8, d = h.map(function (m) { return m.dirty || 0; }), c = h.map(function (m) { return m.clean || 0; });
+    var most = Math.max.apply(null, d.concat(c, [100])), step = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000].filter(function (q) { return most / q <= 4; })[0] || 1000000, hi = Math.ceil(most / step) * step;
+    var x = function (n) { return L + n * (W - L - 6) / (h.length - 1); }, y = function (v) { return T + (hi - v) * (H - T - B) / hi; }, base = y(0);
+    var line = function (v) { return v.map(function (q, n) { return (n ? 'L' : 'M') + x(n).toFixed(1) + ' ' + y(q).toFixed(1); }).join(''); };
+    var short = function (v) { return v >= 1000 ? '$' + (v / 1000) + 'k' : '$' + v; }, grid = '';
+    for (var v = 0; v <= hi; v += step) grid += '<line class="g" x1="' + L + '" x2="' + W + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (L - 5) + '" y="' + (y(v) + 3).toFixed(1) + '" text-anchor="end">' + short(v) + '</text>';
+    var one = function (k, v) { return '<path class="fill ' + k + '" d="' + line(v) + 'L' + x(h.length - 1).toFixed(1) + ' ' + base + 'L' + L + ' ' + base + 'Z"/><path class="held ' + k + '" d="' + line(v) + '"/><circle class="' + k + '" cx="' + x(h.length - 1).toFixed(1) + '" cy="' + y(v[v.length - 1]).toFixed(1) + '" r="3.5"/>'; };
+    var ago = h.length - 1;
+    return '<h4 class="mh"><span>Money held</span><span>last ' + h.length + ' months</span></h4><div class="ch"><svg viewBox="0 0 ' + W + ' ' + H + '">' + grid + one('dirty', d) + one('clean', c) +
+      '<text x="' + L + '" y="' + (H - 3) + '">' + ago + ' mo ago</text>' + (ago >= 8 ? '<text x="' + x(ago / 2).toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle">' + Math.round(ago / 2) + ' mo ago</text>' : '') + '<text x="' + W + '" y="' + (H - 3) + '" text-anchor="end">now</text></svg></div>' +
+      '<div class="lg"><span><i class="dirty"></i>Dirty cash ' + money(hud.dirty || 0) + '</span><span><i class="clean"></i>Clean money ' + money(hud.clean || 0) + '</span></div>';
   }
   function accountCard(view, hud, which) {
     var a = account(view, hud), w = which === 'clean' ? 'clean' : 'dirty', lines = a[w], net = a[w + 'Net'];
     var top = Math.max.apply(null, lines.map(function (l) { return Math.abs(l.amount); }).concat([1]));
     var row = function (l) { return '<div class="mrow ' + (l.amount < 0 ? 'out' : 'in') + '">' + icon(LINEICON[l.key] || 'profit') + '<span>' + esc(l.label) + '</span><span class="mb"><i style="width:' + Math.max(3, Math.round(Math.abs(l.amount) * 100 / top)) + '%"></i></span><b>' + signed(l.amount, money) + '</b></div>'; };
     var tab = function (k, title) { return '<button class="tab' + (k === w ? ' on' : '') + '" data-act="account" data-which="' + k + '">' + title + ' · ' + money(hud[k] || 0) + '</button>'; };
-    var h = (view.history || []).map(function (m) { return m[w] || 0; });
+    var kp = function (label, n, cls) { return '<div><small>' + label + '</small><b class="' + cls + '">' + (n ? signed(n, money) : money(0)) + '</b></div>'; };
     return '<h2>Where the money goes</h2><p>' + esc(hud.date || 'Last month') + '</p><div class="tabs">' + tab('dirty', 'DIRTY CASH') + tab('clean', 'CLEAN MONEY') + '</div>' +
+      '<div class="kp">' + kp('IN', a[w + 'In'], 'up') + kp('OUT', -a[w + 'Out'], 'dn') + kp('LEFT', net, net > 0 ? 'up' : net < 0 ? 'dn' : '') + '</div>' + heldChart(view.history, hud) + '<h4 class="mh"><span>This month</span></h4>' +
       (lines.length ? lines.map(row).join('') : '<div class="mrow"><span></span><span>Nothing moved</span><span></span><b></b></div>') +
-      '<div class="mtot"><span>Left this month</span><b class="' + (net > 0 ? 'up' : net < 0 ? 'dn' : '') + '">' + (net ? signed(net, money) : money(0)) + '</b></div>' +
       (w === 'clean' ? '<p>' + esc(a.room) + (a.cut > 0 ? ' They kept ' + money(a.cut) + ' as their cut.' : '') + '</p>' : '') +
-      monthBars(h) + '<div class="acts">' + button('close', {}, 'Close') + '</div>';
+      '<div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
   // ---- curves: the last months, so that the boss sees whether a decision paid. One small curve a figure, its last value beside its name.
   // curves(view) is the family (dirty, clean, what the cities sent up); curves(view, cityId) is one city (streets held, what it sent up).

@@ -263,6 +263,9 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .mrow b{text-align:right;font:500 1.25em var(--title);font-variant-numeric:tabular-nums;color:var(--good)}.mrow.out b{color:var(--bad)}
 .mtot{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0 6px}.mtot b{font:500 1.7em var(--title)}.mtot b.up{color:var(--good)}.mtot b.dn{color:var(--bad)}
 .mh{display:flex;justify-content:space-between;font:600 .82em var(--text);letter-spacing:.6px;text-transform:uppercase;color:var(--dim);margin:10px 0 6px}.mh i{display:inline-block;width:8px;height:8px;margin:0 4px 0 8px;background:var(--good)}.mh i.dn{background:var(--bad)}
-.mchart{display:flex;gap:4px;height:84px;position:relative;margin:0 0 12px;border-left:1px solid #ffffff22;padding-left:4px}.mchart::after{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px solid #ffffff22}
-.mbar{flex:1;position:relative}.mbar i{position:absolute;left:0;right:0;bottom:50%;background:var(--good);max-height:50%;height:0}.mbar.dn i{bottom:auto;top:50%;background:var(--bad)}.mbar.now i{outline:1px solid var(--ink)}
 .res .slim{grid-column:span 2;display:flex;align-items:center;gap:8px;padding:4px 9px}.res .slim b{order:3;margin-left:auto;font-size:1.25em}.res .slim em{min-height:0;font-size:.78em}.res .slim small i{padding-left:6px}
+.kp{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:0 0 4px}.kp div{background:#ffffff0c;padding:6px 8px}.kp small{display:block;font-size:.75em;letter-spacing:.5px;color:var(--dim)}.kp b{font:500 1.5em var(--title);font-variant-numeric:tabular-nums}.kp b.up{color:var(--good)}.kp b.dn{color:var(--bad)}
+.ch svg{display:block;width:100%;height:auto;overflow:visible}.ch text{font:600 10px var(--text);fill:var(--dim)}.ch .g{stroke:#ffffff16;stroke-width:1}
+.ch .held{fill:none;stroke-width:2;stroke-linejoin:round}.ch .held.dirty{stroke:#c9a45a}.ch .held.clean{stroke:#6ad0e0}.ch .fill{opacity:.16;stroke:none}.ch .fill.dirty,.ch circle.dirty{fill:#c9a45a}.ch .fill.clean,.ch circle.clean{fill:#6ad0e0}
+.lg{display:flex;gap:14px;font-size:.85em;color:var(--dim);margin:4px 0 2px}.lg i{display:inline-block;width:10px;height:3px;vertical-align:middle;margin-right:5px}.lg i.dirty{background:#c9a45a}.lg i.clean{background:#6ad0e0}
+.mrow:last-of-type{border-bottom:0}.mrow+.acts,.mrow+p{margin-top:10px}
