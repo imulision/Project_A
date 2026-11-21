@@ -199,7 +199,8 @@
     else if (act === 'focus') { close(); map.focus(d.city); }
     else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y }); }
     else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
-    else if (act === 'account') show(C.accountCard(view, E.hud(g), d.which));
+    else if (act === 'account') show(C.accountCard(view, E.hud(g), d.which, +d.span || 6));
+    else if (act === 'books') show(C.booksCard(view, d.city, d.capo, +d.span || 6));
     else if (act === 'restart') show(C.restart(E.hud(g)));
     else if (act === 'new') { forget(); location.reload(); }
   });

@@ -1013,3 +1013,82 @@ test('the money page draws both monies held over the months on one chart, and sa
   // one month of history is not a curve yet
   assert.doesNotMatch(C.accountCard({ cities: view.cities, history: [view.history[0]] }, hud), /class="held /);
 });
+
+// ---- a capo's books (the shapes the rules give: capos[].book, .pace, .plan.monthsLeft, places[].made / made6 / costs, history rows by capo)
+const booksView = () => {
+  const row = (month, made, wages, sent, spent, saved, spentOn) => ({ month, dirty: 0, clean: 0, cities: { ashport: { share: 10, income: sent, capos: { danny: { places: 3, income: made, rank: 0, made, wages, sent, spent, spentOn: spentOn || {}, saved } } } } });
+  return {
+    history: [row(250, 300, 100, 30, 0, 100), row(251, 400, 240, 60, 0, 200), row(252, 420, 240, 63, 900, 0, { enlarge: 900 }), row(253, 440, 240, 66, 0, 134), row(254, 460, 240, 69, 0, 285), row(255, 480, 240, 72, 0, 453), row(256, 500, 240, 75, 0, 638), row(257, 600, 240, 90, 1400, 0, { open: 1400 })],
+    cities: [{ id: 'ashport', name: 'Ashport', w: 4, h: 4, zones: [{ name: 'Canal Street', x0: 0, y0: 0, x1: 3, y1: 3 }], blocks: [], asks: [],
+      places: [{ x: 1, y: 1, owner: 'family', kind: 'club', name: 'Social Club', level: 1, capo: 'danny', made: 150, made6: 150, costs: 0 },
+               { x: 1, y: 2, owner: 'family', kind: 'speakeasy', name: 'Speakeasy', level: 2, capo: 'danny', made: 300, made6: 200, costs: 120 },
+               { x: 2, y: 2, owner: 'family', kind: 'gambling', name: 'Gambling Room', level: 1, capo: 'danny', made: 150, made6: 133, costs: 120 },
+               { x: 3, y: 3, owner: 'family', kind: 'still', name: 'Still', level: 1, capo: 'sal', made: 90, made6: 90, costs: 120 },
+               { x: 0, y: 3, owner: 'Kessler', kind: 'gambling', name: 'Gambling Room', level: 1 }],
+      capos: [{ id: 'danny', name: 'Danny "the Kid" Reyes', specialty: 'Gambler', rank: 0, rankName: 'Soldier', x: 1, y: 1, places: 3, reach: 6, income: 600, sent: 90, cash: 0, pace: 222,
+                book: { made: 600, wages: 240, sent: 90, spent: { open: 1400 }, saved: 0, put: 0 },
+                plan: { move: 'take', kind: 'gambling', name: 'Gambling Room', x: 0, y: 3, cost: 6546, saved: 2588, progress: 0.4, waiting: 'money', why: 'no free street left around him', monthsLeft: 18 } }] }]
+  };
+};
+
+test('a capo\'s books speak in one unit of time: a month, averaged over the last six, or the last month alone', () => {
+  const v = booksView();
+  const six = C.books(v, 'ashport', 'danny');
+  assert.equal(six.span, 6); assert.equal(six.months, 6);
+  assert.deepEqual([six.made, six.wages, six.sent, six.kept], [483, 240, 73, 170], 'each figure is the mean of the six months, and what he keeps is what is left');
+  assert.equal(six.spent, 2300, 'what he bought is the total of the same six months');
+  assert.deepEqual(six.bought.map((b) => [b.what, b.amount, b.ago]), [['open', 1400, 0], ['enlarge', 900, 5]], 'newest first');
+  const one = C.books(v, 'ashport', 'danny', 1);
+  assert.deepEqual([one.span, one.made, one.wages, one.sent, one.kept, one.spent], [1, 600, 240, 90, 270, 1400]);
+  // his places, in the same unit; another man's places and the rivals' are not his
+  assert.deepEqual(six.places.map((p) => [p.kind, p.made, p.costs, p.left]), [['speakeasy', 200, 120, 80], ['club', 150, 0, 150], ['gambling', 133, 120, 13]]);
+  assert.deepEqual(one.places.map((p) => p.made), [300, 150, 150]);
+  // a young game: the mean of what there is, and it says how many months
+  const young = booksView(); young.history = young.history.slice(-2);
+  assert.equal(C.books(young, 'ashport', 'danny').months, 2); assert.equal(C.books(young, 'ashport', 'danny').made, 550);
+  // a game saved before the rules kept his books: last month from what the view always had, nothing invented
+  const old = booksView(); old.history.forEach((m) => { const k = m.cities.ashport.capos.danny; delete k.made; delete k.wages; delete k.sent; delete k.spent; delete k.spentOn; delete k.saved; });
+  delete old.cities[0].capos[0].book; old.cities[0].places.forEach((p) => { delete p.made; delete p.made6; delete p.costs; });
+  const o = C.books(old, 'ashport', 'danny');
+  assert.equal(o.months, 0); assert.equal(o.made, 600); assert.equal(o.sent, 90); assert.equal(o.wages, null); assert.deepEqual(o.places, []);
+});
+
+test('the page of a capo\'s books: his month step by step, place by place, what he wants and what he bought', () => {
+  const v = booksView(), html = C.booksCard(v, 'ashport', 'danny');
+  assert.match(html, /Danny/); assert.match(html, /A month, averaged over the last 6 months/);
+  assert.match(html, /class="tab on" data-act="books"[^>]*data-span="6"/); assert.match(html, /data-act="books"[^>]*data-span="1"/);
+  assert.match(html, /His places made[^]*\+\$483[^]*Men paid[^]*−\$240[^]*Sent up to you[^]*−\$73[^]*He keeps[^]*\$170/);
+  assert.equal((html.match(/<tr class="pl"/g) || []).length, 3); assert.match(html, /Speakeasy[^]*\+\$200[^]*−\$120[^]*\$80/);
+  assert.match(html, /class="sum"[^]*\+\$483[^]*−\$240[^]*\$243/, 'the table adds up to his month');
+  assert.match(html, /\$2,588 of \$6,546/); assert.match(html, /about 18 months/); assert.match(html, /needs \$3,958 more/);
+  assert.match(html, /What he bought[^]*\$2,300 in 6 months/); assert.match(html, /1 month ago[^]*Opened a place[^]*−\$1,400/); assert.match(html, /6 months ago[^]*Made a place bigger[^]*−\$900/);
+  assert.match(html, /data-act="capo"/, 'back to the man');
+  const one = C.booksCard(v, 'ashport', 'danny', 1);
+  assert.match(one, /Last month alone/); assert.match(one, /class="tab on" data-act="books"[^>]*data-span="1"/); assert.match(one, /\+\$600/);
+  // he has the money, or he saves nothing: said plainly
+  v.cities[0].capos[0].plan.monthsLeft = null; assert.match(C.booksCard(v, 'ashport', 'danny'), /puts nothing aside/);
+  v.cities[0].capos[0].plan = { move: 'hold', why: 'he runs all he can at his rank', cost: 0, saved: 0, progress: 1, waiting: 'rank' };
+  assert.doesNotMatch(C.booksCard(v, 'ashport', 'danny'), /needs \$/);
+  assert.equal(C.booksCard(v, 'ashport', 'nobody'), null);
+  assert.match(C.capo(v, 'ashport', 'danny', { dirty: 0, clean: 0 }), /data-act="books"/, 'his books open from his sheet');
+});
+
+test('the money page speaks in the same unit as a capo\'s books: a month averaged over six, or the last month alone', () => {
+  const m = (month, dirty, clean, up, pay, washed, cut, seized) => ({ month, dirty, clean, money: { up, pay, washed, cut, seized, hijacked: 0 } });
+  const view = { cities: [{ money: { up: 600, pay: 100, washed: 200, washes: 1418, cut: 50, seized: 0 } }],
+    history: [m(1, 1000, 0, 0, 0, 0, 0, 0), m(2, 1100, 100, 300, 100, 100, 0, 0), m(3, 1200, 200, 300, 100, 100, 0, 0), m(4, 1300, 300, 300, 100, 100, 0, 0), m(5, 1400, 400, 300, 100, 100, 0, 0), m(6, 1500, 500, 300, 100, 100, 0, 0), m(7, 1800, 650, 600, 100, 200, 50, 0)] };
+  const hud = { date: 'July 1926', dirty: 1800, clean: 650, change: { dirty: 300, clean: 150 } };
+  const six = C.account(view, hud, 6);
+  assert.equal(six.months, 6);
+  assert.deepEqual(six.dirty.map((l) => [l.key, l.amount]), [['up', 350], ['pay', -100], ['wash', -117]]);
+  assert.equal(six.dirtyNet, 133, 'what the dirty cash gained a month, from where it stood six months ago');
+  assert.deepEqual(six.clean.map((l) => [l.key, l.amount]), [['back', 108]]); assert.equal(six.cleanNet, 108);
+  assert.deepEqual(C.account(view, hud, 1).dirty.map((l) => [l.key, l.amount]), [['up', 600], ['pay', -100], ['wash', -200]]);
+  const html = C.accountCard(view, hud);
+  assert.match(html, /A month, averaged over the last 6 months/); assert.match(html, /class="tab on" data-act="account"[^>]*data-span="6"/); assert.match(html, /\+\$350/);
+  const one = C.accountCard(view, hud, 'dirty', 1);
+  assert.match(one, /Last month alone/); assert.match(one, /\+\$600/); assert.match(one, /class="tab on" data-act="account"[^>]*data-span="1"/);
+  assert.match(one, /data-which="clean"[^>]*data-span="1"/, 'changing money keeps the unit');
+  // the tiles at the top of the screen stay on the real month
+  assert.match(C.moneyTile(C.account(view, hud), 'dirty'), /IN <b>\$600<\/b>/);
+});
