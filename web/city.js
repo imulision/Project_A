@@ -29,7 +29,7 @@
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
   var lastPlan = null, POWER = 'ashport-power';
   var strainAt = {};      // the family's places that choke, by city and block: the map marks them
-  function refresh(events) {
+  function refresh(events, turned) {
     view = E.view(g);
     if (!g.started) return;
     waits = {};
@@ -49,7 +49,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), events ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), turned ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
   }
@@ -66,7 +66,7 @@
   function bump(id) { var e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
   function showHud() {
     var h = E.hud(g);
-    $('date').textContent = h.date;
+    $('date').textContent = h.date; gauge();
     $('pause').textContent = h.paused ? 'Play' : 'Pause'; $('pause').classList.toggle('on', !!h.paused);
     $('speed').textContent = h.speed + 'x';
     if (!h.started) return;
@@ -313,12 +313,16 @@
   // ---- time
   function beat() {
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
-    var before = g.month, events = E.tick(g);
-    if (g.month === before) return;
+    var before = g.month, events = E.tick(g), turned = g.month !== before;
+    gauge();
+    if (!turned && !events.length) return events;      // a day when nothing happened: only the month's gauge moves
     C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
-    refresh(events); showHud(); store();
+    refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
+    return events;
   }
+  // how far the month has gone: the bar under the date fills day by day
+  function gauge() { $('date').style.setProperty('--day', E.TICKS_PER_MONTH ? (g.ticks || 0) / E.TICKS_PER_MONTH : 0); }
 
   // ---- start
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
