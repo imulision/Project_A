@@ -95,3 +95,18 @@ test('the game keeps the family\'s money lines and every capo\'s books month aft
   assert.deepEqual(k.spentOn, b.spent);
   assert.equal(k.income, a.capos[0].income, 'what was there stays');
 });
+
+test('the savings a capo puts into a place the boss helps him pay for are in his books the month after', () => {
+  const c = town(), f = family({ dirty: 0, clean: 0 });
+  T.settle(c, 'sal', 0, 0); T.join(f, 'sal'); f.men.sal.rank = 3; c.rival = 'Callahan'; c.quiet = 999;
+  for (const [x, y] of [[1, 0], [0, 1], [1, 1], [2, 0], [0, 2]]) T.open(c, x, y, { owner: 'family', kind: 'loans', capo: 'sal', level: 3 });
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (!T.at(c, x, y)) T.open(c, x, y, { owner: 'Callahan', kind: 'speakeasy' });
+  for (let i = 0; i <= T.RULES.patience.months; i++) { f.men.sal.cash = Math.min(f.men.sal.cash, 300); T.stepMonth(c, f); }
+  const a = T.asks(c)[0], had = f.men.sal.cash;
+  f.dirty = 20000;
+  T.answer(c, f, a.id, true);
+  const put = had - f.men.sal.cash;
+  assert.ok(put > 0);
+  T.stepMonth(c, f);
+  assert.ok(Math.abs(f.men.sal.book.spent.take - put) < 1e-6);
+});

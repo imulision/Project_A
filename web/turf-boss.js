@@ -114,6 +114,7 @@
       if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' ' + first(a.capo) + ' is short of');
       spend(f, a.cost);
       m.cash -= a.full - a.cost;
+      m.paid = m.paid || {}; m.paid.take = (m.paid.take || 0) + a.full - a.cost; // for his books
       c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, kind: a.trade, cost: a.full, month: c.month, months: a.months });
     } else { m.shuns = m.shuns || {}; m.shuns[key(a.x, a.y)] = c.month + RULES.patience.sore; }
     m.aim = null; m.begged = c.month + RULES.patience.sore;
