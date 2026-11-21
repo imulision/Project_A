@@ -110,7 +110,7 @@ test('at most three troubles a city, the gravest first: unpaid men, ground lost,
 
 // A boss who takes in his first two men, then says yes to everything and does nothing else.
 const idle = (capo, months, each) => {
-  const g = E.createGame({ capo });
+  const g = E.createGame({ capo }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let m = 1; m <= months; m++) {
     if (each && m % 12 === 0) each(g);
     for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }

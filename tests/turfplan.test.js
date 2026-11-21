@@ -9,7 +9,7 @@ const E = require('../web/empire.js');
 const M = require('../web/mapview.js');
 
 const play = (months, capo = 'sal') => {
-  const g = E.createGame({ capo });
+  const g = E.createGame({ capo }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let i = 0; i < months * E.TICKS_PER_MONTH; i++) { E.tick(g); if (E.hud(g).paused) E.command(g, { type: 'resume' }); }
   return g;
 };

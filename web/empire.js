@@ -11,8 +11,10 @@
   var T = node ? require('./turf.js') : root.AshportTurf;
   var W = node ? require('./world.js') : root.AshportWorld;
   var D = node ? require('./district.js') : root.AshportDistrict;
+  var R = node ? require('./reign.js') : root.AshportReign;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
+  R.setDays(T.RULES.days);
   var TICKS_PER_MONTH = T.RULES.days;  // beats of the clock in a month at speed 1 (the screen beats once a second)
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
@@ -199,6 +201,7 @@
     g.family.dirty = START_CASH;
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
+    g.reign = R.create(NAMES.indexOf(capo) + 1);
     g.started = true;
   }
 
@@ -245,6 +248,51 @@
     g.history.push(line);
     if (g.history.length > HISTORY) g.history.splice(0, g.history.length - HISTORY);
   }
+  // --- the reign: its acts and its director ---
+  function reignOf(g) { if (!g.reign) g.reign = R.create(); return g.reign; }
+  function mapShare(line) { var s = 0, n = 0; Object.keys((line && line.cities) || {}).forEach(function (k) { s += line.cities[k].share || 0; n += 1; }); return n ? s / n : 0; }
+  function shareNow(g) { var h = g.history || []; return h.length ? mapShare(h[h.length - 1]) : 0; }
+  // The family's share of the map has just been counted: the acts it wins or loses go into the journal.
+  function settle(g) {
+    var told = R.place(reignOf(g), shareNow(g));
+    told.forEach(function (e) { record(g, e, g.month); });
+    return told;
+  }
+  // What the director decided, carried out in the city: a beat only ever moves what the rules already know.
+  function strike(g, b) {
+    var c = cityOf(g, b.city), d = R.RULES.director, size = b.size || 1;
+    if (b.kind === 'cargo') g.family.dirty += Math.round(d.cargo * size);
+    else if (b.kind === 'captain') c.heat = Math.min(99, (c.heat || 0) + Math.round(d.captain * size));
+    else if (b.kind === 'cool') c.heat = Math.max(0, (c.heat || 0) - d.cool);
+    else if (b.kind === 'truce') { c.quiet = Math.max(c.quiet || 0, c.month + d.truce); c.lurk = Math.max(c.lurk || 0, c.month + d.truce); }
+    else if (b.kind === 'blood') { c.vendetta = Math.max(c.vendetta || 0, c.month + Math.round(d.blood * size)); c.quiet = Math.min(c.quiet || 0, c.month); }
+    else if (b.kind === 'godson') T.sway(g.family, b.capo, d.godson);
+    else if (b.kind === 'thief') g.family.dirty = Math.max(0, g.family.dirty - b.amount);
+    else throw new Error('no such beat: ' + b.kind);
+  }
+  // The capo of a city who is turning sour, the least loyal first.
+  function sourest(g, c) {
+    var worst = null;
+    Object.keys(g.family.men).forEach(function (id) {
+      var l = T.loyalty(g.family, id);
+      if (T.clubOf(c, id) && l < T.RULES.loyal.restless && (!worst || l < worst.loyal)) worst = { id: id, name: T.person(id).name, loyal: l };
+    });
+    return worst;
+  }
+  // The director hears the day's news, then may make something happen himself.
+  function direct(g, today, month, events) {
+    var r = reignOf(g), h = g.history || [], d = R.RULES.director;
+    R.hear(r, today);
+    var b = R.direct(r, function () {
+      var growing = h.length > 1 && mapShare(h[h.length - 1]) - mapShare(h[Math.max(0, h.length - 1 - d.over)]) >= d.growing;
+      return { day: g.month * TICKS_PER_MONTH + g.ticks, growing: growing, dirty: g.family.dirty, cities: g.cities.map(function (c) {
+      return { sour: sourest(g, c), id: c.id, name: specOf(c.id).name, held: held(g, c), heat: c.heat || 0, rival: c.rival || null, quiet: (c.quiet || 0) > c.month };
+      }) };
+    });
+    if (!b) return;
+    strike(g, b);
+    record(g, b, month); events.push(b);
+  }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
   var PASSING = { run: true, pay: true }; // told to the screen as they happen, never written in the journal
@@ -260,7 +308,7 @@
   }
   // One day of the month (g.ticks counts them). The month opens on the first, every man has his own day, and it closes on the last.
   function day(g, events) {
-    var d = g.ticks, month = g.month, f = g.family, last = d >= TICKS_PER_MONTH - 1;
+    var d = g.ticks, month = g.month, f = g.family, last = d >= TICKS_PER_MONTH - 1, heard = events.length;
     if (d === 0) {
       g.was = { dirty: f.dirty, clean: f.clean || 0 };
       tell(g, T.begin(f, g.cities), month, events);
@@ -270,6 +318,7 @@
     passed.forEach(function (e) { if (PASSING[e.type]) events.push(e); });
     tell(g, passed.filter(function (e) { return !PASSING[e.type]; }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
+    direct(g, events.slice(heard), month, events);
     g.ticks = last ? 0 : d + 1;
     if (!last) return;
     tell(g, T.end(f, g.cities, W.ROUTES), month, events);
@@ -291,6 +340,7 @@
     g.month += 1;
     outcomes(g, events);
     remember(g);
+    settle(g).forEach(function (e) { events.push(e); });
     g.idle = cheapest(g) ? (g.idle !== undefined && g.idle !== null ? g.idle : g.month - 1) : null; // since when clean money could have been spent
   }
   // One beat of the clock: one day at speed 1, two at speed 2, four at speed 4. A month is TICKS_PER_MONTH days.
@@ -447,7 +497,7 @@
     });
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null };
+    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
     var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
@@ -461,6 +511,9 @@
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along
+    var r = reignOf(g), share = shareNow(g);
+    out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached,
+                  acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
     out.next = out.cities.reduce(function (best, c) { return c.next && (!best || c.next.advance > best.advance) ? Object.assign({ city: c.id }, c.next) : best; }, null);
     return out;
   }
@@ -480,6 +533,7 @@
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
     out.seats = seats; out.pending = pending;
+    out.act = R.act(reignOf(g)).numeral;
     return out;
   }
 
@@ -508,7 +562,7 @@
   }
 
   var api = { dayOf: dayOf, DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
-              createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
+              createGame: createGame, settle: settle, strike: strike, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
 })(typeof self !== 'undefined' ? self : this);
