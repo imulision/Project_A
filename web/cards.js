@@ -116,7 +116,8 @@
     return '<b style="color:' + h[1] + '">' + icon(h[0]) + ' ' + esc(road ? 'On the road to the next city' : h[2]) + '</b>' + (road && car.way ? '<br>' + esc(car.way) : '') + (empty ? '<br>Empty, on its way to load' : n ? '<br>' + n + ' on board' : '') + (car.capo ? '<br>' + esc(nameOf(car.capo)) + (car.kind === 'crew' && WAY[car.cargo] ? ' · ' + WAY[car.cargo].word.toLowerCase() : '') : '');
   }
   // The badges that light up over the map when something happens, and what a touch on one says.
-  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'], betrayal: ['betrayal', 'Betrayal'] };
+  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'], betrayal: ['betrayal', 'Betrayal'],
+             build: ['works', 'A place goes up'], key: ['ambition', 'A key place is yours'], good: ['yes', 'A decision paid'], bad: ['no', 'A decision cost you'] };
   function fxTip(kind, say, type) {
     if (kind === 'news') return icon(EVENT[type] || 'time') + ' ' + esc(say || '');
     var f = FX[kind] || ['time', kind]; return '<b>' + icon(f[0]) + ' ' + esc(f[1]) + '</b>' + (say ? '<br>' + esc(say) : '');

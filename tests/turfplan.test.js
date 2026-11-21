@@ -157,7 +157,7 @@ test('what happens in a city lands on the block it names: fire where a place bur
   const p = M.planEmpire(E.view(play(30)), global.AshportWorld.CITIES);
   const fx = M.effectsTurf([{ type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'repelled', city: 'ashport', x: 3, y: 10 }, { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'force' },
     { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'bribe' }, { type: 'opened', city: 'ashport', x: 5, y: 10 }, { type: 'bust', city: 'ashport' }, { type: 'rank', city: 'ashport', capo: 'sal' }], p);
-  assert.deepEqual(fx.map((f) => f.kind), ['fire', 'gunfire', 'gunfire', 'promotion', 'promotion', 'police', 'promotion']);
+  assert.deepEqual(fx.map((f) => f.kind), ['fire', 'gunfire', 'gunfire', 'promotion', 'build', 'police', 'promotion']);
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].city, 'ashport');
   fx.forEach((f) => assert.ok(typeof f.i === 'number' && typeof f.j === 'number', 'each effect has a lot to stand on'));
 });
@@ -289,7 +289,7 @@ test('every event that has a place is marked on the map where it happens, and sa
   const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = v.cities[0].capos[0];
   const fx = M.effectsTurf([{ type: 'asks', city: 'ashport', x: 4, y: 10, label: 'Sal asks' }, { type: 'welcomed', city: 'ashport', x: 5, y: 10, label: 'in' }, { type: 'car', city: 'ashport', capo: k.id, x: k.x, y: k.y, label: 'a car' },
     { type: 'knocks', city: 'ashport', capo: 'nobody yet', label: 'a man' }, { type: 'studying', city: 'ashport', label: 'learning' }, { type: 'opened', city: 'ashport', x: 5, y: 10, label: 'opened' }], p);
-  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'promotion:opened'], 'what has no place of its own is not put on the map');
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'build:opened'], 'what has no place of its own is not put on the map');
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].say, 'Sal asks');
 });
 
@@ -481,4 +481,31 @@ test('a capo who opens a place drives to it and back to his club, once', () => {
   assert.deepEqual(moves[0].path[moves[0].path.length - 1], [k.i, k.j], 'he comes home');
   assert.ok(moves[0].path.some((q) => q[0] === lot.i && q[1] === lot.j), 'by way of the new place');
   assert.equal(M.movesTurf(p, p).length, 0);
+});
+
+test('what the family builds, wins or learns from a decision has a sight of its own on the map', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = v.cities[0].capos[0];
+  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10, cost: 400 }, { type: 'enlarged', city: 'ashport', x: 5, y: 10, cost: 900 }, { type: 'converted', city: 'ashport', x: 5, y: 10, cost: 300 },
+    { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'bribe' }, { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'force' },
+    { type: 'outcome', city: 'ashport', good: true, label: 'It paid' }, { type: 'outcome', city: 'ashport', good: false, label: 'It cost you' }, { type: 'outcome', city: 'ashport', label: 'Too early to say' }], p);
+  assert.deepEqual(fx.map((f) => f.kind), ['build', 'build', 'build', 'key', 'key', 'good', 'bad'], 'a key place taken is a sight whatever the way; a result with nothing to say is not shown');
+  assert.equal(fx[2].spent, 300, 'changing a trade is paid for');
+  assert.deepEqual([fx[5].i, fx[5].j], [p.cities[0].capos[0].i, p.cities[0].capos[0].j], 'a result with no place of its own is seen at the club');
+  // a take under way is seen on the place being taken, month after month, until it is settled
+  const taking = JSON.parse(JSON.stringify(p)), lot = taking.cities[0].lots.find((l) => l && l.site && l.site.owner !== 'family');
+  taking.cities[0].capos[0].at = { i: lot.i, j: lot.j, why: 'take' };
+  const siege = M.effectsTurf([], taking);
+  assert.deepEqual(siege.map((f) => [f.kind, f.i, f.j, f.city]), [['siege', lot.i, lot.j, 'ashport']]);
+  assert.equal(M.effectsTurf([], p).length, 0);
+});
+
+test('a man taken in is seen arriving: one car from the edge of the town to his new club', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), c = p.cities[0], k = c.capos[0];
+  const cars = M.arrivalsTurf([{ type: 'welcomed', city: 'ashport', capo: k.id, x: k.bx, y: k.by }, { type: 'opened', city: 'ashport', x: k.bx, y: k.by }, { type: 'welcomed', city: 'nowhere', capo: 'x', x: 1, y: 1 }], p);
+  assert.equal(cars.length, 1);
+  assert.equal(cars[0].kind, 'capo'); assert.equal(cars[0].capo, k.id); assert.equal(cars[0].loop, false); assert.equal(cars[0].cargo, 'arrives');
+  const first = cars[0].path[0], last = cars[0].path[cars[0].path.length - 1];
+  assert.deepEqual(last, [k.i, k.j], 'it ends at his club');
+  assert.ok(first[0] === 0 || first[1] === 0 || first[0] === c.bx * 4 || first[1] === c.by * 3, 'it starts on the rim of the town');
+  assert.ok(cars[0].path.length > 1);
 });
