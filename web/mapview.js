@@ -370,7 +370,22 @@
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, route: route };
+  // The streets about to be won: one claim for each capo whose plan wins streets, the furthest along first and those who put nothing aside last.
+  // { id, city, capo, who, does, x, y, streets, advance (0 to 1), state: 'money' | 'men' | 'ready' | 'stuck', stuck, gains: [{ x, y }] }
+  var DOES = { open: 'opens a ', take: 'takes a ', enlarge: 'enlarges his ', convert: 'turns a place into a ' };
+  function claimsTurf(view) {
+    var list = [];
+    (view.cities || []).forEach(function (c) {
+      (c.capos || []).forEach(function (k) {
+        var p = k.plan; if (!p || !p.gains || !p.gains.length) return;
+        var adv = Math.max(0, Math.min(1, +p.advance || 0)), stuck = adv < 1 && (p.due === null || p.due === undefined);
+        list.push({ id: c.id + ':' + k.id, city: c.id, capo: k.id, who: String(k.name || k.id).split(' ')[0], does: (DOES[p.move] || p.move + ' a ') + String(p.name || p.kind).toLowerCase(), x: p.x, y: p.y, streets: p.gains.length, advance: adv,
+                    state: stuck ? 'stuck' : adv >= 1 ? 'ready' : p.waiting === 'money' ? 'money' : 'men', stuck: stuck, gains: p.gains.map(function (b) { return { x: b.x, y: b.y }; }) });
+      });
+    });
+    return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
+  }
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

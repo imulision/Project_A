@@ -23,9 +23,10 @@ const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men']
 const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   const A = window.__ashport, q = (s) => document.querySelector('#veil.on ' + s), seen = window.__seen = window.__seen || { answer: 0, rule: 0, seat: 0, waited: 0, away: 0, rides: 0 };
   for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
-    const ev = A.beat() || [], day = A.game().ticks;
+    const ev = (A.beat() || []).filter((e) => e.type !== 'run'), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
     if (+document.getElementById('date').style.getPropertyValue('--day') !== day / AshportEmpire.TICKS_PER_MONTH) seen.gauge = (seen.gauge || 0) + 1;
+    if (document.querySelector('#next .nx')) seen.next = (seen.next || 0) + 1; if (/month/i.test(document.getElementById('next').textContent)) seen.nextMonths = 1; if (A.map().labels().some((l) => l.claim)) seen.claims = (seen.claims || 0) + 1;      // the streets about to be won are told at the top and marked on the map
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
     const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
@@ -221,6 +222,17 @@ if (!seated.rides) { await page.evaluate(() => window.__ashport.home()); await s
   for (let n = 0; n < 40 && !(await page.evaluate(() => window.__seen.rides)); n++) { await months(1, 'rides'); const d = await page.evaluate(() => window.__ashport.map().stats().drawn); await page.waitForFunction((d) => window.__ashport.map().stats().drawn > d + 1, d, { timeout: 30000 }).catch(() => {}); } }
 const seen = await page.evaluate(() => window.__seen);
 assert.ok(seen.midmonth > 0 && !seen.stale, 'what a man does inside a month is on the screen the day he does it (' + seen.midmonth + ' days with news, ' + (seen.stale || 0) + ' behind)');
+// a touch on the line of the next streets takes the camera there
+if (await page.locator('#next .nx').count()) {
+  const was = await page.evaluate(() => window.__ashport.map().stats().drawn);
+  await page.evaluate(() => { window.__ashport.map().focus(null); }); await still();
+  await page.evaluate(() => document.querySelector('#next .nx').click()); await still();
+  assert.ok(await page.evaluate(() => window.__ashport.map().labels().some((l) => l.claim)), 'the camera is over the streets about to be won');
+  assert.ok(await page.evaluate((was) => window.__ashport.map().stats().drawn > was, was));
+  await shot('c7-next-streets');
+  await page.evaluate(() => window.__ashport.home()); await still();
+}
+assert.ok(seen.next > 0 && seen.claims > 0 && !seen.nextMonths, 'the next streets are told at the top with a bar and marked on the map, without a count of months (' + seen.next + ', ' + seen.claims + ')');
 assert.ok(!seen.gauge, 'the bar under the date says how far the month has gone');
 assert.ok(seen.away > 0 && seen.rides > 0, 'a capo is seen where he works, and in his own car on the way there (' + seen.away + ', ' + seen.rides + ')');
 assert.ok(seen.news > 0 && seen.marks > 0, 'events are told by tiles on the edge and marked where they happen (' + seen.news + ', ' + seen.marks + ')');

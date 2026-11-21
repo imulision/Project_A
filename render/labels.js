@@ -1,7 +1,7 @@
 // What the page writes over the map, and where on the screen: names, capos, places, cars, and what just happened.
 // makeLabels(ctx) returns labels(), the list read by the page at each image drawn.
 import { midX, midY } from './look.mjs';
-export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS }) {
+export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS, claimList = [] }) {
   // what the page writes over the map: city names from afar, district names up close, and what is happening
   const labels = () => {
     const out = [], near = cam.zoom >= NEAR_ZOOM;
@@ -24,6 +24,9 @@ export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxL
       if (c.p.turf && l.site.owner !== 'family' && !l.site.key) continue;      // a rival's ordinary place is read by its sign alone; key places always carry a mark
       const [x, y] = scr(l.x, l.z, l.h + 0.5); if (c.p.turf && (x < -40 || y < -40 || x > innerWidth + 40 || y > innerHeight + 40)) continue;
       out.push({ id: 's' + (c.p.turf ? c.id : '') + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, owner: l.site.owner, key: l.site.key, capo: l.site.capo, city: c.id, bx: l.bx, by: l.by, x, y }); } });
+    // the streets about to be won: a mark over the place that will win them
+    if (near) for (const c of claimList) { const [x, y] = scr(c.wx, c.wz, 3.4); if (x < -60 || y < -40 || x > innerWidth + 60 || y > innerHeight + 40) continue;
+      out.push({ id: 'n' + c.id, claim: c.id, city: c.city, bx: c.x, by: c.y, streets: c.streets, advance: c.advance, stuck: c.stuck, x, y }); }
     // what every car carries, when the cars themselves are drawn
     let shownCars = 0;
     for (const [id, a] of agents) { if (!a.seen || a.kind === 'capo' || a.parked || shownCars >= MAXTAGS) continue; shownCars++;      // a capo's own car carries his face, not a tag

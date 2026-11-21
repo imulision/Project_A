@@ -1103,3 +1103,26 @@ test('a capo short of money for a rival\'s place asks the boss for the rest, and
   assert.match(html, /He puts in his own savings/); assert.match(html, /Yes, pay the rest/); assert.match(html, /lets the place go/);
   assert.match(html, /data-act="answer"[^>]*data-yes="1"/); assert.match(html, /data-act="answer"[^>]*data-yes="0"/);
 });
+
+// ---- the next streets, at the top of the screen: one line, one bar, never a count of months
+test('the line of the next streets says who does what, what it wins, and how far it is, without a count of months', () => {
+  const list = [{ id: 'ashport:sal', city: 'ashport', capo: 'sal', who: 'Sal', does: 'opens a speakeasy', x: 8, y: 9, streets: 2, advance: 0.48, state: 'money', stuck: false, gains: [] },
+                { id: 'ashport:dutch', city: 'ashport', capo: 'dutch', who: 'Dutch', does: 'takes a warehouse', x: 1, y: 1, streets: 1, advance: 0.2, state: 'stuck', stuck: true, gains: [] }];
+  const h = C.nextLine(list, 0);
+  assert.match(h, /Next streets/); assert.match(h, /Sal opens a speakeasy/); assert.match(h, /\+2 streets/); assert.match(h, /Saving for it/);
+  assert.match(h, /width:48%/); assert.match(h, /1 \/ 2/);
+  assert.match(h, /data-city="ashport"/); assert.match(h, /data-x="8"/); assert.match(h, /data-y="9"/);
+  assert.doesNotMatch(h, /month/i);
+  const s = C.nextLine(list, 1);
+  assert.match(s, /class="nx stuck"/); assert.match(s, /Stalled: he saves nothing/); assert.match(s, /\+1 street</, 'one street is not written streets'); assert.match(s, /2 \/ 2/);
+  assert.match(C.nextLine(list, 5), /Dutch/, 'the line turns round the list');
+  assert.doesNotMatch(C.nextLine(list.slice(0, 1), 0), /1 \/ 1/, 'alone, it carries no count');
+  assert.equal(C.nextLine([], 0), '');
+  assert.match(C.nextLine([{ ...list[0], state: 'men', advance: 0.8 }], 0), /His men are on their way/);
+  assert.match(C.nextLine([{ ...list[0], state: 'ready', advance: 1 }], 0), /Any day now/);
+});
+test('the mark of a claim over the map: a ring that fills and the streets it wins', () => {
+  const h = C.claim({ streets: 3, advance: 0.5, stuck: false });
+  assert.match(h, /<svg class="ring"/); assert.match(h, /\+3<\/i> streets/);
+  assert.match(h, /stroke-dasharray="47\.12/);
+});

@@ -281,3 +281,16 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 
 /* the bar under the date is the month's gauge: it fills day by day */
 #date::after{background:linear-gradient(90deg,var(--accent) calc(var(--day,0)*100%),rgba(255,255,255,.2) 0);transition:background .3s}
+
+/* the next streets: one line at the top with its bar, and a mark with a ring over the place on the map */
+#next{pointer-events:auto}#next:empty{display:none}
+.nx{margin-top:6px;background:#12121a;border-left:3px solid var(--accent);padding:6px 9px 7px;cursor:pointer}
+.nx small{display:flex;justify-content:space-between;gap:8px;font:600 10px var(--text);letter-spacing:.8px;color:var(--dim);text-transform:uppercase}
+.nx small i{font-style:normal;color:var(--accent);white-space:nowrap}.nx small u{text-decoration:none;color:var(--ink);margin-left:6px}
+.nx p{margin:2px 0 5px;font:500 15px/1.1 var(--title);letter-spacing:.4px;text-transform:uppercase;display:flex;justify-content:space-between;gap:8px}.nx p em{font-style:normal;color:var(--accent);white-space:nowrap}
+.nxb{height:7px;background:#ffffff1f;position:relative}.nxb u{position:absolute;left:0;top:0;bottom:0;background:var(--accent);transition:width .6s}
+.nx.stuck{border-color:var(--bad)}.nx.stuck small i{color:var(--bad)}.nx.stuck .nxb u{background:repeating-linear-gradient(135deg,#e2695c 0 5px,#e2695c66 5px 10px)}
+.lab.claim{transform:translate(-50%,-100%);display:flex;align-items:center;gap:7px;padding:4px 10px 4px 4px;background:#0b0b10f2;border:1px solid var(--accent);border-radius:20px;color:var(--accent);box-shadow:0 3px 10px #000b}
+.lab.claim svg{width:30px;height:30px;display:block;position:static}.lab.claim b{font:500 15px/1 var(--title);letter-spacing:.5px;text-transform:uppercase;color:var(--ink)}.lab.claim b i{font-style:normal;color:var(--accent)}
+.lab.claim::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:14px;background:currentColor;opacity:.8}
+.lab.claim.stuck{color:var(--bad);border-color:var(--bad)}.lab.claim.stuck b i{color:var(--bad)}
