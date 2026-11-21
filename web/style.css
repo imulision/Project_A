@@ -294,3 +294,35 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .lab.claim.stuck{color:var(--bad);border-color:var(--bad)}.lab.claim.stuck b i{color:var(--bad)}
 .nxb.stuck u{background:repeating-linear-gradient(135deg,#e2695c 0 5px,#e2695c66 5px 10px)}.card .nxb,#sheet .nxb{margin:6px 0 10px}
 .move.till .nxb{display:block;margin-top:5px}
+
+/* the live hit: the usual figures step aside, a band at the top and the boss's calls at the bottom */
+body.live .top,body.live .bot,body.live #hint,body.live #labels{visibility:hidden}
+#live,#call{display:none;position:fixed;left:0;right:0;z-index:8}
+body.live #live{display:block;top:0;background:linear-gradient(#07080bf5 78%,#07080b00);padding:calc(10px + env(safe-area-inset-top,0px)) 12px 22px;pointer-events:none}
+#live .lv{display:flex;align-items:center;gap:7px;font:700 10px var(--text);letter-spacing:1.6px;color:var(--bad);text-transform:uppercase}
+#live .lv::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--bad);box-shadow:0 0 0 3px #e2695c44}
+#live .lv span{margin-left:auto;color:var(--dim);letter-spacing:.8px}
+#live h2{margin:5px 0 8px;font:500 23px/1.05 var(--title);letter-spacing:.5px;text-transform:uppercase}
+#live .vs{display:flex;align-items:center;gap:8px;font:600 11px var(--text);letter-spacing:.6px;text-transform:uppercase}
+#live .vs b{font:500 17px/1 var(--title);color:var(--accent)}#live .vs b.r{color:var(--bad)}
+#live .tug{flex:1;height:9px;display:flex;gap:2px}#live .tug u{background:var(--accent);height:100%;transition:width .4s}#live .tug s{background:var(--bad);height:100%;flex:1}
+#live .steps{display:flex;gap:4px;margin-top:9px}
+#live .steps div{flex:1;border-top:3px solid #ffffff2a;padding-top:3px;font:600 10px var(--text);letter-spacing:.8px;color:var(--dim);text-transform:uppercase}
+#live .steps .done{border-color:var(--accent);color:var(--ink)}#live .steps .now{border-color:var(--bad);color:var(--ink)}
+body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-top:2px solid var(--bad);padding:11px 12px calc(14px + env(safe-area-inset-bottom,0px))}
+#call small{font:700 10px var(--text);letter-spacing:1.4px;color:var(--bad);text-transform:uppercase}
+#call h3{margin:3px 0;font:500 21px/1.1 var(--title);letter-spacing:.4px;text-transform:uppercase}
+#call p{margin:0 0 9px;color:var(--dim);font:13px/1.35 var(--text)}
+#call .calls{display:flex;gap:6px}
+#call .call{flex:1;display:block;text-align:left;text-transform:none;letter-spacing:0;border:1px solid var(--line);background:#07080b;padding:8px 7px 7px;border-radius:2px;min-height:96px}
+#call .call b{display:block;font:500 17px/1 var(--title);letter-spacing:.6px;text-transform:uppercase;margin-bottom:5px}
+#call .call span{display:block;font:600 11px/1.35 var(--text)}#call .g{color:var(--good)}#call .b{color:var(--bad)}
+#call .call.hot{border-color:var(--accent)}#call .call.hot b{color:var(--accent)}
+#call .own{margin-top:9px;font:600 11px var(--text);color:var(--dim);display:flex;align-items:center;gap:8px}#call .own em{font-style:normal;color:var(--ink)}
+#call .own u{flex:1;height:4px;background:#ffffff1f;position:relative;text-decoration:none}#call .own u i{position:absolute;left:0;top:0;bottom:0;background:var(--dim);transition:width .9s linear}
+#call .away{min-height:30px;font-size:10px;padding:0 8px}
+#call .end small{color:var(--accent)}#call .end.lost small{color:var(--bad)}
+#call .tally{display:flex;gap:6px;margin-bottom:10px}#call .tally div{flex:1;background:#07080b;padding:6px 7px;border-left:3px solid var(--good)}
+#call .tally div.b{border-color:var(--bad)}#call .tally b{display:block;font:500 19px/1 var(--title);white-space:nowrap}#live.over .vs,#live.over .steps{display:none}
+#call .tally span{white-space:nowrap;font:600 9px var(--text);letter-spacing:.3px;color:var(--dim);text-transform:uppercase}
+#call .go{display:block;width:100%;border:1px solid var(--accent);color:var(--accent);background:none}

@@ -8,7 +8,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var say = function (s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, rows = {}, zshares = {}, ctrends = {}, lastStep = null, lastMonth = -1, stopped = false;
+  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, rows = {}, zshares = {}, ctrends = {}, lastStep = null, lastMonth = -1, stopped = false, live = null, watched = {};
 
   // A saved game is kept only if today's rules and today's screen can read all of it: otherwise it is set aside
   // (kept under another name) and the player is told. Never a dead screen at the door.
@@ -95,6 +95,40 @@
     $('alerts').innerHTML = (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
         (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(T.RULES.stash) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
+  // ---- the live hit: when a capo goes for a guarded place, the screen goes to the street and the boss may call each step
+  // The usual figures step aside; the band says who hits what, the sheet gives the three calls. If the boss looks away the capo decides alone.
+  function hitOf(l) { var c = view && view.cities.filter(function (q) { return q.id === l.city; })[0]; if (!c) return null;
+    var h = (c.hits || []).filter(function (q) { return q.id === l.id; })[0]; return h ? { hit: h } : c.hitLast && c.hitLast.id === l.id ? { last: c.hitLast } : null; }
+  function watch(city, h) {
+    if (live) return; watched[h.id] = true; close();
+    live = { city: city, id: h.id, speed: g.speed };
+    if (g.speed !== E.SPEEDS[0]) E.command(g, { type: 'speed', speed: E.SPEEDS[0] });      // a hit is watched at the slowest pace: nobody is asked for a reflex
+    if (map) { map.spots(city, [{ x: h.x, y: h.y }]); map.focus(city, zoneId(city, h.x, h.y), { x: h.x - 0.6, y: h.y - 0.6 }); }
+    showLive();
+  }
+  function unwatch() {
+    if (!live) return; var was = live; live = null;
+    if (was.speed && was.speed !== g.speed) E.command(g, { type: 'speed', speed: was.speed });
+    if (map) map.spots(); showLive(); showHud();
+  }
+  function showLive() {
+    var s = live && hitOf(live); if (live && !s) { live = null; if (map) map.spots(); }
+    document.body.classList.toggle('live', !!live);
+    var band = !live ? '' : s.hit ? C.hitBand(s.hit) : (live.band || ''), sheet = !live ? '' : s.hit ? C.hitCall(s.hit, live.city) : C.hitEnd(s.last);
+    if (live && s.hit) live.band = band;
+    if ($('live').innerHTML !== band) $('live').innerHTML = band;
+    $('live').classList.toggle('over', !!live && !s.hit);      // once it is over the count of men and the steps give way to the result
+    if ($('call').innerHTML !== sheet) $('call').innerHTML = sheet;
+  }
+  // A hit that begins is watched at once, unless the boss is reading a sheet; each hit is opened once, he can come back to it by its news.
+  function hits() { if (!view || live || $('veil').classList.contains('on')) return;
+    view.cities.some(function (c) { return (c.hits || []).some(function (h) { if (watched[h.id] || !(h.calls && h.calls.length)) return false; watch(c.id, h); return true; }); }); }
+  $('call').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]'); if (!b || !live) return;
+    if (b.dataset.act === 'unlive') return unwatch();
+    if (b.dataset.act === 'call' && order({ type: 'call', city: b.dataset.city, hit: b.dataset.hit, call: b.dataset.call })) showLive();
+  });
+
   // The first minutes: one thing to look at at a time, put away with a touch and never said again (kept apart from the saved game).
   var HINTS = 'ashport-hints', known = {}; try { known = JSON.parse(localStorage.getItem(HINTS) || '{}') || {}; } catch (e) { known = {}; }
   function showHint(h) { var t = C.hintStrip($('veil').classList.contains('on') ? null : C.hint(view, h, known)); if ($('hint').innerHTML !== t) $('hint').innerHTML = t; }
@@ -121,6 +155,8 @@
   $('feed').addEventListener('click', function (e) {
     var t = e.target.closest('.news'); if (!t) return; var d = t.dataset; t.remove();
     if (d.city && map) map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y });
+    var c = d.city && view.cities.filter(function (q) { return q.id === d.city; })[0], h = c && (c.hits || []).filter(function (q) { return q.x === +d.x && q.y === +d.y; })[0];
+    if (h) watch(c.id, h);      // the news of a hit under way leads back to it
   });
 
   // ---- sheets
@@ -319,9 +355,10 @@
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
     var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
-    if (!turned && !news.length) return events;      // a day when nothing happened on the map
-    C.untold(news, told, g.month).forEach(tell);      // the same alert is not told again month after month
-    refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
+    var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
+    if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
+    if (!live) C.untold(news, told, g.month).forEach(tell);      // the same alert is not told again month after month
+    refresh(events, turned); showHud(); store(); hits(); showLive();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;
   }
@@ -330,7 +367,7 @@
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
   [].forEach.call(document.querySelectorAll('[data-ic]'), function (e) { e.innerHTML = I.icon(e.dataset.ic); });
   retire(); g = stored() || E.createGame(); refresh();
-  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap };
+  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap, live: function () { return live; } };
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();

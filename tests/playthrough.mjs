@@ -159,9 +159,33 @@ await page.evaluate(() => { const A = window.__ashport, m = A.map(), loaded = ()
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
 assert.equal(await page.locator('.res .net').count(), 0, 'the totals at the top stand alone: no gain or loss beside them');
 
+// a live hit: a capo goes for a guarded place, the screen goes to the street, the boss calls each step, and the end says what it cost
+const hit = await page.evaluate(() => {
+  const A = window.__ashport, g = A.game(), v = A.view().cities.find((c) => c.held), c = g.cities.find((x) => x.id === v.id), o = {};
+  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club'); if (!p) return { none: true };
+  c.turn = Object.assign(c.turn || {}, { daily: true });
+  AshportTurfHit.open(c, g.family, { capo: v.capos[0].id, x: p.x, y: p.y, way: 'force', kind: p.kind, cost: 0, month: c.month, months: 0 }, []);
+  A.beat();
+  const q = (s) => document.querySelector(s), shown = (s) => !!q(s) && getComputedStyle(q(s)).display !== 'none' && getComputedStyle(q(s)).visibility !== 'hidden';
+  o.live = document.body.classList.contains('live'); o.band = q('#live').textContent; o.calls = document.querySelectorAll('#call [data-act=call]').length;
+  o.alone = (q('#call .own') || {}).textContent || ''; o.hud = shown('.top'); o.bar = shown('.bot'); o.lit = A.map().stats().spots; o.speed = g.speed;
+  for (let i = 0; i < 3 && !q('#call .end'); i++) { const b = q('#call [data-call=press]'); if (b) b.click(); A.beat(); }
+  o.end = (q('#call .end') || {}).textContent || ''; o.tally = document.querySelectorAll('#call .tally div').length;
+  const back = q('#call [data-act=unlive]'); if (back) back.click();
+  o.after = document.body.classList.contains('live'); o.hudBack = shown('.top'); o.out = A.map().stats().spots;
+  return o;
+});
+assert.ok(!hit.none, 'a rival place to hit');
+assert.ok(hit.live && /hits the/.test(hit.band) && /ours/.test(hit.band), 'a hit that begins is watched: its band says who hits what (' + hit.band + ')');
+assert.equal(hit.calls, 3, 'three calls for the boss'); assert.match(hit.alone, /Left alone, \w+ (presses on|holds|pulls out)/);
+assert.ok(!hit.hud && !hit.bar, 'the usual figures step aside during a hit'); assert.ok(hit.lit > 0, 'the place hit is lit');
+assert.ok(hit.end.length > 0 && hit.tally > 0, 'the end says what was won and what it cost (' + hit.end + ')');
+assert.ok(!hit.after && hit.hudBack && hit.out === 0, 'back to the town: the figures are back, nothing stays lit');
+
 // time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
 await page.click('#pause');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped')), true);
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });      // the camera has come back from the hit
 assert.match(await page.textContent('#clock'), /TIME STOPPED.*Tap Play/);
 // and nothing drives while it stands still: the cars wait where they are
 const carsAt = () => page.evaluate(() => { const m = window.__ashport.map(); return { held: m.stats().held, at: m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') }; });
