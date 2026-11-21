@@ -28,6 +28,8 @@
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
   var lastPlan = null, POWER = 'ashport-power';
+  var claims = [], nextI = 0, nextSeen = '';      // the claims in progress, and the one the line at the top shows
+  function showNext() { var h = g.started ? C.nextLine(claims, nextI) : ''; if ($('next').html !== h) { $('next').html = h; $('next').innerHTML = h; } }
   var strainAt = {};      // the family's places that choke, by city and block: the map marks them
   function refresh(events, turned) {
     view = E.view(g);
@@ -50,6 +52,7 @@
     strainAt = C.strains(view);
     if (!map) return;
     var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), turned ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
+    claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
   }
@@ -151,6 +154,12 @@
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
     if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
+    var nx = e.target.closest('#next .nx');
+    if (nx && map && claims.length) {      // a touch shows where it is; another one passes to the next claim
+      if (nextSeen === nx.dataset.id && claims.length > 1) { nextI = (claims.map(function (c) { return c.id; }).indexOf(nextSeen) + 1) % claims.length; showNext(); }
+      var cl = claims[((nextI % claims.length) + claims.length) % claims.length]; nextSeen = cl.id; untip();
+      map.focus(cl.city, zoneId(cl.city, cl.x, cl.y), { x: cl.x, y: cl.y }); return;
+    }
     if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g), e.target.closest('[data-account]').dataset.account)); return; }
     var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
   }, true);
@@ -259,6 +268,7 @@
     if (l.fx) tip(e, C.fxTip(l.fx, l.say, l.type));
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
     else if (picking) return;
+    else if (l.claim) { var q = claims.map(function (c) { return c.id; }).indexOf(l.claim); if (q >= 0) { nextI = q; nextSeen = l.claim; showNext(); } }
     else if (l.site) said(l.city, l.bx, l.by, e);
     else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g), C.powerTrend(rows, l.city + l.capo), rows[l.city + l.capo])); }
     else if (l.city && !l.ground) { if (map.stats().moving) return; map.focus(l.city); }
@@ -278,6 +288,7 @@
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, l.fx === 'news' ? C.EVENT[l.type] || 'time' : (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
           else if (l.pop) { var pp = C.pop(l.pop); e.className = 'lab pop ' + pp.cls; e.textContent = pp.text; if (l.pop > 0) bump('dirty'); }      // money seen coming in: the figure at the top of the screen answers
+          else if (l.claim) { e.className = 'lab claim'; }
           else if (l.car) { e.className = 'lab tag'; e.innerHTML = '<span></span><b></b>'; e.pic = e.firstChild; e.b = e.lastChild; }
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = C.pin(l); e.lv = l.level; }
           else if (l.capo) e.className = 'lab capo';
@@ -288,6 +299,7 @@
         var px = Math.round(l.x), py = Math.round(l.y - (l.fx ? ({ fire: 0, gunfire: 40, police: 80, promotion: 120, news: 0 }[l.fx] || 0) : 0));
         e.l = l; if (e.px !== px || e.py !== py) { e.px = px; e.py = py; if (MOVE) e.style.translate = px + 'px ' + py + 'px'; else { e.style.left = px + 'px'; e.style.top = py + 'px'; } }
         if (l.pop) { var up = Math.round((l.part || 0) * 10); if (e.up !== up) { e.up = up; e.style.setProperty('--up', up / 10); } }
+        else if (l.claim) { var cs = l.streets + ':' + Math.round(l.advance * 40) + l.stuck; if (e.cs !== cs) { e.cs = cs; e.innerHTML = C.claim(l); e.classList.toggle('stuck', !!l.stuck); e.w = 0; } if (!e.w) e.w = e.offsetWidth; }
         else if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
         else if (l.site) { if (e.lv !== l.level) { e.lv = l.level; e.innerHTML = C.pin(l); e.warn = null; e.st = ''; }      // enlarged: its level shows under the mark
           var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
@@ -295,10 +307,11 @@
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp, dg); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
-        else if (!l.car && !l.site) { var zs = l.ground ? zshares[l.id.slice(1)] : null, more = l.ground ? C.zoneMark(zs) : l.sub + (ctrends[l.city] || ''); if (e.name !== l.name + more) { e.name = l.name + more; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = more; e.classList.toggle('good', !!zs && zs.tone === 'good'); e.classList.toggle('bad', !!zs && zs.tone === 'bad'); e.classList.toggle('held', !!zs && zs.share >= 100); e.w = e.offsetWidth; e.h = e.offsetHeight; } }
+        else if (!l.car && !l.site && !l.claim) { var zs = l.ground ? zshares[l.id.slice(1)] : null, more = l.ground ? C.zoneMark(zs) : l.sub + (ctrends[l.city] || ''); if (e.name !== l.name + more) { e.name = l.name + more; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = more; e.classList.toggle('good', !!zs && zs.tone === 'good'); e.classList.toggle('bad', !!zs && zs.tone === 'bad'); e.classList.toggle('held', !!zs && zs.share >= 100); e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
         if (l.role === 'club' || l.pop) return;
         if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
+        if (l.claim) { boxes.push({ id: l.id, rank: 0.8 + (1 - l.advance) * 0.1, x: px - (e.w || 110) / 2, y: py - 40, w: e.w || 110, h: 40 }); return; }      // of two marks that meet, the one further along stays
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
       });
@@ -315,7 +328,7 @@
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     gauge();
-    if (!turned && !events.length) return events;      // a day when nothing happened: only the month's gauge moves
+    if (!turned && !events.some(function (e) { return e.type !== 'run'; })) return events;      // a day when nothing happened: only the month's gauge moves
     C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word

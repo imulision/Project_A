@@ -509,3 +509,30 @@ test('a man taken in is seen arriving: one car from the edge of the town to his 
   assert.ok(first[0] === 0 || first[1] === 0 || first[0] === c.bx * 4 || first[1] === c.by * 3, 'it starts on the rim of the town');
   assert.ok(cars[0].path.length > 1);
 });
+
+// ---- the streets about to be won: every capo's own, the furthest along first
+const planned = (capos) => ({ cities: [{ id: 'ashport', capos }, { id: 'dunmore', capos: [{ id: 'mae', name: 'Mae "Ledger" Lin', plan: { move: 'take', kind: 'warehouse', name: 'Warehouse', x: 2, y: 3, advance: 0.9, due: 1, waiting: null, gains: [{ x: 2, y: 3 }, { x: 3, y: 3 }] } }] }] });
+test('each capo who prepares to win streets has his own claim, the furthest along first and the stalled ones last', () => {
+  const list = M.claimsTurf(planned([
+    { id: 'sal', name: 'Sal "the Hammer" Moretti', plan: { move: 'open', kind: 'speakeasy', name: 'Speakeasy', x: 8, y: 9, advance: 0.95, due: null, waiting: 'money', gains: [{ x: 7, y: 8 }, { x: 9, y: 9 }] } },
+    { id: 'dutch', name: 'Dutch Brandt', plan: { move: 'open', kind: 'still', name: 'Cellar still', x: 4, y: 4, advance: 0.3, due: 5, waiting: 'money', gains: [{ x: 4, y: 5 }] } },
+    { id: 'vince', name: 'Vince Aiello', plan: { move: 'enlarge', kind: 'speakeasy', name: 'Speakeasy', x: 1, y: 1, advance: 0.5, due: 2, waiting: 'money', gains: [] } },
+    { id: 'danny', name: 'Danny Boyle', plan: null }]));
+  assert.deepEqual(list.map((c) => c.capo), ['mae', 'dutch', 'sal'], 'nothing for a plan that wins no street, nor for a man without a plan');
+  assert.deepEqual(list[0], { id: 'dunmore:mae', city: 'dunmore', capo: 'mae', who: 'Mae', does: 'takes a warehouse', x: 2, y: 3, streets: 2, advance: 0.9, state: 'men', stuck: false, gains: [{ x: 2, y: 3 }, { x: 3, y: 3 }] });
+  assert.equal(list[1].does, 'opens a cellar still');
+  assert.equal(list[1].state, 'money');
+  assert.equal(list[2].stuck, true, 'he puts nothing aside: his bar will not move');
+  assert.equal(list[2].state, 'stuck');
+  assert.deepEqual(M.claimsTurf({ cities: [] }), []);
+});
+test('a plan that is paid for and only waits for its day is said ready', () => {
+  const [c] = M.claimsTurf({ cities: [planned([{ id: 'sal', name: 'Sal Moretti', plan: { move: 'open', kind: 'still', name: 'Cellar still', x: 7, y: 9, advance: 1, due: 0, waiting: null, gains: [{ x: 8, y: 8 }] } }]).cities[0]] });
+  assert.equal(c.state, 'ready'); assert.equal(c.stuck, false);
+});
+test('the game itself gives claims the map can light', () => {
+  const g = E.createGame({ capo: 'sal' }); let list = [];
+  for (let i = 0; i < E.TICKS_PER_MONTH * 12 && !list.length; i++) { E.tick(g); if (g.paused) E.command(g, { type: 'resume' }); list = M.claimsTurf(E.view(g)); }
+  assert.ok(list.length, 'within a year a capo prepares to win streets');
+  assert.ok(list[0].gains.length === list[0].streets && list[0].advance >= 0 && list[0].advance <= 1);
+});

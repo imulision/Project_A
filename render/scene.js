@@ -642,7 +642,8 @@ function update(P2) {
 const { fxList, pops, spawnFx, spawnPop, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
 const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
 // what the page writes over the map (render/labels.js)
-const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS });
+const claimList = [];
+const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS, claimList });
 // The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
 let spotG = null, nSpots = 0;
 const spotMat = fxMat(null, new THREE.Color(0x8fe6ff), 0.5);
@@ -653,6 +654,21 @@ function spots(cityId, list) {
   const bw = 4 * T, bd = 3 * T;
   for (const b of list) { const m = new THREE.Mesh(UNIT, spotMat); m.rotation.x = -Math.PI / 2; m.position.set(C.ox + b.x * bw + bw / 2, 0.14, C.oz + b.y * bd + bd / 2); m.scale.set(bw - 0.5, bd - 0.5, 1); m.renderOrder = 4; spotG.add(m); }
   nSpots = list.length; bake(spotG); lods.add(spotG);
+}
+// The streets a capo is about to win, lit on the ground in the family's colour: claims([{ id, city, x, y, gains: [{ x, y }], ... }]). The page writes the mark over each.
+let claimG = null, claimSig = '';
+const claimMat = fxMat(null, new THREE.Color(0xe8c463), 0.5);
+function claims(list) {
+  const sig = JSON.stringify((list || []).map(c => [c.city, c.gains])), same = sig === claimSig; claimSig = sig;      // the same streets, a little further along: only the marks change
+  if (!same && claimG) { lods.remove(claimG); dispose(claimG); claimG = null; }
+  claimList.length = 0;
+  const bw = 4 * T, bd = 3 * T; let g = null;
+  for (const c of list || []) {
+    const C = CITIES.find(q => q.id === c.city); if (!C) continue;
+    claimList.push({ ...c, wx: C.ox + c.x * bw + bw / 2, wz: C.oz + c.y * bd + bd / 2 });
+    if (!same) for (const b of c.gains || []) { const m = new THREE.Mesh(UNIT, claimMat); m.rotation.x = -Math.PI / 2; m.position.set(C.ox + b.x * bw + bw / 2, 0.13, C.oz + b.y * bd + bd / 2); m.scale.set(bw - 0.5, bd - 0.5, 1); m.renderOrder = 4; (g = g || new THREE.Group()).add(m); }
+  }
+  if (g) { claimG = g; bake(claimG); lods.add(claimG); }
 }
 // which city and district is under a point of the screen
 function pickAt(cx, cy) {
@@ -718,6 +734,6 @@ addEventListener('resize', () => {
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
   // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
