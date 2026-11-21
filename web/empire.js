@@ -295,7 +295,8 @@
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
-  var PASSING = { run: true, pay: true }; // told to the screen as they happen, never written in the journal
+  var PASSING = { run: true, pay: true };
+  function passing(e) { return PASSING[e.type] || (e.type === 'hit' && (e.step === 'call' || e.step === 'stage')); } // a hit's steps are for the screen: the journal keeps how it began and how it ended // told to the screen as they happen, never written in the journal
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
     happened.forEach(function (e) {
@@ -315,8 +316,8 @@
     }
     // the cars that leave today are for the screen to drive: they are not news for the journal
     var passed = T.pass(f, g.cities, d);
-    passed.forEach(function (e) { if (PASSING[e.type]) events.push(e); });
-    tell(g, passed.filter(function (e) { return !PASSING[e.type]; }), month, events);
+    passed.forEach(function (e) { if (passing(e)) events.push(e); });
+    tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     direct(g, events.slice(heard), month, events);
     g.ticks = last ? 0 : d + 1;
@@ -472,6 +473,10 @@
       var said = { retire: 'You pay ' + name + ' off. He leaves the city', kill: name + ' is found in the river', jail: 'The police come for ' + name + ' at dawn' };
       record(g, { type: 'parted', capo: o.capo, city: c.id, way: o.way, kept: r.kept, closed: r.closed,
                   label: said[o.way] + (r.closed ? ': ' + r.closed + (r.closed > 1 ? ' places close' : ' place closes') : '') }, g.month);
+    },
+    // the boss's word in a live hit: press on, hold, or pull out
+    call: function (g, o) {
+      T.call(cityOf(g, o.city), g.family, o.hit, o.call).forEach(function (e) { if (!passing(e)) record(g, e, g.month); });
     },
     research: function (g, o) {
       T.research(g.family, o.building);
