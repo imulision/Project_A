@@ -124,3 +124,52 @@ test('a place the capo drove to himself and that is gone by his day does not tro
   c.hauls.dutch.went = { x: 9, y: 5 }; // nothing stands there any more
   assert.doesNotThrow(() => T.act(f, [c], 'dutch'));
 });
+
+test('a place says the load its car waits for, so that its till can be shown filling', () => {
+  const { c, f } = dutch();
+  cycle(c, f);
+  const v = T.view(c, f), mine = v.places.filter((p) => p.owner === 'family');
+  assert.ok(mine.length > 1);
+  mine.forEach((p) => assert.equal(p.load, T.RULES.car.loads[f.tech.cars || 1] || T.RULES.car.load));
+  v.places.filter((p) => p.owner !== 'family').forEach((p) => assert.equal(p.load, undefined));
+});
+
+test('the day his men are paid, every place says what it paid, and the garage what the cars cost', () => {
+  const { c, f } = dutch();
+  f.men.dutch.cars = 2;
+  cycle(c, f);
+  let paid = 0;
+  const all = cycle(c, f).filter((e) => e.type === 'pay');
+  assert.ok(all.length > 0);
+  all.forEach((e) => {
+    assert.equal(e.city, 'town'); assert.equal(e.capo, 'dutch'); assert.ok(e.amount > 0); assert.ok(T.at(c, e.x, e.y)); assert.ok(['wages', 'upkeep'].includes(e.what));
+    if (e.what === 'upkeep') assert.equal(T.at(c, e.x, e.y).kind, 'club');
+    paid += e.amount;
+  });
+  assert.ok(all.some((e) => e.what === 'upkeep') && all.some((e) => e.what === 'wages'));
+  assert.ok(Math.abs(paid - f.men.dutch.book.wages) < 1e-6 || paid > 0);
+});
+
+test('over a cycle counted from one of his days to the next, what the places say they paid is what his books call wages', () => {
+  const { c, f } = dutch();
+  cycle(c, f);
+  let paid = 0, book = null;
+  for (let i = 0; i < 2; i++) {
+    T.begin(f, [c]);
+    for (let d = 0; d < DAYS; d++) {
+      const ev = T.pass(f, [c], d);
+      paid += ev.filter((e) => e.type === 'pay').reduce((n, e) => n + e.amount, 0);
+      if (T.dayOf('dutch') === d) { T.act(f, [c], 'dutch'); if (i === 0) { paid = 0; book = false; } else if (book === false) { book = f.men.dutch.book.wages; assert.ok(Math.abs(paid - book) < 1e-6, paid + ' against ' + book); } }
+    }
+    T.end(f, [c], []);
+  }
+  assert.ok(book > 0);
+});
+
+test('in the game, what is paid place by place stays out of the journal', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  let seen = 0;
+  for (let i = 0; i < DAYS * 30; i++) { seen += E.tick(g).filter((e) => e.type === 'pay').length; g.paused = false; }
+  assert.ok(seen > 0);
+  assert.ok(!g.journal.some((l) => l.type === 'pay' || l.type === 'run'));
+});

@@ -35,7 +35,7 @@ test('a year on, the game says what the man has become, once, in the news and on
   const told = months(g, 1).filter((e) => e.type === 'outcome');
   assert.equal(told.length, 1);
   const places = T.run(ashport(g), capo).length, income = g.family.men[capo].income, first = T.person(capo).name.split(' ')[0];
-  assert.equal(told[0].label, 'A year on: ' + first + ' runs ' + places + ' place' + (places === 1 ? '' : 's') + ' in Ashport and makes $' + income.toLocaleString('en-US') + ' a month');
+  assert.equal(told[0].label, T.days(12) + ' on: ' + first + ' runs ' + places + ' place' + (places === 1 ? '' : 's') + ' in Ashport and makes $' + income.toLocaleString('en-US') + ' ' + T.EVERY);
   assert.equal(told[0].good, places >= 2);
   assert.deepEqual([told[0].city, told[0].capo, told[0].decision], ['ashport', capo, E.view(g).decisions[0].id]);
   const d = E.view(g).decisions[0];
@@ -49,7 +49,7 @@ test('a man taken in who is gone a year later: the outcome says so', () => {
   const { g, capo } = withTwo();
   months(g, 3);
   E.command(g, { type: 'part', city: 'ashport', capo, way: 'retire' });
-  const told = months(g, 9).filter((e) => e.type === 'outcome' && e.capo === capo && /A year on: \w+ is gone/.test(e.label));
+  const told = months(g, 9).filter((e) => e.type === 'outcome' && e.capo === capo && /^\d+ days on: \w+ is gone/.test(e.label));
   assert.equal(told.length, 1);
   assert.equal(told[0].good, false);
 });
@@ -62,7 +62,7 @@ test('the boss\'s line for a city: a year on, the places, the money sent up and 
   assert.equal(E.view(g).decisions[0].label, 'Your word for Ashport: lie low');
   const told = months(g, 12).filter((e) => e.type === 'outcome')[0];
   const now = { places: T.places(c).filter((p) => p.owner === 'family').length, up: Math.round(c.flow.up), heat: Math.round(c.heat || 0) };
-  assert.equal(told.label, 'A year on under Lie low: ' + now.places + ' places (was ' + was.places + '), $' + now.up.toLocaleString('en-US') + ' a month sent up (was $' + was.up.toLocaleString('en-US') + '), heat ' + now.heat + ' (was ' + was.heat + ')');
+  assert.equal(told.label, T.days(12) + ' on under Lie low: ' + now.places + ' places (was ' + was.places + '), $' + now.up.toLocaleString('en-US') + ' ' + T.EVERY + ' sent up (was $' + was.up.toLocaleString('en-US') + '), heat ' + now.heat + ' (was ' + was.heat + ')');
   assert.equal(told.good, now.heat < was.heat ? true : now.heat > was.heat ? false : null, 'lie low is judged on the heat');
 });
 
@@ -74,7 +74,7 @@ test('a word changed before the year is out closes the first one without a verdi
   E.command(g, { type: 'line', city: 'ashport', line: 'earn' });
   const d = E.view(g).decisions;
   assert.deepEqual(d.map((q) => q.label), ['Your word for Ashport: earn', 'Your word for Ashport: grow'], 'the newest first');
-  assert.deepEqual(d[1].result, { month: 7, date: E.view(g).date, label: 'You changed your word after 5 months', good: null });
+  assert.deepEqual(d[1].result, { month: 7, date: E.view(g).date, label: 'You changed your word after ' + T.days(5), good: null });
   assert.equal(months(g, 12).filter((e) => e.type === 'outcome').length, 1, 'only the second is judged');
 });
 
@@ -86,7 +86,7 @@ test('the boss\'s share in a city: a year on, what comes up and how many capos h
   E.command(g, { type: 'cut', city: 'ashport', cut: 'heavy' });
   assert.equal(E.view(g).decisions[0].label, 'You took a heavy share in Ashport');
   const told = months(g, 12).filter((e) => e.type === 'outcome')[0], now = { up: Math.round(c.flow.up), sour: sour() };
-  assert.equal(told.label, 'A year on with a heavy share: $' + now.up.toLocaleString('en-US') + ' a month sent up (was $' + was.up.toLocaleString('en-US') + '), ' + now.sour + ' sour capo' + (now.sour === 1 ? '' : 's') + ' (was ' + was.sour + ')');
+  assert.equal(told.label, T.days(12) + ' on with a heavy share: $' + now.up.toLocaleString('en-US') + ' ' + T.EVERY + ' sent up (was $' + was.up.toLocaleString('en-US') + '), ' + now.sour + ' sour capo' + (now.sour === 1 ? '' : 's') + ' (was ' + was.sour + ')');
   assert.equal(told.good, now.sour > was.sour ? false : now.up > was.up ? true : null);
 });
 
@@ -98,7 +98,7 @@ test('parting with a capo: a year on, what the city has become without him', () 
   assert.equal(E.view(g).decisions[0].label, 'You paid ' + name + ' off');
   const told = months(g, 12).filter((e) => e.type === 'outcome').pop();
   const now = { places: T.places(c).filter((p) => p.owner === 'family').length, up: Math.round(c.flow.up) };
-  assert.equal(told.label, 'A year on without ' + name.split(' ')[0] + ': ' + now.places + ' places in Ashport (was ' + was.places + '), $' + now.up.toLocaleString('en-US') + ' a month sent up (was $' + was.up.toLocaleString('en-US') + ')');
+  assert.equal(told.label, T.days(12) + ' on without ' + name.split(' ')[0] + ': ' + now.places + ' places in Ashport (was ' + was.places + '), $' + now.up.toLocaleString('en-US') + ' ' + T.EVERY + ' sent up (was $' + was.up.toLocaleString('en-US') + ')');
   assert.equal(told.good, now.up > was.up ? true : now.up < was.up ? false : null);
 });
 
@@ -121,7 +121,7 @@ test('a word given or refused for a key place: a year on, who holds it', () => {
   let told = null;
   for (let m = 0; m < 12 && !told; m++) { told = months(g, 1).find((e) => e.type === 'outcome' && e.decision === d.id); for (const v of E.view(g).cities) for (const a of v.asks) E.command(g, { type: 'answer', city: v.id, id: a.id, yes: false }); }
   const owner = T.keys(c).find((k) => k.key === ask.a.key).owner;
-  assert.equal(told.label, 'A year on: the ' + owner + 's still hold the ' + ask.a.name + ', and you kept the $' + ask.a.cost.toLocaleString('en-US') + ' it would have cost');
+  assert.equal(told.label, T.days(12) + ' on: the ' + owner + 's still hold the ' + ask.a.name + ', and you kept the $' + ask.a.cost.toLocaleString('en-US') + ' it would have cost');
   assert.equal(told.good, null);
 });
 

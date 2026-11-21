@@ -23,7 +23,7 @@ test('nobody new in two years: the city says who would bring a man in, and how f
   c.month = 40;
   const s = T.stalls(c, f).find((q) => q.id === 'nobody');
   assert.equal(s.since, 40);
-  assert.equal(s.what, 'No new man in 3 years');
+  assert.equal(s.what, 'No new man in ' + T.days(36));
   assert.equal(s.why, 'A capo brings a man in when he runs six places: Dutch runs 0');
   assert.equal(s.lever, 'Set the line to Grow: your capos run more places');
   T.line(c, 'grow');
@@ -51,7 +51,7 @@ test('a capo who sulks: how long it will last, and that a gift may help', () => 
   const { c, f } = lone();
   c.month = 10; c.sulk = { dutch: 16 };
   const s = T.stalls(c, f).find((q) => q.id === 'sulk:dutch');
-  assert.deepEqual([s.capo, s.what, s.why], ['dutch', 'Dutch sends nothing up', 'He sulks for 6 more months']);
+  assert.deepEqual([s.capo, s.what, s.why], ['dutch', 'Dutch sends nothing up', 'He sulks for ' + T.days(6) + ' more']);
   assert.equal(s.lever, 'A gift of $' + T.RULES.loyal.gift + ' may bring him round');
   c.sulk.dutch = 10;
   assert.ok(!ids(T.stalls(c, f)).includes('sulk:dutch'));
@@ -62,7 +62,7 @@ test('a man of the table left unpaid: what was due, and what was in hand', () =>
   f.table = { bookkeeper: 'dutch' }; f.owed = { bookkeeper: true }; f.dirty = 40; f.clean = 0;
   const s = T.stalls(c, f).find((q) => q.id === 'unpaid:dutch');
   assert.equal(s.what, 'Dutch was not paid');
-  assert.equal(s.why, 'The table costs $' + T.RULES.table.pay + ' a man each month: the family had $40 in hand');
+  assert.equal(s.why, 'The table costs $' + T.RULES.table.pay + ' a man ' + T.EVERY + ': the family had $40 in hand');
   assert.equal(s.lever, 'Free his chair, or wait for money to come up');
 });
 
@@ -71,7 +71,7 @@ test('ground lost over a year: how many places, and how many of them the rivals 
   c.rival = 'Callahan'; c.month = 30; c.burnt = 7;
   c.tally = [{ month: 18, places: 6, burnt: 3 }, { month: 29, places: 2, burnt: 7 }];
   const s = T.stalls(c, f).find((q) => q.id === 'losing');
-  assert.equal(s.what, 'The family lost 5 places here in a year');
+  assert.equal(s.what, 'The family lost 5 places here in ' + T.days(12));
   assert.equal(s.why, 'The Callahans burnt 4 of them');
   assert.equal(s.lever, null);
   T.line(c, 'grow');

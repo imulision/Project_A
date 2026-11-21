@@ -65,7 +65,7 @@
       var b = c.blocks[key(p.x, p.y)], ours = b && b.kind === 'key' && b.owner === 'family';
       var actual = ours ? Math.round(keyWorth(c, p.x, p.y)) : 0, kept = actual >= p.expected * RULES.promise.near;
       events.push({ type: 'promise', city: c.id, capo: p.capo, kind: 'key', key: p.key, x: p.x, y: p.y, expected: p.expected, actual: actual, kept: kept,
-                    label: 'The ' + KEYS[p.key].name + ' brings in $' + actual + ' a month: ' + first(p.capo) + (kept ? ' kept his word' : ' had said $' + p.expected + ', and did not keep his word') });
+                    label: 'The ' + KEYS[p.key].name + ' brings in $' + actual + ' ' + R.EVERY + ': ' + first(p.capo) + (kept ? ' kept his word' : ' had said $' + p.expected + ', and did not keep his word') });
     });
   }
 
@@ -79,7 +79,7 @@
     if (p.waiting !== 'money') { m.aim = null; if (asked) drop(); return; }
     if (!m.aim) m.aim = { since: c.month };
     if (asked && (p.move !== 'take' || asked.x !== p.x || asked.y !== p.y)) drop();
-    var short = Math.round(p.cost - p.saved), why = 'he has saved $' + Math.round(p.saved) + ' of the $' + Math.round(p.cost) + ' it takes, and a year has gone by';
+    var short = Math.round(p.cost - p.saved), why = 'he has saved $' + Math.round(p.saved) + ' of the $' + Math.round(p.cost) + ' it takes, and ' + R.days(RULES.patience.months) + ' have gone by';
     if (asked) { asked.cost = short; asked.full = p.cost; asked.why = why; return; } // what he is short of moves with his purse
     if (c.month - m.aim.since < RULES.patience.months) return;
     if (c.month < (m.aim.rest || 0)) return;

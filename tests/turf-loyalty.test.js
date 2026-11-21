@@ -153,7 +153,7 @@ test('the boss makes a man a gift in clean money: it warms him, once a year', ()
   assert.equal(f.clean, 100);
   assert.equal(T.loyalty(f, 'vince'), 45 + L.warms);
   f.clean = 50000;
-  assert.throws(() => T.gift(c, f, 'vince'), /Vince has had his gift this year/);
+  assert.throws(() => T.gift(c, f, 'vince'), /Vince has had his gift not long ago/);
   for (let i = 0; i < L.again; i++) T.stepMonth(c, f);
   T.gift(c, f, 'vince');
 });
