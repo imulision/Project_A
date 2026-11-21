@@ -124,7 +124,7 @@ test('every trip of the rules is driven between the very buildings it names: a l
   const { v, p, cars } = carsOf(play(30)), c = v.cities[0], pc = p.cities[0];
   c.trips = c.trips.filter((t) => t.kind !== 'capo');      // a capo's own car is not a car that comes and goes (see movesTurf)
   assert.ok(c.trips.length > 0);
-  assert.equal(cars.length, new Set(c.trips.map((t, n) => t.vehicle || n)).size, 'one car for each vehicle, however many trips it makes');
+  assert.equal(cars.filter((t) => t.kind !== 'patrol').length, new Set(c.trips.map((t, n) => t.vehicle || n)).size, 'one car for each vehicle, however many trips it makes (the police on patrol are told further down)');
   const siteAt = (x, y) => pc.lots.find((l) => l.site && l.bx === x && l.by === y);
   c.trips.forEach((t) => {
     const a = siteAt(t.from.x, t.from.y), b = siteAt(t.to.x, t.to.y), car = cars.find((x) => x.id === 'ashport:' + t.vehicle);
@@ -376,7 +376,7 @@ test('a place burnt out stays a black shell for a while, and works under way are
 });
 
 test('the hotter a city, the more police cars patrol its streets', () => {
-  const v = E.view(play(30)), at = (heat) => { const w = { ...v, cities: v.cities.map((c, n) => (n ? c : { ...c, heat })) }, p = M.planEmpire(w, global.AshportWorld.CITIES); return M.tripsTurf(p, w).filter((t) => t.kind === 'patrol'); };
+  const v = E.view(play(30)), at = (heat) => { const w = { ...v, cities: v.cities.map((c, n) => ({ ...c, heat: n ? 0 : heat })) }, p = M.planEmpire(w, global.AshportWorld.CITIES); return M.tripsTurf(p, w).filter((t) => t.kind === 'patrol'); };
   assert.equal(at(5).length, 0); assert.equal(at(30).length, 1); assert.equal(at(60).length, 2); assert.equal(at(100).length, 3, 'never a parade');
   at(100).forEach((t) => { assert.equal(t.vehicle, 'police'); assert.equal(t.loop, true); assert.ok(t.path.length > 3); assert.equal(t.city, 'ashport');
     t.path.forEach((q) => assert.ok(q[0] % 4 === 0 || q[1] % 3 === 0 || q === t.path[0] || q === t.path[t.path.length - 1], 'it keeps to the streets')); });
