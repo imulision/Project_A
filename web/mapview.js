@@ -66,7 +66,9 @@
   };
   var CLUB = { model: 'era_corner5', sign: 'SOCIAL CLUB' };
   var WASH = { rented: 1, front: 1 };
-  var SPOT = 1;      // which of the six lots of a block carries its place
+  // Which of the six lots of a block carries its place: one of the three of the front row, the one that faces the player, and not
+  // the same from one block to the next. (A place in the back row would hide behind its neighbours.)
+  function spotOf(ci, x, y) { return 3 + Math.min(2, Math.floor(hash(x, y, ci * 7 + 21) * 3)); }
 
   // `was`, when given, is what the family held of each street name a year ago, in percent (the history of the rules).
   function planTurf(c, ci, was) {
@@ -95,7 +97,7 @@
                     tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
                     shop: hash(i, j, ci * 7 + 5) < (ours ? [0.4, 0.65, 0.9][w] : 0.3),
                     tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null, hideout: false };
-        var p = n === SPOT && placeAt[b.x + ',' + b.y];
+        var p = n === spotOf(ci, b.x, b.y) && placeAt[b.x + ',' + b.y];
         if (p) {
           var mine = p.owner === 'family', look = p.kind === 'key' ? KEYS[p.key] || OTHER : p.kind === 'club' ? CLUB : SITES[p.kind] || OTHER;
           lot.site = { id: b.x + '.' + b.y, type: p.kind, key: p.key || null, name: p.name, level: p.level, owner: mine ? 'family' : p.owner, capo: mine ? p.capo || null : null,
@@ -131,7 +133,7 @@
     lots.forEach(function (l) { if (l.site && l.site.owner === 'family') l.men = l.hideout ? 2 : 1; });
     c.capos.forEach(function (k) { if (k.at && k.at.why === 'raid') lots.forEach(function (l) { if (l.site && l.site.owner === 'family' && l.bx === k.at.x && l.by === k.at.y) { l.men += 3; crews.push(k.at.x + '.' + k.at.y); } }); });
     // A place burnt out stays a black shell for a while (c.scars, kept by the page), and works under way show where they are built.
-    var marks = [], mark = function (x, y, what) { var l = lots[(y * c.w + x) * 6 + SPOT]; if (!l || (l.open && what !== 'works')) return; if (l.open && !c.blocks[y * c.w + x].void) l.open = null; if (l.open) return; l[what] = true; if (what === 'burnt' && !l.site) { l.shop = false; l.tower = false; } marks.push(what.charAt(0) + x + '.' + y); };
+    var marks = [], mark = function (x, y, what) { var l = lots[(y * c.w + x) * 6 + spotOf(ci, x, y)]; if (!l || (l.open && what !== 'works')) return; if (l.open && !c.blocks[y * c.w + x].void) l.open = null; if (l.open) return; l[what] = true; if (what === 'burnt' && !l.site) { l.shop = false; l.tower = false; } marks.push(what.charAt(0) + x + '.' + y); };
     (c.scars || []).forEach(function (q) { if (!placeAt[q.x + ',' + q.y]) mark(q.x, q.y, 'burnt'); });
     c.capos.forEach(function (k) { var pl = k.plan; if (pl && pl.waiting === 'time' && typeof pl.x === 'number') mark(pl.x, pl.y, 'works'); });
     // The streets of a capo in trouble go quiet: each street of the family follows the nearest place a capo runs.
@@ -161,7 +163,7 @@
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
     var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',') + '|' + trends.join('');
-    return { id: c.id, name: c.name, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
+    return { id: c.id, name: c.name, n: ci, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos, shut: shut, infill: infill };
   }
@@ -177,6 +179,18 @@
     var routes = (view.routes || []).filter(function (r) { return index[r.from] !== undefined && index[r.to] !== undefined; })
       .map(function (r) { return { a: index[r.from], b: index[r.to], kind: r.kind }; });
     return { cities: cities, routes: routes, scale: SCALE };
+  }
+
+  // ---- a headquarters and its block
+  // The six lots of the block of a headquarters, back row first, at each of its four stages (one an act): null leaves the lot as
+  // the town made it. The headquarters stands in the middle of the front row; the block around it becomes the family's as it grows.
+  var HQS = ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'];
+  function hqBlock(stage) {
+    var s = Math.max(1, Math.min(4, stage || 1)), hq = { model: HQS[s - 1], hq: true }, wing = function () { return { model: 'hq_wing' }; }, yard = { open: 'yard' }, park = { open: 'park' };
+    return s === 1 ? [null, null, null, null, hq, null]
+      : s === 2 ? [null, yard, null, null, hq, yard]
+      : s === 3 ? [null, yard, null, wing(), hq, wing()]
+      : [wing(), park, wing(), wing(), hq, wing()];
   }
 
   // ---- who drives where
@@ -232,7 +246,7 @@
   // ---- the cars and the events
   // The lot that stands for a block: its place if it has one, else the lot a place would take.
   function lotOfBlock(c, x, y) {
-    var first = (y * c.bx + x) * 6, spot = c.lots[first + SPOT];
+    var first = (y * c.bx + x) * 6, spot = c.lots[first + spotOf(c.n, x, y)];
     for (var n = first; n < first + 6; n++) if (c.lots[n] && c.lots[n].site) return c.lots[n];
     return spot || null;
   }
@@ -400,7 +414,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -556,3 +556,22 @@ test('what a capo pays, wages and upkeep, leaves from his club as one figure: no
   assert.deepEqual(M.paysTurf([], p), []); assert.deepEqual(M.paysTurf([e], null), []);
   assert.deepEqual(M.effectsTurf([e, { type: 'run', city: e.city, capo: e.capo, x: e.x, y: e.y, amount: 150 }], p).filter((f) => f.kind !== 'siege'), [], 'no clock left on the map for them');
 });
+
+test('a place stands in the front row of its block, the one that faces the player, and not always in the same spot', () => {
+  const seen = {};
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) { const n = M.spotOf(0, x, y); assert.ok(n >= 3 && n <= 5, 'front row: ' + n); seen[n] = 1; }
+  assert.equal(Object.keys(seen).length, 3, 'the three lots of the front row are all used');
+  assert.equal(M.spotOf(0, 4, 7), M.spotOf(0, 4, 7), 'and a block keeps its spot');
+});
+
+test('the block of a headquarters changes with it: alone at first, then a yard for the cars, then wings, then the whole block', () => {
+  const lots = [1, 2, 3, 4].map((s) => M.hqBlock(s));
+  lots.forEach((b, i) => { assert.equal(b.length, 6); assert.equal(b[4].model, ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'][i], 'the headquarters stands in the middle of the front row'); });
+  const changed = (b) => b.filter(Boolean).length;
+  assert.equal(changed(lots[0]), 1, 'a back room hides among its neighbours');
+  assert.ok(changed(lots[1]) > 1 && lots[1].some((l) => l && l.open === 'yard'), 'a club has a yard for the cars');
+  assert.ok(lots[2][3].model === 'hq_wing' && lots[2][5].model === 'hq_wing', 'a hotel has a wing on each side');
+  assert.equal(changed(lots[3]), 6, 'the family seat takes the whole block'); assert.ok(lots[3].some((l) => l.open === 'park'), 'with its garden');
+  assert.ok(changed(lots[0]) < changed(lots[1]) && changed(lots[1]) < changed(lots[2]) && changed(lots[2]) < changed(lots[3]));
+  assert.deepEqual(M.hqBlock(9), M.hqBlock(4)); assert.deepEqual(M.hqBlock(0), M.hqBlock(1));
+});

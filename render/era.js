@@ -4,7 +4,7 @@
 //   aWin  : 0 for walls, 1.xx for a window, 2.xx for a shop window (xx = a random id deciding whether its lamp is on)
 // Footprint is centred on the origin, the ground is y = 0 and the front (shop, fire escape) faces +z.
 export function makeEraBuildings(THREE, mergeGeometries) {
-  const BODY = [0.82, 0.8, 0.78], TRIM = [1.2, 1.14, 1.02], BASE = [0.5, 0.48, 0.47], TAR = [0.2, 0.2, 0.23], IRON = [0.1, 0.1, 0.11], GLASS = [0.3, 0.33, 0.4],
+  const GOLD = [1.5, 1.12, 0.4], BODY = [0.82, 0.8, 0.78], TRIM = [1.2, 1.14, 1.02], BASE = [0.5, 0.48, 0.47], TAR = [0.2, 0.2, 0.23], IRON = [0.1, 0.1, 0.11], GLASS = [0.3, 0.33, 0.4],
     DOOR = [0.18, 0.13, 0.1], AWNS = [[1.25, 0.3, 0.26], [0.35, 0.8, 0.55], [1.2, 1.05, 0.7], [0.3, 0.45, 0.9]];
   let parts, wid, sd;
   const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
@@ -77,6 +77,31 @@ export function makeEraBuildings(THREE, mergeGeometries) {
     }
     if (p.crown) { block(tw * 0.45, td * 0.45, top, 0.35, 0, 0, TRIM); block(0.04, 0.04, top + 0.35, 0.5, 0, 0, IRON); }
     else roofBits(tw, td, top + 0.03);
+    // ---- what only a headquarters carries: signs that never go out (aWin 3.xx), a canopy over its door, its flags
+    if (p.stripes) for (let k = 0; k < 8; k++) faceBox(W, D, 0, ((k + 0.5) / 8 - 0.5) * W * 0.94, gh * 0.72, W * 0.94 / 8, 0.022, 0.27, 0.13, k % 2 ? [1.3, 1.25, 1.15] : [1.25, 0.22, 0.2], 0.5);
+    if (p.pole) { for (let k = 0; k < 5; k++) faceBox(W, D, 0, W * 0.4, 0.12 + k * 0.07, 0.07, 0.07, 0.07, 0.06, k % 2 ? [1.3, 1.25, 1.15] : [1.25, 0.22, 0.2]); faceBox(W, D, 0, W * 0.4, 0.5, 0.09, 0.05, 0.09, 0.06, GOLD); }
+    if (p.lanterns) for (const s of [-1, 1]) { faceBox(W, D, 0, s * W * 0.14, gh * 0.78, 0.06, 0.1, 0.06, 0.05, IRON); panel(W, D, 0, s * W * 0.14, gh * 0.78, 0.045, 0.075, 0.082, GOLD, 3.2 + (s + 1) * 0.1); }
+    if (p.marquee) {
+      const mw = W * 0.62, md = 0.34, my = gh * 0.82;
+      faceBox(W, D, 0, 0, my, mw, 0.07, md, md / 2, IRON); faceBox(W, D, 0, 0, my + 0.045, mw + 0.03, 0.03, md + 0.03, md / 2, GOLD);
+      panel(W, D, 0, 0, my, mw * 0.94, 0.05, md + 0.004, GOLD, 3.11);                                           // the lit edge of the canopy, front and sides
+      for (const s of [-1, 1]) { const g = new THREE.PlaneGeometry(md * 0.9, 0.05); g.rotateY(s * Math.PI / 2); g.translate(s * (mw / 2 + 0.004), my, D / 2 + md / 2); push(g, GOLD, 3.31); }
+      { const g = new THREE.PlaneGeometry(mw * 0.9, md * 0.8); g.rotateX(Math.PI / 2); g.translate(0, my - 0.038, D / 2 + md / 2); push(g, GOLD, 3.51); }      // the lamps under it
+      for (const s of [-1, 1]) faceBox(W, D, 0, s * mw * 0.46, my / 2, 0.035, my, 0.035, md - 0.03, IRON);
+    }
+    if (p.blade) {
+      const bh = n * fh * 0.55, by = gh + n * fh * 0.5, bx = W / 2 - 0.02;
+      block(0.05, 0.3, by - bh / 2, bh, bx, D / 2 + 0.17, IRON);
+      for (const s of [-1, 1]) { const g = new THREE.PlaneGeometry(0.26, bh * 0.94); g.rotateY(s * Math.PI / 2); g.translate(bx + s * 0.027, by, D / 2 + 0.17); push(g, GOLD, 3.71); }
+    }
+    if (p.roofSign) {
+      const sw = tw * p.roofSign, sy = top + 0.34, sz = td / 2 - 0.12;
+      for (const s of [-1, 1]) block(0.03, 0.03, top, 0.5, s * sw * 0.42, sz - 0.03, IRON);
+      for (const f of [0, Math.PI]) { const g = new THREE.PlaneGeometry(sw, 0.3); g.rotateY(f); g.translate(0, sy, sz + (f ? -0.012 : 0.012)); push(g, GOLD, 3.91); }
+      block(sw + 0.04, 0.012, sy - 0.17, 0.34, 0, sz, IRON);
+    }
+    if (p.crownLit) for (let f = 0; f < 4; f++) panel(tw * 0.45, td * 0.45, f, 0, top + 0.19, tw * 0.3, 0.24, 0.004, GOLD, 3.13 + f * 0.2);
+    if (p.flags) for (const s of [-1, 1]) { const fx = s * (W / 2 - 0.1), fz = D / 2 - 0.1; block(0.022, 0.022, H, 0.75, fx, fz, IRON); block(0.24, 0.012, H + 0.56, 0.16, fx + 0.13, fz, GOLD); }
     if (p.stack) { block(0.2, 0.2, H, 1.3, W * 0.25, -D * 0.25, BASE); block(0.24, 0.24, H + 1.3, 0.06, W * 0.25, -D * 0.25, TRIM); }
     const geo = mergeGeometries(parts); parts.forEach(g => g.dispose()); geo.computeBoundingSphere();
     return { geo, h: top };
@@ -85,6 +110,7 @@ export function makeEraBuildings(THREE, mergeGeometries) {
     low: ['era_row3', 'era_shop2', 'era_tenement4', 'era_tenement4b', 'era_warehouse', 'era_works'],
     mid: ['era_tenement5', 'era_tenement6', 'era_hotel6', 'era_corner5'],
     high: ['era_office8', 'era_hotel9', 'era_deco11'],
+    hq: ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'],      // the headquarters, one an act: nobody else's buildings
     models: {
       era_row3: make(3, { W: 1.5, D: 1.4, n: 3, stoop: true }),
       era_shop2: make(5, { W: 1.6, D: 1.45, n: 2, shop: true, gh: 0.55 }),
@@ -99,6 +125,11 @@ export function makeEraBuildings(THREE, mergeGeometries) {
       era_office8: make(37, { W: 1.5, D: 1.5, n: 6, stone: true, piers: true, shop: true, awn: null, setbacks: [[0.3, 2]] }),
       era_hotel9: make(41, { W: 1.55, D: 1.5, n: 7, stone: true, shop: true, corner: true, setbacks: [[0.35, 2]] }),
       era_deco11: make(43, { W: 1.55, D: 1.55, n: 6, stone: true, piers: true, shop: true, awn: null, setbacks: [[0.3, 3], [0.3, 2]], crown: true }),
+      hq_wing: make(67, { W: 1.6, D: 1.5, n: 3, stone: true, piers: true, stoop: true, lanterns: true }),      // the wings of a headquarters: the same stone, its lamps
+      hq_backroom: make(47, { W: 1.6, D: 1.45, n: 2, shop: true, gh: 0.58, awn: null, stripes: true, pole: true, lanterns: true, roofSign: 0.5 }),
+      hq_club: make(53, { W: 1.65, D: 1.5, n: 4, stone: true, piers: true, shop: true, corner: true, awn: null, marquee: true, lanterns: true, roofSign: 0.8 }),
+      hq_hotel: make(59, { W: 1.65, D: 1.5, n: 7, stone: true, piers: true, shop: true, corner: true, awn: null, marquee: true, blade: true, flags: true, setbacks: [[0.35, 2]], roofSign: 0.85 }),
+      hq_seat: make(61, { W: 1.7, D: 1.55, n: 7, stone: true, piers: true, shop: true, awn: null, marquee: true, blade: true, flags: true, setbacks: [[0.3, 3], [0.3, 3]], crown: true, crownLit: true }),
     },
   };
 }
