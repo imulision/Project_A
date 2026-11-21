@@ -159,7 +159,6 @@ button.bad{background:var(--bad);border-color:var(--bad);color:#fff}
 .shares{display:flex;height:10px;gap:2px;margin:0 0 10px}.shares i{display:block;min-width:3px}
 button.slot{padding:0;min-height:0;background:none}.tier>div .slot{flex:none}
 #heat{margin-left:10px;color:var(--bad);pointer-events:auto}#heat .ic{margin-right:3px}
-#alerts .pick{border-color:var(--accent);display:flex;gap:8px;align-items:center}#alerts .pick span{flex:1}#alerts .pick button{min-height:32px}
 #alerts div .ic.ok{color:var(--accent)}
 .lab.pin.theirs{background:#6b6f86;color:#fff}
 .lab.pin.club{display:none}

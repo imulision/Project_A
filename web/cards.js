@@ -99,8 +99,7 @@
     return o;
   }
   // Time that stands still: the word for it and the reason, or null while it runs.
-  function clock(hud, picking) {
-    if (picking) return { word: 'TIME STOPPED', why: 'Choose a street' };
+  function clock(hud) {
     if (!hud.paused) return null;
     return { word: 'TIME STOPPED', why: hud.pending ? hud.pending + (hud.pending > 1 ? ' wait' : ' waits') + ' for your word' : 'Tap Play to go on' };
   }
@@ -207,7 +206,7 @@
       (d.why ? '<div class="move">' + icon('time') + '<span>' + esc(d.why) + '</span></div>' : '') + price(d.cost, purse) +
       (full ? '<small class="short">No seat left in ' + esc(c.name) + ': ' + c.seats.total + ' capos is all the city carries until the family holds another key place</small>' : '') +
       '<div class="acts col">' + (poach ? button('welcome', { from: c.id, city: c.id, capo: d.capo }, 'Take him in · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })
-        : button('seat', { city: c.id, capo: d.capo }, 'A club in ' + esc(c.name) + ' · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })) +
+        : button('seat', { city: c.id, capo: d.capo }, (d.spot && d.spot.street ? 'A club on ' + esc(d.spot.street) : 'A club in ' + esc(c.name)) + ' · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })) +
       ((d.chairs || []).length ? button('chairs', { city: c.id, capo: d.capo }, 'A chair at the table') : '') +
       (d.roads || []).map(function (r) { return button('road', { from: c.id, city: r.city, capo: d.capo }, 'Send him to ' + esc(r.name) + ' · ' + money(r.cost) + short(r.cost, purse), { off: r.cost > purse }); }).join('') + '</div></div>';
   }
@@ -273,7 +272,7 @@
     { id: 'wash', icon: 'laundering', when: function (v, h) { return h.dirty > T.RULES.stash; },
       text: function () { return 'Too much dirty cash draws the police. Only clean money pays for gifts and learning: it needs a laundry.'; } },
     { id: 'door', icon: 'hideout', when: function (v, h, c) { return c.doors.length > 0; },
-      text: function () { return 'A man knocks at your door. Take him in and he opens a club of his own on a street you choose.'; } }
+      text: function () { return 'A man knocks at your door. Take him in and he opens a club of his own, on a street he picks himself.'; } }
   ];
   function hint(view, hud, seen) {
     if (!hud || !hud.started) return null;
