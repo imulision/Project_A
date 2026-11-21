@@ -130,6 +130,16 @@
       return k.owner === 'family' ? { label: 'the ' + k.name + ' is yours all the same', good: null }
         : { label: 'the ' + k.owner + 's still hold the ' + k.name + ', and you kept the ' + dollars(d.cost) + ' it would have cost', good: null };
     },
+    funded: function (g, c, d) {
+      var b = T.at(c, d.x, d.y);
+      return b && b.owner === 'family' ? { label: 'the place is yours, and ' + firstName(b.capo) + ' runs it', good: true }
+        : { label: 'the place is not yours' + (b ? ': the ' + b.owner + 's still hold it' : ' any more'), good: false };
+    },
+    unfunded: function (g, c, d) {
+      var b = T.at(c, d.x, d.y);
+      return b && b.owner === 'family' ? { label: 'the place is yours all the same', good: null }
+        : { label: 'the place is not yours, and you kept the ' + dollars(d.cost), good: null };
+    },
     line: function (g, c, d) {
       var now = sight(g, c), was = d.was, by = { grow: now.places - was.places, earn: now.up - was.up, low: was.heat - now.heat }[d.line];
       return { under: d.line ? ' under ' + T.RULES.line[d.line].name : ' with no word given', good: by === undefined || by === 0 ? null : by > 0,
@@ -293,6 +303,14 @@
     answer: function (g, o) {
       var c = cityOf(g, o.city), a = T.asks(c).filter(function (q) { return q.id === o.id; })[0];
       T.answer(c, g.family, o.id, !!o.yes);
+      if (a.kind === 'fund') {
+        var him = T.person(a.capo).name, sum = dollars(a.cost);
+        decide(g, { type: o.yes ? 'funded' : 'unfunded', city: c.id, capo: a.capo, x: a.x, y: a.y, cost: a.cost,
+                    label: (o.yes ? 'You gave ' + him + ' ' + sum + ' for the ' : 'You refused ' + him + ' ' + sum + ' for the ') + a.name });
+        record(g, { type: o.yes ? 'granted' : 'denied', fund: true, capo: a.capo, city: c.id, x: a.x, y: a.y, cost: a.cost,
+                    label: o.yes ? 'You give ' + him + ' ' + sum + ' for the ' + a.name : 'You tell ' + him + ' to do without the ' + a.name }, g.month);
+        return;
+      }
       decide(g, { type: o.yes ? 'granted' : 'denied', city: c.id, capo: a.capo, key: a.key, cost: a.cost,
                   label: (o.yes ? 'You gave ' + T.person(a.capo).name + ' your word for the ' : 'You refused ' + T.person(a.capo).name + ' the ') + a.name });
       record(g, { type: o.yes ? 'granted' : 'denied', capo: a.capo, city: c.id, key: a.key, x: a.x, y: a.y,

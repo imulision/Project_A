@@ -17,6 +17,9 @@
     likes: 1.8,         // and the other places he likes
     another: 0.3,       // each place of a kind he already runs makes one more that much less tempting
     enlarge: 1.5,       // times a place's price, per level reached, to make it bigger
+    convert: { gain: 1.5, cost: 0.5, rest: 36 },
+    patience: { months: 12, sore: 30 }, // months a capo saves for the same thing before he asks the boss for the rest (a rival's place) or gives it up; months he then leaves it alone
+    vouch: 6,           // places a capo runs before he brings his man to the boss's door // a place is turned into another trade when that trade would be worth this much more there; at this part of the price of a new one; and then left alone this many months
     purse: 600,         // dirty $ a capo arrives with
     club: 150,          // dirty $ a month a social club makes on its own: no capo is ever left with nothing
     wage: 120,          // dirty $ a month for the men of one place
@@ -147,7 +150,9 @@
 
   function far(ax, ay, bx, by) { return Math.max(Math.abs(ax - bx), Math.abs(ay - by)); }
 
-  var api = { RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
+  var NUMBER = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+
+  var api = { NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);

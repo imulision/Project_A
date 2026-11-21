@@ -2,6 +2,7 @@
 // share sent up, and capos of one city who quarrel until he rules.
 (function (root) {
   'use strict';
+  var D = typeof require === 'function' ? require('./district.js') : root.AshportDistrict;
   var R = typeof require === 'function' ? require('./turf-rules.js') : root.AshportTurfRules;
   var P = typeof require === 'function' ? require('./turf-people.js') : root.AshportTurfPeople;
   var C = typeof require === 'function' ? require('./turf-city.js') : root.AshportTurfCity;
@@ -12,7 +13,7 @@
   var changed = C.changed, income = G.income;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
-  var first = S.first, funds = S.funds, spend = S.spend;
+  var first = S.first, funds = S.funds, spend = S.spend, zoneOf = C.zoneOf, at = R.at;
 
   // --- key places: the capo asks, the boss decides ---
   // A capo asks for a key place once the family has it surrounded, and never twice at once.
@@ -68,15 +69,62 @@
     });
   }
 
+  // --- a capo who cannot afford what he is after ---
+  // A year saving for the same thing without getting there. For a rival's place he asks the boss for what he is short of;
+  // anything else he gives up, and leaves alone for a good while.
+  function patience(c, f, capo, p, events) {
+    var m = f.men[capo], asked = c.asks.filter(function (a) { return a.fund && a.capo === capo; })[0];
+    var drop = function () { c.asks = c.asks.filter(function (a) { return a !== asked; }); asked = null; };
+    // the months he has gone short: they stop the day he can pay for what he is after
+    if (p.waiting !== 'money') { m.aim = null; if (asked) drop(); return; }
+    if (!m.aim) m.aim = { since: c.month };
+    if (asked && (p.move !== 'take' || asked.x !== p.x || asked.y !== p.y)) drop();
+    var short = Math.round(p.cost - p.saved), why = 'he has saved $' + Math.round(p.saved) + ' of the $' + Math.round(p.cost) + ' it takes, and a year has gone by';
+    if (asked) { asked.cost = short; asked.full = p.cost; asked.why = why; return; } // what he is short of moves with his purse
+    if (c.month - m.aim.since < RULES.patience.months) return;
+    if (c.month < (m.aim.rest || 0)) return;
+    var there = at(c, p.x, p.y), where = zoneOf(c, p.x, p.y).name;
+    if (p.move === 'take') {
+      if (c.asks.some(function (a) { return a.capo === capo; }) || c.month < (m.begged || 0)) return; // one thing at a time, and not every year
+      var name = there.owner + 's\' ' + D.SITES[there.kind].name.toLowerCase();
+      c.asks.push({ id: c.id + ':fund:' + capo, fund: true, capo: capo, trade: p.kind, x: p.x, y: p.y, way: p.way, cost: short, full: p.cost, months: p.months, why: why,
+                    name: name, gives: 'One more place for ' + first(capo) + ', on streets the ' + there.owner + 's hold' });
+      events.push({ type: 'asks', fund: true, capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, way: p.way, cost: short, months: p.months,
+                    label: first(capo) + ' asks you for $' + short + ' to take the ' + name + ' in ' + where });
+      return;
+    }
+    m.shuns = m.shuns || {}; m.shuns[key(p.x, p.y)] = c.month + RULES.patience.sore; m.aim.rest = c.month + RULES.patience.months;
+    var site = p.name.toLowerCase();
+    events.push({ type: 'gaveup', capo: capo, city: c.id, move: p.move, x: p.x, y: p.y, kind: p.kind, cost: p.cost,
+                  label: first(capo) + ' gives up ' + (p.move === 'enlarge' ? 'making his ' + site + ' bigger' : p.move === 'convert' ? 'turning his ' + D.SITES[p.from].name.toLowerCase() + ' into a ' + site : 'opening a ' + site)
+                    + ' in ' + where + ': too dear for him' });
+  }
+
   function asks(c) {
     return c.asks.map(function (a) {
+      if (a.fund) return { id: a.id, capo: a.capo, kind: 'fund', key: a.trade, name: a.name, gives: a.gives, x: a.x, y: a.y, way: a.way, cost: a.cost, months: a.months, why: a.why, expects: null };
       return { id: a.id, capo: a.capo, key: a.key, name: KEYS[a.key].name, gives: KEYS[a.key].gives, x: a.x, y: a.y, way: a.way, cost: a.cost, months: a.months, why: a.why, expects: a.expects || null };
     });
+  }
+
+  // Money asked for a rival's place: the boss pays what the capo is short of and the capo puts in his savings, or the capo lets the place go.
+  function fund(c, f, a, yes) {
+    var m = f.men[a.capo];
+    if (yes) {
+      if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' ' + first(a.capo) + ' is short of');
+      spend(f, a.cost);
+      m.cash -= a.full - a.cost;
+      c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, kind: a.trade, cost: a.full, month: c.month, months: a.months });
+    } else { m.shuns = m.shuns || {}; m.shuns[key(a.x, a.y)] = c.month + RULES.patience.sore; }
+    m.aim = null; m.begged = c.month + RULES.patience.sore;
+    sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
+    c.asks = c.asks.filter(function (q) { return q !== a; });
   }
 
   function answer(c, f, id, yes) {
     var a = c.asks.filter(function (q) { return q.id === id; })[0];
     if (!a) throw new Error('nobody is asking for ' + id);
+    if (a.fund) return fund(c, f, a, yes);
     if (yes) {
       if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' the ' + KEYS[a.key].name + ' takes');
       spend(f, a.cost);
@@ -232,7 +280,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;
