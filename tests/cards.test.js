@@ -987,6 +987,7 @@ test('the till of a place is a bar that fills up to the load a car comes for', (
   assert.equal(C.tillBar({ till: 0 }), ''); assert.equal(C.tillBar(null), '');
   assert.match(C.tillBar({ till: 75 }), /\$75 \/ \$150<\/b> in the till<i class="nxb"><u style="width:50%"/);
   assert.match(C.tillBar({ till: 180 }), /a car is coming for it[^]*width:100%/);
+  assert.match(C.tillBar({ till: 100, load: 400 }), /\$100 \/ \$400<\/b>[^]*width:25%/, 'the load is the one the rules give for this place');
 });
 
 test('the money page: one money at a time, each line with its icon, its bar and its amount', () => {

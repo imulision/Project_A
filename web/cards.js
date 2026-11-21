@@ -704,8 +704,8 @@
   var CARLOAD = (T && T.RULES && T.RULES.car && T.RULES.car.load) || 150;
   function tillBar(p) {
     if (!p || !(p.till > 0)) return '';
-    var part = Math.min(1, p.till / CARLOAD);
-    return '<div class="move till">' + icon('dirty') + '<span><b>' + money(Math.round(p.till)) + ' / ' + money(CARLOAD) + '</b> in the till' + (part >= 1 ? ': a car is coming for it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>';
+    var load = p.load > 0 ? p.load : CARLOAD, part = Math.min(1, p.till / load);
+    return '<div class="move till">' + icon('dirty') + '<span><b>' + money(Math.round(p.till)) + ' / ' + money(load) + '</b> in the till' + (part >= 1 ? ': a car is coming for it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>';
   }
   // The money page: one money at a time. Each line of the month has its icon, a bar as long as its amount and the amount;
   // under them a bar a month for what this money gained or lost (from the balances the rules keep).
