@@ -248,8 +248,10 @@
     return p;
   }
 
-  function stepMonth(c, f) {
-    var events = [];
+  // A month has three parts: it opens (what was taken, the key places asked for, the trucks on the road), then every
+  // capo has his day (his takings, his men, his share sent up, his next move), then it closes (the rivals, the boss's
+  // money, the door). `c.turn` is the month being played; it is null between two months.
+  function opening(c, f, events) {
     c.month += 1;
     learnt(c, f);
     c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {}, runs: [], made: {} }; // last month's money, for the screen
@@ -284,8 +286,13 @@
       events.push({ type: 'seizure', capo: drink.seized.capo, city: c.id, x: drink.seized.from.x, y: drink.seized.from.y, cargo: drink.seized.cargo, amount: drink.seized.amount,
                     label: 'The police stop ' + first(drink.seized.capo) + '\'s truck: ' + drink.seized.amount + CARGOES[drink.seized.cargo] + ' seized' });
     }
-    Object.keys(f.men).forEach(function (capo) {
-      if (!clubOf(c, capo)) return;
+    c.turn = { drives: drives, trap: trap, drink: drink, acted: {} };
+  }
+  function capoDay(c, f, capo, events) {
+    var t = c.turn, drives = t.drives, trap = t.trap, drink = t.drink;
+    if (t.acted[capo] || !f.men[capo] || !clubOf(c, capo)) return;
+    t.acted[capo] = true;
+    (function () {
       var m = f.men[capo];
       m.cars = m.cars || 1;
       // his books for the month: what he put into a place between two months is counted with this one
@@ -360,7 +367,18 @@
       else { at(c, p.x, p.y).level += 1; changed(c); }
       events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
                     label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+    })();
+  }
+  // An event about one of the family's men that names no place happens at his club.
+  function homed(c, f, events) {
+    events.forEach(function (e) {
+      var club = e.x === undefined && e.city === c.id && e.capo && f.men[e.capo] && clubOf(c, e.capo);
+      if (club) { e.x = club.x; e.y = club.y; }
     });
+  }
+  function closing(c, f, events) {
+    var trap = c.turn.trap;
+    c.turn = null;
     if (trap && trap.done) {
       var held2 = trap.done, cash = held2.cargo === 'cash', gang = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner;
       if (cash) c.flow.hijacked = held2.amount;
@@ -376,11 +394,7 @@
     money(c, f, events);
     hearts(c, f, events);
     B.judge(c, events);
-    // an event about one of the family's men that names no place happens at his club
-    events.forEach(function (e) {
-      var club = e.x === undefined && e.capo && f.men[e.capo] && clubOf(c, e.capo);
-      if (club) { e.x = club.x; e.y = club.y; }
-    });
+    homed(c, f, events);
     var under = underOf(c), taken = false;
     doors(c, f).forEach(function (d) {
       // a city with an underboss: he takes one man in a month himself, where the rivals press least, with the boss's
@@ -400,6 +414,47 @@
       events.push({ type: 'knocks', capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' would join the family. ' + d.why });
     });
     mark(c, f);
+  }
+  function stepMonth(c, f) {
+    var events = [];
+    opening(c, f, events);
+    Object.keys(f.men).forEach(function (capo) { capoDay(c, f, capo, events); });
+    closing(c, f, events);
+    return events;
+  }
+
+  // --- the month day by day ---
+  // While a month is being played the city goes on showing the money of the month before (c.flow); the month's own
+  // figures are kept aside and shown when it closes.
+  function begin(f, cities) {
+    var events = [];
+    f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
+    cities.forEach(function (c) {
+      var shown = c.flow;
+      opening(c, f, events); homed(c, f, events);
+      c.turn.flow = c.flow; c.turn.shown = shown; c.flow = shown;
+    });
+    return events;
+  }
+  function act(f, cities, capo) {
+    var events = [];
+    cities.forEach(function (c) {
+      if (!c.turn) return;
+      c.flow = c.turn.flow;
+      capoDay(c, f, capo, events); homed(c, f, events);
+      c.flow = c.turn.shown;
+    });
+    return events;
+  }
+  function end(f, cities, roads) {
+    var events = [];
+    if (!cities.some(function (c) { return c.turn; })) return events;
+    cities.forEach(function (c) {
+      if (!c.turn) return;
+      c.flow = c.turn.flow;
+      closing(c, f, events);
+    });
+    after(f, cities, roads, events);
     return events;
   }
 
@@ -408,6 +463,11 @@
     var events = [];
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) { events = events.concat(stepMonth(c, f)); });
+    after(f, cities, roads, events);
+    return events;
+  }
+  // What the family does once every city has played its month: the convoys, the table, what it is learning.
+  function after(f, cities, roads, events) {
     ride(f, cities, roads);
     payTable(f, events);
     if (f.study && --f.study.monthsLeft <= 0) {
@@ -416,10 +476,9 @@
         : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
       f.study = null;
     }
-    return events;
   }
 
-  var api = { stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

@@ -13,7 +13,7 @@
   var D = node ? require('./district.js') : root.AshportDistrict;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
-  var TICKS_PER_MONTH = 8;   // beats of the clock in a month at speed 1 (the screen beats once a second)
+  var TICKS_PER_MONTH = 24;  // beats of the clock in a month at speed 1 (the screen beats once a second)
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
   var HISTORY = 24;           // months kept for the curves
@@ -245,41 +245,58 @@
     g.history.push(line);
     if (g.history.length > HISTORY) g.history.splice(0, g.history.length - HISTORY);
   }
-  // One beat of the clock. A month of rules every TICKS_PER_MONTH beats at speed 1.
-  function tick(g) {
-    if (!g.started || g.paused) return [];
-    g.ticks += g.speed;
-    var events = [];
-    while (g.ticks >= TICKS_PER_MONTH && !g.paused) {
-      g.ticks -= TICKS_PER_MONTH;
-      var month = g.month, was = { dirty: g.family.dirty, clean: g.family.clean || 0 };
-      var happened = T.month(g.family, g.cities, W.ROUTES);
-      g.change = { dirty: Math.round(g.family.dirty) - Math.round(was.dirty), clean: Math.round(g.family.clean || 0) - Math.round(was.clean) };
-      g.waiting = g.waiting || {};
-      happened.forEach(function (e) {
-        record(g, e, month);
-        events.push(e);
-        // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
-        if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
-        if (STOPS[e.type]) g.paused = true;
-      });
-      // and is announced again the day a word can be given
-      g.cities.forEach(function (c) {
-        T.doors(c, g.family).forEach(function (d) {
-          var k = c.id + ':' + d.capo;
-          if (d.door !== 'poach' && c.under && T.clubOf(c, c.under)) return; // the underboss sees to him: nothing to tell the boss
-          if (!answerable(g, c, d)) { g.waiting[k] = true; return; }
-          if (!g.waiting[k]) return;
-          delete g.waiting[k];
-          var e = { type: 'knocks', ready: true, capo: d.capo, city: c.id, door: d.door, by: d.by, cost: d.cost, label: d.name + ' can now be taken in' };
-          record(g, e, month); events.push(e); g.paused = true;
-        });
-      });
-      g.month += 1;
-      outcomes(g, events);
-      remember(g);
-      g.idle = cheapest(g) ? (g.idle !== undefined && g.idle !== null ? g.idle : g.month - 1) : null; // since when clean money could have been spent
+  // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
+  function dayOf(capo) {
+    var n = 0;
+    for (var i = 0; i < capo.length; i++) n += capo.charCodeAt(i) * (i + 1);
+    return 2 + n % (TICKS_PER_MONTH - 4);
+  }
+  // What has just happened goes into the journal; what waits for the boss's word stops the clock.
+  function tell(g, happened, month, events) {
+    happened.forEach(function (e) {
+      record(g, e, month);
+      events.push(e);
+      // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
+      if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
+      if (STOPS[e.type]) g.paused = true;
+    });
+  }
+  // One day of the month (g.ticks counts them). The month opens on the first, every man has his own day, and it closes on the last.
+  function day(g, events) {
+    var d = g.ticks, month = g.month, f = g.family, last = d >= TICKS_PER_MONTH - 1;
+    if (d === 0) {
+      g.was = { dirty: f.dirty, clean: f.clean || 0 };
+      tell(g, T.begin(f, g.cities), month, events);
     }
+    Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
+    g.ticks = last ? 0 : d + 1;
+    if (!last) return;
+    tell(g, T.end(f, g.cities, W.ROUTES), month, events);
+    var was = g.was || { dirty: f.dirty, clean: f.clean || 0 };
+    g.change = { dirty: Math.round(f.dirty) - Math.round(was.dirty), clean: Math.round(f.clean || 0) - Math.round(was.clean) };
+    g.waiting = g.waiting || {};
+    // and is announced again the day a word can be given
+    g.cities.forEach(function (c) {
+      T.doors(c, g.family).forEach(function (q) {
+        var k = c.id + ':' + q.capo;
+        if (q.door !== 'poach' && c.under && T.clubOf(c, c.under)) return; // the underboss sees to him: nothing to tell the boss
+        if (!answerable(g, c, q)) { g.waiting[k] = true; return; }
+        if (!g.waiting[k]) return;
+        delete g.waiting[k];
+        var e = { type: 'knocks', ready: true, capo: q.capo, city: c.id, door: q.door, by: q.by, cost: q.cost, label: q.name + ' can now be taken in' };
+        record(g, e, month); events.push(e); g.paused = true;
+      });
+    });
+    g.month += 1;
+    outcomes(g, events);
+    remember(g);
+    g.idle = cheapest(g) ? (g.idle !== undefined && g.idle !== null ? g.idle : g.month - 1) : null; // since when clean money could have been spent
+  }
+  // One beat of the clock: one day at speed 1, two at speed 2, four at speed 4. A month is TICKS_PER_MONTH days.
+  function tick(g) {
+    var events = [];
+    if (!g.started || g.paused) return events;
+    for (var n = 0; n < g.speed && !g.paused; n++) day(g, events);
     return events;
   }
 
@@ -429,12 +446,13 @@
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [] };
-    return { date: dateOf(g.month), month: g.month, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    return { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
                v.name = specOf(c.id).name;
                v.held = held(g, c);
+               v.capos.forEach(function (k) { k.day = dayOf(k.id); }); // the day of the month he makes his move
                // where each man at the door could be sent instead: the cities next door that still have a seat
                var free = T.table(g.family).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
                v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
@@ -476,10 +494,15 @@
     if (!g || typeof g !== 'object') throw new Error('this saved game cannot be read');
     if (g.version !== VERSION) throw new Error('this game was saved by an older version of Ashport and cannot be continued');
     (g.cities || []).forEach(outline);
+    // a game saved when a month was played in one blow, or cut off in a way that cannot be picked up: its month starts again
+    if (!(g.ticks >= 0 && g.ticks < TICKS_PER_MONTH) || (g.ticks > 0 && (g.cities || []).some(function (c) { return !c.turn; }))) {
+      g.ticks = 0;
+      (g.cities || []).forEach(function (c) { if (c.turn) { c.flow = c.turn.shown; c.turn = null; } });
+    }
     return g;
   }
 
-  var api = { DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
+  var api = { dayOf: dayOf, DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
               createGame: createGame, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
