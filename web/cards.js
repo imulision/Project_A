@@ -608,12 +608,43 @@
       : 'No laundry yet: dirty cash stays dirty until a capo opens one.';
     return o;
   }
-  function accountCard(view, hud) {
-    var a = account(view, hud), row = function (l) { return '<div class="row ' + (l.amount < 0 ? 'out' : 'in') + '"><span>' + esc(l.label) + '</span><b>' + signed(l.amount, money) + '</b></div>'; };
-    var part = function (ic, title, have, lines, net) { return '<h3 class="sub2">' + icon(ic) + title + ' · ' + money(have) + '</h3><div class="ledger">' + (lines.length ? lines.map(row).join('') : '<div class="row"><span>Nothing moved</span><b></b></div>') +
-      '<div class="row net"><span>This month</span><b>' + (net ? signed(net, money) : money(0)) + '</b></div></div>'; };
-    return '<h2>Where the money goes</h2><p>Last month, line by line.</p>' + part('dirty', 'DIRTY CASH', hud.dirty || 0, a.dirty, a.dirtyNet) + part('clean', 'CLEAN MONEY', hud.clean || 0, a.clean, a.cleanNet) +
-      '<p>' + esc(a.room) + (a.cut > 0 ? ' They kept ' + money(a.cut) + ' as their cut.' : '') + '</p>' + curves(view) + '<div class="acts">' + button('close', {}, 'Close') + '</div>';
+  // What a money tile says under its figure: a bar of what came in against what went out, and the two amounts.
+  function moneyTile(a, which) {
+    var i = a[which + 'In'], o = a[which + 'Out'], all = i + o;
+    if (which === 'clean' && a.cleanLine === 'no laundry yet') return '<span class="split"></span><span class="io"><span>no laundry yet</span></span>';
+    var w = all ? Math.round(i * 100 / all) : 0;
+    return '<span class="split">' + (i ? '<i class="in" style="width:' + w + '%"></i>' : '') + (o ? '<i class="out" style="width:' + (100 - w) + '%"></i>' : '') + '</span>' +
+      '<span class="io"><span>IN <b>' + money(i) + '</b></span><span>OUT <b>' + money(o) + '</b></span></span>';
+  }
+  // The money page: one money at a time. Each line of the month has its icon, a bar as long as its amount and the amount;
+  // under them a bar a month for what this money gained or lost (from the balances the rules keep).
+  var LINEICON = { up: 'tribute', pay: 'men', wash: 'laundering', seized: 'seize', back: 'laundering', other: 'profit' };
+  // Both monies held, month after month, on one chart: is the dirty cash piling up, is the clean money building.
+  function heldChart(history, hud) {
+    var h = (history || []).slice(-24); if (h.length < 2) return '';
+    var W = 420, H = 150, L = 36, B = 18, T = 8, d = h.map(function (m) { return m.dirty || 0; }), c = h.map(function (m) { return m.clean || 0; });
+    var most = Math.max.apply(null, d.concat(c, [100])), step = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000].filter(function (q) { return most / q <= 4; })[0] || 1000000, hi = Math.ceil(most / step) * step;
+    var x = function (n) { return L + n * (W - L - 6) / (h.length - 1); }, y = function (v) { return T + (hi - v) * (H - T - B) / hi; }, base = y(0);
+    var line = function (v) { return v.map(function (q, n) { return (n ? 'L' : 'M') + x(n).toFixed(1) + ' ' + y(q).toFixed(1); }).join(''); };
+    var short = function (v) { return v >= 1000 ? '$' + (v / 1000) + 'k' : '$' + v; }, grid = '';
+    for (var v = 0; v <= hi; v += step) grid += '<line class="g" x1="' + L + '" x2="' + W + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (L - 5) + '" y="' + (y(v) + 3).toFixed(1) + '" text-anchor="end">' + short(v) + '</text>';
+    var one = function (k, v) { return '<path class="fill ' + k + '" d="' + line(v) + 'L' + x(h.length - 1).toFixed(1) + ' ' + base + 'L' + L + ' ' + base + 'Z"/><path class="held ' + k + '" d="' + line(v) + '"/><circle class="' + k + '" cx="' + x(h.length - 1).toFixed(1) + '" cy="' + y(v[v.length - 1]).toFixed(1) + '" r="3.5"/>'; };
+    var ago = h.length - 1;
+    return '<h4 class="mh"><span>Money held</span><span>last ' + h.length + ' months</span></h4><div class="ch"><svg viewBox="0 0 ' + W + ' ' + H + '">' + grid + one('dirty', d) + one('clean', c) +
+      '<text x="' + L + '" y="' + (H - 3) + '">' + ago + ' mo ago</text>' + (ago >= 8 ? '<text x="' + x(ago / 2).toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle">' + Math.round(ago / 2) + ' mo ago</text>' : '') + '<text x="' + W + '" y="' + (H - 3) + '" text-anchor="end">now</text></svg></div>' +
+      '<div class="lg"><span><i class="dirty"></i>Dirty cash ' + money(hud.dirty || 0) + '</span><span><i class="clean"></i>Clean money ' + money(hud.clean || 0) + '</span></div>';
+  }
+  function accountCard(view, hud, which) {
+    var a = account(view, hud), w = which === 'clean' ? 'clean' : 'dirty', lines = a[w], net = a[w + 'Net'];
+    var top = Math.max.apply(null, lines.map(function (l) { return Math.abs(l.amount); }).concat([1]));
+    var row = function (l) { return '<div class="mrow ' + (l.amount < 0 ? 'out' : 'in') + '">' + icon(LINEICON[l.key] || 'profit') + '<span>' + esc(l.label) + '</span><span class="mb"><i style="width:' + Math.max(3, Math.round(Math.abs(l.amount) * 100 / top)) + '%"></i></span><b>' + signed(l.amount, money) + '</b></div>'; };
+    var tab = function (k, title) { return '<button class="tab' + (k === w ? ' on' : '') + '" data-act="account" data-which="' + k + '">' + title + ' · ' + money(hud[k] || 0) + '</button>'; };
+    var kp = function (label, n, cls) { return '<div><small>' + label + '</small><b class="' + cls + '">' + (n ? signed(n, money) : money(0)) + '</b></div>'; };
+    return '<h2>Where the money goes</h2><p>' + esc(hud.date || 'Last month') + '</p><div class="tabs">' + tab('dirty', 'DIRTY CASH') + tab('clean', 'CLEAN MONEY') + '</div>' +
+      '<div class="kp">' + kp('IN', a[w + 'In'], 'up') + kp('OUT', -a[w + 'Out'], 'dn') + kp('LEFT', net, net > 0 ? 'up' : net < 0 ? 'dn' : '') + '</div>' + heldChart(view.history, hud) + '<h4 class="mh"><span>This month</span></h4>' +
+      (lines.length ? lines.map(row).join('') : '<div class="mrow"><span></span><span>Nothing moved</span><span></span><b></b></div>') +
+      (w === 'clean' ? '<p>' + esc(a.room) + (a.cut > 0 ? ' They kept ' + money(a.cut) + ' as their cut.' : '') + '</p>' : '') +
+      '<div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
   // ---- curves: the last months, so that the boss sees whether a decision paid. One small curve a figure, its last value beside its name.
   // curves(view) is the family (dirty, clean, what the cities sent up); curves(view, cityId) is one city (streets held, what it sent up).
@@ -641,7 +672,12 @@
     var pick = view.tree.filter(function (t) { return t.studying; })[0] || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
     return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p>' + curves(view) + (rows ? ranking(view, rows) : '') + '<div class="pyr">' + men + '</div>' + table(view) + holdings(view, hud) +
       '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. A face marks what a capo is asking for.</p><div class="tree">' + view.tree.map(function (t) { return knowBtn(t, pick && t.kind === pick.kind); }).join('') + '</div>' +
-      '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('close', {}, 'Close') + '</div>';
+      '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';
+  }
+  // ---- starting again: asked before anything is erased
+  function restart(hud) {
+    return '<h2>Start a new game?</h2><p>This game stops in ' + esc((hud && hud.date) || 'its first month') + ' and cannot be brought back. You pick a first capo again, in a city drawn afresh.</p>' +
+      '<div class="acts"><button class="warn" data-act="new">Erase and start again</button>' + button('close', {}, 'Keep playing') + '</div>';
   }
 
   // ---- labels over the map that would sit on one another
@@ -666,7 +702,7 @@
     var last = lines.slice(-60).reverse();
     return '<h2>Journal</h2>' + (last.length ? '<ul class="list">' + last.map(function (e) {
       return '<li class="ev"><span class="i' + (bad(e) ? ' no' : e.type === 'outcome' && e.good === true ? ' ok' : '') + '">' + icon(e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time') + '</span><div>' + esc(e.label || e.type) + '<small>' + esc(e.date || '') + '</small></div></li>'; }).join('') + '</ul>' : '<p>Nothing yet.</p>') +
-      '<div class="acts">' + button('decisions', {}, 'Your decisions') + button('new', {}, 'New game') + button('close', {}, 'Close') + '</div>';
+      '<div class="acts">' + button('decisions', {}, 'Your decisions') + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';
   }
   // What became of the boss's decisions (view.decisions, kept by the rules): each one, and a year on what it gave.
   function decisions(view) {
@@ -686,7 +722,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { moneyTile: moneyTile, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

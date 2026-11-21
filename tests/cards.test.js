@@ -821,7 +821,7 @@ test('the month\'s account: where the dirty cash came from and went, what came b
   assert.match(a.room, /can wash \$1,418 a month.*only \$210/);
   const html = C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
   assert.match(html, /Sent up by your capos/); assert.match(html, /\+\$200/); assert.match(html, /Wages/); assert.match(html, /−\$81/); assert.match(html, /Seized by the police/);
-  assert.match(html, /kept \$53 as their cut/); assert.match(html, /−\$231/); assert.match(html, /data-act="close"/);
+  assert.match(C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } }, 'clean'), /kept \$53 as their cut/); assert.match(html, /−\$231/); assert.match(html, /data-act="close"/);
   // nothing to tell that is not there: no line at zero, no laundry said plainly
   const bare = C.account({ cities: [{ money: { up: 50, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 } }] }, { dirty: 50, clean: 0, change: { dirty: 50, clean: 0 } });
   assert.deepEqual(bare.dirty.map((l) => l.key), ['up']); assert.deepEqual(bare.clean, []); assert.equal(bare.cleanLine, 'no laundry yet'); assert.match(bare.room, /No laundry yet/);
@@ -960,4 +960,56 @@ test('the rival\'s strength has its arrow too, and a place wears its level', () 
   assert.equal(C.pin({ site: 'speakeasy', owner: 'family', level: 1 }), C.pin({ site: 'speakeasy', owner: 'family' }));
   assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 2 }), /class="lv">II</); assert.match(C.pin({ site: 'speakeasy', owner: 'family', level: 3 }), /class="lv">III</);
   assert.doesNotMatch(C.pin({ site: 'speakeasy', owner: 'Callahan', level: 3 }), /class="lv"/, 'a rival does not show his books');
+});
+
+test('a new game is asked for from the family page or the journal, and erases nothing before the boss says so', () => {
+  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 40; i++) E.tick(g);
+  const v = E.view(g), h = E.hud(g);
+  assert.match(C.family(v, h), /data-act="restart"/);
+  assert.match(C.journal(g.journal), /data-act="restart"/);
+  assert.doesNotMatch(C.family(v, h) + C.journal(g.journal), /data-act="new"/, 'no button erases the game in one touch');
+  const ask = C.restart(h);
+  assert.match(ask, /data-act="new"/); assert.match(ask, /data-act="close"/);
+  assert.ok(ask.includes(h.date), 'it says which game is lost');
+});
+
+test('a money tile: what came in against what went out as a bar, and the two amounts under it', () => {
+  const view = { cities: [{ money: { up: 135, pay: 81, washed: 210, washes: 1418, cut: 52.5, seized: 0 } }, { money: { up: 65, pay: 0, washed: 0, washes: 0, cut: 0, seized: 40 } }] };
+  const a = C.account(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
+  const d = C.moneyTile(a, 'dirty');
+  assert.match(d, /class="in" style="width:32%"/); assert.match(d, /class="out" style="width:68%"/);
+  assert.match(d, /IN <b>\$200<\/b>/); assert.match(d, /OUT <b>\$431<\/b>/);
+  assert.match(C.moneyTile(a, 'clean'), /IN <b>\$158<\/b>.*OUT <b>\$100<\/b>/);
+  const bare = C.account({ cities: [{ money: { up: 50, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 } }] }, { dirty: 50, clean: 0, change: { dirty: 50, clean: 0 } });
+  assert.match(C.moneyTile(bare, 'dirty'), /class="in" style="width:100%"/); assert.doesNotMatch(C.moneyTile(bare, 'dirty'), /class="out"/);
+  assert.match(C.moneyTile(bare, 'clean'), /no laundry yet/); assert.doesNotMatch(C.moneyTile(bare, 'clean'), /IN/);
+});
+
+test('the money page: one money at a time, each line with its icon, its bar and its amount', () => {
+  const view = { cities: [{ money: { up: 135, pay: 81, washed: 210, washes: 1418, cut: 52.5, seized: 0 } }, { money: { up: 65, pay: 0, washed: 0, washes: 0, cut: 0, seized: 40 } }],
+                 history: [{ month: 1, dirty: 400, clean: 700 }, { month: 2, dirty: 731, clean: 842 }, { month: 3, dirty: 500, clean: 900 }] };
+  const hud = { date: 'March 1926', dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } };
+  const d = C.accountCard(view, hud);
+  assert.match(d, /class="tab on" data-act="account" data-which="dirty"/); assert.match(d, /data-act="account" data-which="clean"/);
+  assert.match(d, /DIRTY CASH · \$500/); assert.match(d, /CLEAN MONEY · \$900/);
+  assert.match(d, /Sent up by your capos/); assert.doesNotMatch(d, /Back from the laundries/, 'the other money is on its own tab');
+  assert.equal((d.match(/class="mrow /g) || []).length, 5); assert.match(d, /class="mrow out"[^]*?width:100%[^]*?−\$210/, 'the biggest line fills its bar');
+  const c = C.accountCard(view, hud, 'clean');
+  assert.match(c, /class="tab on" data-act="account" data-which="clean"/); assert.match(c, /Back from the laundries/); assert.match(c, /kept \$53 as their cut/);
+});
+
+test('the money page draws both monies held over the months on one chart, and says the month in three figures', () => {
+  const view = { cities: [{ money: { up: 200, pay: 81, washed: 210, washes: 1418, cut: 52, seized: 40 } }],
+                 history: [{ month: 1, dirty: 400, clean: 700 }, { month: 2, dirty: 731, clean: 842 }, { month: 3, dirty: 500, clean: 900 }] };
+  const hud = { date: 'March 1926', dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } };
+  const d = C.accountCard(view, hud);
+  assert.match(d, /class="kp"[^]*IN[^]*\+\$200[^]*OUT[^]*−\$431[^]*LEFT[^]*−\$231/);
+  assert.equal((d.match(/<path class="held /g) || []).length, 2, 'a curve for the dirty cash, one for the clean money');
+  assert.match(d, /class="held dirty" d="M[\d. ]+L[\d. ]+L[\d. ]+"/);
+  assert.match(d, /Dirty cash \$500/); assert.match(d, /Clean money \$900/);
+  assert.match(d, /\$1k/, 'the scale is written');
+  assert.doesNotMatch(d, /class="mbar/, 'the curves replace the bars by month');
+  assert.match(C.accountCard(view, hud, 'clean'), /class="kp"[^]*\+\$158[^]*−\$100[^]*\+\$58/);
+  // one month of history is not a curve yet
+  assert.doesNotMatch(C.accountCard({ cities: view.cities, history: [view.history[0]] }, hud), /class="held /);
 });

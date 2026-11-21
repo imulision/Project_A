@@ -78,7 +78,7 @@
     showHint(h);
     var w = C.wash(view, h), k = C.clock(h, !!picking);
     // the two moneys speak the same way: what came in and what went out last month (a touch opens the account, line by line)
-    var acc = C.account(view, h); $('wash').textContent = acc.dirtyLine; $('kept').textContent = acc.cleanLine;
+    var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty'), ct = C.moneyTile(acc, 'clean'); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
     $('rank').innerHTML = C.rankLine(C.rank(view));
@@ -151,7 +151,7 @@
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
     if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
-    if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g))); return; }
+    if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g), e.target.closest('[data-account]').dataset.account)); return; }
     var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
   }, true);
   document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
@@ -199,6 +199,8 @@
     else if (act === 'focus') { close(); map.focus(d.city); }
     else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y }); }
     else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
+    else if (act === 'account') show(C.accountCard(view, E.hud(g), d.which));
+    else if (act === 'restart') show(C.restart(E.hud(g)));
     else if (act === 'new') { forget(); location.reload(); }
   });
   // A touch beside the sheet closes it, but only a touch that began there: the click a phone sends after the touch
