@@ -8,7 +8,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var say = function (s) { s = String(s); return s.charAt(0).toUpperCase() + s.slice(1); };
 
-  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, rows = {}, zshares = {}, ctrends = {}, lastStep = null, lastMonth = -1, picking = null, stopped = false;
+  var g = null, map = null, view = null, labs = {}, waits = {}, moods = {}, healths = {}, doings = {}, powers = {}, rows = {}, zshares = {}, ctrends = {}, lastStep = null, lastMonth = -1, stopped = false;
 
   // A saved game is kept only if today's rules and today's screen can read all of it: otherwise it is set aside
   // (kept under another name) and the player is told. Never a dead screen at the door.
@@ -78,7 +78,7 @@
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
     showHint(h);
-    var w = C.wash(view, h), k = C.clock(h, !!picking);
+    var w = C.wash(view, h), k = C.clock(h);
     // the two moneys are totals alone; under the dirty one, what waits in the tills (a touch opens the account, line by line)
     var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty', view), ct = C.moneyTile(acc, 'clean', view); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
@@ -91,14 +91,13 @@
     document.body.classList.toggle('stopped', !!k); if (map) map.hold(!!k);
     $('sub').innerHTML = k ? '' : C.trendLine(tr);
     $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
-    $('clock').dataset.go = picking ? '' : h.pending ? 'requests' : 'play';
-    $('alerts').innerHTML = picking ? '<div class="pick">' + I.icon('hideout') + '<span>Tap the street where ' + C.esc(C.first(C.nameOf(picking.capo))) + ' opens his club: one of the lit streets.</span><button data-unpick="1">Cancel</button></div>'
-      : (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
+    $('clock').dataset.go = h.pending ? 'requests' : 'play';
+    $('alerts').innerHTML = (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
         (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(T.RULES.stash) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
   // The first minutes: one thing to look at at a time, put away with a touch and never said again (kept apart from the saved game).
   var HINTS = 'ashport-hints', known = {}; try { known = JSON.parse(localStorage.getItem(HINTS) || '{}') || {}; } catch (e) { known = {}; }
-  function showHint(h) { var t = C.hintStrip(picking || $('veil').classList.contains('on') ? null : C.hint(view, h, known)); if ($('hint').innerHTML !== t) $('hint').innerHTML = t; }
+  function showHint(h) { var t = C.hintStrip($('veil').classList.contains('on') ? null : C.hint(view, h, known)); if ($('hint').innerHTML !== t) $('hint').innerHTML = t; }
   $('hint').addEventListener('click', function (e) { var b = e.target.closest('[data-hint]'); if (!b) return;
     known[b.dataset.hint] = 1; try { localStorage.setItem(HINTS, JSON.stringify(known)); } catch (x) { /* no storage: said again next time */ } showHud(); });
   function announce(m) {
@@ -164,14 +163,13 @@
   }, true);
   document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
 
-  // While a club is being placed, the streets where it can open are lit on the ground.
-  function spotsOf(city) { var raw = g.cities.filter(function (q) { return q.id === city; })[0]; return raw ? T.spots(raw) : []; }
-  function pick(from, city, capo) { picking = { from: from, city: city, capo: capo }; close();
-    var list = spotsOf(city), c = view.cities.filter(function (q) { return q.id === city; })[0], k = c && c.capos[0], best = null;
-    // the camera goes to the lit streets nearest the family's first club; in a city where it has nobody, to the whole city
-    if (k) list.forEach(function (s) { var d = Math.abs(s.x - k.x) + Math.abs(s.y - k.y); if (!best || d < best.d) best = { d: d, s: s }; });
-    map.spots(city, list); if (best) map.focus(city, zoneId(city, best.s.x, best.s.y), { x: best.s.x, y: best.s.y }); else map.focus(city); showHud(); }
-  function unpick() { picking = null; map.spots(); }
+  // A man taken in opens his club where he sees fit: the boss is never asked for a street. The camera goes to see where he settled.
+  function settle(from, city, capo) {
+    if (!order({ type: 'welcome', city: city, from: from, capo: capo })) return;
+    var c = view.cities.filter(function (q) { return q.id === city; })[0], k = c && c.capos.filter(function (m) { return m.id === capo; })[0];
+    close(); toast(g.journal[g.journal.length - 1].label + '.'); answered();
+    if (k && typeof k.x === 'number') map.focus(city, zoneId(city, k.x, k.y), { x: k.x, y: k.y });
+  }
   $('sheet').addEventListener('click', function (e) {
     var face = e.target.closest('[data-face]');
     if (face) { [].forEach.call($('sheet').querySelectorAll('.facebtn'), function (x) { x.classList.toggle('on', x === face); });
@@ -186,7 +184,7 @@
     else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) answered(); }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
-    else if (act === 'seat') pick(d.city, d.city, d.capo);
+    else if (act === 'seat') settle(d.city, d.city, d.capo);
     else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
@@ -199,7 +197,7 @@
     else if (act === 'requests') requests();
     else if (act === 'family') show(C.family(view, E.hud(g), rows));
     else if (act === 'decisions') show(C.decisions(view));
-    else if (act === 'road') pick(d.from, d.city, d.capo);
+    else if (act === 'road') settle(d.from, d.city, d.capo);
     else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo]));
     else if (act === 'parting') show(C.parting(view, d.city, d.capo, d.way));
     else if (act === 'part') { if (order({ type: 'part', city: d.city, capo: d.capo, way: d.way })) { close(); toast(g.journal[g.journal.length - 1].label, true); } }
@@ -217,7 +215,7 @@
   var veilDown = false;
   $('veil').addEventListener('pointerdown', function (e) { veilDown = e.target === $('veil'); });
   $('veil').addEventListener('click', function (e) { var mine = veilDown; veilDown = false; if (mine && e.target === $('veil') && g.started) close(); });
-  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-unpick]')) { unpick(); showHud(); requests(); } else if (e.target.closest('[data-requests]')) requests(); });
+  $('alerts').addEventListener('click', function (e) { if (e.target.closest('[data-requests]')) requests(); });
   $('map').onclick = function () { if (map) map.focus(null); };
   $('clock').onclick = function () { var go = $('clock').dataset.go; if (go === 'requests') requests(); else if (go === 'play') $('pause').click(); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
@@ -245,16 +243,9 @@
   function tap(hit, x, y) {
     if (!g.started) return;
     var e = x == null ? null : labelAt(x, y);
-    if (e && !(picking && !e.l.car && !e.l.fx)) return tapLabel(e.l, e);
+    if (e) return tapLabel(e.l, e);
     if (!hit) return;
     var c = view.cities.filter(function (q) { return q.id === hit.city; })[0], inside = c && hit.bx >= 0 && hit.by >= 0 && hit.bx < c.w && hit.by < c.h;
-    if (picking) {
-      if (hit.city !== picking.city || !hit.near || !inside) return map.focus(picking.city, inside && hit.city === picking.city ? zoneId(hit.city, hit.bx, hit.by) : undefined);
-      if (!spotsOf(picking.city).some(function (s) { return s.x === hit.bx && s.y === hit.by; })) return toast('He cannot open there: pick one of the lit streets.', true);
-      var who = picking.capo;
-      if (order({ type: 'welcome', city: picking.city, from: picking.from, capo: who, x: hit.bx, y: hit.by })) { unpick(); toast(g.journal[g.journal.length - 1].label + '.'); answered(); }
-      return;
-    }
     if (!hit.near || !inside) return map.focus(hit.city, inside ? zoneId(hit.city, hit.bx, hit.by) : undefined);
     said(hit.city, hit.bx, hit.by, at(x == null ? innerWidth / 2 : x, y == null ? innerHeight / 2 : y));
   }
@@ -266,7 +257,6 @@
   function tapLabel(l, e) {
     if (l.fx) tip(e, C.fxTip(l.fx, l.say, l.type));
     else if (l.car) tip(e, C.carTip(l.car, l.round && l.back));
-    else if (picking) return;
     else if (l.claim) { var q = claims.map(function (c) { return c.id; }).indexOf(l.claim); if (q >= 0) { nextI = q; nextSeen = l.claim; showNext(); } }
     else if (l.site) said(l.city, l.bx, l.by, e);
     else if (l.capo) { if (waits[l.city + l.capo]) requests(); else show(C.capo(view, l.city, l.capo, E.hud(g), C.powerTrend(rows, l.city + l.capo), rows[l.city + l.capo])); }
@@ -324,7 +314,7 @@
 
   // ---- time
   function beat() {
-    if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
+    if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
@@ -340,7 +330,7 @@
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
   [].forEach.call(document.querySelectorAll('[data-ic]'), function (e) { e.innerHTML = I.icon(e.dataset.ic); });
   retire(); g = stored() || E.createGame(); refresh();
-  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap, picking: function () { return picking; } };
+  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap };
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();

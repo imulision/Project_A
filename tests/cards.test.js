@@ -262,7 +262,7 @@ test('time that stands still says so, and says why', () => {
   assert.deepEqual(C.clock({ paused: true, pending: 0 }), { word: 'TIME STOPPED', why: 'Tap Play to go on' });
   assert.deepEqual(C.clock({ paused: true, pending: 2 }), { word: 'TIME STOPPED', why: '2 wait for your word' });
   assert.deepEqual(C.clock({ paused: true, pending: 1 }), { word: 'TIME STOPPED', why: '1 waits for your word' });
-  assert.deepEqual(C.clock({ paused: false }, true), { word: 'TIME STOPPED', why: 'Choose a street' });
+  assert.equal(C.clock({ paused: false }, true), null, 'the boss never chooses a street: nothing stops the time for it');
 });
 
 test('an answer the boss cannot pay says how far he is from it, and the sheet says how to let time go on', () => {
@@ -275,6 +275,16 @@ test('an answer the boss cannot pay says how far he is from it, and the sheet sa
   assert.match(html, /Send him to Calder Falls · \$3,250<small>Not enough money: \$2,600 of \$3,250<\/small>/);
   assert.equal(acts(html, 'later').length, 1, 'one button leaves them waiting');
   assert.match(html, /Leave them waiting/);
+});
+
+test('the button that takes a man in says the street he picked for his club: the boss is never asked for one', () => {
+  const { g, v } = play(some('doors'));
+  const city = v.cities.find((c) => c.doors.length), d = city.doors[0];
+  city.seats = { taken: 1, total: 3 };
+  d.spot = { x: 2, y: 3, street: 'Canal Street' };
+  assert.match(C.requests(v, Object.assign({}, E.hud(g), { dirty: 99999, clean: 0 })), /A club on Canal Street · \$/);
+  delete d.spot;
+  assert.match(C.requests(v, Object.assign({}, E.hud(g), { dirty: 99999, clean: 0 })), new RegExp('A club in ' + city.name + ' · \\$'));
 });
 
 test('a capo\'s sheet says where he is this month', () => {
