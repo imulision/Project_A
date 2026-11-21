@@ -428,12 +428,22 @@
     return out;
   }
 
+  // A city saved when cities were plain rectangles takes today's outline and street shapes. A block that carries a place stays.
+  function outline(c) {
+    var spec = specOf(c.id);
+    if (!spec || !spec.streets || c.streets) return;
+    var now = layout(spec);
+    if (now.w !== c.w || now.h !== c.h) return;
+    c.streets = now.streets; c.zones = now.zones; c.voids = {};
+    Object.keys(now.voids).forEach(function (k) { if (!c.blocks[k]) c.voids[k] = now.voids[k]; });
+  }
   function save(g) { return JSON.stringify(g); }
   function load(text) {
     var g;
     try { g = JSON.parse(text); } catch (e) { throw new Error('this saved game cannot be read'); }
     if (!g || typeof g !== 'object') throw new Error('this saved game cannot be read');
     if (g.version !== VERSION) throw new Error('this game was saved by an older version of Ashport and cannot be continued');
+    (g.cities || []).forEach(outline);
     return g;
   }
 
