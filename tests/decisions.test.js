@@ -109,7 +109,7 @@ test('a word given or refused for a key place: a year on, who holds it', () => {
     months(g, 1);
     for (const c of E.view(g).cities) {
       for (const d of c.doors) { const s = T.spots(g.cities.find((q) => q.id === c.id))[0]; try { E.command(g, { type: 'welcome', city: c.id, capo: d.capo, x: s.x, y: s.y }); } catch (e) { /* cannot pay yet */ } }
-      if (c.asks.length) ask = { city: c.id, a: c.asks[0] };
+      for (const a of c.asks) { if (a.kind === 'fund') { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } } else ask = ask || { city: c.id, a }; } // (money asked for a rival's place is another matter)
     }
   }
   assert.ok(ask, 'a capo asked for a key place');

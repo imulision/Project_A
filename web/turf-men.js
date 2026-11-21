@@ -8,7 +8,7 @@
   var C = typeof require === 'function' ? require('./turf-city.js') : root.AshportTurfCity;
   var S = typeof require === 'function' ? require('./turf-streets.js') : root.AshportTurfStreets;
   var B = typeof require === 'function' ? require('./turf-boss.js') : root.AshportTurfBoss;
-  var RULES = R.RULES, key = R.key, inside = R.inside, at = R.at, far = R.far;
+  var RULES = R.RULES, NUMBER = R.NUMBER, key = R.key, inside = R.inside, at = R.at, far = R.far;
   var KEYS = P.KEYS, PEOPLE = P.PEOPLE, LURES = P.LURES, who = P.who, CHAIRS = P.CHAIRS, chairOf = P.chairOf, sits = P.sits, seated = P.seated,
       loyalty = P.loyalty, sway = P.sway, mood = P.mood;
   var lieutenantsOf = C.lieutenantsOf, zoneOf = C.zoneOf, changed = C.changed, memo = C.memo, everyPlace = C.everyPlace, places = C.places,
@@ -38,8 +38,8 @@
       var p = PEOPLE[id];
       if (!free(id)) return;
       if (gone[p.mentor] === 'kill') return;
-      if (p.mentor && f.men[p.mentor] && clubOf(c, p.mentor) && run(c, p.mentor).length >= RULES.reach[f.men[p.mentor].rank]) {
-        add(id, 'rise', p.mentor, first(p.mentor) + ' runs all he can and vouches for him');
+      if (p.mentor && f.men[p.mentor] && clubOf(c, p.mentor) && run(c, p.mentor).length >= RULES.vouch) {
+        add(id, 'rise', p.mentor, first(p.mentor) + ' runs ' + NUMBER[RULES.vouch] + ' places and vouches for him');
       }
       if (p.key && ours.some(function (q) { return q.key === p.key; })) add(id, 'figure', p.key, 'He ran the ' + KEYS[p.key].name + ' before it was ours');
     });

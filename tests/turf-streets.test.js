@@ -143,6 +143,7 @@ test('a capo runs only so many places for his rank; beyond that he makes them bi
     const w = T.wants(c, 'dutch', { rank: 0, tech: ALL() });
     assert.equal(w.move, 'open');
     T.open(c, w.x, w.y, { owner: 'family', kind: w.kind, capo: 'dutch' });
+    T.at(c, w.x, w.y).turned = c.month; // (a place just opened is not turned into something else)
   }
   assert.equal(T.places(c, 'dutch').filter((p) => p.kind !== 'club').length, 6);
   const next = T.wants(c, 'dutch', { rank: 0, tech: ALL() });

@@ -24,7 +24,7 @@ test('nobody new in two years: the city says who would bring a man in, and how f
   const s = T.stalls(c, f).find((q) => q.id === 'nobody');
   assert.equal(s.since, 40);
   assert.equal(s.what, 'No new man in 3 years');
-  assert.equal(s.why, 'A capo brings a man in when he runs all he can: Dutch runs 0 of ' + T.RULES.reach[0]);
+  assert.equal(s.why, 'A capo brings a man in when he runs six places: Dutch runs 0');
   assert.equal(s.lever, 'Set the line to Grow: your capos run more places');
   T.line(c, 'grow');
   assert.equal(T.stalls(c, f).find((q) => q.id === 'nobody').lever, null, 'the line is already to grow: nothing more to do');
@@ -109,9 +109,10 @@ test('at most three troubles a city, the gravest first: unpaid men, ground lost,
 // --- the whole game ---
 
 // A boss who takes in his first two men, then says yes to everything and does nothing else.
-const idle = (capo, months) => {
+const idle = (capo, months, each) => {
   const g = E.createGame({ capo });
   for (let m = 1; m <= months; m++) {
+    if (each && m % 12 === 0) each(g);
     for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
     for (const c of E.view(g).cities) {
       for (const a of c.asks) { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } }
@@ -121,14 +122,15 @@ const idle = (capo, months) => {
   return g;
 };
 
-test('nineteen years of standing still are explained: nobody new, a capo saving alone for a place, money asleep', () => {
-  const g = idle('dutch', 228), v = E.view(g), a = v.cities[0];
-  const nobody = a.stalls.find((s) => s.id === 'nobody');
-  assert.ok(nobody && nobody.since >= 120, 'nobody new for ' + (nobody && nobody.since) + ' months');
-  assert.match(nobody.why, /^A capo brings a man in when he runs all he can: \w+ runs \d+ of \d+/);
-  const boxed = a.stalls.find((s) => s.id.startsWith('boxed:'));
+test('nineteen years of standing still are explained: a man left at the door, a capo saving alone for a place, money asleep', () => {
+  // (a capo is boxed in some years and not others: the test reads the first year it is said)
+  let boxed = null, k = null, top = null;
+  const g = idle('dutch', 228, (q) => { if (boxed) return; const c = E.view(q).cities[0]; boxed = c.stalls.find((s) => s.id.startsWith('boxed:')) || null; k = boxed && c.capos.find((m) => m.id === boxed.capo); top = E.view(q).stalls; }), v = E.view(g), a = v.cities[0];
+  // nobody new: a man has been waiting at the door for years (his capo runs six places), and that is the boss's to answer
+  assert.equal(E.hud(g).men, 3);
+  assert.ok(a.doors.some((d) => d.door === 'rise'), 'a man waits at the door');
+  assert.ok(!a.stalls.some((s) => s.id === 'nobody'), 'so the city does not say nobody comes');
   assert.ok(boxed, 'a capo is boxed in');
-  const k = a.capos.find((q) => q.id === boxed.capo);
   assert.equal(boxed.what, k.name.split(' ')[0] + ' is saving alone to take a place: $' + Math.round(k.plan.saved).toLocaleString('en-US') + ' of $' + Math.round(k.plan.cost).toLocaleString('en-US'));
   assert.equal(boxed.why[0].toUpperCase() + boxed.why.slice(1), boxed.why, 'a sentence');
   assert.equal(boxed.lever, null, 'nothing the boss can do today');
@@ -140,7 +142,7 @@ test('nineteen years of standing still are explained: nobody new, a capo saving 
   assert.match(idleMoney.lever, /costs \$[\d,]+$/);
   assert.ok(idleMoney.since >= 12);
   assert.ok(v.stalls.length <= 3);
-  assert.ok(v.stalls.some((s) => s.city === 'ashport'), 'the gravest troubles of the cities come up too');
+  assert.ok(top.some((s) => s.city === 'ashport' && s.id === boxed.id), 'the gravest troubles of the cities come up too');
 });
 
 test('a young family has no sleeping money, and a saved game keeps what it remembers', () => {
