@@ -1148,3 +1148,17 @@ test('the day the game has reached is counted from the first one, and a length t
   assert.equal(C.day(0, 0), 'Day 1'); assert.equal(C.day(13, 0), 'Day 313'); assert.equal(C.day(13, 23), 'Day 336');
   assert.equal(C.day({ month: 2, day: 5 }), 'Day 54'); assert.equal(C.dayNo(1), 25);
 });
+
+test('a new act and what the hidden director sends each have their picture, and say what they change', () => {
+  const act = C.news({ type: 'act', act: 2, up: true, label: 'Act II: The City', gives: 'The table opens' });
+  assert.match(act, /data-ic="ambition"|<svg/); assert.doesNotMatch(act, /class="news bad"/);
+  assert.match(act, /Act II: The City/); assert.match(act, /<small>The table opens<\/small>/);
+  const good = C.news({ type: 'beat', kind: 'truce', tone: 'good', city: 'ashport', label: 'The Callahans ask for a truce', gives: 'No attack for a while' });
+  assert.match(good, /class="news good"/); assert.match(good, /<small>No attack for a while<\/small>/);
+  const ill = C.news({ type: 'beat', kind: 'thief', tone: 'bad', city: 'ashport', label: 'A thief in the house', gives: 'The till is short' });
+  assert.match(ill, /class="news bad"/);
+  assert.notEqual(C.eventIcon({ type: 'beat', tone: 'bad' }), 'time'); assert.notEqual(C.eventIcon({ type: 'beat', tone: 'good' }), 'time'); assert.equal(C.eventIcon({ type: 'act' }), 'ambition');
+  assert.match(C.news({ type: 'act', up: false, label: 'The family falls back to Act I: The Street' }), /class="news bad"/);
+  const j = C.journal([{ type: 'beat', tone: 'bad', label: 'A thief in the house', gives: 'The till is short', month: 3 }]);
+  assert.match(j, /class="i no"/); assert.match(j, /The till is short/);
+});
