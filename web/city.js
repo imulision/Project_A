@@ -327,7 +327,7 @@
   function beat() {
     if (!g.started || picking || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet or chooses a street
     var before = g.month, events = E.tick(g), turned = g.month !== before;
-    gauge();
+    showHud();      // the money comes up car by car: the figures at the top follow every day
     if (!turned && !events.some(function (e) { return e.type !== 'run'; })) return events;      // a day when nothing happened: only the month's gauge moves
     C.untold(events, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store();      // what a man does is seen the day he does it; the money and the loads change when the month closes
