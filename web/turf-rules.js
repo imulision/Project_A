@@ -6,6 +6,7 @@
   'use strict';
 
   var RULES = {
+    days: 24,           // days in one cycle of the rules: wages, shares and rates are counted per cycle
     press: 40,          // how hard a place of level 1 holds its own block
     clubLevel: 2,       // a social club presses like a place of this level
     minHold: 8,         // below this, nobody holds the block

@@ -154,24 +154,66 @@
   function wages(c, capo) { return RULES.wage * run(c, capo).length * (can(c, capo, 'tight') ? 0.85 : 1); }
 
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
-  function collect(c, capo, cars, own, load, trap) {
-    var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
-    var made = c.flow.made || (c.flow.made = {});
-    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y), e = earns(c, p, wet); b.till = (b.till || 0) + e; if (!b.mades) b.mades = []; b.mades.push(e); if (b.mades.length > 6) b.mades.shift(); made[p.kind] = (made[p.kind] || 0) + e; return { p: p, b: b }; });
-    while (left + mine > 0) {
+  // What a capo's places put in their tills: all of a cycle's takings, or the part of it one day makes.
+  function fill(c, capo, part) {
+    var wet = liquor(c).wet, made = c.flow.made || (c.flow.made = {});
+    run(c, capo).forEach(function (p) {
+      var b = at(c, p.x, p.y), e = earns(c, p, wet) * part;
+      b.till = (b.till || 0) + e; b.making = (b.making || 0) + e;
+      made[p.kind] = (made[p.kind] || 0) + e;
+    });
+  }
+  // The cars go for the fullest till that holds a load, as long as one is free. `h` is what the capo's cars have done
+  // since his last day; every run is written in the cycle's trips and returned.
+  function drive(c, capo, h, cars, load, trap) {
+    var mine = run(c, capo), out = [];
+    while (h.left + h.mine > 0) {
       var best = null;
-      for (var i = 0; i < tills.length; i++) if (tills[i].b.till >= load && (!best || tills[i].b.till > best.b.till)) best = tills[i];
+      for (var i = 0; i < mine.length; i++) { var b = at(c, mine[i].x, mine[i].y); if (b.till >= load && (!best || b.till > best.b.till)) best = { p: mine[i], b: b }; }
       if (!best) break;
       best.b.till -= load;
       var r = { capo: capo, x: best.p.x, y: best.p.y, amount: load };
       // the car the rivals wait for never reaches the club
-      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else got += load;
-      if (left > 0) { r.car = done % cars + 1; r.leg = Math.floor(done / cars); done += 1; left -= 1; }
-      else { r.own = true; r.leg = drove; drove += 1; mine -= 1; went = went || { x: r.x, y: r.y }; }
+      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else h.got += load;
+      if (h.left > 0) { r.car = h.done % cars + 1; r.leg = Math.floor(h.done / cars); h.done += 1; h.left -= 1; }
+      else { r.own = true; r.leg = h.drove; h.drove += 1; h.mine -= 1; h.went = h.went || { x: r.x, y: r.y }; }
       c.flow.runs.push(r);
+      out.push(r);
     }
-    for (var j = 0; j < tills.length; j++) { waiting += tills[j].b.till; if (tills[j].b.till >= load) full += 1; }
-    return { got: got, waiting: waiting, idle: left, full: full, went: went };
+    return out;
+  }
+  function fresh(cars, own) { return { got: 0, left: cars * RULES.car.runs, mine: own || 0, done: 0, drove: 0, went: null }; }
+  // One day in a city played day by day: every till takes its day's part, and a car leaves for each one that is full.
+  function pass(c, f, day, load) {
+    var out = [], trap = c.turn && c.turn.trap;
+    c.hauls = c.hauls || {};
+    Object.keys(f.men).forEach(function (capo) {
+      if (!clubOf(c, capo)) return;
+      var cars = f.men[capo].cars || 1, h = c.hauls[capo] || (c.hauls[capo] = fresh(cars, 0));
+      fill(c, capo, 1 / RULES.days);
+      drive(c, capo, h, cars, load, trap).forEach(function (r) {
+        var e = { type: 'run', city: c.id, capo: capo, x: r.x, y: r.y, amount: r.amount, day: day, vehicle: capo + (r.own ? ':own' : ':car:' + r.car) };
+        if (r.own) e.own = true;
+        if (r.lost) e.lost = r.lost;
+        r.day = day;
+        out.push(e);
+      });
+    });
+    return out;
+  }
+  // A capo's day: what his cars brought. In a city played day by day (`c.turn.daily`) the tills have filled and the
+  // cars have driven since his last day; otherwise the whole cycle is played here in one go.
+  function collect(c, capo, cars, own, load, trap) {
+    var daily = c.turn && c.turn.daily, h = (daily && c.hauls && c.hauls[capo]) || fresh(cars, own), waiting = 0, full = 0;
+    if (!daily) { fill(c, capo, 1); drive(c, capo, h, cars, load, trap); }
+    run(c, capo).forEach(function (p) {
+      var b = at(c, p.x, p.y);
+      if (!b.mades) b.mades = []; b.mades.push(b.making || 0); if (b.mades.length > 6) b.mades.shift();
+      b.making = 0;
+      waiting += b.till || 0; if (b.till >= load) full += 1;
+    });
+    if (daily) { c.hauls = c.hauls || {}; c.hauls[capo] = fresh(cars, own); }
+    return { got: h.got, waiting: waiting, idle: h.left, full: full, went: h.went };
   }
 
   // Where a free capo lends a hand: his still when the bars run dry, otherwise the place that makes him the most.
@@ -314,7 +356,7 @@
   }
 
   var api = { liquor: liquor, CHAINS: CHAINS, loadOfCargo: loadOfCargo, supplied: supplied, cellars: cellars, ambush: ambush, CARGOES: CARGOES,
-      distil: distil, earns: earns, income: income, wages: wages, collect: collect, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
+      distil: distil, earns: earns, income: income, wages: wages, collect: collect, pass: pass, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
       wants: wants, washing: washing, laundries: laundries };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfGoods = api;

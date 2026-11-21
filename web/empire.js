@@ -13,7 +13,7 @@
   var D = node ? require('./district.js') : root.AshportDistrict;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
-  var TICKS_PER_MONTH = 24;  // beats of the clock in a month at speed 1 (the screen beats once a second)
+  var TICKS_PER_MONTH = T.RULES.days;  // beats of the clock in a month at speed 1 (the screen beats once a second)
   var SPEEDS = [1, 2, 4];
   var JOURNAL_SIZE = 200;
   var HISTORY = 24;           // months kept for the curves
@@ -246,11 +246,7 @@
     if (g.history.length > HISTORY) g.history.splice(0, g.history.length - HISTORY);
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
-  function dayOf(capo) {
-    var n = 0;
-    for (var i = 0; i < capo.length; i++) n += capo.charCodeAt(i) * (i + 1);
-    return 2 + n % (TICKS_PER_MONTH - 4);
-  }
+  var dayOf = T.dayOf;
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
     happened.forEach(function (e) {
@@ -268,6 +264,8 @@
       g.was = { dirty: f.dirty, clean: f.clean || 0 };
       tell(g, T.begin(f, g.cities), month, events);
     }
+    // the cars that leave today are for the screen to drive: they are not news for the journal
+    T.pass(f, g.cities, d).forEach(function (e) { events.push(e); });
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     g.ticks = last ? 0 : d + 1;
     if (!last) return;
