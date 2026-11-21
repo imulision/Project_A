@@ -278,3 +278,6 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .tb td small{display:block;color:var(--dim);font-size:.82em}.tb td.in{color:var(--good)}.tb td.out{color:var(--bad)}.tb tr.sum td{border-bottom:0;border-top:1px solid #ffffff44;font-weight:600}.tb tr.pl{cursor:pointer}
 .sp2{display:grid;grid-template-columns:86px 20px 1fr 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #ffffff10}.sp2 em{font-style:normal;color:var(--dim);font-size:.85em}.sp2 b{text-align:right;font:500 1.15em var(--title);color:var(--bad);font-variant-numeric:tabular-nums}.sp2 .ic{width:16px;height:16px;color:var(--dim)}
 .tb td{font-size:.95em}.tb td b.neg{color:var(--bad)}
+
+/* the bar under the date is the month's gauge: it fills day by day */
+#date::after{background:linear-gradient(90deg,var(--accent) calc(var(--day,0)*100%),rgba(255,255,255,.2) 0);transition:background .3s}
