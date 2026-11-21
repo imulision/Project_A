@@ -343,6 +343,7 @@
       // fire, gunfire, police lights and good news have their own light; any other event that has a place is a plain mark there
       // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
+      if (e.type === 'run' || e.type === 'pay') return;      // a car that leaves and a pay packet are seen as money moving, never as a mark
       var kind = e.type === 'taken' ? (e.kind === 'key' ? 'key' : e.way === 'force' ? 'gunfire' : 'promotion') : e.type === 'outcome' ? (e.good ? 'good' : 'bad') : FXOF[e.type] || 'news';
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || (kind === 'news' ? null : plan.cities[0]); if (!c) return;
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
@@ -370,15 +371,16 @@
     return out;
   }
 
-  // What a place pays, the day it pays it: one figure over the place (wages and upkeep together), read by the map as money that leaves.
+  // What a capo pays, the day he pays it: the takings his cars brought to the club are shared out there, so the figure leaves from the club
+  // (wages of all his places and the upkeep of his garage together), read by the map as money that leaves.
   function paysTurf(events, plan) {
     var by = {}, out = [];
     if (!plan) return out;
     (events || []).forEach(function (e) {
-      if (e.type !== 'pay' || typeof e.x !== 'number') return;
-      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], lot = c && lotOfBlock(c, e.x, e.y); if (!lot) return;
-      var k = c.id + ':' + lot.i + ',' + lot.j, o = by[k];
-      if (!o) { o = by[k] = { kind: 'pay', type: 'pay', city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: null, spent: 0 }; out.push(o); }
+      if (e.type !== 'pay') return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], k = c && c.capos.filter(function (m) { return m.id === e.capo; })[0]; if (!k || typeof k.i !== 'number') return;
+      var id = c.id + ':' + k.id, o = by[id];
+      if (!o) { o = by[id] = { kind: 'pay', type: 'pay', city: c.id, capo: k.id, i: k.i, j: k.j, bx: k.bx, by: k.by, say: null, spent: 0 }; out.push(o); }
       o.spent += +e.amount || 0;
     });
     return out.map(function (o) { o.spent = Math.round(o.spent); return o; }).filter(function (o) { return o.spent >= 1; });

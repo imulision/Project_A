@@ -542,16 +542,17 @@ test('the game itself gives claims the map can light', () => {
   assert.ok(list[0].gains.length === list[0].streets && list[0].advance >= 0 && list[0].advance <= 1);
 });
 
-// ---- a pay packet is seen leaving the place it is paid for
-test('what a place pays, wages and upkeep, rises over it as one figure: nothing for cents, nothing for another kind of event', () => {
+// ---- a pay packet is seen leaving the club, where the takings were brought
+test('what a capo pays, wages and upkeep, leaves from his club as one figure: nothing for cents, and neither a pay packet nor a car is a mark on the map', () => {
   const g = E.createGame({ capo: 'sal' }); let pays = [];
   for (let i = 0; i < E.TICKS_PER_MONTH * 6 && !pays.length; i++) { pays = E.tick(g).filter((e) => e.type === 'pay'); if (g.paused) E.command(g, { type: 'resume' }); }
   assert.ok(pays.length, 'the rules tell every pay packet');
-  const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES), e = pays[0];
-  const out = M.paysTurf([e, { ...e, what: 'upkeep', amount: 20.4 }, { type: 'run', city: e.city, x: e.x, y: e.y, amount: 150 }, { ...e, x: e.x, y: e.y, amount: 0.2, capo: 'nobody', city: 'nowhere' }], p);
-  assert.equal(out.length, 1, 'one figure for the place');
-  assert.equal(out[0].spent, Math.round(e.amount + 20.4)); assert.equal(out[0].city, e.city); assert.equal(out[0].kind, 'pay');
-  assert.ok(typeof out[0].i === 'number' && typeof out[0].j === 'number', 'it is over the place itself');
+  const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES), e = pays[0], k = p.cities.find((c) => c.id === e.city).capos.find((m) => m.id === e.capo);
+  const out = M.paysTurf([e, { ...e, x: e.x + 1, what: 'wages', amount: 30 }, { ...e, what: 'upkeep', amount: 20.4 }, { type: 'run', city: e.city, capo: e.capo, x: e.x, y: e.y, amount: 150 }, { ...e, capo: 'nobody' }], p);
+  assert.equal(out.length, 1, 'one figure for the man, whatever places he pays');
+  assert.equal(out[0].spent, Math.round(e.amount + 50.4)); assert.equal(out[0].city, e.city); assert.equal(out[0].kind, 'pay');
+  assert.deepEqual([out[0].i, out[0].j], [k.i, k.j], 'it leaves from his club: that is where the money is');
   assert.deepEqual(M.paysTurf([{ ...e, amount: 0.3 }], p), []);
   assert.deepEqual(M.paysTurf([], p), []); assert.deepEqual(M.paysTurf([e], null), []);
+  assert.deepEqual(M.effectsTurf([e, { type: 'run', city: e.city, capo: e.capo, x: e.x, y: e.y, amount: 150 }], p).filter((f) => f.kind !== 'siege'), [], 'no clock left on the map for them');
 });
