@@ -287,7 +287,7 @@ test('the hud says how much the two kinds of money moved last month', () => {
 
 // --- the clock never stops for a word the boss cannot give ---
 const firstKnock = (prepare) => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch' }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) { prepare(g); knock = E.tick(g).find((e) => e.type === 'knocks'); }
   return { g, knock };
