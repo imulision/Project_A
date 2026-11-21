@@ -7,6 +7,7 @@
   var P = typeof require === 'function' ? require('./turf-people.js') : root.AshportTurfPeople;
   var C = typeof require === 'function' ? require('./turf-city.js') : root.AshportTurfCity;
   var G = typeof require === 'function' ? require('./turf-goods.js') : root.AshportTurfGoods;
+  var H = typeof require === 'function' ? require('./turf-hit.js') : root.AshportTurfHit;
   var RULES = R.RULES, key = R.key, at = R.at, far = R.far;
   var KEYS = P.KEYS, who = P.who, can = P.can;
   var run = C.run, bestKind = C.bestKind, zoneOf = C.zoneOf, changed = C.changed, everyPlace = C.everyPlace, held = C.held, open = C.open, clubOf = C.clubOf,
@@ -36,9 +37,9 @@
              waiting: saved >= w.cost ? null : 'money', why: w.why };
   }
 
-  function settleTakes(c, events) {
+  function settleTakes(c, events, f) {
     var struck = null;
-    settle(c, events, function (o) { struck = o; });
+    settle(c, events, function (o) { struck = o; }, f);
     if (struck) swear(c, events, struck);
   }
   // A chief struck gun in hand swears a vendetta. Struck again, it starts over without another word.
@@ -50,7 +51,17 @@
     events.push({ type: 'vendetta', city: c.id, chief: id, family: c.rival, months: RULES.vendetta.months, x: o.x, y: o.y,
                   label: who(id).name + ' swears he will have blood for ' + zoneOf(c, o.x, o.y).name });
   }
-  function settle(c, events, hit) {
+  // A place taken gun in hand becomes the family's, and their chief swears blood for it.
+  function land(c, events, o) {
+    var was = at(c, o.x, o.y);
+    c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
+    changed(c);
+    events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
+                  label: first(o.capo) + '\'s men take the ' + was.owner + 's\' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand' });
+    swear(c, events, o);
+  }
+  H.setLand(land);
+  function settle(c, events, hit, f) {
     c.ops = c.ops.filter(function (o) {
       // men who left on a day of a cycle get there on that day, so many cycles later
       var gone = c.month - o.month, today = c.turn ? c.turn.day || 0 : 0;
@@ -65,6 +76,8 @@
                       label: 'The ' + KEYS[o.key].name + ' is ours: ' + first(o.capo) + ' holds it now' });
         return false;
       }
+      // a guarded place taken gun in hand is a hit of its own, played step by step
+      if (f && f.men && f.men[o.capo] && H.guarded(c, o)) { H.open(c, f, o, events); return false; }
       c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
       changed(c);
       if (o.way === 'force') hit(o);
@@ -148,6 +161,8 @@
   function whereabouts(c, f, capo) {
     var club = clubOf(c, capo), op = c.ops.filter(function (o) { return o.capo === capo; })[0];
     var site = function (kind, key) { return (kind === 'key' ? KEYS[key].name : D.SITES[kind].name).toLowerCase(); };
+    var live = H.on(c, capo);
+    if (live) return { x: live.x, y: live.y, why: 'hit', label: 'Hitting the ' + live.rival + 's\' ' + site(live.kind) + ' in ' + zoneOf(c, live.x, live.y).name };
     if (op) {
       var b = at(c, op.x, op.y), whose = b && b.owner !== 'family' ? 'the ' + b.owner + 's\' ' : 'the ';
       return { x: op.x, y: op.y, why: 'take', label: 'Taking ' + whose + site(op.kind, op.key) + ' in ' + zoneOf(c, op.x, op.y).name };
