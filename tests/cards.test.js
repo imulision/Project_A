@@ -6,7 +6,7 @@ const C = require('../web/cards.js');
 
 // A game played with a boss who says yes to all he can afford, stopped at the first moment `until` is true.
 function play(until, months) {
-  const g = E.createGame({ capo: 'sal' });
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let i = 0; i < (months || 240) * E.TICKS_PER_MONTH; i++) {
     E.tick(g);
     const v = E.view(g);
