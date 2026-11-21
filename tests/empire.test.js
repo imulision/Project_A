@@ -502,3 +502,35 @@ test('a month lasts eight beats at speed 1, four at speed 2 and two at speed 4',
     assert.equal(g.month, 1, 'speed ' + speed);
   }
 });
+
+// --- a game begun before the cities had an outline ---
+
+test('a game begun on the old square cities gets the outline and the street shapes when it is loaded, and loses no place', () => {
+  const g = E.createGame({ capo: 'dutch' }), fresh = E.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  // as it was saved then: no gap on the sides, every street name a plain rectangle
+  const gone = Object.keys(fresh.cities[0].voids)[0].split(',').map(Number);
+  for (const c of g.cities) { c.voids = {}; delete c.streets; c.zones.forEach((z, i) => { z.x0 = 0; z.y0 = 0; z.x1 = c.w - 1; z.y1 = c.h - 1; }); }
+  T.open(g.cities[0], gone[0], gone[1], { owner: 'family', kind: 'speakeasy', capo: 'dutch' }); // a place where the outline now passes
+  const places = g.cities.map((c) => Object.keys(c.blocks).length);
+  const back = E.load(E.save(g));
+  back.cities.forEach((c, i) => {
+    const f = fresh.cities[i];
+    assert.deepEqual(c.streets, f.streets, c.id + ': the street shapes');
+    assert.deepEqual(c.zones, f.zones, c.id + ': the street names');
+    assert.equal(Object.keys(c.blocks).length, places[i], c.id + ': every place still stands');
+    for (const k of Object.keys(c.blocks)) assert.ok(!c.voids[k], c.id + ': the block at ' + k + ' carries a place and stays');
+    for (const k of Object.keys(f.voids)) assert.ok(c.blocks[k] || c.voids[k] === f.voids[k], c.id + ': ' + k + ' is outside the city');
+    for (const k of Object.keys(c.voids)) assert.ok(f.voids[k]);
+  });
+  assert.ok(Object.keys(back.cities[0].voids).length > 20);
+  assert.ok(!back.cities[0].voids[gone.join(',')]);
+  for (let i = 0; i < 12 * E.TICKS_PER_MONTH; i++) { back.paused = false; E.tick(back); } // and it plays on
+  assert.doesNotThrow(() => E.view(back));
+});
+
+test('a game of today is loaded as it was saved', () => {
+  const g = E.createGame({ capo: 'sal' });
+  for (let i = 0; i < 3 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  assert.deepEqual(E.load(E.save(g)), JSON.parse(E.save(g)));
+});
