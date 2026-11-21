@@ -12,7 +12,12 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var money = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
   var first = function (name) { return String(name).split(' ')[0]; };
-  var months = function (n) { return n + ' month' + (n > 1 ? 's' : ''); };
+  // Time is counted in days, never in months: a turn of the rules is CYCLE days, and the page says how long in days.
+  var CYCLE = 24;
+  var months = function (n) { var d = Math.round(n * CYCLE); return d + ' day' + (d === 1 ? '' : 's'); };      // (a length the rules give in turns, said in days)
+  // the day the game has reached, counted from the first one: day(view) or day(turn, dayOfTurn)
+  function dayNo(turn, d) { return (turn || 0) * CYCLE + (d || 0) + 1; }
+  function day(a, d) { return 'Day ' + (a && typeof a === 'object' ? dayNo(a.month, a.day) : dayNo(a, d)); }
   var funds = function (hud) { return Math.max(0, hud.dirty || 0) + Math.max(0, hud.clean || 0); };
   // T.person throws on a name it does not know, and a sheet must never fail to open: what is not a person here is a key place or a rival family.
   var known = function (id) { try { return T.person(id); } catch (e) { return null; } };
@@ -70,7 +75,7 @@
     else if (choke) { o.money = 'warn'; why.money = choke; }
     if (k.mood === 'bitter') { o.men = 'bad'; why.men = who + ' is bitter: he may turn on you'; } else if (k.mood === 'restless') { o.men = 'warn'; why.men = who + ' is restless'; }
     var ch = c.chief;
-    if (ch && ch.vendetta > 0) { o.threat = 'bad'; why.threat = ch.name + ' wants blood: ' + ch.vendetta + ' month' + (ch.vendetta > 1 ? 's' : '') + ' of vendetta'; }
+    if (ch && ch.vendetta > 0) { o.threat = 'bad'; why.threat = ch.name + ' wants blood: ' + months(ch.vendetta) + ' of vendetta'; }
     else if (k.at && k.at.why === 'raid') { o.threat = 'warn'; why.threat = k.at.label || 'The rivals press on his streets'; }
     else if ((c.heat || 0) >= HOT) { o.threat = 'warn'; why.threat = 'The police watch this city closely'; }
     var worst = 'good', say = 'His streets are doing well';
@@ -250,7 +255,7 @@
   }
   // Loyalty reaches the screen as a mood, never as a number.
   var MOOD = { steady: ['loyalty', 'Steady', 'He is with you.'], restless: ['time', 'Restless', 'Something weighs on him: a ruling against him, a place refused. A gesture would settle him.'],
-               bitter: ['betrayal', 'Bitter', 'He sends nothing up. Left bitter for six months, he goes over to the rivals with every place he runs.'] };
+               bitter: ['betrayal', 'Bitter', 'He sends nothing up. Left bitter too long, he goes over to the rivals with every place he runs.'] };
   function mood(k) {
     var m = MOOD[k.mood]; if (!m) return '';
     return '<div class="move mood ' + k.mood + '" data-tip="' + esc(m[2]) + '">' + icon(m[0]) + '<span><b>' + m[1] + '.</b> ' + (k.mood === 'bitter' ? 'He sends nothing up.' : m[2].split(':')[0].replace(/\.$/, '') + '.') + '</span></div>';
@@ -284,7 +289,7 @@
   }
   function gift(c, k, hud) {
     var t = k.gift; if (!t) return '';
-    var short = !hud || (hud.clean || 0) < t.cost, why = t.wait > 0 ? 'He had one this year: again in ' + t.wait + ' month' + (t.wait > 1 ? 's' : '') : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
+    var short = !hud || (hud.clean || 0) < t.cost, why = t.wait > 0 ? 'He had one not long ago: again in ' + months(t.wait) : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
     return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.wait > 0 || short }) + '</div>';
   }
   function capo(view, cityId, id, hud, pw, rows) {
@@ -343,14 +348,14 @@
       '<tr class="sum"><td>' + b.places.length + (b.places.length === 1 ? ' place' : ' places') + '</td><td class="in">+' + money(sum.made) + '</td><td class="out">−' + money(sum.costs) + '</td><td><b>' + money(sum.made - sum.costs) + '</b></td></tr></table>';
     var missing = p && p.cost ? Math.max(0, Math.round(p.cost - (p.saved || 0))) : 0, pace = Math.round(k.pace || 0);
     var when = !p || !p.cost ? '' : !missing || p.monthsLeft === 0 ? 'He has the money.' : p.monthsLeft == null ? 'He needs ' + money(missing) + ' more, and puts nothing aside: at this pace he never gets there.'
-      : 'He needs ' + money(missing) + ' more: about ' + p.monthsLeft + (p.monthsLeft === 1 ? ' month' : ' months') + (pace > 0 ? ' at ' + money(pace) + ' a month' : '') + '.';
+      : 'He needs ' + money(missing) + ' more: about ' + months(p.monthsLeft) + (pace > 0 ? ' at ' + money(pace) + ' a month' : '') + '.';
     var fund = (c.asks || []).filter(function (a) { return a.kind === 'fund' && a.capo === k.id; })[0];
-    var ago = function (n) { return (n + 1) + (n ? ' months ago' : ' month ago'); };
-    var bought = b.wages === null ? '' : '<h4 class="mh"><span>What he bought</span><span>' + money(b.spent) + ' in ' + b.months + (b.months === 1 ? ' month' : ' months') + '</span></h4>' +
+    var ago = function (n) { return months(n + 1) + ' ago'; };
+    var bought = b.wages === null ? '' : '<h4 class="mh"><span>What he bought</span><span>' + money(b.spent) + ' in ' + months(b.months) + '</span></h4>' +
       (b.bought.length ? b.bought.map(function (q) { return '<div class="sp2"><em>' + ago(q.ago) + '</em>' + icon(BOUGHTICON[q.what] || 'dirty') + '<span>' + (BOUGHT[q.what] || 'Spent') + '</span><b>−' + money(q.amount) + '</b></div>'; }).join('') : '<p>Nothing.</p>');
     return head(k.id, first(k.name) + '\'s books', esc(k.rankName) + ' · ' + esc(k.specialty) + ' · ' + k.places + ' of ' + k.reach + ' places') +
       '<div class="tabs">' + tab(6, '6 MONTHS') + tab(1, 'LAST MONTH') + '</div><p class="unit">' + unit + '</p>' + steps + table +
-      '<h4 class="mh"><span>What he wants</span></h4>' + (p ? intent(p) : '') + (when ? '<p>' + when + '</p>' : '') +
+      '<h4 class="mh"><span>What he wants</span></h4>' + (p ? intent(p) : '') + (when ? '<p>' + when + '</p>' : '') + (p && p.cost ? '<div class="nxb' + (p.monthsLeft == null && missing ? ' stuck' : '') + '"><u style="width:' + Math.round(100 * Math.max(0, Math.min(1, p.advance === undefined ? p.progress || 0 : p.advance))) + '%"></u></div>' : '') +
       (fund ? '<div class="acts col">' + button('requests', {}, 'He asks you for ' + money(fund.cost) + ': answer him') + '</div>' : '') + bought +
       '<div class="acts">' + button('capo', o, 'Back to ' + esc(first(k.name))) + button('close', {}, 'Close') + '</div>';
   }
@@ -432,7 +437,7 @@
   function pin(l) { return icon(iconName(l.key || l.site)) + (l.owner === 'family' && l.level > 1 ? '<i class="lv">' + ['', 'I', 'II', 'III', 'IV'][Math.min(4, l.level)] + '</i>' : ''); }
   function chief(c, view) {
     var h = c && c.chief; if (!h) return '';
-    var rt = view ? rivalTrend(view, c.id) : null, arrow = rt && rt.tone !== 'idle' ? ' <span class="rt ' + rt.tone + '">' + (rt.diff < 0 ? '\u25BC' : '\u25B2') + ' ' + (rt.diff < 0 ? '\u2212' : '+') + Math.abs(rt.diff) + ' in a year</span>' : '';
+    var rt = view ? rivalTrend(view, c.id) : null, arrow = rt && rt.tone !== 'idle' ? ' <span class="rt ' + rt.tone + '">' + (rt.diff < 0 ? '\u25BC' : '\u25B2') + ' ' + (rt.diff < 0 ? '\u2212' : '+') + Math.abs(rt.diff) + ' in ' + months(12) + '</span>' : '';
     return '<h3 class="sub2">The ' + esc(h.family || c.rival || 'rival') + ' family</h3><div class="chief"><span class="slot">' + I.portrait(h.id) + '</span><div><b>' + esc(h.name) + '</b><small>Head of the ' + esc(h.family || c.rival || 'rival') + ' family · ' + Math.round(h.strength || 0) + '% of the streets' + arrow + '</small>' +
       '<span class="bar"><i style="width:' + Math.round(h.strength || 0) + '%"></i></span></div></div>' +
       (h.vendetta > 0 ? '<div class="move no">' + icon('attack') + '<span><b>Vendetta: ' + months(h.vendetta) + '.</b> You took one of his places by force: his men hit twice as hard</span></div>' : '') +
@@ -495,7 +500,7 @@
   // trend(view): the verdict over the last year (or since the start, if the game is younger). null in the first months.
   function trend(view) {
     var h = view.history || []; if (h.length < 3) return null;
-    var now = h[h.length - 1], was = h[Math.max(0, h.length - 13)], months = Math.min(12, h.length - 1), over = months === 12 ? 'in a year' : 'in ' + months + ' months';
+    var now = h[h.length - 1], was = h[Math.max(0, h.length - 13)], months = Math.min(12, h.length - 1), over = 'in ' + CYCLE * months + ' days';
     var o = { months: months, streets: { now: round1(mapShare(now)), diff: round1(mapShare(now) - mapShare(was)) }, sent: { now: Math.round(sentUp(now)), diff: Math.round(sentUp(now) - sentUp(was)) } };
     var big = Math.max(20, 0.1 * sentUp(was));
     if (o.streets.diff >= 0.2) { o.tone = 'good'; o.word = 'GROWING'; o.say = signed(o.streets.diff, String) + '% of the streets ' + over; }
@@ -560,7 +565,7 @@
   }
   function powerLine(t, rows) {
     if (!t) return '';
-    var over = t.months >= 12 ? 'in a year' : 'in ' + t.months + ' month' + (t.months === 1 ? '' : 's');
+    var over = 'in ' + months(Math.min(12, t.months));
     return '<div class="move power ' + t.tone + '" data-tip="His power: ten a place he runs, one for every ten dollars his streets bring in a month.">' + icon('muscle') + '<span><b>POWER ' + t.now + '</b> ' +
       (t.months ? (t.diff ? ARROW[t.tone] + ' ' + signed(t.diff, String) + ' ' + over : 'unchanged ' + over) : '') + '</span>' +
       (rows && rows.length > 2 ? I.spark(rows.map(function (r) { return r[1]; }), { min: 0 }) : '') + '</div>';
@@ -633,7 +638,7 @@
     return '<div class="move next" data-tip="What he learns by running his places takes him to his next rank.">' + icon('muscle') + '<span class="rk"><b>' + esc(n.name) + '</b><span class="bar"><i style="width:' + Math.round(100 * Math.min(1, n.xp / n.of)) + '%"></i></span><small>' + Math.round(n.xp) + ' / ' + n.of + '</small></span></div>';
   }
   // What holds the family back, as the rules tell it (view.stalls, cities[].stalls): what, since when, why, and the lever the boss has.
-  var span = function (months) { var y = Math.floor(months / 12); return y >= 1 ? 'for ' + y + ' year' + (y > 1 ? 's' : '') : 'for ' + months + ' month' + (months === 1 ? '' : 's'); };
+  var span = function (n) { return 'for ' + months(n); };
   function stall(q, cityId) {
     var city = q.city || cityId, go = city && typeof q.x === 'number' ? button('show', { city: city, x: q.x, y: q.y }, 'Show') : city && q.capo ? button('capo', { city: city, capo: q.capo }, 'See him') : '';
     return '<div class="stall"><b>' + esc(q.what) + '</b><small>' + span(q.since || 0) + '</small><p>' + esc(q.why || '') + '</p>' +
@@ -710,7 +715,7 @@
     for (var v = 0; v <= hi; v += step) grid += '<line class="g" x1="' + L + '" x2="' + W + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (L - 5) + '" y="' + (y(v) + 3).toFixed(1) + '" text-anchor="end">' + short(v) + '</text>';
     var one = function (k, v) { return '<path class="fill ' + k + '" d="' + line(v) + 'L' + x(h.length - 1).toFixed(1) + ' ' + base + 'L' + L + ' ' + base + 'Z"/><path class="held ' + k + '" d="' + line(v) + '"/><circle class="' + k + '" cx="' + x(h.length - 1).toFixed(1) + '" cy="' + y(v[v.length - 1]).toFixed(1) + '" r="3.5"/>'; };
     var ago = h.length - 1;
-    return '<h4 class="mh"><span>Money held</span><span>last ' + h.length + ' months</span></h4><div class="ch"><svg viewBox="0 0 ' + W + ' ' + H + '">' + grid + one('dirty', d) + one('clean', c) +
+    return '<h4 class="mh"><span>Money held</span><span>last ' + months(h.length) + '</span></h4><div class="ch"><svg viewBox="0 0 ' + W + ' ' + H + '">' + grid + one('dirty', d) + one('clean', c) +
       '<text x="' + L + '" y="' + (H - 3) + '">' + ago + ' mo ago</text>' + (ago >= 8 ? '<text x="' + x(ago / 2).toFixed(1) + '" y="' + (H - 3) + '" text-anchor="middle">' + Math.round(ago / 2) + ' mo ago</text>' : '') + '<text x="' + W + '" y="' + (H - 3) + '" text-anchor="end">now</text></svg></div>' +
       '<div class="lg"><span><i class="dirty"></i>Dirty cash ' + money(hud.dirty || 0) + '</span><span><i class="clean"></i>Clean money ' + money(hud.clean || 0) + '</span></div>';
   }
@@ -736,7 +741,7 @@
   }
   function curves(view, cityId) {
     var h = view.history || []; if (h.length < 2) return '';
-    var since = 'over the last ' + h.length + ' months', pct = function (x) { return (Math.round(x * 10) / 10) + '%'; };
+    var since = 'over the last ' + months(h.length), pct = function (x) { return (Math.round(x * 10) / 10) + '%'; };
     if (cityId) {
       var of = function (k) { return h.map(function (m) { return ((m.cities || {})[cityId] || {})[k] || 0; }); }, share = of('share'), income = of('income');
       if (!share.some(function (x) { return x > 0; })) return '';
@@ -759,7 +764,7 @@
   }
   // ---- starting again: asked before anything is erased
   function restart(hud) {
-    return '<h2>Start a new game?</h2><p>This game stops in ' + esc((hud && hud.date) || 'its first month') + ' and cannot be brought back. You pick a first capo again, in a city drawn afresh.</p>' +
+    return '<h2>Start a new game?</h2><p>This game stops on ' + (hud && typeof hud.month === 'number' ? 'day ' + dayNo(hud.month, hud.day) : 'its first day') + ' and cannot be brought back. You pick a first capo again, in a city drawn afresh.</p>' +
       '<div class="acts"><button class="warn" data-act="new">Erase and start again</button>' + button('close', {}, 'Keep playing') + '</div>';
   }
 
@@ -784,7 +789,7 @@
   function journal(lines) {
     var last = lines.slice(-60).reverse();
     return '<h2>Journal</h2>' + (last.length ? '<ul class="list">' + last.map(function (e) {
-      return '<li class="ev"><span class="i' + (bad(e) ? ' no' : e.type === 'outcome' && e.good === true ? ' ok' : '') + '">' + icon(e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time') + '</span><div>' + esc(e.label || e.type) + '<small>' + esc(e.date || '') + '</small></div></li>'; }).join('') + '</ul>' : '<p>Nothing yet.</p>') +
+      return '<li class="ev"><span class="i' + (bad(e) ? ' no' : e.type === 'outcome' && e.good === true ? ' ok' : '') + '">' + icon(e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time') + '</span><div>' + esc(e.label || e.type) + '<small>' + (typeof e.month === 'number' ? day(e.month, e.day) : '') + '</small></div></li>'; }).join('') + '</ul>' : '<p>Nothing yet.</p>') +
       '<div class="acts">' + button('decisions', {}, 'Your decisions') + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';
   }
   // What became of the boss's decisions (view.decisions, kept by the rules): each one, and a year on what it gave.
@@ -792,8 +797,8 @@
     var l = view.decisions || [];
     return '<h2>Your decisions</h2><p>What you decided, and what it gave a year on.</p>' + (l.length ? '<ul class="list">' + l.map(function (d) {
       var r = d.result, left = Math.max(1, (d.due || 0) - (view.month || 0));
-      var then = r ? '<span class="then ' + (r.good === true ? 'good' : r.good === false ? 'bad' : 'idle') + '">' + esc(r.label) + '</span>' : '<span class="then wait">Its result in ' + left + ' month' + (left === 1 ? '' : 's') + '</span>';
-      return '<li class="ev"><span class="i' + (r && r.good === false ? ' no' : r && r.good === true ? ' ok' : '') + '">' + icon(EVENT[d.type] || 'time') + '</span><div>' + esc(d.label) + '<small>' + esc(d.date || '') + '</small>' + then + '</div></li>'; }).join('') + '</ul>' : '<p>Nothing decided yet.</p>') +
+      var then = r ? '<span class="then ' + (r.good === true ? 'good' : r.good === false ? 'bad' : 'idle') + '">' + esc(r.label) + '</span>' : '<span class="then wait">Its result in ' + months(left) + '</span>';
+      return '<li class="ev"><span class="i' + (r && r.good === false ? ' no' : r && r.good === true ? ' ok' : '') + '">' + icon(EVENT[d.type] || 'time') + '</span><div>' + esc(d.label) + '<small>' + (typeof d.month === 'number' ? day(d.month) : '') + '</small>' + then + '</div></li>'; }).join('') + '</ul>' : '<p>Nothing decided yet.</p>') +
       '<div class="acts">' + button('close', {}, 'Close') + '</div>';
   }
 
@@ -805,7 +810,7 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;

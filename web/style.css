@@ -279,8 +279,6 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .sp2{display:grid;grid-template-columns:86px 20px 1fr 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #ffffff10}.sp2 em{font-style:normal;color:var(--dim);font-size:.85em}.sp2 b{text-align:right;font:500 1.15em var(--title);color:var(--bad);font-variant-numeric:tabular-nums}.sp2 .ic{width:16px;height:16px;color:var(--dim)}
 .tb td{font-size:.95em}.tb td b.neg{color:var(--bad)}
 
-/* the bar under the date is the month's gauge: it fills day by day */
-#date::after{background:linear-gradient(90deg,var(--accent) calc(var(--day,0)*100%),rgba(255,255,255,.2) 0);transition:background .3s}
 
 /* the next streets: one line at the top with its bar, and a mark with a ring over the place on the map */
 #next{pointer-events:auto}#next:empty{display:none}
@@ -294,3 +292,4 @@ button.warn{border-color:var(--bad);color:var(--bad)}
 .lab.claim svg{width:30px;height:30px;display:block;position:static}.lab.claim b{font:500 15px/1 var(--title);letter-spacing:.5px;text-transform:uppercase;color:var(--ink)}.lab.claim b i{font-style:normal;color:var(--accent)}
 .lab.claim::after{content:"";position:absolute;left:50%;top:100%;width:2px;height:14px;background:currentColor;opacity:.8}
 .lab.claim.stuck{color:var(--bad);border-color:var(--bad)}.lab.claim.stuck b i{color:var(--bad)}
+.nxb.stuck u{background:repeating-linear-gradient(135deg,#e2695c 0 5px,#e2695c66 5px 10px)}.card .nxb,#sheet .nxb{margin:6px 0 10px}
