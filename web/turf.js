@@ -184,7 +184,7 @@
     choke.smokers = everyPlace(c).filter(function (p) { return p.owner === 'family' && CHAINS[2].sells.indexOf(p.kind) >= 0; }).length;
     cellars(c).forEach(function (s) { choke.cellar[key(s.p.x, s.p.y)] = { most: s.most, cargo: s.cargo }; });
     laundries(c).forEach(function (l) { choke.most[key(l.x, l.y)] = l.most; });
-    return {
+    var out = {
       id: c.id, w: c.w, h: c.h, month: c.month, heat: c.heat || 0, under: underOf(c),
       rival: c.rival || (everyPlace(c).filter(function (p) { return p.owner !== 'family'; })[0] || {}).owner || null,
       zones: c.zones.map(function (z) { return { name: z.name, x0: z.x0, y0: z.y0, x1: z.x1, y1: z.y1 }; }),
@@ -219,9 +219,11 @@
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
         var man = f.men[id], club = clubOf(c, id), led = P.follows(c, f, id);
         return { follows: led ? led.follows : null, followsWhy: led ? led.why : null, id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
-                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: dated(plan(c, f, id), paceOf(man)), pace: paceOf(man), book: bookOf(man), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), book: bookOf(man), partings: partings(c, f, id) };
       })
     };
+    out.next = nextOf(out.capos); // the next streets to fall, or null
+    return out;
   }
 
   // --- the books ---
@@ -243,9 +245,28 @@
     return puts.length ? Math.max(0, Math.round(puts.reduce(function (a, b) { return a + b; }, 0) / puts.length)) : 0;
   }
   // The months his plan is from being paid at that pace; null when he puts nothing aside.
+  function gained(c, p) { p.gains = C.gains(c, p); return p; }
   function dated(p, pace) {
     p.monthsLeft = p.waiting !== 'money' ? 0 : pace > 0 ? Math.ceil((p.cost - p.saved) / pace) : null;
+    // the months before the move is done: the money first, then the time his men take; null when it never comes
+    p.due = p.waiting === 'time' ? p.left : p.waiting === 'rank' ? null : p.monthsLeft === null ? null : p.monthsLeft + (p.months || 0);
+    // how far along the whole move is, from nothing put aside to the place in hand: the money is RULES.paidFor of the way
+    // when his men must then go and take it, all of it otherwise
+    var share = p.months ? RULES.paidFor : 1;
+    p.advance = p.waiting === 'time' ? share + (1 - share) * (1 - p.left / Math.max(1, p.months)) : p.waiting === 'rank' ? 0 : share * Math.min(1, p.progress);
     return p;
+  }
+  // The next streets to fall in a city: the soonest plan that brings any, in words the screen can show as they are.
+  var DOES = { open: 'opens', take: 'takes', enlarge: 'enlarges' };
+  function nextOf(capos) {
+    var best = null;
+    capos.forEach(function (k) {
+      var p = k.plan;
+      if (!p.gains.length || p.waiting === 'rank') return;
+      if (!best || p.advance > best.advance) best = { capo: k.id, move: p.move, kind: p.kind, name: p.name, x: p.x, y: p.y, months: p.due, streets: p.gains.length, waiting: p.waiting, advance: p.advance, stuck: p.waiting === 'money' && p.monthsLeft === null };
+    });
+    if (best) best.label = who(best.capo).name.split(' ')[0] + ' ' + DOES[best.move] + ' a ' + (best.name || 'place').toLowerCase() + ': +' + best.streets + (best.streets === 1 ? ' street' : ' streets');
+    return best;
   }
 
   // A month has three parts: it opens (what was taken, the key places asked for, the trucks on the road), then every
@@ -478,7 +499,7 @@
     }
   }
 
-  var api = { begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
