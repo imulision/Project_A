@@ -43,10 +43,10 @@
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
-                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition' };
+                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
   var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
-  var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
-  var good = function (e) { return (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good'); };
+  var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
+  var good = function (e) { return (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
@@ -130,6 +130,33 @@
     if (kind === 'news') return icon(EVENT[type] || 'time') + ' ' + esc(say || '');
     var f = FX[kind] || ['time', kind]; return '<b>' + icon(f[0]) + ' ' + esc(f[1]) + '</b>' + (say ? '<br>' + esc(say) : '');
   }
+  // ---- the live hit: a guarded place taken gun in hand, played on the map while the boss watches
+  // The band at the top: who hits what, the men of each side, and the three steps.
+  function hitBand(h) {
+    var all = Math.max(1, h.ours + h.theirs);
+    return '<small class="lv">Live<span>' + esc(h.rival) + ' family</span></small><h2>' + esc(first(nameOf(h.capo))) + ' hits the ' + esc(h.name) + '</h2>' +
+      '<div class="vs"><b>' + h.ours + '</b>ours<div class="tug"><u style="width:' + Math.round(100 * h.ours / all) + '%"></u><s></s></div>theirs<b class="r">' + h.theirs + '</b></div>' +
+      '<div class="steps">' + (h.stages || []).map(function (n, i) { return '<div class="' + (i < h.stage ? 'done' : i === h.stage ? 'now' : '') + '">' + esc(n) + '</div>'; }).join('') + '</div>';
+  }
+  // The boss's word: three calls, what each wins and costs, and what the capo does if nobody answers. No reflex is asked of him.
+  var ALONE = { press: 'presses on', hold: 'holds', pull: 'pulls out' };
+  function hitCall(h, city) {
+    if (!h.calls || !h.calls.length) return '';
+    var him = esc(first(nameOf(h.capo)));
+    return '<small>Your call</small><h3>' + esc(h.title) + '</h3><p>' + esc(h.say) + '</p><div class="calls">' + h.calls.map(function (c) {
+      return '<button data-act="call" data-city="' + esc(city) + '" data-hit="' + esc(h.id) + '" data-call="' + esc(c.id) + '" class="call' + (c.id === h.alone ? ' hot' : '') + '"><b>' + esc(c.name) + '</b>' +
+        (c.gains || []).map(function (t) { return '<span class="g">' + esc(t) + '</span>'; }).join('') + (c.risks || []).map(function (t) { return '<span class="b">' + esc(t) + '</span>'; }).join('') + '</button>';
+    }).join('') + '</div><div class="own"><u><i style="width:' + Math.round(100 * Math.max(0, h.left) / Math.max(1, h.of)) + '%"></i></u><span>Left alone, ' + him + ' <em>' + (ALONE[h.alone] || 'decides') + '</em></span>' +
+      '<button data-act="unlive" class="away">Look away</button></div>';
+  }
+  // How it ended: what was won, what it cost.
+  function hitEnd(l) {
+    var r = l.result || {}, tile = function (v, name, cls) { return '<div' + (cls ? ' class="' + cls + '"' : '') + '><b>' + v + '</b><span>' + name + '</span></div>'; };
+    return '<div class="end' + (r.won ? '' : ' lost') + '"><small>' + (r.won ? 'It is done' : 'It is over') + '</small><h3>' + esc(r.title) + '</h3><p>' + esc(r.say) + '</p><div class="tally">' +
+      (r.place ? tile('+' + r.place, 'Place') : '') + (r.streets ? tile(signed(r.streets, String), 'Streets', r.streets < 0 ? 'b' : '') : '') + (r.till ? tile(money(r.till), 'Till') : '') +
+      (r.lost ? tile(r.lost, 'Men lost', 'b') : '') + (r.heat ? tile('+' + r.heat, 'Heat', 'b') : '') + '</div><button data-act="unlive" class="go">Back to the town</button></div>';
+  }
+
   // An event as a small tile on the edge of the screen: its picture and its words. A touch goes where it happened, when it has a place.
   function news(e) {
     var there = typeof e.x === 'number' && e.city;
@@ -819,7 +846,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });
