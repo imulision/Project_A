@@ -245,7 +245,7 @@ test('money that can be followed: the month\'s change beside a total, the amount
   assert.ok(sheet.includes('CARS</small><b>' + k.cars), 'his cars');
   // cash that waits in a place's till for a car is said on the place and on the capo
   const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club'); p.till = 90; k.waiting = 90;
-  assert.match(C.block(v, c.id, p.x, p.y), /\$90 in the till, waiting for a car/);
+  assert.match(C.block(v, c.id, p.x, p.y), /\$90 \/ \$150<\/b> in the till[^]*class="nxb"><u style="width:60%"/);
   assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
 });
 
@@ -420,13 +420,13 @@ test('a man at the door can be given a chair at the table instead of a street', 
   assert.match(sheet, /data-act="sit" data-city="ashport" data-capo="mae" data-post="routes"/);
   assert.match(sheet, /data-act="sit" data-city="ashport" data-capo="mae" data-post="fixer"/);
   assert.doesNotMatch(sheet, /data-post="bookkeeper"/, 'a taken chair is not on offer');
-  assert.match(sheet, /\$300 a month/); assert.match(sheet, /Dutch Keller/, 'and he sees who already sits');
+  assert.match(sheet, /\$300 every 24 days/); assert.match(sheet, /Dutch Keller/, 'and he sees who already sits');
 });
 
 test('a taken chair says what it costs and gives, and the man can be sent away', () => {
   const { v } = play((v) => v.month >= 2);
   const sheet = C.chair({ ...v, table: TABLE }, 'bookkeeper');
-  assert.match(sheet, /Dutch Keller/); assert.match(sheet, /washes 35% more/); assert.match(sheet, /\$300 a month/);
+  assert.match(sheet, /Dutch Keller/); assert.match(sheet, /washes 35% more/); assert.match(sheet, /\$300 every 24 days/);
   assert.match(sheet, /data-act="unseat" data-post="bookkeeper"/); assert.match(sheet, /cannot be taken back/);
   assert.match(C.chair({ ...v, table: TABLE.map((t) => ({ ...t, paid: false })) }, 'bookkeeper'), /not paid/i);
   assert.equal(C.chair({ ...v, table: TABLE }, 'routes'), null, 'an empty chair has no sheet');
@@ -708,7 +708,7 @@ test('a capo\'s ask is laid out as a choice: what a yes costs and what he promis
   const v = E.view(E.createGame({ capo: 'sal' })); v.cities[0].asks = [ask];
   const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
   const sides = html.match(/<div class="sides">([\s\S]*?)<\/div><\/div><\/div>/)[0];
-  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 a month[\s\S]*promised[\s\S]*240 days[\s\S]*data-yes="1"/);
+  assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 every 24 days[\s\S]*promised[\s\S]*240 days[\s\S]*data-yes="1"/);
   assert.match(sides, /class="side no"[\s\S]*IF YOU SAY NO[\s\S]*Sal[\s\S]*data-yes="0"/);
   assert.ok(sides.indexOf('class="side yes"') < sides.indexOf('class="side no"'));
   v.cities[0].asks = [{ ...ask, expects: null }];
@@ -736,7 +736,7 @@ test('the rival of a city has a face: his name, how strong he is, what he last d
 test('a promise is followed: what is owed is listed on the city sheet, and the day it is judged the news says kept or broken', () => {
   const promises = [{ capo: 'dutch', key: 'brewery', name: 'Brewery', x: 12, y: 8, expected: 340, months: 4 }];
   const html = C.promises({ id: 'ashport', promises });
-  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 a month from the Brewery/); assert.match(html, /judged in 96 days/);
+  assert.match(html, /Promises/); assert.match(html, /Dutch/); assert.match(html, /\+\$340 every 24 days from the Brewery/); assert.match(html, /judged in 96 days/);
   assert.equal(C.promises({ id: 'ashport', promises: [] }), ''); assert.equal(C.promises({ id: 'ashport' }), '');
   const kept = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 410, kept: true, label: 'The Brewery pays $410 a month, as Dutch promised' });
   const broken = C.news({ type: 'promise', city: 'ashport', capo: 'dutch', x: 12, y: 8, expected: 340, actual: 120, kept: false, label: 'The Brewery pays $120 a month, not the $340 Dutch promised' });
@@ -781,9 +781,9 @@ test('the boss reads whether his family grows, stands still or loses ground over
   const still = C.trend(past(flat(24, [4, 100])));
   assert.equal(still.tone, 'warn'); assert.equal(still.word, 'STANDING STILL'); assert.match(still.say, /No street won in 288 days/);
   const richer = C.trend(past(flat(12, [4, 100]).concat([[4, 400]])));
-  assert.equal(richer.tone, 'good'); assert.equal(richer.word, 'EARNING MORE'); assert.match(richer.say, /\+\$300 a month/);
+  assert.equal(richer.tone, 'good'); assert.equal(richer.word, 'EARNING MORE'); assert.match(richer.say, /\+\$300 sent up every 24 days/);
   const poorer = C.trend(past(flat(12, [4, 400]).concat([[4, 100]])));
-  assert.equal(poorer.tone, 'bad'); assert.equal(poorer.word, 'EARNING LESS'); assert.match(poorer.say, /−\$300 a month/);
+  assert.equal(poorer.tone, 'bad'); assert.equal(poorer.word, 'EARNING LESS'); assert.match(poorer.say, /−\$300 sent up every 24 days/);
   const young = C.trend(past(flat(5, [0, 0]).concat([[6, 50]])));
   assert.equal(young.months, 5); assert.match(young.say, /in 120 days/);
   // on the screen: an arrow, the word in its colour, the figure
@@ -818,7 +818,7 @@ test('the month\'s account: where the dirty cash came from and went, what came b
   assert.deepEqual(a.clean.map((l) => [l.key, l.amount]), [['back', 158], ['other', -100]]);
   assert.deepEqual([a.dirtyIn, a.dirtyOut, a.cleanIn, a.cleanOut], [200, 431, 158, 100]);
   assert.equal(a.dirtyLine, '+$200 \u2212$431'); assert.equal(a.cleanLine, '+$158 \u2212$100', 'the two tiles speak the same way');
-  assert.match(a.room, /can wash \$1,418 a month.*only \$210/);
+  assert.match(a.room, /can wash \$1,418 every 24 days.*only \$210/);
   const html = C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
   assert.match(html, /Sent up by your capos/); assert.match(html, /\+\$200/); assert.match(html, /Wages/); assert.match(html, /−\$81/); assert.match(html, /Seized by the police/);
   assert.match(C.accountCard(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } }, 'clean'), /kept \$53 as their cut/); assert.match(html, /−\$231/); assert.match(html, /data-act="close"/);
@@ -973,16 +973,20 @@ test('a new game is asked for from the family page or the journal, and erases no
   assert.match(ask, /stops on day 725/, 'it says which game is lost'); assert.match(C.restart(), /its first day/);
 });
 
-test('a money tile: what came in against what went out as a bar, and the two amounts under it', () => {
-  const view = { cities: [{ money: { up: 135, pay: 81, washed: 210, washes: 1418, cut: 52.5, seized: 0 } }, { money: { up: 65, pay: 0, washed: 0, washes: 0, cut: 0, seized: 40 } }] };
+test('a money tile at the top is a total alone: under the dirty one what waits in the tills, under the clean one a word while nothing washes', () => {
+  const view = { cities: [{ money: { up: 135, pay: 81, washed: 210, washes: 1418, cut: 52.5, seized: 0 }, places: [{ owner: 'family', till: 90.4 }, { owner: 'family', till: 40 }, { owner: 'callahan', till: 500 }, { owner: 'family' }] }] };
   const a = C.account(view, { dirty: 500, clean: 900, change: { dirty: -231, clean: 58 } });
-  const d = C.moneyTile(a, 'dirty');
-  assert.match(d, /class="in" style="width:32%"/); assert.match(d, /class="out" style="width:68%"/);
-  assert.match(d, /IN <b>\$200<\/b>/); assert.match(d, /OUT <b>\$431<\/b>/);
-  assert.match(C.moneyTile(a, 'clean'), /IN <b>\$158<\/b>.*OUT <b>\$100<\/b>/);
+  const d = C.moneyTile(a, 'dirty', view);
+  assert.match(d, /IN THE TILLS[^]*<b>\$130<\/b>/); assert.doesNotMatch(d, /IN <b>|OUT|month|\/ mo/);
+  assert.equal(C.moneyTile(a, 'clean', view), '');
+  assert.equal(C.moneyTile(a, 'dirty', { cities: [] }), '', 'nothing in the tills, nothing said');
   const bare = C.account({ cities: [{ money: { up: 50, pay: 0, washed: 0, washes: 0, cut: 0, seized: 0 } }] }, { dirty: 50, clean: 0, change: { dirty: 50, clean: 0 } });
-  assert.match(C.moneyTile(bare, 'dirty'), /class="in" style="width:100%"/); assert.doesNotMatch(C.moneyTile(bare, 'dirty'), /class="out"/);
-  assert.match(C.moneyTile(bare, 'clean'), /no laundry yet/); assert.doesNotMatch(C.moneyTile(bare, 'clean'), /IN/);
+  assert.match(C.moneyTile(bare, 'clean'), /no laundry yet/);
+});
+test('the till of a place is a bar that fills up to the load a car comes for', () => {
+  assert.equal(C.tillBar({ till: 0 }), ''); assert.equal(C.tillBar(null), '');
+  assert.match(C.tillBar({ till: 75 }), /\$75 \/ \$150<\/b> in the till<i class="nxb"><u style="width:50%"/);
+  assert.match(C.tillBar({ till: 180 }), /a car is coming for it[^]*width:100%/);
 });
 
 test('the money page: one money at a time, each line with its icon, its bar and its amount', () => {
@@ -1055,7 +1059,7 @@ test('a capo\'s books speak in one unit of time: a month, averaged over the last
 
 test('the page of a capo\'s books: his month step by step, place by place, what he wants and what he bought', () => {
   const v = booksView(), html = C.booksCard(v, 'ashport', 'danny');
-  assert.match(html, /Danny/); assert.match(html, /A month, averaged over the last 6 months/);
+  assert.match(html, /Danny/); assert.match(html, /Every 24 days, averaged over the last 144 days/);
   assert.match(html, /class="tab on" data-act="books"[^>]*data-span="6"/); assert.match(html, /data-act="books"[^>]*data-span="1"/);
   assert.match(html, /His places made[^]*\+\$483[^]*Men paid[^]*−\$240[^]*Sent up to you[^]*−\$73[^]*He keeps[^]*\$170/);
   assert.equal((html.match(/<tr class="pl"/g) || []).length, 3); assert.match(html, /Speakeasy[^]*\+\$200[^]*−\$120[^]*\$80/);
@@ -1065,7 +1069,7 @@ test('the page of a capo\'s books: his month step by step, place by place, what 
   assert.match(html, /data-act="capo"/, 'back to the man');
   assert.match(html, /What he wants[^]*class="nxb"><u style="width:\d+%"/, 'how far his plan is, as a bar');
   const one = C.booksCard(v, 'ashport', 'danny', 1);
-  assert.match(one, /Last month alone/); assert.match(one, /class="tab on" data-act="books"[^>]*data-span="1"/); assert.match(one, /\+\$600/);
+  assert.match(one, /The last 24 days alone/); assert.match(one, /class="tab on" data-act="books"[^>]*data-span="1"/); assert.match(one, /\+\$600/);
   // he has the money, or he saves nothing: said plainly
   v.cities[0].capos[0].plan.monthsLeft = null; assert.match(C.booksCard(v, 'ashport', 'danny'), /puts nothing aside/);
   v.cities[0].capos[0].plan = { move: 'hold', why: 'he runs all he can at his rank', cost: 0, saved: 0, progress: 1, waiting: 'rank' };
@@ -1086,12 +1090,11 @@ test('the money page speaks in the same unit as a capo\'s books: a month average
   assert.deepEqual(six.clean.map((l) => [l.key, l.amount]), [['back', 108]]); assert.equal(six.cleanNet, 108);
   assert.deepEqual(C.account(view, hud, 1).dirty.map((l) => [l.key, l.amount]), [['up', 600], ['pay', -100], ['wash', -200]]);
   const html = C.accountCard(view, hud);
-  assert.match(html, /A month, averaged over the last 6 months/); assert.match(html, /class="tab on" data-act="account"[^>]*data-span="6"/); assert.match(html, /\+\$350/);
+  assert.match(html, /Every 24 days, averaged over the last 144 days/); assert.match(html, /class="tab on" data-act="account"[^>]*data-span="6"/); assert.match(html, /\+\$350/);
   const one = C.accountCard(view, hud, 'dirty', 1);
-  assert.match(one, /Last month alone/); assert.match(one, /\+\$600/); assert.match(one, /class="tab on" data-act="account"[^>]*data-span="1"/);
+  assert.match(one, /The last 24 days alone/); assert.match(one, /\+\$600/); assert.match(one, /class="tab on" data-act="account"[^>]*data-span="1"/);
   assert.match(one, /data-which="clean"[^>]*data-span="1"/, 'changing money keeps the unit');
   // the tiles at the top of the screen stay on the real month
-  assert.match(C.moneyTile(C.account(view, hud), 'dirty'), /IN <b>\$600<\/b>/);
 });
 
 test('a capo short of money for a rival\'s place asks the boss for the rest, and the card says so in its own words', () => {
@@ -1120,6 +1123,7 @@ test('the line of the next streets says who does what, what it wins, and how far
   assert.doesNotMatch(C.nextLine(list.slice(0, 1), 0), /1 \/ 1/, 'alone, it carries no count');
   assert.equal(C.nextLine([], 0), '');
   assert.match(C.nextLine([{ ...list[0], state: 'men', advance: 0.8 }], 0), /His men are on their way/);
+  assert.match(C.nextLine([{ ...list[0], due: 3 }], 0), /Saving for it · 72 days/, 'the days left, when his pace tells them');
   assert.match(C.nextLine([{ ...list[0], state: 'ready', advance: 1 }], 0), /Any day now/);
 });
 test('the mark of a claim over the map: a ring that fills and the streets it wins', () => {

@@ -519,7 +519,7 @@ test('each capo who prepares to win streets has his own claim, the furthest alon
     { id: 'vince', name: 'Vince Aiello', plan: { move: 'enlarge', kind: 'speakeasy', name: 'Speakeasy', x: 1, y: 1, advance: 0.5, due: 2, waiting: 'money', gains: [] } },
     { id: 'danny', name: 'Danny Boyle', plan: null }]));
   assert.deepEqual(list.map((c) => c.capo), ['mae', 'dutch', 'sal'], 'nothing for a plan that wins no street, nor for a man without a plan');
-  assert.deepEqual(list[0], { id: 'dunmore:mae', city: 'dunmore', capo: 'mae', who: 'Mae', does: 'takes a warehouse', x: 2, y: 3, streets: 2, advance: 0.9, state: 'men', stuck: false, gains: [{ x: 2, y: 3 }, { x: 3, y: 3 }] });
+  assert.deepEqual(list[0], { id: 'dunmore:mae', city: 'dunmore', capo: 'mae', who: 'Mae', does: 'takes a warehouse', x: 2, y: 3, streets: 2, advance: 0.9, due: 1, state: 'men', stuck: false, gains: [{ x: 2, y: 3 }, { x: 3, y: 3 }] });
   assert.equal(list[1].does, 'opens a cellar still');
   assert.equal(list[1].state, 'money');
   assert.equal(list[2].stuck, true, 'he puts nothing aside: his bar will not move');

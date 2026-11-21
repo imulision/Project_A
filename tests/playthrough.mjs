@@ -15,7 +15,6 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g|ERR_INTERNET|ERR_NAME|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 const shot = async (name) => { if (shots) { await page.waitForTimeout(2500); await page.screenshot({ path: path.join(shots, name + '.png') }); } };
-const window_change = (n) => (n > 0 ? '+$' + n.toLocaleString('en-US') : n < 0 ? '\u2212$' + (-n).toLocaleString('en-US') : '');
 const still = () => page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 60000 });
 const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men'].map((k) => document.getElementById(k).textContent).join(' | '));
 // Time, month by month. The boss answers as a player would, through the buttons of the sheets: yes when he can pay, no when he cannot;
@@ -96,7 +95,7 @@ await page.evaluate(() => document.querySelector('#sheet [data-act=books]').clic
 assert.match(await page.textContent('#sheet h2'), /Dutch's books/);
 assert.match(await page.textContent('#sheet'), /His places made[\s\S]*Sent up to you[\s\S]*What he wants/);
 await page.evaluate(() => document.querySelector('#sheet [data-act=books][data-span="1"]').click());
-assert.match(await page.textContent('#sheet .unit'), /Last month/);
+assert.match(await page.textContent('#sheet .unit'), /24 days/); assert.doesNotMatch(await page.textContent('#sheet'), /month/i);
 await page.evaluate(() => document.querySelector('#sheet [data-act=capo]').click());
 assert.match(await page.textContent('#sheet'), /only capo/);
 // his sheet says how he stands with the boss, and a gift waits for clean money: once made, not again this year
@@ -159,8 +158,7 @@ await page.evaluate(() => { const A = window.__ashport, m = A.map(), loaded = ()
   for (let month = 0; month < 24 && !loaded(); month++) { for (let n = 0; n < 200 && !loaded(); n++) m.run(0.5);
     if (!loaded()) for (let i = 0; i < 4; i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]'); if (q) q.click(); } } });
 await page.waitForFunction(() => [...document.querySelectorAll('.lab.tag.amt b')].some((b) => /^\$\d/.test(b.textContent)), null, { timeout: 30000 });
-const change = await page.evaluate(() => ({ shown: document.getElementById('dirtyd').textContent, rules: window.AshportEmpire.hud(window.__ashport.game()).change.dirty }));
-assert.equal(change.shown, window_change(change.rules), 'the change of the month is written beside the dirty total');
+assert.equal(await page.locator('.res .net').count(), 0, 'the totals at the top stand alone: no gain or loss beside them');
 
 // time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
 await page.click('#pause');
@@ -190,7 +188,7 @@ assert.match(came.text || '', /^\+\$\d/, 'the takings are written over the club'
 assert.ok(came.bump, 'the total at the top answers');
 await shot('c2b-money-in');
 // is he getting anywhere? Both moneys say what came in and what went out, the family has a rank, each capo a word and a power
-assert.match(await page.textContent('#wash'), /IN \$[\d,]+\s*OUT \$[\d,]+/);
+assert.doesNotMatch(await page.textContent('.res'), /month|\/ mo|OUT/i, 'no rate at the top of the screen');
 assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
 assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
 assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
