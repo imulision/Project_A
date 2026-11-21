@@ -19,10 +19,11 @@
     enlarge: 1.5,       // times a place's price, per level reached, to make it bigger
     convert: { gain: 1.5, cost: 0.5, rest: 36 },
     patience: { months: 12, sore: 30 }, // months a capo saves for the same thing before he asks the boss for the rest (a rival's place) or gives it up; months he then leaves it alone
+    bastion: 1,         // around a key place the rivals hold the streets are theirs: no capo opens or takes a place within this many blocks of it
     vouch: 6,           // places a capo runs before he brings his man to the boss's door // a place is turned into another trade when that trade would be worth this much more there; at this part of the price of a new one; and then left alone this many months
     purse: 600,         // dirty $ a capo arrives with
     club: 150,          // dirty $ a month a social club makes on its own: no capo is ever left with nothing
-    wage: 120,          // dirty $ a month for the men of one place
+    wage: 100,          // dirty $ a month for the men of one place
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men

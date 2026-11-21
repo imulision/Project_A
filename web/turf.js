@@ -336,8 +336,8 @@
       B.patience(c, f, capo, p, events);
       m.book = { made: inc, wages: pay, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
       c.flow.made.club = (c.flow.made.club || 0) + RULES.club;
-      var home = clubOf(c, capo), den = at(c, home.x, home.y); den.mades = (den.mades || []).concat([RULES.club]).slice(-6);
-      m.puts = (m.puts || []).concat([m.book.put]).slice(-6);
+      var home = clubOf(c, capo), den = at(c, home.x, home.y); if (!den.mades) den.mades = []; den.mades.push(RULES.club); if (den.mades.length > 6) den.mades.shift();
+      if (!m.puts) m.puts = []; m.puts.push(m.book.put); if (m.puts.length > 6) m.puts.shift();
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost; buys(p.move, p.cost);
       m.puts[m.puts.length - 1] = m.book.put;
