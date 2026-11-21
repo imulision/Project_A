@@ -320,33 +320,30 @@
       var spent = m.paid || {}, before = m.cash + Object.keys(spent).reduce(function (n, k) { return n + spent[k]; }, 0);
       m.paid = null;
       var buys = function (on, cost) { if (cost > 0) spent[on] = (spent[on] || 0) + cost; if (m.book) { m.book.saved = m.cash; m.book.put = m.cash - before; } };
+      // in a city played day by day the money was shared out as the cars came back: `tab` is what that came to
+      var tab = t.daily && c.hauls && c.hauls[capo] && c.hauls[capo].tab;
       var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load, trap);
       m.stuck = haul.full > 0;
       if (haul.went && at(c, haul.went.x, haul.went.y)) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind }; // (the place may have burnt since)
-      var inc = haul.got + RULES.club, makes = drink.idle[capo] !== undefined,
-          pay = wages(c, capo) + RULES.car.upkeep * (m.cars - 1) + (makes ? RULES.truck.upkeep * (m.trucks - 1) : 0);
-      // his men are paid out of what his places brought in: a bad month never puts him in debt, and what his club
-      // makes on its own stays his, so that he can always save for his next move
-      pay = Math.min(pay, haul.got);
-      var profit = inc - pay;
+      var makes = drink.idle[capo] !== undefined, inc = tab ? tab.made : haul.got + RULES.club,
+          pay = tab ? tab.wages : Math.min(dues(c, f, capo, makes), haul.got), had = function () { return tab ? m.cash : m.cash - pay; };
+      if (tab) before = m.cash - (tab.made - tab.wages - tab.sent) + Object.keys(spent).reduce(function (n, k) { return n + spent[k]; }, 0);
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
-      if (!haul.idle && haul.waiting >= 2 * load && m.cash - pay >= RULES.car.cost) {
+      if (!haul.idle && haul.waiting >= 2 * load && had() >= RULES.car.cost) {
         m.cash -= RULES.car.cost; m.cars += 1; buys('car', RULES.car.cost);
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
       }
       // loads that wait in his cellars while bars go dry, and no truck free: he buys another one
-      if (makes && drink.dry && drink.idle[capo] === 0 && drink.waits[capo] >= 2 && m.cash - pay >= RULES.truck.cost) {
+      if (makes && drink.dry && drink.idle[capo] === 0 && drink.waits[capo] >= 2 && had() >= RULES.truck.cost) {
         m.cash -= RULES.truck.cost; m.trucks += 1; buys('truck', RULES.truck.cost);
         events.push({ type: 'truck', capo: capo, city: c.id, trucks: m.trucks, cost: RULES.truck.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.trucks] || 'new') + ' truck: liquor sits in his cellar while bars go dry' });
       }
       // the boss's share comes off the top, before the men are paid; a capo with nothing left sends what he has
       // a bitter man sends nothing at all
-      var gives = mood(f, capo) === 'bitter' ? 0 : willing(c, capo);
-      var sent = Math.max(0, Math.min(RULES.cut[B.cutOf(c)].share * gives * inc, m.cash + profit));
-      f.dirty += sent; m.cash += profit - sent;
+      var gives = giving(c, f, capo), sent = tab ? tab.sent : shareOut(c, f, capo, haul.got, RULES.club, pay).sent;
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
         m.rank += 1;
@@ -369,6 +366,43 @@
       if (p.move === 'hold' || p.waiting) return;
       m.cash -= p.cost; buys(p.move, p.cost);
       m.puts[m.puts.length - 1] = m.book.put;
+      enact(c, f, capo, p, events);
+    })();
+  }
+  // What a capo owes his men and his garage over a cycle.
+  function dues(c, f, capo, makes) {
+    var m = f.men[capo];
+    return wages(c, capo) + RULES.car.upkeep * ((m.cars || 1) - 1) + (makes ? RULES.truck.upkeep * ((m.trucks || 1) - 1) : 0);
+  }
+  // A bitter man sends nothing at all.
+  function giving(c, f, capo) { return mood(f, capo) === 'bitter' ? 0 : willing(c, capo); }
+  // Money comes in: the boss's share comes off the top, the men are paid out of what the places brought (a bad
+  // spell never puts him in debt, and what his club makes on its own stays his), the rest is the capo's.
+  function shareOut(c, f, capo, got, club, due) {
+    var m = f.men[capo], inc = got + club, pay = Math.min(due, got), profit = inc - pay;
+    var sent = Math.max(0, Math.min(RULES.cut[B.cutOf(c)].share * giving(c, f, capo) * inc, m.cash + profit));
+    f.dirty += sent; m.cash += profit - sent;
+    return { inc: inc, pay: pay, sent: sent };
+  }
+  // One day of a capo in a city played day by day: what his cars brought today is shared out at once, and if he can
+  // pay for his next move he makes it.
+  function ready(c, f, capo, got, events) {
+    var m = f.men[capo], h = c.hauls[capo], tab = h.tab || (h.tab = { made: 0, wages: 0, sent: 0, owed: 0 });
+    tab.owed += dues(c, f, capo, c.turn.drink.idle[capo] !== undefined) / RULES.days;
+    var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed);
+    tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.sent += r.sent;
+    // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
+    if (h.need !== undefined && m.cash < h.need) return;
+    var p = plan(c, f, capo);
+    h.need = p.move === 'hold' || p.waiting === 'time' ? Infinity : p.waiting === 'money' ? m.cash + (p.cost - p.saved) : undefined;
+    if (p.move === 'hold' || p.waiting) return;
+    m.cash -= p.cost;
+    if (p.cost > 0) { m.paid = m.paid || {}; m.paid[p.move] = (m.paid[p.move] || 0) + p.cost; } // counted in his books at his next count
+    enact(c, f, capo, p, events);
+  }
+  // A move paid for is made: a place turned, men sent for a rival's place, a place opened or made bigger.
+  function enact(c, f, capo, p, events) {
+    (function () {
       if (p.move === 'convert') {
         var turned = at(c, p.x, p.y);
         turned.kind = p.kind; turned.level = Math.max(1, Math.min(turned.level, f.tech[p.kind] || 1)); turned.turned = c.month;
@@ -464,7 +498,11 @@
       if (!c.turn) return;
       c.turn.daily = true;
       c.flow = c.turn.flow;
-      G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); });
+      var got = {}, mine = [];
+      G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); if (!e.lost) got[e.capo] = (got[e.capo] || 0) + e.amount; });
+      Object.keys(f.men).forEach(function (capo) { if (clubOf(c, capo)) ready(c, f, capo, got[capo] || 0, mine); });
+      homed(c, f, mine);
+      mine.forEach(function (e) { events.push(e); });
       c.flow = c.turn.shown;
     });
     return events;

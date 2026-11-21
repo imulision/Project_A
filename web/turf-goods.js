@@ -175,14 +175,17 @@
       var r = { capo: capo, x: best.p.x, y: best.p.y, amount: load };
       // the car the rivals wait for never reaches the club
       if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else h.got += load;
-      if (h.left > 0) { r.car = h.done % cars + 1; r.leg = Math.floor(h.done / cars); h.done += 1; h.left -= 1; }
-      else { r.own = true; r.leg = h.drove; h.drove += 1; h.mine -= 1; h.went = h.went || { x: r.x, y: r.y }; }
+      // its car and the leg of that car's round, counted over the trips of the cycle the city will show
+      var n = 0, own = 0, legs = {};
+      c.flow.runs.forEach(function (q) { if (q.capo === capo) { if (q.own) own += 1; else { n += 1; legs[q.car] = (legs[q.car] || 0) + 1; } } });
+      if (h.left > 0) { r.car = n % cars + 1; r.leg = legs[r.car] || 0; h.left -= 1; }
+      else { r.own = true; r.leg = own; h.mine -= 1; h.went = h.went || { x: r.x, y: r.y }; }
       c.flow.runs.push(r);
       out.push(r);
     }
     return out;
   }
-  function fresh(cars, own) { return { got: 0, left: cars * RULES.car.runs, mine: own || 0, done: 0, drove: 0, went: null }; }
+  function fresh(cars, own) { return { got: 0, left: cars * RULES.car.runs, mine: own || 0, went: null }; }
   // One day in a city played day by day: every till takes its day's part, and a car leaves for each one that is full.
   function pass(c, f, day, load) {
     var out = [], trap = c.turn && c.turn.trap;
