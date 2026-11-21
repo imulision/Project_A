@@ -52,3 +52,9 @@ export function front(blocks, w, h) {
 // The middle of a street name, in blocks: where the page says it is (a name can be any shape), or the middle of its rectangle.
 export const midX = d => typeof d.cx === 'number' ? d.cx : (d.c0 + d.c1) / 2;
 export const midY = d => typeof d.cy === 'number' ? d.cy : (d.r0 + d.r1) / 2;
+
+// A place going up, t seconds into a sight that lasts `life`: the frame climbs for the first half, a flash when the roof is on, then it lets go.
+export function rising(t, life) {
+  const half = life / 2;
+  return { up: Math.max(0, Math.min(1, t / half)), flash: t >= half ? Math.max(0, 1 - (t - half)) : 0, alpha: Math.max(0, Math.min(1, (life - t) / 1.5)) };
+}

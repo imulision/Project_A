@@ -49,7 +49,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), events ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), events ? M.convoysTurf(p, T.convoys(g.family)) : []));      // (what left for the next city last month is seen once, when the month turns)
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
   }

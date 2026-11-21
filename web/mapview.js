@@ -334,24 +334,43 @@
     });
     return out;
   }
-  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'promotion', enlarged: 'promotion', learned: 'promotion' };
-  var PAID = { opened: 1, enlarged: 1, moving: 1, car: 1, truck: 1, welcomed: 1, gift: 1 };      // what was paid for when it happened (a capo who only asks has spent nothing yet)
+  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'build', enlarged: 'build', converted: 'build', learned: 'promotion' };
+  var PAID = { converted: 1, opened: 1, enlarged: 1, moving: 1, car: 1, truck: 1, welcomed: 1, gift: 1 };      // what was paid for when it happened (a capo who only asks has spent nothing yet)
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
     var out = [];
     (events || []).forEach(function (e) {
       // fire, gunfire, police lights and good news have their own light; any other event that has a place is a plain mark there
-      var kind = e.type === 'taken' ? (e.way === 'force' ? 'gunfire' : 'promotion') : FXOF[e.type] || 'news';
+      // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
+      if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
+      var kind = e.type === 'taken' ? (e.kind === 'key' ? 'key' : e.way === 'force' ? 'gunfire' : 'promotion') : e.type === 'outcome' ? (e.good ? 'good' : 'bad') : FXOF[e.type] || 'news';
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || (kind === 'news' ? null : plan.cities[0]); if (!c) return;
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
       if (!lot && kind !== 'news') { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
       if (!lot) return;
       out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: PAID[e.type] && e.cost > 0 ? e.cost : 0 });
     });
+    // a take under way: the place being taken is ringed for as long as the capo stands before it
+    plan.cities.forEach(function (c) { c.capos.forEach(function (k) { if (k.at && k.at.why === 'take' && typeof k.at.i === 'number') out.push({ kind: 'siege', type: 'take', city: c.id, i: k.at.i, j: k.at.j, say: null, spent: 0 }); }); });
+    return out;
+  }
+  // arrivalsTurf(events, plan): a man the boss takes in drives in once, from the rim of the town to his new club.
+  function arrivalsTurf(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      if (e.type !== 'welcomed' || typeof e.x !== 'number') return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0]; if (!c) return;
+      var k = c.capos.filter(function (m) { return m.id === e.capo; })[0], lot = k && typeof k.i === 'number' ? k : lotOfBlock(c, e.x, e.y); if (!lot) return;
+      var W = c.bx * 4, H = c.by * 3, rim = [[0, lot.j], [W, lot.j], [lot.i, 0], [lot.i, H]].sort(function (a, b) { return Math.abs(a[0] - lot.i) + Math.abs(a[1] - lot.j) - Math.abs(b[0] - lot.i) - Math.abs(b[1] - lot.j); });
+      var path = null;
+      for (var n = 0; n < rim.length && !path; n++) { var r = route(rim[n], [lot.i, lot.j], c); if (r && r.length > 1) path = r; }
+      if (!path) return;
+      out.push({ id: c.id + ':arrives:' + e.capo, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false, path: path, cargo: 'arrives', load: {}, capo: e.capo, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
+    });
     return out;
   }
 
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -116,7 +116,8 @@
     return '<b style="color:' + h[1] + '">' + icon(h[0]) + ' ' + esc(road ? 'On the road to the next city' : h[2]) + '</b>' + (road && car.way ? '<br>' + esc(car.way) : '') + (empty ? '<br>Empty, on its way to load' : n ? '<br>' + n + ' on board' : '') + (car.capo ? '<br>' + esc(nameOf(car.capo)) + (car.kind === 'crew' && WAY[car.cargo] ? ' · ' + WAY[car.cargo].word.toLowerCase() : '') : '');
   }
   // The badges that light up over the map when something happens, and what a touch on one says.
-  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'], betrayal: ['betrayal', 'Betrayal'] };
+  var FX = { fire: ['attack', 'Fire: a place burns'], gunfire: ['muscle', 'Gunfire'], police: ['heat', 'Police'], promotion: ['ambition', 'Good news for the family'], betrayal: ['betrayal', 'Betrayal'],
+             build: ['works', 'A place goes up'], key: ['ambition', 'A key place is yours'], good: ['yes', 'A decision paid'], bad: ['no', 'A decision cost you'] };
   function fxTip(kind, say, type) {
     if (kind === 'news') return icon(EVENT[type] || 'time') + ' ' + esc(say || '');
     var f = FX[kind] || ['time', kind]; return '<b>' + icon(f[0]) + ' ' + esc(f[1]) + '</b>' + (say ? '<br>' + esc(say) : '');
@@ -170,6 +171,15 @@
   }
   function askCard(c, a, purse) {
     var w = WAY[a.way] || WAY.force, o = { city: c.id, id: a.id };
+    if (a.kind === 'fund') {      // he has saved part of the price of a rival's place and asks the boss for the rest
+      return '<div class="card ask">' + head(a.capo, first(nameOf(a.capo)) + ' asks for ' + money(a.cost), 'To take the ' + esc(a.name) + ' · ' + esc(zoneOf(c, a.x, a.y).name)) +
+        (a.gives ? '<div class="move">' + icon(a.key) + '<span>' + esc(a.gives) + '</span></div>' : '') +
+        '<div class="move" style="--c:' + w.color + '">' + icon(w.icon) + '<span>' + w.word + (a.months ? ' · ' + months(a.months) : '') + (a.why ? ' · ' + esc(a.why) : '') + '</span></div>' + price(a.cost, purse) +
+        '<div class="sides"><div class="side yes"><small>IF YOU SAY YES</small><b class="out">\u2212' + money(a.cost) + '</b><span>He puts in his own savings, you pay what he is short of</span>' +
+          button('answer', { city: c.id, id: a.id, yes: 1 }, 'Yes, pay the rest', { cls: 'go', off: a.cost > purse }) + '</div>' +
+        '<div class="side no"><small>IF YOU SAY NO</small><b>You keep your money</b><span>' + esc(first(nameOf(a.capo))) + ' lets the place go and looks for something he can afford</span>' +
+          button('answer', { city: o.city, id: o.id, yes: 0 }, 'No') + '</div></div></div>';
+    }
     return '<div class="card ask">' + head(a.capo, first(nameOf(a.capo)) + ' wants the ' + a.name, esc(zoneOf(c, a.x, a.y).name) + ' · ' + esc(c.name)) +
       '<div class="move">' + icon(a.key) + '<span>' + esc(a.gives || '') + '</span></div>' +
       '<div class="move" style="--c:' + w.color + '">' + icon(w.icon) + '<span>' + w.word + ' · ' + money(a.cost) + ' from you · ' + months(a.months) + (a.why ? ' · ' + esc(a.why) : '') + '</span></div>' + price(a.cost, purse) +

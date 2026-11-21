@@ -83,3 +83,11 @@ test('a street name that grew over the year thrives: more signs, more cars, a la
   assert.ok(signs > signs0 * 1.5 && cars > cars0 * 1.5, signs + ' signs against ' + signs0 + ', ' + cars + ' cars against ' + cars0);
   assert.equal(lotLook({ ours: false, boom: true }, 0.3).lamps, 0, 'only the family\'s streets');
 });
+
+test('a place being built rises, flashes when it is done, then lets go', async () => {
+  const { rising } = await import('../render/look.mjs');
+  assert.equal(rising(0, 7).up, 0); assert.ok(rising(1, 7).up > 0.2 && rising(1, 7).up < rising(2, 7).up, 'the frame climbs');
+  assert.equal(rising(3.5, 7).up, 1); assert.ok(rising(3.6, 7).flash > 0.8, 'a flash when the roof is on');
+  assert.ok(rising(5, 7).flash < 0.2); assert.equal(rising(2, 7).flash, 0);
+  assert.equal(rising(2, 7).alpha, 1); assert.ok(rising(6.5, 7).alpha < 0.5 && rising(7, 7).alpha === 0, 'and it fades');
+});
