@@ -157,7 +157,7 @@
   function collect(c, capo, cars, own, load, trap) {
     var wet = liquor(c).wet, got = 0, left = cars * RULES.car.runs, mine = own || 0, waiting = 0, full = 0, went = null, done = 0, drove = 0;
     var made = c.flow.made || (c.flow.made = {});
-    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y), e = earns(c, p, wet); b.till = (b.till || 0) + e; b.mades = (b.mades || []).concat([e]).slice(-6); made[p.kind] = (made[p.kind] || 0) + e; return { p: p, b: b }; });
+    var tills = run(c, capo).map(function (p) { var b = at(c, p.x, p.y), e = earns(c, p, wet); b.till = (b.till || 0) + e; if (!b.mades) b.mades = []; b.mades.push(e); if (b.mades.length > 6) b.mades.shift(); made[p.kind] = (made[p.kind] || 0) + e; return { p: p, b: b }; });
     while (left + mine > 0) {
       var best = null;
       for (var i = 0; i < tills.length; i++) if (tills[i].b.till >= load && (!best || tills[i].b.till > best.b.till)) best = tills[i];
@@ -211,7 +211,11 @@
   function wants(c, capo, o) {
     var card = who(capo), mine = run(c, capo), club = clubOf(c, capo), best = null;
     // what he gave up on, or was refused, he leaves alone for a while
-    var shunned = function (x, y) { return o.shun && o.shun[key(x, y)] > c.month; };
+    // nor does he go into the streets around a key place the rivals hold: that is the boss's affair
+    var strong = C.keys(c).filter(function (k) { return k.owner !== 'family'; });
+    var shunned = function (x, y) {
+      return (o.shun && o.shun[key(x, y)] > c.month) || strong.some(function (k) { return far(x, y, k.x, k.y) <= RULES.bastion; });
+    };
     var count = {}, drink = liquor(c), stock = supplied(c);
     mine.forEach(function (p) { count[p.kind] = (count[p.kind] || 0) + 1; });
     // no capo opens one more bar with nothing to pour in it, and a dry city calls for a still
