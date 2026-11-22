@@ -437,6 +437,7 @@
     // the boss's share waits at the club; the capo's own car takes it to the headquarters one full load a trip, and
     // it is the boss's only when it gets there. The same car carries the money to wash and the money washed.
     m.share = (m.share || 0) + r.sent;
+    B.keep(m); // his own pay first, if the club still owes him some
     B.carry(c, f, capo, loadOf(f), events);
     // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
     if (r.pay > 0) {
