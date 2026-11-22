@@ -85,6 +85,7 @@ test('time stops when someone needs the boss\'s word, and his orders reach the r
   assert.ok(g.journal.some((l) => l.type === 'welcomed' && l.capo === knock.capo));
   g.family.clean = 1000;
   E.command(g, { type: 'research', building: 'loans' });
+  settle(g); // the money is driven to the man who sets it up
   assert.equal(E.view(g).tree.find((t) => t.kind === 'loans').studying > 0, true);
   assert.throws(() => E.command(g, { type: 'answer', city: 'ashport', id: 'ashport:port', yes: true }), /nobody is asking/);
   assert.throws(() => E.command(g, { type: 'welcome', city: 'paris', capo: 'sal', x: 0, y: 0 }), /no such city/);
@@ -253,7 +254,7 @@ const spreader = (start, years = 20) => {
       }
     }
     const t = E.view(g).tree.filter((q) => q.next).sort((x, y) => x.tier - y.tier)[0];
-    if (!f.study && t && f.clean >= t.next.cost) order({ type: 'research', building: t.kind });
+    if (!f.study && !E.view(g).tree.some((q) => q.paying) && t && f.clean >= t.next.cost) order({ type: 'research', building: t.kind });
   }
   return g;
 };
