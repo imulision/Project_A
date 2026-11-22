@@ -21,14 +21,14 @@ export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp })
     fxList.push(f);
   }
   const pops = []; let popN = 0;
-  function spawnPop(x, z, h, amount) { if (amount && pops.length < 12) pops.push({ n: popN++, x, z, h, amount, t: 0, life: 2.6 }); }
+  function spawnPop(x, z, h, amount, what) { if (amount && pops.length < 12) pops.push({ n: popN++, x, z, h, amount, what: what || null, t: 0, life: 2.6 }); }
   function effects(list) {
     for (const e of list) {
       const C = CITIES.find(c => c.id === e.city); if (!C) continue;
       const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
       spawnFx(e.kind, l ? l.x : C.ox + midX(d) * 4 * T, l ? l.z : C.oz + midY(d) * 3 * T, l ? l.h : 1, e.say, e.type);
       if (e.spent && l) spawnPop(l.x, l.z, l.h, -e.spent);
-      if (e.gain && l) spawnPop(l.x, l.z, l.h, e.gain);
+      if (e.gain && l) spawnPop(l.x, l.z, l.h, e.gain, e.type);
     }
   }
   function animateFx(dt, now) {

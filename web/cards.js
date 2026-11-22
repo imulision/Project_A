@@ -412,6 +412,15 @@
     var load = k.shareLoad > 0 ? k.shareLoad : CARLOAD, part = Math.min(1, k.share / load);
     return '<div class="move till">' + icon('ambition') + '<span><b>' + money(Math.round(k.share)) + ' / ' + money(load) + '</b> of your share waits here' + (part >= 1 ? ': his car is leaving with it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>';
   }
+  // What waits at a laundry of the family: dirty money to be washed, and washed money until a car takes it to the headquarters.
+  function washBar(p) {
+    var w = p && p.owner === 'family' && p.wash; if (!w) return '';
+    var most = w.most > 0 ? w.most : CARLOAD, part = Math.min(1, w.waiting / most);
+    return (w.waiting >= 1 ? '<div class="move till">' + icon('dirty') + '<span><b>' + money(Math.round(w.waiting)) + ' / ' + money(most) + '</b> of dirty money waits to be washed<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>' : '') +
+      (w.ready >= 1 ? '<div class="move till">' + icon('clean') + '<span><b>' + money(Math.round(w.ready)) + '</b> washed, waiting for the car to the headquarters</span></div>' : '');
+  }
+  function washTip(p) { var w = p.owner === 'family' && p.wash; if (!w) return '';
+    return (w.waiting >= 1 ? '<br>' + icon('dirty') + ' ' + money(Math.round(w.waiting)) + ' to wash' : '') + (w.ready >= 1 ? '<br>' + icon('clean') + ' ' + money(Math.round(w.ready)) + ' clean, waiting for the car' : ''); }
   function hqSheet(view, c, p, b) {
     var h = hqOf(c, p), ours = p.owner === 'family';
     return '<h2>' + esc(zoneOf(c, p.x, p.y).name) + '</h2><p>' + esc(c.name) + ' \u00b7 ' + (GRIP[b.grip] || 'Nobody holds this street yet') + '</p>' +
@@ -432,7 +441,7 @@
       (p ? '<div class="intent' + (ours ? '' : ' wish') + '"><span class="gauge">' + I.ring(1, iconName(p.key || p.kind)) + '</span><div><b>' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><small>' +
           esc([ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family' + (p.man ? ' · ' + nameOf(p.man) : ''), key ? key.gives : ''].filter(Boolean).join(' · ')) + '</small></div></div>'
          : '<p>Nothing of note stands here.</p>') +
-      tillBar(p) + (p ? shareBar(c, p) : '') +
+      tillBar(p) + (p ? shareBar(c, p) + washBar(p) : '') +
       (p ? storeLines(p) + strainLines(p) : '') +
       '<div class="acts">' + (ours && p.capo ? button('capo', { city: c.id, capo: p.capo }, 'See ' + esc(first(nameOf(p.capo)))) : '') + button('city', { city: c.id }, esc(c.name)) + button('close', {}, 'Close') + '</div>';
   }
@@ -462,7 +471,7 @@
     if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p)));
     var sh = shareOf(c, p);
     return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
-      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + storeLines(p, true) + strainLines(p, true);
+      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + washTip(p) + storeLines(p, true) + strainLines(p, true);
   }
   function shares(s) {
     var part = function (k, color) { return s[k] > 0 ? '<i style="flex:' + s[k].toFixed(1) + ';background:' + color + '" data-tip="' + { family: 'Yours', rival: 'The rivals', contested: 'Fought over', free: 'Held by nobody' }[k] + ': ' + Math.round(s[k]) + '%"></i>' : ''; };

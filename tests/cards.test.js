@@ -1243,3 +1243,15 @@ test('what an act has not opened yet says so: the underboss button is greyed wit
   assert.equal(C.vault(v, { vault: 5000 }), 5000); assert.equal(C.vault({ reign: { vault: 4000 } }, {}), 4000);
   assert.equal(C.wash(v, { dirty: 4500, vault: 5000 }).hot, false); assert.equal(C.wash(v, { dirty: 5500, vault: 5000 }).hot, true);
 });
+
+test('a laundry says what waits there: dirty money to be washed, clean money that waits for the car', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
+  const p = { x: k.x + 1, y: k.y, owner: 'family', kind: 'rented', name: 'Rented laundry', level: 1, capo: k.id, wash: { waiting: 63, ready: 49, most: 210 } };
+  c.places = c.places.filter((q) => q.x !== p.x || q.y !== p.y).concat([p]);
+  assert.match(C.blockTip(v, c.id, p.x, p.y), /\$63 to wash[^]*\$49 clean, waiting for the car/);
+  const sheet = C.block(v, c.id, p.x, p.y);
+  assert.match(sheet, /<b>\$63 \/ \$210<\/b> of dirty money waits to be washed[^]*width:30%/);
+  assert.match(sheet, /<b>\$49<\/b> washed, waiting for the car to the headquarters/);
+  p.wash = { waiting: 0, ready: 0, most: 210 };
+  assert.doesNotMatch(C.blockTip(v, c.id, p.x, p.y), /to wash|waiting for the car/); assert.doesNotMatch(C.block(v, c.id, p.x, p.y), /washed, waiting/);
+});
