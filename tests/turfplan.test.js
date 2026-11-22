@@ -639,3 +639,12 @@ test('money from another city takes the road: a car leaves with one load, and it
   const fx = M.effectsTurf([leaves, arrives], p);
   assert.deepEqual(fx.map((f) => [f.kind, f.city, f.bx, f.by, f.gain]), [['pay', b, hq.x, hq.y, 600]]);
 });
+
+test('a truck that leaves for another city is seen the day it leaves, and two that leave on different days are two trucks', () => {
+  const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), a = v.cities[0].id, b = v.cities[1].id;
+  const ev = [{ type: 'convoy', step: 'leaves', cargo: 'liquor', from: a, to: b, amount: 20, capo: 'sal', x: 1, y: 1, tx: 2, ty: 2 }, { type: 'convoy', step: 'arrives', cargo: 'cash', from: b, to: a, amount: 600 }, { type: 'opened', city: a, x: 1, y: 1 }];
+  const one = M.leavingTurf(ev, p, 41), two = M.leavingTurf(ev, p, 42);
+  assert.equal(one.length, 1, 'only what leaves, and only convoys'); assert.deepEqual([one[0].kind, one[0].vehicle, one[0].cargo, one[0].amount, one[0].loop], ['convoy', 'truck', 'liquor', 20, false]);
+  assert.notEqual(one[0].id, two[0].id);
+  assert.equal(M.leavingTurf([{ ...ev[0], cargo: 'cash' }], p, 41)[0].vehicle, 'car');
+});

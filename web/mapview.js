@@ -322,6 +322,11 @@
     });
     return out;
   }
+  // leavingTurf(events, plan, day): what takes the road to another city today, goods in a truck and money in a car, each seen once.
+  // The day is part of its name: the truck of tomorrow is another truck, not this one sent back to the start.
+  function leavingTurf(events, plan, day) {
+    return convoysTurf(plan, (events || []).filter(function (e) { return e.type === 'convoy' && e.step === 'leaves'; })).map(function (t) { t.id += '@' + (day || 0); return t; });
+  }
   // movesTurf(before, after): a capo who is not where he was last month drives there once, in his own car.
   function movesTurf(before, after) {
     var out = [];
@@ -438,7 +443,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);
