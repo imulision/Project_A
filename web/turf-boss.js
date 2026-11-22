@@ -166,14 +166,17 @@
   // A trip takes time: a day for every `RULES.car.speed` blocks, never less than a day. The car that makes it does
   // nothing else meanwhile, so the only limit is the cars a man has. What it carries is on the road (c.rides) and
   // counts where it is going only the day the car gets there.
-  function today(c) { return c.month * RULES.days + ((c.turn && c.turn.day) || 0); }
-  function tripDays(a, b) { return Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / RULES.car.speed)); }
+  var today = G.today, tripDays = G.tripDays, fleet = G.fleet;
   // The loads that reach their place today.
   function arrive(c, f, events) {
     var now = today(c), box = C.purse(c, f), still = [];
     (c.rides || []).forEach(function (r) {
       if (r.arrives > now) { still.push(r); return; }
-      if (r.kind === 'tribute') box.dirty += r.amount;
+      if (r.kind === 'takings') {
+        // the takings a car brings home: the capo's from today (see `pass` in turf.js). A car the rivals stopped brings nothing.
+        if (r.lost) return;
+        (c.came = c.came || {})[r.capo] = ((c.came || {})[r.capo] || 0) + r.amount;
+      } else if (r.kind === 'tribute') box.dirty += r.amount;
       else if (r.kind === 'clean') box.clean = (box.clean || 0) + r.amount;
       else {
         var b = at(c, r.to.x, r.to.y);
@@ -192,12 +195,6 @@
     events.push({ type: kind, city: c.id, capo: capo, x: to.x, y: to.y, from: r.from, amount: amount, wait: wait, days: days });
     var flow = c.flow || (c.flow = { up: 0, sent: {} }), list = { tribute: 'tributes', clean: 'cleans', wash: 'washes' }[kind];
     (flow[list] = flow[list] || []).push({ capo: capo, x: kind === 'wash' ? to.x : from.x, y: kind === 'wash' ? to.y : from.y, amount: amount, days: days });
-  }
-  // The cars of a man: his own first, then every car he bought. Each is somewhere, and free from a given day.
-  function fleet(m, club) {
-    if (!m.fleet) { m.fleet = m.car ? [m.car] : []; delete m.car; }
-    while (m.fleet.length < (m.cars || 1)) m.fleet.push({ x: club.x, y: club.y, free: 0 });
-    return m.fleet;
   }
   // The boss's money that waits for a car of this man: his share at the club and what his laundries have washed;
   // `busy` when none of his cars is free today.

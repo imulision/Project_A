@@ -83,7 +83,7 @@ test('what the cars brought since his last day is what the capo counts on his da
   let brought = 0, counted = null;
   T.begin(f, [c]);
   for (let d = 0; d < DAYS; d++) {
-    if (counted === null) brought += T.pass(f, [c], d).reduce((n, r) => n + (r.lost ? 0 : r.amount), 0); else T.pass(f, [c], d);
+    T.pass(f, [c], d).forEach((e) => { if (counted === null && e.type === 'arrived' && e.kind === 'takings') brought += e.amount; }); // counted when the car is home
     if (T.dayOf('dutch') === d) { const had = c.hauls.dutch.got; T.act(f, [c], 'dutch'); counted = f.men.dutch.income - T.RULES.club; assert.ok(Math.abs(counted - had) < 1e-6); assert.equal(c.hauls.dutch.got, 0); }
   }
   T.end(f, [c], []);
