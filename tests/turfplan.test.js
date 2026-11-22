@@ -659,3 +659,16 @@ test('a car that leaves with money takes the days the rules give it: it waits, d
   assert.deepEqual(cars.map((t) => [t.kind, t.loop, t.vehicle, t.days, t.wait, t.amount, t.cargo, t.color]), [['tribute', false, 'car', 3, 1, 150, 'cash', M.FLOW.money], ['clean', false, 'car', 2, 0, 90, 'clean', M.FLOW.sales]]);
   assert.deepEqual(cars[0].path[0], [club.i, club.j]); assert.deepEqual(cars[0].path[cars[0].path.length - 1], [seat.i, seat.j]);
 });
+
+test('what the boss pays is seen leaving his headquarters and arriving: a van in town, a van on the road for another city', () => {
+  const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], pc = p.cities[0], hq = c.hq.family, k = c.capos[0], other = v.cities[1];
+  const seat = lotsOf(pc, hq.x, hq.y)[4], club = lotsOf(pc, k.x, k.y).find((l) => l.site);
+  const leaves = { type: 'payment', step: 'leaves', id: 1, order: 'gift', city: c.id, capo: k.id, from: { x: hq.x, y: hq.y }, x: k.x, y: k.y, amount: 300, days: 2, van: c.id, vehicle: c.id + ':van:0' };
+  const away = { ...leaves, city: other.id, x: 3, y: 3, days: 7 }, arrives = { type: 'payment', step: 'arrives', id: 1, order: 'gift', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 300, van: c.id };
+  const cars = M.paymentsTurf([leaves, away, arrives], p);
+  assert.deepEqual(cars.map((t) => [t.kind, t.loop, t.vehicle, t.days, t.amount, t.cargo]), [['payment', false, 'truck', 2, 300, 'cash'], ['convoy', false, 'car', 7, 300, 'cash']]);
+  assert.deepEqual(cars[0].path[0], [seat.i, seat.j]); assert.deepEqual(cars[0].path[cars[0].path.length - 1], [club.i, club.j]);
+  assert.deepEqual([cars[1].a, cars[1].b], [0, 1]);
+  const fx = M.effectsTurf([leaves, arrives], p);
+  assert.deepEqual(fx.map((f) => [f.kind, f.type, f.bx, f.by, f.spent, f.gain || 0]), [['pay', 'payment', hq.x, hq.y, 300, 0], ['pay', 'payment', k.x, k.y, 0, 300]]);
+});

@@ -30,6 +30,7 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     A.map().labels().forEach((l) => { if (l.capo && !l.site && l.where && l.where !== 'home') seen.away++; if (l.capo && l.riding) seen.rides++; });      // a capo is seen away from his club, and in his car on the way
     seen.news = (seen.news || 0) + document.querySelectorAll('#feed .news').length; seen.marks = (seen.marks || 0) + A.map().labels().filter((l) => l.fx).length;      // what happens is told on the edge of the screen, and marked on the map
     if (document.body.classList.contains('live')) { const b = document.querySelector('#call .end [data-act=unlive]') || document.querySelector('#call [data-call=press]') || document.querySelector('#call [data-act=unlive]'); seen.hits = (seen.hits || 0) + 1; if (b) b.click(); }      // a hit that begins on its own is watched: he presses on, reads the end, and goes back to the town
+    const crew = A.view().cities.reduce((n, c) => n + c.capos.length, 0); if (seen.sent && seen.crew !== undefined && crew > seen.crew) seen.seat++; seen.crew = crew;      // the man the boss paid for has settled
     const got = document.querySelector('#hint [data-hint]'); if (got) { seen.hints = (seen.hints || 0) + 1; got.click(); }      // he reads each hint once and puts it away
     const again = document.querySelector('#alerts [data-requests]');      // he comes back twice a year to those he left waiting
     if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
@@ -40,7 +41,8 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
       else if (seat) {
         const men = () => A.view().cities.reduce((n, c) => n + c.capos.length, 0), had = men();
         seat.click();      // the man opens his club where he sees fit: the boss is never asked for a street
-        if (men() === had + 1 && !document.querySelector('#alerts .pick')) seen.seat++;
+        // (his club is paid for by loads driven from the headquarters: he is one of the family when the last one is there)
+        if (((A.view().paying || []).some((p) => p.order === 'welcome') || men() === had + 1) && !document.querySelector('#alerts .pick')) seen.sent = (seen.sent || 0) + 1;
         A.home();      // the camera went to see where he settled; the boss comes back to his first streets
         seen.out = A.map().stats().spots;
       }
@@ -109,7 +111,7 @@ await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
 await page.waitForSelector('#veil.on');
 await page.click('#sheet [data-act=gift]');
 assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'one gift a year');
-assert.match(await page.textContent('#sheet'), /again in 288 days/);
+assert.match(await page.textContent('#sheet'), /The money is on its way/, 'it leaves the headquarters by loads');
 assert.equal(await page.evaluate((kept) => { const g = window.__ashport.game(), left = g.family.clean; g.family.clean = kept; return left; }, kept), 500, 'the gift is paid in clean money');
 await page.click('#sheet [data-act=close]');
 // a real finger on a building: a small bubble beside it, the map stays in full view and time goes on

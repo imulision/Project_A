@@ -51,7 +51,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -203,7 +203,7 @@
   function settle(from, city, capo) {
     if (!order({ type: 'welcome', city: city, from: from, capo: capo })) return;
     var c = view.cities.filter(function (q) { return q.id === city; })[0], k = c && c.capos.filter(function (m) { return m.id === capo; })[0];
-    close(); toast(g.journal[g.journal.length - 1].label + '.'); answered();
+    close(); toast(C.onItsWay(view, 'welcome', city, capo) || g.journal[g.journal.length - 1].label + '.'); answered();      // (his club is paid for by loads from the headquarters: he settles when the last one is there)
     if (k && typeof k.x === 'number') map.focus(city, zoneId(city, k.x, k.y), { x: k.x, y: k.y });
   }
   $('sheet').addEventListener('click', function (e) {
@@ -217,12 +217,12 @@
     if (act === 'close') close();
     else if (act === 'later') { close(); stopped = false; if (g.paused) E.command(g, { type: 'resume' }); showHud(); }      // he leaves them waiting: time goes on
     else if (act === 'start') { if (order({ type: 'start', capo: d.capo })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
-    else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) answered(); }
+    else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) { var way = d.yes === '1' ? C.onItsWay(view, 'answer', d.city) : ''; if (way) toast(way); answered(); } }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
-    else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
+    else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.onItsWay(view, 'welcome', d.city, d.capo) || C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') settle(d.city, d.city, d.capo);
     else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
-    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
+    else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(C.onItsWay(view, 'gift', d.city, d.capo) || g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
@@ -312,7 +312,7 @@
         if (!e) {
           e = labs[l.id] = document.createElement('div');
           if (l.fx) { e.className = 'lab fx ' + l.fx; e.dataset.tip = (FX[l.fx] || ['time', l.fx])[1]; e.innerHTML = I.ring(1, l.fx === 'news' ? C.EVENT[l.type] || 'time' : (FX[l.fx] || ['time'])[0]); e.arc = e.querySelectorAll('circle')[1]; }
-          else if (l.pop) { var pp = C.pop(l.pop); e.className = 'lab pop ' + pp.cls; e.textContent = pp.text; if (l.pop > 0) bump(l.what === 'clean' ? 'clean' : 'dirty'); }      // money seen coming in: the figure at the top of the screen answers
+          else if (l.pop) { var pp = C.pop(l.pop); e.className = 'lab pop ' + pp.cls; e.textContent = pp.text; if (l.pop > 0 && l.what !== 'payment') bump(l.what === 'clean' ? 'clean' : 'dirty'); }      // money seen coming in: the figure at the top of the screen answers
           else if (l.claim) { e.className = 'lab claim'; }
           else if (l.car) { e.className = 'lab tag'; e.innerHTML = '<span></span><b></b>'; e.pic = e.firstChild; e.b = e.lastChild; }
           else if (l.site) { e.className = 'lab pin' + (l.role === 'club' ? ' club' : l.owner !== 'family' ? ' theirs' : l.role === 'laundering' ? ' wash' : ''); e.innerHTML = C.pin(l); e.lv = l.level; }
@@ -349,13 +349,14 @@
   }
 
   // ---- time
-  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1 };
+  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1, payment: 1 };
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
     var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    events.forEach(function (e) { if (e.type === 'payment' && e.step === 'back') toast('The money comes back to your headquarters: ' + say(e.why || 'nobody is there to take it') + '.', true); });
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
