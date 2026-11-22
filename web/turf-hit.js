@@ -36,7 +36,7 @@
 
   // Is this take a live hit: gun in hand, on a place the rivals press hard on. A key place stays the boss's own affair.
   function guarded(c, o) {
-    if (o.way !== 'force' || o.key || o.kind === 'key') return false;
+    if (o.way !== 'force' || o.key || o.kind === 'key' || o.kind === 'hq') return false;
     var b = at(c, o.x, o.y);
     return !!b && b.owner !== 'family' && C.hold(c, o.x, o.y).rival >= RULES.hit.guarded;
   }

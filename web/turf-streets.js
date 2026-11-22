@@ -124,7 +124,7 @@
     if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
     var target = null;
     everyPlace(c).forEach(function (p) {
-      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || can(c, p.capo, 'feared')) return;
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || p.kind === 'hq' || can(c, p.capo, 'feared')) return;
       if (c.sated && c.sated[p.capo] > c.month) return;   // they burnt one of his not long ago
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach) return;
