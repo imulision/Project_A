@@ -344,11 +344,14 @@ test('a betrayal is marked on the map with a light of its own, where the man had
   assert.equal(fx[0].say, 'Sal goes over to the Callahans');
 });
 
-test('money that leaves is seen leaving: an event that was paid for carries what it cost, one only asked for does not', () => {
-  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES);
-  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10, cost: 400 }, { type: 'asks', city: 'ashport', x: 4, y: 10, cost: 900 }, { type: 'gift', city: 'ashport', x: 5, y: 10, cost: 1500 },
-    { type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'truck', city: 'ashport', x: 5, y: 10, cost: 300 }], p);
-  assert.deepEqual(fx.map((f) => f.spent || 0), [400, 0, 1500, 0, 300]);
+test('money never leaves from thin air: a building site shows no figure, what it cost leaves the purse at the club of the capo', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = p.cities[0].capos[0];
+  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 400 }, { type: 'asks', city: 'ashport', capo: k.id, x: 4, y: 10, cost: 900 }, { type: 'gift', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 1500 },
+    { type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'truck', city: 'ashport', capo: k.id, cost: 300 }, { type: 'opened', city: 'ashport', x: 5, y: 10, cost: 200 }], p);
+  const marks = fx.filter((f) => f.kind !== 'pay'), pays = fx.filter((f) => f.kind === 'pay');
+  assert.deepEqual(marks.map((f) => f.spent || 0), [0, 0, 0, 0, 0], 'no figure over the place itself (a car bought has no place of its own)');
+  assert.deepEqual(pays.map((f) => f.spent), [400, 300], 'what a capo paid is seen at his club; what the boss paid, or a cost nobody carries, shows nothing');
+  pays.forEach((f) => assert.deepEqual([f.i, f.j, f.capo], [k.i, k.j, k.id]));
 });
 
 test('the streets of a capo in trouble show it: their buildings are marked low, and the plan says the town changed', () => {
@@ -485,11 +488,10 @@ test('a capo who opens a place drives to it and back to his club, once', () => {
 
 test('what the family builds, wins or learns from a decision has a sight of its own on the map', () => {
   const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = v.cities[0].capos[0];
-  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10, cost: 400 }, { type: 'enlarged', city: 'ashport', x: 5, y: 10, cost: 900 }, { type: 'converted', city: 'ashport', x: 5, y: 10, cost: 300 },
+  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10 }, { type: 'enlarged', city: 'ashport', x: 5, y: 10 }, { type: 'converted', city: 'ashport', x: 5, y: 10 },
     { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'bribe' }, { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'force' },
     { type: 'outcome', city: 'ashport', good: true, label: 'It paid' }, { type: 'outcome', city: 'ashport', good: false, label: 'It cost you' }, { type: 'outcome', city: 'ashport', label: 'Too early to say' }], p);
   assert.deepEqual(fx.map((f) => f.kind), ['build', 'build', 'build', 'key', 'key', 'good', 'bad'], 'a key place taken is a sight whatever the way; a result with nothing to say is not shown');
-  assert.equal(fx[2].spent, 300, 'changing a trade is paid for');
   assert.deepEqual([fx[5].i, fx[5].j], [p.cities[0].capos[0].i, p.cities[0].capos[0].j], 'a result with no place of its own is seen at the club');
   // a take under way is seen on the place being taken, month after month, until it is settled
   const taking = JSON.parse(JSON.stringify(p)), lot = taking.cities[0].lots.find((l) => l && l.site && l.site.owner !== 'family');
