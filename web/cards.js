@@ -421,10 +421,19 @@
   }
   function washTip(p) { var w = p.owner === 'family' && p.wash; if (!w) return '';
     return (w.waiting >= 1 ? '<br>' + icon('dirty') + ' ' + money(Math.round(w.waiting)) + ' to wash' : '') + (w.ready >= 1 ? '<br>' + icon('clean') + ' ' + money(Math.round(w.ready)) + ' clean, waiting for the car' : ''); }
+  // What sleeps in the coffer of a headquarters away from the boss's own city, until there is a full load for the road.
+  function cofferOf(c, p) { var k = p.owner === 'family' && c.coffer; return k && (k.dirty || 0) + (k.clean || 0) >= 1 ? k : null; }
+  function cofferBar(c, p) {
+    var k = cofferOf(c, p); if (!k) return '';
+    var sum = Math.round((k.dirty || 0) + (k.clean || 0)), load = k.load > 0 ? k.load : sum, part = Math.min(1, sum / load);
+    return '<div class="move till">' + icon('dirty') + '<span><b>' + money(sum) + ' / ' + money(load) + '</b> in the coffer' + (part >= 1 ? ': a car takes the road with it' : ', until there is a load for the road') +
+      '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i><small>' + money(Math.round(k.dirty || 0)) + ' dirty \u00b7 ' + money(Math.round(k.clean || 0)) + ' clean</small></span></div>';
+  }
   function hqSheet(view, c, p, b) {
     var h = hqOf(c, p), ours = p.owner === 'family';
     return '<h2>' + esc(zoneOf(c, p.x, p.y).name) + '</h2><p>' + esc(c.name) + ' \u00b7 ' + (GRIP[b.grip] || 'Nobody holds this street yet') + '</p>' +
       '<div class="intent' + (ours ? '' : ' wish') + '"><span class="gauge">' + I.ring(Math.max(1, Math.min(4, p.stage || 1)) / 4, 'ambition') + '</span><div><b>' + esc(hqTitle(p)) + '</b><small>' + esc(hqWhat(view, p) + ' \u00b7 ' + hqWho(h)) + '</small></div></div>' +
+      cofferBar(c, p) +
       (ours ? '<div class="move">' + icon('dirty') + '<span>The share of every capo is driven here from his club, one full load a trip.</span></div>' +
               '<div class="move">' + icon('works') + '<span>It grows with each act of the family, and its block with it.</span></div>'
             : '<div class="move no">' + icon('attack') + '<span>The seat of the rivals in ' + esc(c.name) + '.</span></div>') +
@@ -468,7 +477,7 @@
     var c = cityOf(view, cityId); if (!c) return null;
     var b = c.blocks[y * c.w + x] || {}, p = c.places.filter(function (q) { return q.x === x && q.y === y; })[0], ours = p && p.owner === 'family';
     if (!p) return '<b>' + esc(zoneOf(c, x, y).name) + '</b><br>' + (GRIP[b.grip] || 'Nobody holds this street yet');
-    if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p)));
+    if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p))) + (cofferOf(c, p) ? '<br>' + icon('dirty') + ' ' + money(Math.round((c.coffer.dirty || 0) + (c.coffer.clean || 0))) + ' / ' + money(c.coffer.load || 0) + ' in the coffer' : '');
     var sh = shareOf(c, p);
     return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
       esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + washTip(p) + storeLines(p, true) + strainLines(p, true);
