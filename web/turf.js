@@ -58,7 +58,7 @@
       var club = clubOf(c, r.capo);
       if (!club || !at(c, r.x, r.y)) return;
       var t = { kind: 'takings', cargo: 'cash', capo: r.capo, from: { x: r.x, y: r.y }, to: club, amount: r.amount,
-                vehicle: r.capo + (r.own ? ':own' : ':car:' + (r.car || 1)), leg: r.leg || 0, home: { x: club.x, y: club.y } };
+                vehicle: r.vehicle || r.capo + (r.own ? ':own' : ':car:' + (r.car || 1)), leg: r.leg || 0, home: { x: club.x, y: club.y } };
       if (r.own) t.own = true; // the capo drove this one himself
       if (r.lost) t.lost = r.lost;
       out.push(t);
@@ -243,7 +243,7 @@
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
-      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: r.capo + (r.car ? ':car:' + r.car : ':own'), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
+      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: G.carId(r.capo, r.car), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
       hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
@@ -364,8 +364,9 @@
           pay = atClub, had = function () { return tab ? m.cash : m.cash - atClub; };
       if (tab) before = m.cash - (tab.made - tab.wages - tab.sent) + Object.keys(spent).reduce(function (n, k) { return n + spent[k]; }, 0);
       m.income = inc; m.waiting = haul.waiting;
-      // tills that keep filling with no car free to empty them: he buys another one
-      if (!haul.idle && haul.waiting >= 2 * load && had() >= RULES.car.cost) {
+      // tills that keep filling with no car free to empty them: he buys another one (a full load must be waiting
+      // somewhere: a car that is out on other business is no reason while no till holds one)
+      if (!haul.idle && haul.full && haul.waiting >= 2 * load && had() >= RULES.car.cost) {
         m.cash -= RULES.car.cost; m.cars += 1; buys('car', RULES.car.cost);
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
@@ -602,7 +603,10 @@
       c.flow = c.turn.flow;
       var got = {}, mine = [];
       chores(c, f, day, events);
-      G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); if (!e.lost) got[e.capo] = (got[e.capo] || 0) + e.amount; });
+      G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); });
+      // a car is days on its way: the takings count the day it is back at the club (B.arrive)
+      got = c.came || {}; c.came = {};
+      Object.keys(got).forEach(function (capo) { if (c.hauls && c.hauls[capo]) c.hauls[capo].got += got[capo]; });
       heldUp(c, c.turn.trap, mine);
       Object.keys(f.men).forEach(function (capo) { if (clubOf(c, capo)) ready(c, f, capo, got[capo] || 0, mine); });
       homed(c, f, mine);

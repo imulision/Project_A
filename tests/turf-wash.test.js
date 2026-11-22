@@ -139,7 +139,7 @@ test('the city says what is on the road today: each load, its car, where from, w
   at.washed = 1000;
   day(g);
   const r = E.view(g).cities[0].rides.find((q) => q.kind === 'clean');
-  assert.deepStrictEqual([r.capo, r.vehicle, r.from, r.to, r.amount, r.days], ['sal', 'sal:own', { x: s.x, y: s.y }, { x: hq.x, y: hq.y }, LOAD, far(s, hq)]);
+  assert.deepStrictEqual([r.capo, r.vehicle, r.from, r.to, r.amount, r.days], ['sal', 'sal:car:1', { x: s.x, y: s.y }, { x: hq.x, y: hq.y }, LOAD, far(s, hq)]);
   assert.ok(r.gone >= 0 && r.gone <= r.days, 'days already driven');
   const back = E.view(E.load(E.save(g))).cities[0].rides.find((q) => q.kind === 'clean');
   assert.deepStrictEqual(back, r, 'kept through a save');
@@ -151,7 +151,7 @@ test('a man with two cars sends two loads the same day; with one car, one', () =
   two.f.men.sal.cars = 2; two.f.men.sal.share = LOAD; two.at.washed = 2 * LOAD;
   const left = day(two.g).filter((e) => e.type === 'clean' || e.type === 'tribute');
   assert.deepStrictEqual(left.map((e) => e.type).sort(), ['clean', 'tribute']);
-  assert.deepStrictEqual(E.view(two.g).cities[0].rides.map((r) => r.vehicle).sort(), ['sal:car:1', 'sal:own']);
+  assert.deepStrictEqual(E.view(two.g).cities[0].rides.map((r) => r.vehicle).sort(), ['sal:car:1', 'sal:car:2']);
   const one = start(0);
   one.f.men.sal.share = LOAD; one.at.washed = 2 * LOAD;
   assert.strictEqual(day(one.g).filter((e) => e.type === 'clean' || e.type === 'tribute').length, 1);
