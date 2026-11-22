@@ -549,7 +549,7 @@ test('what a capo pays, wages and upkeep, leaves from his club as one figure: no
   const g = E.createGame({ capo: 'sal' }); let pays = [];
   for (let i = 0; i < E.TICKS_PER_MONTH * 6 && !pays.length; i++) { pays = E.tick(g).filter((e) => e.type === 'pay'); if (g.paused) E.command(g, { type: 'resume' }); }
   assert.ok(pays.length, 'the rules tell every pay packet');
-  const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES), e = pays[0], k = p.cities.find((c) => c.id === e.city).capos.find((m) => m.id === e.capo);
+  const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES), e = { ...pays[0], left: false }, k = p.cities.find((c) => c.id === e.city).capos.find((m) => m.id === e.capo);      // (paid at the club; what a car leaves at a place has its own test)
   const out = M.paysTurf([e, { ...e, x: e.x + 1, what: 'wages', amount: 30 }, { ...e, what: 'upkeep', amount: 20.4 }, { type: 'run', city: e.city, capo: e.capo, x: e.x, y: e.y, amount: 150 }, { ...e, capo: 'nobody' }], p);
   assert.equal(out.length, 1, 'one figure for the man, whatever places he pays');
   assert.equal(out[0].spent, Math.round(e.amount + 50.4)); assert.equal(out[0].city, e.city); assert.equal(out[0].kind, 'pay');
@@ -671,4 +671,12 @@ test('what the boss pays is seen leaving his headquarters and arriving: a van in
   assert.deepEqual([cars[1].a, cars[1].b], [0, 1]);
   const fx = M.effectsTurf([leaves, arrives], p);
   assert.deepEqual(fx.map((f) => [f.kind, f.type, f.bx, f.by, f.spent, f.gain || 0]), [['pay', 'payment', hq.x, hq.y, 300, 0], ['pay', 'payment', k.x, k.y, 0, 300]]);
+});
+
+test('wages a car leaves at a place on its way are seen at that place, not at the club', () => {
+  const g = play(30), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], k = c.capos[0];
+  const place = c.places.find((q) => q.owner === 'family' && q.capo === k.id && q.kind !== 'club' && q.kind !== 'hq');
+  const out = M.paysTurf([{ type: 'pay', what: 'wages', left: true, city: c.id, capo: k.id, x: place.x, y: place.y, amount: 40.2 }, { type: 'pay', what: 'wages', left: true, city: c.id, capo: k.id, x: place.x, y: place.y, amount: 10 },
+    { type: 'pay', what: 'upkeep', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 20 }], p);
+  assert.deepEqual(out.map((o) => [o.bx, o.by, o.spent]).sort(), [[k.x, k.y, 20], [place.x, place.y, 50]].sort());
 });
