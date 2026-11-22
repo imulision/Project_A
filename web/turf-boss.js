@@ -169,20 +169,20 @@
   function carry(c, f, capo, went, full, events) {
     var seat = C.hqOf(c, 'family'), mine = laundries(c).filter(function (l) { return l.capo === capo; });
     if (!seat || !mine.length) return;
-    var flow = c.flow || (c.flow = { up: 0, sent: {} }), hq = { x: seat.x, y: seat.y };
+    var flow = c.flow || (c.flow = { up: 0, sent: {} }), hq = { x: seat.x, y: seat.y }, box = C.purse(c, f); // the money of this city
     var block = function (l) { return at(c, l.x, l.y); }, back = !!went;
     if (!went) {
       var rich = mine.slice().sort(function (a, b) { return (block(b).washed || 0) - (block(a).washed || 0); })[0], rb = block(rich), up = Math.min(full, rb.washed || 0);
       if (up >= full) {
-        rb.washed -= up; f.clean = (f.clean || 0) + up; went = true;
+        rb.washed -= up; box.clean = (box.clean || 0) + up; went = true;
         events.push({ type: 'clean', city: c.id, capo: capo, x: hq.x, y: hq.y, from: { x: rich.x, y: rich.y }, amount: up });
         (flow.cleans = flow.cleans || []).push({ capo: capo, x: rich.x, y: rich.y, amount: up });
       }
     }
     var room = function (l) { return l.most - (block(l).dirty || 0); };
-    var open = mine.slice().sort(function (a, b) { return room(b) - room(a); })[0], n = Math.min(full, room(open), Math.max(0, f.dirty));
+    var open = mine.slice().sort(function (a, b) { return room(b) - room(a); })[0], n = Math.min(full, room(open), Math.max(0, box.dirty));
     if (n < (went ? 1 : Math.min(full, open.most))) return;
-    f.dirty -= n; block(open).dirty = (block(open).dirty || 0) + n;
+    box.dirty -= n; block(open).dirty = (block(open).dirty || 0) + n;
     events.push({ type: 'wash', city: c.id, capo: capo, x: open.x, y: open.y, from: hq, amount: n, back: went ? true : false });
     (flow.washes = flow.washes || []).push({ capo: capo, x: open.x, y: open.y, amount: n });
   }
