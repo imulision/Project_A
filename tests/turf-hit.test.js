@@ -172,7 +172,7 @@ test('while he is at it the capo is at the place he hits', () => {
 // --- in the game ---
 test('the boss calls a hit through an order, and the journal keeps the end', () => {
   const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
-  const c = g.cities[0], club = T.clubOf(c, 'sal'), theirs = T.places(c).filter((p) => p.owner !== 'family' && p.kind !== 'key')
+  const c = g.cities[0], club = T.clubOf(c, 'sal'), theirs = T.places(c).filter((p) => p.owner !== 'family' && p.kind !== 'key' && p.kind !== 'hq')
     .sort((a, b) => T.hold(c, b.x, b.y).rival - T.hold(c, a.x, a.y).rival)[0];
   c.turn = c.turn || { daily: true, day: 0 };
   const hit = H.open(c, g.family, { capo: 'sal', x: theirs.x, y: theirs.y, way: 'force', kind: theirs.kind, cost: 500, month: c.month, months: 0 }, []);

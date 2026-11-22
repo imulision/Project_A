@@ -49,7 +49,7 @@
       placed += 1;
     }
     // its lieutenants share the places, from the west of the city to the east
-    var men = lieutenantsOf(c), theirs = everyPlace(c).filter(function (p) { return p.owner === name && p.kind !== 'key'; });
+    var men = lieutenantsOf(c), theirs = everyPlace(c).filter(function (p) { return p.owner === name && p.kind !== 'key' && p.kind !== 'hq'; });
     if (!men.length) return;
     theirs.sort(function (a, b) { return a.x - b.x || a.y - b.y; }).forEach(function (p, i) {
       at(c, p.x, p.y).man = men[Math.min(men.length - 1, Math.floor(i * men.length / theirs.length))];
@@ -147,6 +147,7 @@
       var out = { x: p.x, y: p.y, owner: p.owner, kind: p.kind, level: p.level, capo: p.capo };
       var till = c.blocks[p.at].till;
       if (till) out.till = till;
+      if (p.kind === 'hq') out.stage = c.blocks[p.at].stage || 1;
       if (p.key) out.key = p.key;
       if (p.man) out.man = p.man;
       return out;
@@ -192,8 +193,8 @@
   function open(c, x, y, p) {
     if (!inside(c, x, y)) throw new Error(x + ',' + y + ' is outside ' + c.id);
     if (at(c, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
-    if (p.kind !== 'club' && p.kind !== 'key' && !TERRAIN[p.kind]) throw new Error('unknown kind of place: ' + p.kind);
-    if (p.owner === 'family' && !who(p.capo)) throw new Error('a place of the family needs a capo');
+    if (p.kind !== 'club' && p.kind !== 'key' && p.kind !== 'hq' && !TERRAIN[p.kind]) throw new Error('unknown kind of place: ' + p.kind);
+    if (p.owner === 'family' && p.kind !== 'hq' && !who(p.capo)) throw new Error('a place of the family needs a capo');
     var b = { owner: p.owner, kind: p.kind, level: p.level || 1, capo: p.owner === 'family' ? p.capo : null };
     if (p.kind === 'key') {
       if (!KEYS[p.key]) throw new Error('unknown key place: ' + p.key);
@@ -216,6 +217,38 @@
   function settle(c, capo, x, y) {
     if (clubOf(c, capo)) throw new Error(capo + ' already has a club in ' + c.id);
     open(c, x, y, { owner: 'family', kind: 'club', capo: capo, level: RULES.clubLevel });
+  }
+
+  // --- headquarters ---
+  // The family's in a city, or the rivals' ('rival' or their name). Nobody runs it and nobody places it by hand.
+  function hqOf(c, owner) {
+    var ours = owner === 'family', p = memo(c).places.filter(function (q) { return q.kind === 'hq' && (q.owner === 'family') === ours; })[0];
+    return p ? { x: p.x, y: p.y, owner: p.owner, kind: 'hq', level: p.level, stage: c.blocks[p.at].stage || 1 } : null;
+  }
+  // It goes up by itself: the family's on the free block nearest its first club, the rivals' where they press hardest.
+  function raiseHq(c, owner) {
+    var ours = owner === 'family', has = hqOf(c, owner);
+    if (has) return has;
+    var first = ours ? memo(c).places.filter(function (q) { return q.owner === 'family' && q.kind === 'club'; })[0] : null, best = null;
+    if (ours && !first) throw new Error('the family has no club in ' + c.id);
+    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
+      if (!inside(c, x, y) || at(c, x, y)) continue;
+      var score = ours ? -far(x, y, first.x, first.y) * 1000 - hold(c, x, y).rival : hold(c, x, y).rival;
+      if (!best || score > best.score) best = { x: x, y: y, score: score };
+    }
+    if (!best) return null;
+    c.blocks[key(best.x, best.y)] = { owner: owner, kind: 'hq', level: RULES.hq.level, capo: null, stage: 1 };
+    changed(c);
+    return hqOf(c, owner);
+  }
+  function hqStage(share) { var n = 1; RULES.hq.stages.forEach(function (from, i) { if (share >= from) n = i + 1; }); return n; }
+  function sizeHq(c, owner, stage) {
+    var p = hqOf(c, owner);
+    if (p) c.blocks[key(p.x, p.y)].stage = Math.max(1, Math.min(4, stage));
+  }
+  function razeHq(c, owner) {
+    var p = hqOf(c, owner);
+    if (p) { delete c.blocks[key(p.x, p.y)]; changed(c); }
   }
 
   // How hard the family and its rivals press on one block.
@@ -302,7 +335,7 @@
 
   var api = { learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
-      clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
+      hqOf: hqOf, raiseHq: raiseHq, hqStage: hqStage, sizeHq: sizeHq, razeHq: razeHq, clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfCity = api;

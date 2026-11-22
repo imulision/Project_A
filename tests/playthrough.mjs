@@ -164,7 +164,7 @@ assert.equal(await page.locator('.res .net').count(), 0, 'the totals at the top 
 // a live hit: a capo goes for a guarded place, the screen goes to the street, the boss calls each step, and the end says what it cost
 const hit = await page.evaluate(() => {
   const A = window.__ashport, g = A.game(), v = A.view().cities.find((c) => c.held), c = g.cities.find((x) => x.id === v.id), o = {};
-  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club'); if (!p) return { none: true };
+  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club' && q.kind !== 'hq'); if (!p) return { none: true };
   c.turn = Object.assign(c.turn || {}, { daily: true });
   AshportTurfHit.open(c, g.family, { capo: v.capos[0].id, x: p.x, y: p.y, way: 'force', kind: p.kind, cost: 0, month: c.month, months: 0 }, []);
   A.beat();
@@ -268,7 +268,7 @@ await still();
 await shot('c3-two-capos');
 
 // a touch on a street up close names it and says what stands there
-const place = await page.evaluate(() => { const c = window.__ashport.view().cities[0], p = c.places.find((p) => p.owner === 'family' && p.kind !== 'club'); window.__ashport.tap({ city: c.id, bx: p.x, by: p.y, near: true }); return p; });
+const place = await page.evaluate(() => { const c = window.__ashport.view().cities[0], p = c.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'); window.__ashport.tap({ city: c.id, bx: p.x, by: p.y, near: true }); return p; });
 assert.match(await page.textContent('#tip'), new RegExp(place.name));
 assert.match(await page.textContent('#tip'), /runs it/);
 await shot('c3-bubble');

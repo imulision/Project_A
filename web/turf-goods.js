@@ -79,7 +79,7 @@
     if (c.month < (c.lurk || 0) || c.month <= (c.quiet || 0)) return null;
     var out = { at: {}, done: null }, any = false, shield = held(c, 'shield');
     everyPlace(c).forEach(function (p) {
-      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || can(c, p.capo, 'escorts')) return;
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || p.kind === 'hq' || can(c, p.capo, 'escorts')) return;
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach || h.rival <= h.family * (RULES.road.hold + RULES.road.muscle * who(p.capo).muscle + shield)) return;
       out.at[p.y * c.w + p.x] = true; any = true;
@@ -298,7 +298,7 @@
       // hemmed in: the weakest rival place within reach, taken his own way
       var all = places(c, capo), prey = null;
       everyPlace(c).forEach(function (p) {
-        if (p.owner === 'family' || p.kind === 'key' || shunned(p.x, p.y)) return;
+        if (p.owner === 'family' || p.kind === 'key' || p.kind === 'hq' || shunned(p.x, p.y)) return;
         if (!all.some(function (q) { return far(p.x, p.y, q.x, q.y) <= RULES.near; })) return;
         var r = hold(c, p.x, p.y).rival;
         if (!prey || r < prey.r) prey = { r: r, p: p };
@@ -325,7 +325,7 @@
       var turn = null;
       mine.forEach(function (p) {
         var since = at(c, p.x, p.y).turned;
-        if (p.kind === 'key' || p.kind === 'club' || shunned(p.x, p.y) || (since !== undefined && c.month - since < RULES.convert.rest)) return;
+        if (p.kind === 'key' || p.kind === 'club' || p.kind === 'hq' || shunned(p.x, p.y) || (since !== undefined && c.month - since < RULES.convert.rest)) return;
         if (worth(c, p.x, p.y, p.kind) >= 1 || D.SITES[p.kind].wash || thirst(p.kind) > 1) return;
         var value = function (kind) { return worth(c, p.x, p.y, kind) * taste(capo, kind) * WORTH[kind] * thirst(kind); };
         KINDS.forEach(function (kind) {
