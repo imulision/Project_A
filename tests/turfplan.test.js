@@ -759,6 +759,12 @@ test('a truck drives from where it stands to the cellar, then to the seller, in 
   // the next time, it leaves from the seller where it was left
   const next = M.haulsTurf([haul], plan, { [t.veh]: { x: haul.x, y: haul.y } })[0];
   assert.deepEqual(next.path[0], [seller.i, seller.j]);
+  // the rules say where the truck stood (at), and where each truck of a capo stands (rigs): the map follows them
+  const stood = c.lots.find((l) => l.bx === haul.at.x && l.by === haul.at.y && (l.site || true));
+  assert.equal(M.haulsTurf([haul], plan, {})[0].path[0][0] >= stood.i - 3 && M.haulsTurf([haul], plan, {})[0].path[0][0] <= stood.i + 3, true, 'it leaves from the block the rules name');
+  const v2 = E.view(g), rig = v2.cities[0].capos[0].rigs[0], parked = M.tripsTurf(M.planEmpire(v2, global.AshportWorld.CITIES), v2, true).find((q) => q.parked && q.id === c.id + ':' + rig.vehicle);
+  const lots = M.planEmpire(v2, global.AshportWorld.CITIES).cities[0].lots.filter((l) => l.bx === rig.x && l.by === rig.y);
+  assert.ok(parked && lots.some((l) => Math.abs(l.i - parked.home[0]) <= 1.5 && Math.abs(l.j - parked.home[1]) <= 1.5), 'a truck that waits is parked on the block where it stands, not always by the club');
   // goods that arrive are not money: nothing is counted over the seller
   assert.equal(M.effectsTurf([{ type: 'arrived', kind: 'haul', cargo: haul.cargo, city: c.id, capo: 'sal', x: haul.x, y: haul.y, from: haul.from, amount: haul.amount, vehicle: haul.vehicle }], plan).length, 0);
   // and the trucks no longer run the rounds of the cycle
