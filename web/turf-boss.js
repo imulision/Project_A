@@ -180,7 +180,7 @@
     var hidden = 2000 * Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'backroom'); }).length;
     var H = RULES.holdings;
     hidden += H.company.hides * owns(f, 'company');                                   // the company's books
-    c.heat = (c.heat || 0) + (f.dirty > RULES.stash + hidden ? RULES.hot : 0) + loud * RULES.loud * (1 - H.paper.hushes * owns(f, 'paper'))   // the paper tells it kindly
+    c.heat = (c.heat || 0) + (f.dirty > RULES.stash + (f.vault || 0) + hidden ? RULES.hot : 0) + loud * RULES.loud * (1 - H.paper.hushes * owns(f, 'paper'))   // the paper tells it kindly
       - RULES.cools * (held(c, 'shield') ? 2 : 1) - H.judge.cools * owns(f, 'judge')
       - (P.lineOf(c) === 'low' ? RULES.line.cools * followers(c, f).follow : 0)                                    // a city that lies low
       - Object.keys(f.men).filter(function (id) { return clubOf(c, id) && can(c, id, 'judge'); }).length - ((c.board && c.board.cools) || 0);

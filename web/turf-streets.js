@@ -30,7 +30,7 @@
     var m = f.men[capo], busy = c.ops.filter(function (o) { return o.capo === capo && !o.key; })[0]; // a key place is the boss's affair: the capo goes on with his own
     if (busy) return { move: 'take', way: busy.way, kind: busy.kind, name: (D.SITES[busy.kind] || {}).name, months: busy.months, x: busy.x, y: busy.y, cost: busy.cost, saved: busy.cost, progress: 1, waiting: 'time', left: Math.max(0, busy.months - (c.month - busy.month)), why: 'his men are on their way' };
     var led = P.follows(c, f, capo);
-    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash, line: led && led.follows ? P.lineOf(c) : null, shun: m.shuns });
+    var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash + (f.vault || 0), line: led && led.follows ? P.lineOf(c) : null, shun: m.shuns });
     if (!w) return { move: 'hold', waiting: 'rank', cost: 0, saved: 0, progress: 1, why: 'he runs all he can at his rank' };
     var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
     return { move: w.move, way: w.way, months: w.months, kind: w.kind, from: w.from, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,

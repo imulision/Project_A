@@ -49,8 +49,9 @@ test('nothing waiting: the sheet of requests says so and offers nothing to press
 });
 
 test('a man at the door: his price, a street to choose here, and each road he could take', () => {
-  const { g, v } = play(some('doors'));
-  const city = v.cities.find((c) => c.doors.length), d = city.doors[0];
+  const { g } = play(some('doors'));
+  g.reign.reached = 2; // the roads are open (see hq-gives.test.js)
+  const v = E.view(g), city = v.cities.find((c) => c.doors.length), d = city.doors[0];
   const html = C.requests(v, E.hud(g));
   assert.match(html, new RegExp(d.name.split(' ')[0]));
   assert.match(html, new RegExp('\\' + C.money(d.cost)));
