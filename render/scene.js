@@ -736,7 +736,10 @@ addEventListener('resize', () => {
     return out; };
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
   // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
+  // the vehicles that live by a club: where each is, parked or out, loaded or not (one that is out on a trip of its own is told by that trip)
+  const fleet = () => { const away = new Map(); for (const a of agents.values()) if (a.veh) away.set(a.veh, a);
+    return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
   return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: fleet() }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
