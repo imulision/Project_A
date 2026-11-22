@@ -1263,3 +1263,15 @@ test('the headquarters of another city says what sleeps in its coffer, and the l
   assert.match(C.block(v, c.id, hq.x, hq.y), /<b>\$300 \/ \$600<\/b> in the coffer[^]*width:50%[^]*\$250 dirty[^]*\$50 clean/);
   delete c.coffer; assert.doesNotMatch(C.block(v, c.id, hq.x, hq.y), /in the coffer/);
 });
+
+test('a car that carries money says whose and where to: the share of the boss, washed money, the take of a hit, the van between cities', () => {
+  assert.match(C.carTip({ kind: 'tribute', cargo: 'cash', amount: 150, capo: 'sal' }), /Your share, on its way to the headquarters[^]*\$150 on board/);
+  assert.match(C.carTip({ kind: 'clean', cargo: 'clean', amount: 120 }), /Washed money, on its way to the headquarters[^]*\$120 on board/);
+  assert.match(C.carTip({ kind: 'loot', cargo: 'cash', amount: 240, capo: 'sal' }), /The take of a hit, on its way to the club[^]*\$240 on board/);
+  const van = C.carTip({ kind: 'convoy', cargo: 'cash', amount: 600, way: 'Calder Falls to Ashport' });
+  assert.match(van, /The money of a city, on the road to your headquarters[^]*Calder Falls to Ashport[^]*\$600 on board/);
+  const back = C.carTip({ kind: 'convoy', cargo: 'cash', amount: 0, way: 'Ashport to Calder Falls' });
+  assert.match(back, /The van drives home empty/); assert.doesNotMatch(back, /\$|on board/);
+  assert.equal(C.carLoad({ kind: 'tribute', amount: 150 }), '$150'); assert.equal(C.carLoad({ kind: 'convoy', cargo: 'cash', amount: 600 }), '$600'); assert.equal(C.carLoad({ kind: 'convoy', cargo: 'cash', amount: 0 }), '');
+  assert.equal(C.carLoad({ kind: 'convoy', cargo: 'liquor', amount: 20 }), '');
+});
