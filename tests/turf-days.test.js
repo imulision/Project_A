@@ -14,7 +14,7 @@ const city = () => {
   return { c, f };
 };
 const byDays = (c, f) => {
-  const out = [...T.begin(f, [c])];
+  const out = [...T.begin(f, [c], true)]; // (no day goes by here: the trucks make their rounds as the cycle opens)
   for (const capo of Object.keys(f.men)) out.push(...T.act(f, [c], capo));
   out.push(...T.end(f, [c]));
   return out;

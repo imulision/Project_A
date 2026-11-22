@@ -90,7 +90,7 @@ test('his men are never paid more than his places brought in over a cycle', () =
   for (let i = 0; i < 12; i++) {
     cycle(c, f);
     const b = f.men.dutch.book;
-    assert.ok(b.wages <= b.made - T.RULES.club + 1e-6, JSON.stringify(b));
+    assert.ok(b.wages <= Math.max(0, b.made - T.RULES.club) + 1e-6, JSON.stringify(b)); // (his first count comes before a full cycle of his club)
     assert.ok(f.men.dutch.cash >= 0);
   }
 });

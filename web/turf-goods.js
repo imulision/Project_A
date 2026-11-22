@@ -91,7 +91,7 @@
 
   // One month of goods: every cellar and store fills with what was made, the trucks of the men who make it drive full
   // loads to the family's emptiest sellers, liquor first, and every seller sells what it has.
-  function distil(c, f, trap) {
+  function distil(c, f, trap, daily) {
     var all = cellars(c), left = {}, made = {}, out = { dry: false, idle: {}, waits: {}, seized: null };
     var police = (c.heat || 0) >= RULES.road.heat && !held(c, 'shield');
     all.forEach(function (s) {
@@ -100,10 +100,13 @@
       if (m && left[s.p.capo] === undefined) { m.trucks = m.trucks || 1; left[s.p.capo] = m.trucks * (RULES.truck.runs + (can(c, s.p.capo, 'nightruns') ? 2 : 0)); }
     });
     c.flow.hauls = [];
+    // played day by day the trucks leave on their own days (haulDay): what is told here is the trucks that are free
+    if (daily) Object.keys(left).forEach(function (capo) { var now = today(c); left[capo] = rigs(f.men[capo], clubOf(c, capo)).filter(function (t) { return t.free <= now; }).length; });
     CHAINS.forEach(function (chain) {
       var src = all.filter(function (s) { return s.chain === chain.id; }), short = false;
       var bars = everyPlace(c).filter(function (p) { return p.owner === 'family' && chain.sells.indexOf(p.kind) >= 0; }).map(function (p) { return { p: p, b: c.blocks[key(p.x, p.y)] }; });
       for (;;) {
+        if (daily) break;
         var from = null, to = null;
         src.forEach(function (s) { if (s.b.stock >= 1 && left[s.p.capo] > 0 && (!from || s.b.stock > from.b.stock)) from = s; });
         if (!from) break;
@@ -132,6 +135,55 @@
       if (short || chain.id === 'liquor') src.forEach(function (s) { out.waits[s.p.capo] = (out.waits[s.p.capo] || 0) + Math.floor(s.b.stock); });
     });
     out.idle = left;
+    return out;
+  }
+  // The trucks of a man, like his cars: each somewhere, and free from a given day.
+  function rigs(m, club) {
+    if (!m.rigs) m.rigs = [];
+    while (m.rigs.length < (m.trucks || 1)) m.rigs.push({ x: club.x, y: club.y, free: 0 });
+    return m.rigs;
+  }
+  // One day of the trucks in a city played day by day: every truck that is free takes a load from its capo's fullest
+  // cellar to the family's emptiest seller, liquor first. It drives to the cellar (`wait` days), loads, and drives to
+  // the seller (`days` days); the load is on the shelf the day it gets there (c.rides, kind 'haul'), and the truck
+  // waits there for its next load. A load already on its way to a seller counts for its shelf (b.due).
+  function haulDay(c, f, drink, trap) {
+    var all = cellars(c), out = [], now = today(c), police = (c.heat || 0) >= RULES.road.heat && !held(c, 'shield');
+    Object.keys(f.men).forEach(function (capo) {
+      var club = clubOf(c, capo), m = f.men[capo];
+      if (!club || !all.some(function (s) { return s.p.capo === capo; })) return;
+      rigs(m, club).forEach(function (truck, n) {
+        if (truck.free > now) return;
+        var from = null, to = null, chain = null;
+        CHAINS.some(function (ch) {
+          from = null; to = null;
+          all.forEach(function (s) { if (s.chain === ch.id && s.p.capo === capo && s.b.stock >= 1 && (!from || s.b.stock > from.b.stock)) from = s; });
+          if (!from) return false;
+          everyPlace(c).forEach(function (p) {
+            if (p.owner !== 'family' || ch.sells.indexOf(p.kind) < 0) return;
+            var q = { p: p, b: c.blocks[key(p.x, p.y)] }, has = function (z) { return (z.b[ch.shelf] || 0) + ((z.b.due || {})[ch.shelf] || 0); };
+            if (has(q) + 1 > RULES.truck.shelf) return;
+            if (!to || has(q) < has(to) || (has(q) === has(to) && far(from.p.x, from.p.y, p.x, p.y) < far(from.p.x, from.p.y, to.p.x, to.p.y))) to = q;
+          });
+          chain = ch;
+          return !!to;
+        });
+        if (!from || !to) return;
+        var here = truck.x === from.p.x && truck.y === from.p.y, wait = here ? 0 : tripDays(truck, from.p), days = tripDays(from.p, to.p);
+        var made = c.flow.hauls.filter(function (q) { return q.capo === capo && q.truck === n + 1; }).length;
+        var h = { kind: 'haul', capo: capo, cargo: from.cargo, shelf: chain.shelf, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo),
+                  truck: n + 1, leg: made, vehicle: capo + ':truck:' + (n + 1), wait: wait, left: now + wait, days: days, arrives: now + wait + days };
+        // a load the rivals or the police take on the road never reaches the shelf
+        if (trap && !trap.done && (trap.at[from.p.y * c.w + from.p.x] || trap.at[to.p.y * c.w + to.p.x])) { h.lost = 'hijack'; trap.done = h; trap.x = trap.at[from.p.y * c.w + from.p.x] ? from.p.x : to.p.x; trap.y = trap.at[from.p.y * c.w + from.p.x] ? from.p.y : to.p.y; }
+        else if (police && drink && !drink.seized && !can(c, capo, 'friends')) { h.lost = 'seizure'; drink.seized = h; }
+        from.b.stock -= 1;
+        if (!h.lost) { to.b.due = to.b.due || {}; to.b.due[chain.shelf] = (to.b.due[chain.shelf] || 0) + 1; }
+        truck.x = to.p.x; truck.y = to.p.y; truck.free = h.arrives;
+        (c.rides = c.rides || []).push(h);
+        c.flow.hauls.push(h);
+        out.push(h);
+      });
+    });
     return out;
   }
 
@@ -425,7 +477,7 @@
   }
 
   var api = { liquor: liquor, CHAINS: CHAINS, loadOfCargo: loadOfCargo, supplied: supplied, cellars: cellars, ambush: ambush, CARGOES: CARGOES,
-      distil: distil, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, today: today, tripDays: tripDays, fleet: fleet, carId: carId, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
+      distil: distil, haulDay: haulDay, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, today: today, tripDays: tripDays, fleet: fleet, carId: carId, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
       wants: wants, washing: washing, laundries: laundries };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfGoods = api;
