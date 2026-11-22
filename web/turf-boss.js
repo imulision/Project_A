@@ -192,7 +192,9 @@
     var seized = Math.round(Math.max(0, f.dirty) * RULES.bust * (1 - H.lawyer.spares * owns(f, 'lawyer'))); // the lawyers get some of it back
     f.dirty -= seized; (c.flow || (c.flow = { up: 0, sent: {} })).seized = seized;
     c.heat = RULES.afterBust;
-    events.push({ type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized });
+    var seat = C.hqOf(c, 'family'), raid = { type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized };
+    if (seat) { raid.x = seat.x; raid.y = seat.y; } // the money sleeps at the headquarters: that is where they come for it
+    events.push(raid);
   }
   // `daily`: the city is played day by day, the fronts have washed as the days went and the police pick their own day.
   function money(c, f, events, heard, daily) {
