@@ -243,7 +243,7 @@
     Object.keys(f.men).forEach(function (capo) {
       var m = f.men[capo], club = clubOf(c, capo), L = RULES.loyal;
       if (!club) return;
-      var is = loyalty(f, capo), born = Math.max(0, Math.min(100, who(capo).loyalty + RULES.cut[B.cutOf(c)].loyal)); // where he settles: his nature, and how hard the boss leans on this city
+      var is = loyalty(f, capo), born = Math.max(0, Math.min(100, who(capo).loyalty + RULES.cut[B.cutOf(c)].loyal + P.counsel(f))); // where he settles: his nature, and how hard the boss leans on this city
       if (m.moved) m.moved = false;
       else if (is !== born) m.loyal = is + (is < born ? 1 : -1) * Math.min(L.heals, Math.abs(born - is));
       if (mood(f, capo) !== 'bitter') { m.sour = 0; return; }

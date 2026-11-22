@@ -104,7 +104,8 @@ test('nothing of a later act is open before it', () => {
   assert.ok(!R.open(r, 'roads'));
   R.place(r, 3);
   assert.ok(R.open(r, 'table'));
-  assert.ok(!R.open(r, 'roads'));
+  assert.ok(R.open(r, 'roads'));
+  assert.ok(!R.open(r, 'underboss'));
 });
 
 // --- the director ---

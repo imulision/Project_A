@@ -259,6 +259,7 @@
   // there (a back room until an underboss sits in it), the rivals' with what they hold; a city left empty loses its own.
   function seats(g) {
     var r = reignOf(g);
+    g.family.vault = T.RULES.hq.vault[r.reached]; // the bigger the family's own house, the more dirty money sleeps there unseen
     g.cities.forEach(function (c) {
       var s = T.share(c);
       T.sizeHq(c, 'rival', T.hqStage(s.rival));
@@ -369,9 +370,23 @@
     return events;
   }
 
+  // --- what the headquarters has not opened yet ---
+  // The table and the roads come with the club (Act II), the underbosses with the hotel floor (Act III),
+  // the Counsel's chair with the mansion (Act IV). What was opened once stays open.
+  var GATES = { table: 'The table', roads: 'The roads to the other cities', underboss: 'An underboss', counsel: 'The Counsel\'s chair' };
+  function isOpen(g, what) { return R.open(reignOf(g), what); }
+  function need(g, what) { if (!isOpen(g, what)) throw new Error(GATES[what] + ' comes with ' + R.opensAt(what)); }
+  function closed(g) {
+    var out = {};
+    Object.keys(GATES).forEach(function (what) { if (!isOpen(g, what)) out[what] = GATES[what] + ' comes with ' + R.opensAt(what); });
+    return out;
+  }
+  function chairOpen(g, post) { return isOpen(g, 'table') && (post !== 'counsel' || isOpen(g, 'counsel')); }
+  function tableOf(g) { return T.table(g.family).filter(function (s) { return chairOpen(g, s.post); }); }
+
   // Where a man at the door could be sent instead: the cities next door that still have a seat.
   function roadsOf(g, c, d) {
-    if (d.door === 'poach') return [];
+    if (d.door === 'poach' || !isOpen(g, 'roads')) return [];
     return g.cities.filter(function (q) {
       var s = T.seats(q);
       return linked(c.id, q.id) && s.taken < s.total;
@@ -420,6 +435,7 @@
     // or sends him down the road: `from` is the city where he knocked, `city` the one he opens
     // a man at the door takes a chair at the boss's table instead of a street; and the boss takes a chair back
     seat: function (g, o) {
+      need(g, 'table'); if (o.post === 'counsel') need(g, 'counsel');
       T.seat(cityOf(g, o.city), g.family, o.capo, o.post);
       var chair = T.table(g.family).filter(function (s) { return s.post === o.post; })[0];
       record(g, { type: 'seated', capo: o.capo, city: o.city, post: o.post, label: chair.who + ' takes the ' + chair.name + '\'s chair at the table' }, g.month);
@@ -432,6 +448,7 @@
     // the boss names the capo who holds a city for him: he takes in the men at its door from then on
     underboss: function (g, o) {
       var c = cityOf(g, o.city);
+      need(g, 'underboss');
       T.underboss(c, g.family, o.capo);
       record(g, { type: 'underboss', capo: o.capo, city: c.id, label: T.person(o.capo).name + ' is now the family\'s underboss in ' + specOf(c.id).name }, g.month);
     },
@@ -468,6 +485,7 @@
     },
     welcome: function (g, o) {
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
+      if (from !== c) need(g, 'roads');
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
       T.send(from, c, g.family, o.capo, o.x, o.y);
       T.raiseHq(c, 'family'); // the first man in a city opens the family's back room there
@@ -521,7 +539,7 @@
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
-    var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: T.table(g.family),
+    var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family), study: g.family.study, table: tableOf(g),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -529,14 +547,14 @@
                v.held = held(g, c);
                v.capos.forEach(function (k) { k.day = dayOf(k.id); }); // the day of the month he makes his move
                // where each man at the door could be sent instead: the cities next door that still have a seat
-               var free = T.table(g.family).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
+               var free = tableOf(g).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
                v.doors.forEach(function (d) { d.roads = roadsOf(g, c, d); var own = d.door === 'poach' ? null : T.clubSpot(c, d.capo); d.spot = own && { x: own.x, y: own.y, street: T.zoneOf(c, own.x, own.y).name }; d.open = answerable(g, c, d); d.chairs = d.door === 'poach' ? [] : free; if (v.under && d.door !== 'poach') d.handled = v.under; });
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along
     var r = reignOf(g), share = shareNow(g);
-    out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached,
-                  acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
+    out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
+                  acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, hq: a.hq, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
     out.next = out.cities.reduce(function (best, c) { return c.next && (!best || c.next.advance > best.advance) ? Object.assign({ city: c.id }, c.next) : best; }, null);
     return out;
   }
@@ -557,6 +575,7 @@
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
     out.seats = seats; out.pending = pending;
     out.act = R.act(reignOf(g)).numeral;
+    out.vault = T.RULES.stash + T.RULES.hq.vault[reignOf(g).reached]; // dirty money above this draws the police
     return out;
   }
 

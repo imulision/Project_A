@@ -40,6 +40,7 @@ const knocked = () => {
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) knock = E.tick(g).find((e) => e.type === 'knocks');
   g.family.dirty = 50000;
+  g.reign.reached = 2; // the roads are open (see hq-gives.test.js)
   return { g, knock };
 };
 

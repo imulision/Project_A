@@ -177,6 +177,7 @@ const knocking = () => {
   const near = T.spots(c).find((s) => Math.max(Math.abs(s.x - club.x), Math.abs(s.y - club.y)) === 1);
   T.open(c, near.x, near.y, { owner: 'family', kind: 'gambling', capo: 'dutch' });
   g.family.dirty = 20000;
+  g.reign.reached = 2; // the roads and the table are open (see hq-gives.test.js)
   return g;
 };
 
@@ -290,6 +291,7 @@ const firstKnock = (prepare) => {
   const g = E.createGame({ capo: 'dutch' }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) { prepare(g); knock = E.tick(g).find((e) => e.type === 'knocks'); }
+  g.reign.reached = 2; // the roads and the table are open (see hq-gives.test.js)
   return { g, knock };
 };
 

@@ -87,7 +87,7 @@ test('a city headquarters appears the day the first man settles in another city'
   const g = start('dutch');
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) knock = E.tick(g).find((e) => e.type === 'knocks');
-  g.family.dirty = 50000;
+  g.family.dirty = 50000; g.reign.reached = 2; // the roads are open (see hq-gives.test.js)
   const road = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).roads[0];
   E.command(g, { type: 'welcome', city: road.city, from: 'ashport', capo: knock.capo });
   const there = E.view(g).cities.find((c) => c.id === road.city);

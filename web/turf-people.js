@@ -128,7 +128,11 @@
   // Three chairs for the whole family, for men who run no street. Each serves every city by what the man is good at.
   var CHAIRS = [{ post: 'bookkeeper', name: 'Bookkeeper', gives: function (p) { return 'Every laundry of the family washes ' + Math.round(100 * RULES.table.wash * p.business) + '% more'; } },
                 { post: 'routes', name: 'Routes', gives: function (p) { return Math.floor(p.cunning / RULES.table.cunning) + ' more loads go down every road ' + R.EVERY; } },
-                { post: 'fixer', name: 'Fixer', gives: function (p) { return 'Every city cools ' + Math.floor(p.charisma / RULES.table.charisma) + ' more ' + R.EVERY; } }];
+                { post: 'fixer', name: 'Fixer', gives: function (p) { return 'Every city cools ' + Math.floor(p.charisma / RULES.table.charisma) + ' more ' + R.EVERY; } },
+                { post: 'counsel', name: 'Counsel', gives: function (p) { return 'Every man of the family is ' + counsels(p) + ' more loyal by nature'; } }];
+  // What a Counsel adds to the loyalty every man settles at: the family listens to a man it likes.
+  function counsels(p) { return RULES.table.counsel * Math.ceil(p.charisma / 2); }
+  function counsel(f) { var id = sits(f, 'counsel'); return id ? counsels(who(id)) : 0; }
 
   function chairOf(post) {
     var ch = CHAIRS.filter(function (q) { return q.post === post; })[0];
@@ -193,7 +197,7 @@
   }
 
   var api = { KEYS: KEYS, PEOPLE: PEOPLE, LURES: LURES, who: who, SCHOOLS: SCHOOLS, TRADE: TRADE, schoolOf: schoolOf, abilities: abilities,
-      CHAIRS: CHAIRS, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, lineOf: lineOf, follows: follows, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
+      CHAIRS: CHAIRS, counsel: counsel, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, lineOf: lineOf, follows: follows, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfPeople = api;
 })(typeof self !== 'undefined' ? self : this);
