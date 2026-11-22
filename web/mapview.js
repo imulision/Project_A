@@ -371,6 +371,25 @@
   function leavingTurf(events, plan, day) {
     return convoysTurf(plan, (events || []).filter(function (e) { return e.type === 'convoy' && e.step === 'leaves'; })).map(function (t) { t.id += '@' + (day || 0); return t; });
   }
+  // ridesTurf(view, plan): the cars that are on their way today, each as far along as the rules say (gone, in days). It is what a
+  // game opened again shows at once: the money that had left is still on the road, where it was.
+  function ridesTurf(view, plan) {
+    var out = [], n = 0, add = function (trips, gone) { trips.forEach(function (t) { t.id += ':again' + (n++); t.gone = Math.max(0, Math.min(t.days, gone || 0)); out.push(t); }); };
+    (view.cities || []).forEach(function (c) {
+      (c.rides || []).forEach(function (r) {
+        if (r.kind === 'takings') add(runsTurf([{ type: 'run', city: c.id, capo: r.capo, x: r.from.x, y: r.from.y, amount: r.amount, wait: r.wait || 0, days: r.days, vehicle: r.vehicle }], plan), (r.gone > 0 ? Math.max(0.25, r.wait || 0) : 0) + r.gone);
+        else add(departuresTurf([{ type: r.kind, city: c.id, capo: r.capo, from: r.from, x: r.to.x, y: r.to.y, amount: r.amount, days: r.days, wait: 0, vehicle: r.vehicle }], plan), r.gone);
+      });
+    });
+    var home = (view.cities || []).filter(function (c) { return c.hq && c.hq.family && c.hq.family.home; })[0], hq = home && home.hq.family;
+    (view.paying || []).forEach(function (p) {
+      (p.rides || []).forEach(function (r, k) {
+        if (hq) add(paymentsTurf([{ type: 'payment', step: 'leaves', id: p.id, order: p.order, city: p.city, capo: p.capo, from: { x: hq.x, y: hq.y }, x: p.x, y: p.y, amount: r.amount, days: r.days, van: home.id, vehicle: home.id + ':van:' + k }], plan), r.gone);
+      });
+    });
+    (view.onRoad || []).forEach(function (r) { add(convoysTurf(plan, [{ from: r.from, to: r.to, cargo: 'cash', amount: r.amount, days: r.days }]), r.gone); });
+    return out;
+  }
   // movesTurf(before, after): a capo who is not where he was last month drives there once, in his own car.
   function movesTurf(before, after) {
     var out = [];
@@ -496,7 +515,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, paymentsTurf: paymentsTurf, departuresTurf: departuresTurf, runsTurf: runsTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, paymentsTurf: paymentsTurf, departuresTurf: departuresTurf, runsTurf: runsTurf, ridesTurf: ridesTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

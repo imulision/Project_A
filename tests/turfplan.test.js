@@ -734,3 +734,20 @@ test('a capo who is out at work still drives to the place he opens', () => {
   }
   assert.ok(seen >= 2 && away >= 1, 'places opened, one of them while he was away (' + seen + ', ' + away + ')');
 });
+
+test('a game opened again shows the cars that were already on their way, as far along as they were', () => {
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
+  let seen = 0, far = 0, kinds = {};
+  for (let i = 0; i < 400; i++) { E.tick(g); if (E.hud(g).paused) E.command(g, { type: 'resume' });
+    if (i === 200) { g.family.clean = 5000; E.command(g, { type: 'gift', city: 'ashport', capo: 'sal' }); }
+    const v = E.view(g), rides = v.cities.reduce((n, c) => n + (c.rides || []).length, 0) + (v.paying || []).reduce((n, p) => n + p.rides.length, 0) + (v.onRoad || []).length;
+    if (!rides) continue;
+    const p = M.planEmpire(v, global.AshportWorld.CITIES), trips = M.ridesTurf(v, p);
+    assert.equal(trips.length, rides, 'day ' + i + ': every ride in progress is a car');
+    trips.forEach((t) => { assert.ok(t.gone >= 0 && t.gone <= t.days, 'how far along it is'); assert.equal(t.loop, false); kinds[t.kind] = 1; if (t.gone > 0) far++; });
+    assert.equal(new Set(trips.map((t) => t.id)).size, trips.length, 'each its own car');
+    seen++;
+  }
+  assert.ok(seen > 20 && far > 5, 'rides were in progress (' + seen + ', ' + far + ')');
+  assert.ok(kinds.takings && kinds.payment, 'takings and what the boss pays: ' + Object.keys(kinds));
+});

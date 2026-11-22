@@ -379,7 +379,7 @@
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
-    if (g.started) { refresh(); home(); if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
+    if (g.started) { refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
     if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });

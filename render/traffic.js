@@ -1,5 +1,6 @@
 // The streets at work: every trip of the plan is a vehicle. Loops come and go, rounds leave the club and come home, convoys take the road between two cities.
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
+import { roadWay } from './roads.mjs';
 export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
   const DAY = 3.5 * T;      // every car keeps the same pace: a block of the town in a day of the game, six days for a road
   let n0 = 0, pace = 1;      // pace: days of the game in a second (the speed the boss chose)
@@ -13,10 +14,10 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
   // Between two cities there is no street plan: the truck follows the road drawn on the land (or the straight line, by sea).
   const OPEN = { near: { visible: true } };
   function roadBetween(a, b) {
-    const r = ROADS.find(r => (r.a === a && r.b === b) || (r.a === b && r.b === a)), A = CITIES[a], B = CITIES[b]; if (!A || !B) return null;
-    return r ? (r.a === a ? r.pts : r.pts.slice().reverse()) : [[A.cx, A.cz], [B.cx, B.cz]];
+    const A = CITIES[a], B = CITIES[b]; if (!A || !B) return null;
+    return roadWay(ROADS, a, b) || [[A.cx, A.cz], [B.cx, B.cz]];      // through the cities on the way when they share no road
   }
-  function agentFor(t) {
+  function agentNew(t) {
     const road = t.kind === 'convoy' ? roadBetween(t.a, t.b) : null, C = road ? OPEN : CITIES.find(c => c.id === t.city); if (!C) return null;
     const pts = road || t.path.map(([i, j]) => [C.ox + i * T, C.oz + j * T]), len = []; let L = 0;
     for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
@@ -29,6 +30,14 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
              o: null,
              // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
              round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, lost: s.lost, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
+  }
+  // a trip that was already on its way (a game opened again) starts as far along as it was: no wait by the door, the days gone behind it
+  function agentFor(t) {
+    const a = agentNew(t); if (!a || !(t.gone > 0) || !a.days) return a;
+    a.idle = 0; a.wait = 0;
+    if (a.plan) { let left = t.gone, from = 0; for (const q of a.plan) { const part = Math.min(1, left / q.days); a.p = from + (q.d - from) * part; left -= q.days; from = q.d; if (left <= 0) break; } a.loaded = a.p >= a.plan[0].d; }
+    else a.p = a.L * Math.min(1, t.gone / a.days);
+    return a;
   }
   // A vehicle on its round takes the way of the new month once it is back by the club; parked, it takes it at once.
   function reroute(id, a, t) {
