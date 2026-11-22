@@ -649,3 +649,13 @@ test('a truck that leaves for another city is seen the day it leaves, and two th
   assert.notEqual(one[0].id, two[0].id);
   assert.equal(M.leavingTurf([{ ...ev[0], cargo: 'cash' }], p, 41)[0].vehicle, 'car');
 });
+
+test('a car that leaves with money takes the days the rules give it: it waits, drives, and is one car, seen once', () => {
+  const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], pc = p.cities[0], hq = c.hq.family, k = c.capos[0];
+  const club = lotsOf(pc, k.x, k.y).find((l) => l.site), seat = lotsOf(pc, hq.x, hq.y)[4];
+  const ev = [{ type: 'tribute', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 150, wait: 1, days: 3 }, { type: 'arrived', kind: 'tribute', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 150 },
+    { type: 'clean', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 90, wait: 0, days: 2 }, { type: 'opened', city: c.id, x: 1, y: 1 }];
+  const cars = M.departuresTurf(ev, p);
+  assert.deepEqual(cars.map((t) => [t.kind, t.loop, t.vehicle, t.days, t.wait, t.amount, t.cargo, t.color]), [['tribute', false, 'car', 3, 1, 150, 'cash', M.FLOW.money], ['clean', false, 'car', 2, 0, 90, 'clean', M.FLOW.sales]]);
+  assert.deepEqual(cars[0].path[0], [club.i, club.j]); assert.deepEqual(cars[0].path[cars[0].path.length - 1], [seat.i, seat.j]);
+});

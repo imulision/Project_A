@@ -318,7 +318,21 @@
       var a = -1, b = -1; plan.cities.forEach(function (c, n) { if (c.id === v.from) a = n; if (c.id === v.to) b = n; }); if (a < 0 || b < 0 || a === b) return;
       var nth = same[a + '>' + b] = (same[a + '>' + b] || 0) + 1, cash = v.cargo === 'cash';      // money takes the road in a car, goods in a truck
       out.push({ id: (cash ? 'cash:' : 'convoy:') + v.from + '>' + v.to + ':' + nth, kind: 'convoy', loop: false, a: a, b: b, delay: (nth - 1) * 1.5, color: cash ? FLOW.money : FLOW.logistics, vehicle: cash ? 'car' : 'truck', violent: false,
-                 cargo: v.cargo, amount: v.amount || 0, capo: v.capo || null, way: plan.cities[a].name + ' to ' + plan.cities[b].name, load: {}, from: 'street', to: 'street', by: null, target: null });
+                 days: v.days > 0 ? v.days : 0, cargo: v.cargo, amount: v.amount || 0, capo: v.capo || null, way: plan.cities[a].name + ' to ' + plan.cities[b].name, load: {}, from: 'street', to: 'street', by: null, target: null });
+    });
+    return out;
+  }
+  // departuresTurf(events, plan): a car that leaves with money (the share of the boss, money to wash, washed money) drives once,
+  // from where it loads to where it is counted. The rules say how many days it waits before it has loaded (wait) and how many it
+  // drives (days): the map keeps to them at any speed of the game, so that it arrives the day the money is counted.
+  var CARRIES = { tribute: 'cash', wash: 'cash', clean: 'clean' };
+  function departuresTurf(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      if (!CARRIES[e.type] || !e.from || typeof e.x !== 'number') return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], a = c && lotOfBlock(c, e.from.x, e.from.y), b = c && lotOfBlock(c, e.x, e.y); if (!a || !b || a === b) return;
+      out.push({ id: c.id + ':' + e.type + ':' + (e.capo || '') + ':' + e.from.x + '.' + e.from.y, kind: e.type, city: c.id, loop: false, color: FLOW[HAUL[e.type].flow], vehicle: 'car', violent: false, path: route([a.i, a.j], [b.i, b.j], c),
+                 days: Math.max(1, e.days || 1), wait: Math.max(0, e.wait || 0), cargo: CARRIES[e.type], amount: e.amount || 0, load: {}, capo: e.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: null, target: null, n: 0 });
     });
     return out;
   }
@@ -443,7 +457,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, departuresTurf: departuresTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

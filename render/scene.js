@@ -643,7 +643,7 @@ function update(P2) {
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
 const { fxList, pops, spawnFx, spawnPop, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
-const { agents, traffic, moveAgents, MAXTAGS } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
+const { agents, traffic, moveAgents, MAXTAGS, setPace } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
 // what the page writes over the map (render/labels.js)
 const claimList = [];
 const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS, claimList });
@@ -737,6 +737,6 @@ addEventListener('resize', () => {
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
   // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), setLook: waking(window.setLook), setFx: waking(window.setFx),
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }
