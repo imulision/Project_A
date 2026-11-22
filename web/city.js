@@ -354,7 +354,7 @@
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
-    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay' && e.type !== 'tribute'; });      // a car that leaves, a pay packet: seen on the map, never news
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
     if (!live) C.untold(news, told, g.month).forEach(tell);      // the same alert is not told again month after month

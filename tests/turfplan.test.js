@@ -49,7 +49,7 @@ test('every place stands on its own block, one place a block, with a sign', () =
   c.places.forEach((pl) => {
     const sites = lotsOf(p, pl.x, pl.y).filter((l) => l.site);
     assert.equal(sites.length, 1, 'one place on block ' + pl.x + ',' + pl.y);
-    assert.equal(sites[0].site.name, pl.name); assert.equal(sites[0].site.level, pl.level); assert.ok(sites[0].site.sign);
+    assert.equal(sites[0].site.name, pl.name); assert.equal(sites[0].site.level, pl.kind === 'hq' ? pl.stage : pl.level); assert.ok(sites[0].site.sign);
   });
   assert.equal(p.lots.filter((l) => l.site).length, c.places.length);
 });
@@ -393,7 +393,7 @@ test('each street of the family says how hard the rival presses on it', () => {
 });
 
 test('men stand where the family is: a doorman at each place, two at the club, a crew where a capo faces the rivals', () => {
-  const c0 = cityOf(play(30)), c = { ...c0, capos: c0.capos.map((m) => ({ ...m, at: { x: m.x, y: m.y, why: 'home' } })) }, k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club');
+  const c0 = cityOf(play(30)), c = { ...c0, capos: c0.capos.map((m) => ({ ...m, at: { x: m.x, y: m.y, why: 'home' } })) }, k = c.capos[0], mine = c.places.filter((p) => p.owner === 'family'), other = mine.find((p) => p.kind !== 'club' && p.kind !== 'hq');
   const p = M.planTurf(c), at = (x, y) => p.lots.find((l) => l.bx === x && l.by === y && l.site);
   assert.equal(at(k.x, k.y).men, 2, 'the club'); if (other) assert.equal(at(other.x, other.y).men, 1, 'a doorman');
   p.lots.forEach((l) => { if (!l.site || l.site.owner !== 'family') assert.ok(!l.men, 'nobody of the family stands at a rival\'s door'); });
@@ -576,4 +576,38 @@ test('the block of a headquarters changes with it: alone at first, then a yard f
   assert.equal(changed(lots[3]), 6, 'the family seat takes the whole block'); assert.ok(lots[3].slice(0, 3).every((l) => l.open === 'park'), 'with its garden behind');
   assert.ok(changed(lots[0]) < changed(lots[1]) && changed(lots[1]) < changed(lots[2]) && changed(lots[2]) < changed(lots[3]));
   assert.deepEqual(M.hqBlock(9), M.hqBlock(4)); assert.deepEqual(M.hqBlock(0), M.hqBlock(1));
+});
+
+// ---- the headquarters in the game
+test('a headquarters of the rules stands in the middle of the front row of its block, with the model of its stage, and the block is its own', () => {
+  const g = play(1), c = cityOf(g), p = M.planTurf(c), hq = c.hq.family, rv = c.hq.rival;
+  const mine = lotsOf(p, hq.x, hq.y), theirs = lotsOf(p, rv.x, rv.y);
+  assert.equal(mine[4].site.type, 'hq'); assert.equal(mine[4].site.role, 'hq'); assert.equal(mine[4].model, 'hq_backroom');
+  assert.equal(mine.filter((l) => l.site).length, 1, 'one place on the block, wherever the other places of the town would stand');
+  assert.equal(mine[4].site.owner, 'family'); assert.equal(mine[4].site.level, 1, 'its mark counts the acts, not the levels of a business');
+  assert.ok(mine[4].site.sign && mine[4].site.sign !== 'OPEN');
+  assert.equal(theirs[4].model, 'hq_seat', 'the rivals are at home here from the first day');
+  assert.equal(theirs[4].site.owner, c.rival); assert.equal(theirs[4].site.color, M.COLORS[p.rival]);
+  assert.deepEqual(theirs.map((l) => l.open), ['park', 'park', 'park', 'court', null, 'court'], 'the whole block is theirs: court and garden');
+  assert.notEqual(theirs[4].site.sign, mine[4].site.sign);
+});
+
+test('a headquarters that grows changes its building and its block, and the map is drawn again', () => {
+  const g = play(1), c = cityOf(g), was = M.planTurf(c).key;
+  const grown = JSON.parse(JSON.stringify(c)); grown.hq.family.stage = 3; grown.places.forEach((q) => { if (q.kind === 'hq' && q.owner === 'family') q.stage = 3; });
+  const p = M.planTurf(grown), lots = lotsOf(p, c.hq.family.x, c.hq.family.y);
+  assert.equal(lots[4].model, 'hq_hotel'); assert.deepEqual([lots[3].open, lots[5].open], ['court', 'court']);
+  assert.notEqual(p.key, was);
+});
+
+test('the share of the boss drives from the club to the headquarters in the capo\'s own car, and is counted where it arrives', () => {
+  const g = play(1); let ev = null, trip = null;
+  for (let i = 0; i < 480 && !trip; i++) { g.paused = false; ev = E.tick(g).find((e) => e.type === 'tribute'); if (ev) trip = E.view(g).cities[0].trips.find((t) => t.kind === 'tribute'); }
+  const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], hq = lotsOf(p.cities[0], c.hq.family.x, c.hq.family.y)[4];
+  const car = M.tripsTurf(p, v).find((t) => t.round && t.stops.some((s) => s.kind === 'tribute'));
+  assert.ok(car, 'a round of a vehicle'); assert.equal(car.vehicle, 'car'); assert.equal(car.color, M.FLOW.money);
+  const drop = car.stops.filter((s) => s.kind === 'tribute' && !s.load)[0];
+  assert.deepEqual(car.path[drop.k], [hq.i, hq.j], 'it stops at the headquarters');
+  const fx = M.effectsTurf([ev], p);
+  assert.equal(fx.length, 1); assert.deepEqual([fx[0].kind, fx[0].i, fx[0].j, fx[0].gain, fx[0].spent], ['pay', hq.i, hq.j, ev.amount, 0], 'the figure rises over the headquarters, as money that comes in');
 });

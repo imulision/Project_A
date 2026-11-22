@@ -28,6 +28,7 @@ export function makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp })
       const l = typeof e.i === 'number' ? C.lots.find(l => l.i === e.i && l.j === e.j) : e.site && C.lots.find(l => l.site && l.site.id === e.site), d = C.d.find(d => d.id === e.district); if (!l && !d) continue;
       spawnFx(e.kind, l ? l.x : C.ox + midX(d) * 4 * T, l ? l.z : C.oz + midY(d) * 3 * T, l ? l.h : 1, e.say, e.type);
       if (e.spent && l) spawnPop(l.x, l.z, l.h, -e.spent);
+      if (e.gain && l) spawnPop(l.x, l.z, l.h, e.gain);
     }
   }
   function animateFx(dt, now) {

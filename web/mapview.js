@@ -86,6 +86,7 @@
       // A town is not a chessboard. How far the block is from the edge, and three slow fields, shape it: the middle is
       // full and tall in places, the rim thins out and stays low, a block here and there is a park, sheds stand together.
       // None of it depends on who holds the street, so the ground never changes under the player.
+      var here = placeAt[b.x + ',' + b.y], seat = here && here.kind === 'hq' ? hqBlock(here.stage) : null;      // a headquarters shapes its whole block
       var rim = Math.min(b.x, b.y, c.w - 1 - b.x, c.h - 1 - b.y), park = !placeAt[b.x + ',' + b.y] && rim > 0 && hash(b.x, b.y, ci * 7 + 12) < 0.045;
       for (var j = b.y * 3 + 1; j <= b.y * 3 + 2; j++) for (var i = b.x * 4 + 1; i <= b.x * 4 + 3; i++, n++) {
         var dense = field(i, j, ci * 7 + 11, 6), works = field(i, j, ci * 7 + 13, 8) > 0.7, r = hash(i, j, ci * 7 + 2);
@@ -97,13 +98,14 @@
                     tint: Math.floor(hash(i, j, ci * 7 + 4) * TINTS), lit: ours ? w + 1 : 0, ours: ours,
                     shop: hash(i, j, ci * 7 + 5) < (ours ? [0.4, 0.65, 0.9][w] : 0.3),
                     tower: hash(i, j, ci * 7 + 6) < 0.3, turn: hash(j, i, ci * 7 + 6), site: null, hideout: false };
-        var p = n === spotOf(ci, b.x, b.y) && placeAt[b.x + ',' + b.y];
+        var p = n === (seat ? 4 : spotOf(ci, b.x, b.y)) && here;
+        if (seat && seat[n]) { lot.tower = false; lot.tint = 2; lot.shop = false; lot.ours = here.owner === 'family'; lot.lit = lot.ours ? 3 : 1; lot.open = seat[n].open || null; }
         if (p) {
-          var mine = p.owner === 'family', look = p.kind === 'key' ? KEYS[p.key] || OTHER : p.kind === 'club' ? CLUB : SITES[p.kind] || OTHER;
-          lot.site = { id: b.x + '.' + b.y, type: p.kind, key: p.key || null, name: p.name, level: p.level, owner: mine ? 'family' : p.owner, capo: mine ? p.capo || null : null,
-                       role: p.kind === 'key' ? 'key' : p.kind === 'club' ? 'club' : WASH[p.kind] ? 'laundering' : 'business',
+          var mine = p.owner === 'family', look = seat ? hqLook(p, c) : p.kind === 'key' ? KEYS[p.key] || OTHER : p.kind === 'club' ? CLUB : SITES[p.kind] || OTHER;
+          lot.site = { id: b.x + '.' + b.y, type: p.kind, key: p.key || null, name: p.name, level: seat ? Math.max(1, Math.min(4, p.stage || 1)) : p.level, owner: mine ? 'family' : p.owner, capo: mine ? p.capo || null : null,
+                       role: seat ? 'hq' : p.kind === 'key' ? 'key' : p.kind === 'club' ? 'club' : WASH[p.kind] ? 'laundering' : 'business',
                        sign: look.sign, color: mine ? (look.color || COLORS.family) : COLORS[ownerKey(p.owner)] };
-          lot.model = look.model; lot.tall = MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = mine; lot.lit = mine ? 3 : 1; lot.tower = false;
+          lot.model = look.model; lot.tall = !!seat || MID.indexOf(look.model) >= 0 || HIGH.indexOf(look.model) >= 0; lot.shop = true; lot.ours = mine; lot.lit = mine ? 3 : 1; lot.tower = false;
           lot.open = null;
           lot.hideout = mine && p.kind === 'club';
           if (lot.hideout) capoAt[p.capo] = lot;
@@ -130,7 +132,7 @@
     }
     // Men stand where the family is: a doorman at each of its places, two at a club, and a crew of three more where a capo faces the rivals.
     var crews = [];
-    lots.forEach(function (l) { if (l.site && l.site.owner === 'family') l.men = l.hideout ? 2 : 1; });
+    lots.forEach(function (l) { if (l.site && l.site.owner === 'family') l.men = l.hideout || l.site.role === 'hq' ? 2 : 1; });
     c.capos.forEach(function (k) { if (k.at && k.at.why === 'raid') lots.forEach(function (l) { if (l.site && l.site.owner === 'family' && l.bx === k.at.x && l.by === k.at.y) { l.men += 3; crews.push(k.at.x + '.' + k.at.y); } }); });
     // A place burnt out stays a black shell for a while (c.scars, kept by the page), and works under way show where they are built.
     var marks = [], mark = function (x, y, what) { var l = lots[(y * c.w + x) * 6 + spotOf(ci, x, y)]; if (!l || (l.open && what !== 'works')) return; if (l.open && !c.blocks[y * c.w + x].void) l.open = null; if (l.open) return; l[what] = true; if (what === 'burnt' && !l.site) { l.shop = false; l.tower = false; } marks.push(what.charAt(0) + x + '.' + y); };
@@ -162,7 +164,7 @@
       return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
-    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level; }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',') + '|' + trends.join('');
+    var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level + (p.stage || ''); }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',') + '|' + trends.join('');
     return { id: c.id, name: c.name, n: ci, u: 0, v: 200, bx: c.w, by: c.h, home: true, key: key, turf: true,
              held: Math.round(c.share.family), total: 100, rival: rival, rivalName: c.rival, heat: c.heat,
              districts: zones, lots: lots, blocks: blocks, capos: capos, shut: shut, infill: infill };
@@ -184,7 +186,9 @@
   // ---- a headquarters and its block
   // The six lots of the block of a headquarters, back row first, at each of its four stages (one an act): null leaves the lot as
   // the town made it. The headquarters stands in the middle of the front row; the block around it becomes the family's as it grows.
-  var HQS = ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'];
+  var HQS = ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'], HQSIGN = ['BARBER', 'ATHLETIC CLUB', 'HOTEL ROYALE', 'PALAZZO'];
+  // What a headquarters looks like: the building of its stage, and the name over its door (the rivals put their own name up).
+  function hqLook(p, c) { var s = Math.max(1, Math.min(4, p.stage || 1)); return { model: HQS[s - 1], sign: p.owner === 'family' ? HQSIGN[s - 1] : String(c.rival || p.owner).toUpperCase() + ' & SONS' }; }
   function hqBlock(stage) {
     var s = Math.max(1, Math.min(4, stage || 1)), hq = { model: HQS[s - 1], hq: true }, court = { open: 'court' }, yard = { open: 'yard' }, park = { open: 'park' };
     return s === 1 ? [null, null, null, null, hq, null]
@@ -250,7 +254,7 @@
     for (var n = first; n < first + 6; n++) if (c.lots[n] && c.lots[n].site) return c.lots[n];
     return spot || null;
   }
-  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, goods: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
+  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, goods: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, tribute: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
   // tripsTurf(plan, view): every trip the rules list in a city becomes a car between its two buildings. All of them run the whole month.
   // The spot on the street, by the club, where the n-th vehicle of a capo is parked.
   function parking(lot, n) { var r = lot.j % 3 === 1 ? lot.j - 1 : lot.j + 1; return [lot.i + (n % 2 ? 1 : -1) * 0.45 * Math.ceil(n / 2), r]; }
@@ -358,6 +362,11 @@
       // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
       if (e.type === 'run' || e.type === 'pay') return;      // a car that leaves and a pay packet are seen as money moving, never as a mark
+      if (e.type === 'tribute') {      // the share of the boss, driven in from a club: counted over the headquarters where it arrives
+        var tc = plan.cities.filter(function (x) { return x.id === e.city; })[0], tl = tc && typeof e.x === 'number' ? lotOfBlock(tc, e.x, e.y) : null;
+        if (tl && e.amount > 0) out.push({ kind: 'pay', type: 'tribute', city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
+        return;
+      }
       var kind = e.type === 'taken' ? (e.kind === 'key' ? 'key' : e.way === 'force' ? 'gunfire' : 'promotion') : e.type === 'outcome' ? (e.good ? 'good' : 'bad') : FXOF[e.type] || 'news';
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || (kind === 'news' ? null : plan.cities[0]); if (!c) return;
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;

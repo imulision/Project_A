@@ -51,7 +51,7 @@
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
   var GRIP = { family: 'Your family holds this street', rival: 'The rivals hold this street', contested: 'Both sides claim this street' };
-  var KEYICON = { brewery: 'still', hotel: 'speakeasy', port: 'truck', depot: 'warehouse', cityhall: 'bribe', precinct: 'police', club: 'hideout' };
+  var KEYICON = { brewery: 'still', hotel: 'speakeasy', port: 'truck', depot: 'warehouse', cityhall: 'bribe', precinct: 'police', club: 'hideout', hq: 'ambition' };
   var DOOR = { name: 'asks for a place in the family', rise: 'has earned a club of his own', poach: 'would leave the other side for you' };
 
   function planWord(p) {
@@ -395,16 +395,41 @@
       '<p>This cannot be taken back.</p><div class="acts">' + button('part', { city: c.id, capo: k.id, way: way }, esc(p.name), { cls: 'go bad' }) + button('capo', { city: c.id, capo: k.id }, 'No, keep him') + '</div>';
   }
 
+  // ---- a headquarters: whose it is, what it has become at this act, who sits there
+  var HQNAME = ['Back room', 'Club', 'Hotel floor', 'Mansion'], NUMERAL = ['I', 'II', 'III', 'IV'];
+  function hqOf(c, p) { var h = c.hq || {}, o = p.owner === 'family' ? h.family : h.rival; return o && o.x === p.x && o.y === p.y ? o : p; }
+  function hqTitle(p) { return p.owner === 'family' ? 'Your headquarters' : 'The ' + p.owner + ' headquarters'; }
+  function hqWhat(view, p) { var s = Math.max(1, Math.min(4, p.stage || 1)), acts = (view.reign || {}).acts || [], a = acts[s - 1] || {}; return (a.hq || HQNAME[s - 1]) + ' \u00b7 Act ' + (a.numeral || NUMERAL[s - 1]); }
+  function hqWho(h) { var who = (h.who || []).map(function (id) { return id === 'boss' ? 'You' : first(nameOf(id)); });
+    return !who.length ? 'Nobody sits here yet' : who[0] === 'You' && who.length === 1 ? 'You sit here' : who.join(' and ') + (who.length > 1 || who[0] === 'You' ? ' sit here' : ' sits here'); }
+  // The share of the boss that waits at a club until a car has a full load of it to drive to the headquarters.
+  function shareOf(c, p) { var k = p && p.kind === 'club' && p.owner === 'family' ? c.capos.filter(function (m) { return m.id === p.capo; })[0] : null; return k && k.share > 0 ? k : null; }
+  function shareBar(c, p) {
+    var k = shareOf(c, p); if (!k) return '';
+    var load = k.shareLoad > 0 ? k.shareLoad : CARLOAD, part = Math.min(1, k.share / load);
+    return '<div class="move till">' + icon('ambition') + '<span><b>' + money(Math.round(k.share)) + ' / ' + money(load) + '</b> of your share waits here' + (part >= 1 ? ': his car is leaving with it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>';
+  }
+  function hqSheet(view, c, p, b) {
+    var h = hqOf(c, p), ours = p.owner === 'family';
+    return '<h2>' + esc(zoneOf(c, p.x, p.y).name) + '</h2><p>' + esc(c.name) + ' \u00b7 ' + (GRIP[b.grip] || 'Nobody holds this street yet') + '</p>' +
+      '<div class="intent' + (ours ? '' : ' wish') + '"><span class="gauge">' + I.ring(Math.max(1, Math.min(4, p.stage || 1)) / 4, 'ambition') + '</span><div><b>' + esc(hqTitle(p)) + '</b><small>' + esc(hqWhat(view, p) + ' \u00b7 ' + hqWho(h)) + '</small></div></div>' +
+      (ours ? '<div class="move">' + icon('dirty') + '<span>The share of every capo is driven here from his club, one full load a trip.</span></div>' +
+              '<div class="move">' + icon('works') + '<span>It grows with each act of the family, and its block with it.</span></div>'
+            : '<div class="move no">' + icon('attack') + '<span>The seat of the rivals in ' + esc(c.name) + '.</span></div>') +
+      '<div class="acts">' + button('city', { city: c.id }, esc(c.name)) + button('close', {}, 'Close') + '</div>';
+  }
+
   // ---- a street block, a city
   function block(view, cityId, x, y) {
     var c = cityOf(view, cityId); if (!c) return null;
     var b = c.blocks[y * c.w + x] || {}, p = c.places.filter(function (q) { return q.x === x && q.y === y; })[0], key = p && p.key && c.keys.filter(function (q) { return q.key === p.key; })[0];
     var ours = p && p.owner === 'family';
+    if (p && p.kind === 'hq') return hqSheet(view, c, p, b);
     return '<h2>' + esc(zoneOf(c, x, y).name) + '</h2><p>' + esc(c.name) + ' · ' + (GRIP[b.grip] || 'Nobody holds this street yet') + '</p>' +
       (p ? '<div class="intent' + (ours ? '' : ' wish') + '"><span class="gauge">' + I.ring(1, iconName(p.key || p.kind)) + '</span><div><b>' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><small>' +
           esc([ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family' + (p.man ? ' · ' + nameOf(p.man) : ''), key ? key.gives : ''].filter(Boolean).join(' · ')) + '</small></div></div>'
          : '<p>Nothing of note stands here.</p>') +
-      tillBar(p) +
+      tillBar(p) + (p ? shareBar(c, p) : '') +
       (p ? storeLines(p) + strainLines(p) : '') +
       '<div class="acts">' + (ours && p.capo ? button('capo', { city: c.id, capo: p.capo }, 'See ' + esc(first(nameOf(p.capo)))) : '') + button('city', { city: c.id }, esc(c.name)) + button('close', {}, 'Close') + '</div>';
   }
@@ -431,8 +456,10 @@
     var c = cityOf(view, cityId); if (!c) return null;
     var b = c.blocks[y * c.w + x] || {}, p = c.places.filter(function (q) { return q.x === x && q.y === y; })[0], ours = p && p.owner === 'family';
     if (!p) return '<b>' + esc(zoneOf(c, x, y).name) + '</b><br>' + (GRIP[b.grip] || 'Nobody holds this street yet');
+    if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p)));
+    var sh = shareOf(c, p);
     return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
-      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + storeLines(p, true) + strainLines(p, true);
+      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + storeLines(p, true) + strainLines(p, true);
   }
   function shares(s) {
     var part = function (k, color) { return s[k] > 0 ? '<i style="flex:' + s[k].toFixed(1) + ';background:' + color + '" data-tip="' + { family: 'Yours', rival: 'The rivals', contested: 'Fought over', free: 'Held by nobody' }[k] + ': ' + Math.round(s[k]) + '%"></i>' : ''; };
@@ -464,7 +491,7 @@
     return { now: now, diff: now - was, tone: now - was <= -3 ? 'good' : now - was >= 3 ? 'bad' : 'idle' };
   }
   // The mark over a place: its trade, and its level once the family has enlarged it.
-  function pin(l) { return icon(iconName(l.key || l.site)) + (l.owner === 'family' && l.level > 1 ? '<i class="lv">' + ['', 'I', 'II', 'III', 'IV'][Math.min(4, l.level)] + '</i>' : ''); }
+  function pin(l) { return icon(iconName(l.key || l.site)) + ((l.owner === 'family' || l.site === 'hq') && l.level > 1 ? '<i class="lv">' + ['', 'I', 'II', 'III', 'IV'][Math.min(4, l.level)] + '</i>' : ''); }
   function chief(c, view) {
     var h = c && c.chief; if (!h) return '';
     var rt = view ? rivalTrend(view, c.id) : null, arrow = rt && rt.tone !== 'idle' ? ' <span class="rt ' + rt.tone + '">' + (rt.diff < 0 ? '\u25BC' : '\u25B2') + ' ' + (rt.diff < 0 ? '\u2212' : '+') + Math.abs(rt.diff) + ' in ' + months(12) + '</span>' : '';
