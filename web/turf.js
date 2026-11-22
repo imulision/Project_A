@@ -73,7 +73,19 @@
       var club = clubOf(c, id), w = club && whereabouts(c, f, id);
       if (w && w.why !== 'home') out.push({ kind: 'capo', cargo: w.why, capo: id, from: { x: club.x, y: club.y }, to: { x: w.x, y: w.y }, vehicle: id + ':own', home: { x: club.x, y: club.y } });
     });
-    if (f.dirty > 0) washes.forEach(function (p) {
+    // the money to wash and the money washed: played day by day, every load is a leg of the capo's own car between
+    // the headquarters and his laundry; a cycle played in one blow only says who drives to which laundry
+    if (seat && c.turn && c.turn.daily) {
+      var hq = { x: seat.x, y: seat.y };
+      ((c.flow && c.flow.cleans) || []).forEach(function (r, n) {
+        var club = clubOf(c, r.capo);
+        if (club) out.push({ kind: 'clean', cargo: 'clean', capo: r.capo, from: { x: r.x, y: r.y }, to: hq, amount: r.amount, vehicle: r.capo + ':own', leg: n, home: { x: club.x, y: club.y } });
+      });
+      ((c.flow && c.flow.washes) || []).forEach(function (r, n) {
+        var club = clubOf(c, r.capo);
+        if (club) out.push({ kind: 'wash', cargo: 'cash', capo: r.capo, from: hq, to: { x: r.x, y: r.y }, amount: r.amount, vehicle: r.capo + ':own', leg: n, home: { x: club.x, y: club.y } });
+      });
+    } else if (f.dirty > 0) washes.forEach(function (p) {
       var club = clubOf(c, p.capo);
       if (club) out.push({ kind: 'wash', cargo: 'cash', capo: p.capo, from: club, to: at2(p), amount: Math.round(washed[key(p.x, p.y)] || 0) });
     });
@@ -211,6 +223,8 @@
         if (!p.key) delete p.key; if (!p.man) delete p.man; if (!p.till) delete p.till;
         if (p.owner === 'family' && p.kind !== 'hq') {
           p.load = loadOf(f); // what its till must hold before a car comes for it
+          // a laundry: the dirty money waiting to be washed, the clean money waiting for the car, what it washes in a cycle
+          if (choke.most[key(p.x, p.y)] !== undefined && p.owner === 'family') { var lb = at(c, p.x, p.y); p.wash = { waiting: Math.round(lb.dirty || 0), ready: Math.round(lb.washed || 0), most: Math.round(choke.most[key(p.x, p.y)]) }; }
           // its books: what it made last month, what it makes on average over the last six, what its men cost a month
           var mades = c.blocks[key(p.x, p.y)].mades || [];
           p.made = mades.length ? Math.round(mades[mades.length - 1]) : 0;
@@ -415,13 +429,15 @@
     // the boss's share waits at the club; a car takes it to the headquarters one full load at a time, one trip a day,
     // and it is his only when it gets there. A city with no headquarters sends it up as it comes.
     var seat = C.hqOf(c, 'family'), home = clubOf(c, capo), full = loadOf(f);
+    var went = false;
     m.share = (m.share || 0) + r.sent;
     if (!seat) { f.dirty += m.share; m.share = 0; }
     else if (m.share >= full) {
-      m.share -= full; f.dirty += full;
+      m.share -= full; f.dirty += full; went = true;
       events.push({ type: 'tribute', city: c.id, capo: capo, x: seat.x, y: seat.y, from: { x: home.x, y: home.y }, amount: full });
       if (c.flow) (c.flow.tributes = c.flow.tributes || []).push({ capo: capo, amount: full });
     }
+    B.carry(c, f, capo, went, full, events); // the same car, the same day: the money to wash and the money washed
     // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
     if (r.pay > 0) {
       var mine = run(c, capo), all = dues(c, f, capo, c.turn.drink.idle[capo] !== undefined), men = wages(c, capo), club = clubOf(c, capo);
@@ -527,7 +543,7 @@
     H.pass(c, f, mine);
     if (!t.done.rivals && day >= choreDay(c, 'rivals')) { t.done.rivals = true; rivals(c, f, mine); }
     if (!t.done.door && day >= choreDay(c, 'door')) { t.done.door = true; door(c, f, mine); }
-    B.launder(c, f, 1 / RULES.days);
+    B.wash(c, f, 1 / RULES.days);
     if (c.bust && day >= choreDay(c, 'police')) { c.bust = false; B.bust(c, f, mine); }
     homed(c, f, mine);
     t.noise = (t.noise || 0) + mine.filter(noisy).length;
