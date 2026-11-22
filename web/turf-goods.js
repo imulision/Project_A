@@ -171,7 +171,7 @@
         if (!from || !to) return;
         var here = truck.x === from.p.x && truck.y === from.p.y, wait = here ? 0 : tripDays(truck, from.p), days = tripDays(from.p, to.p);
         var made = c.flow.hauls.filter(function (q) { return q.capo === capo && q.truck === n + 1; }).length;
-        var h = { kind: 'haul', capo: capo, cargo: from.cargo, shelf: chain.shelf, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo),
+        var h = { kind: 'haul', capo: capo, at: { x: truck.x, y: truck.y }, cargo: from.cargo, shelf: chain.shelf, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo),
                   truck: n + 1, leg: made, vehicle: capo + ':truck:' + (n + 1), wait: wait, left: now + wait, days: days, arrives: now + wait + days };
         // a load the rivals or the police take on the road never reaches the shelf
         if (trap && !trap.done && (trap.at[from.p.y * c.w + from.p.x] || trap.at[to.p.y * c.w + to.p.x])) { h.lost = 'hijack'; trap.done = h; trap.x = trap.at[from.p.y * c.w + from.p.x] ? from.p.x : to.p.x; trap.y = trap.at[from.p.y * c.w + from.p.x] ? from.p.y : to.p.y; }
