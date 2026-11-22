@@ -1317,3 +1317,23 @@ test('a club whose capo is away keeps its own mark on the map', () => {
   const empty = C.emptyClubs(labels);
   assert.deepEqual(Object.keys(empty).sort(), ['ashportdutch', 'ashportsal'], 'his face is elsewhere, or in his car: the club shows its mark');
 });
+
+test('what the family knows is drawn as a wheel: one spoke a trade, three rings for its tiers, the family at the centre', () => {
+  const { g } = play((v) => v.month >= 12);
+  const v = E.view(g), html = C.wheel(v, v.tree[0].kind);
+  assert.match(html, /class="wheel"/);
+  const spokes = html.match(/<button class="know[^"]*" data-know="[^"]+" style="left:[\d.]+%;top:[\d.]+%"/g) || [];
+  assert.equal(spokes.length, v.tree.length, 'every trade has its place on the rim');
+  assert.equal(new Set(spokes.map((s) => /style="([^"]+)"/.exec(s)[1])).size, v.tree.length, 'each its own place');
+  const lit = (html.match(/<i class="ring on"/g) || []).length, all = (html.match(/<i class="ring/g) || []).length;
+  assert.equal(all, v.tree.length * 3, 'three rings a spoke');
+  assert.equal(lit, v.tree.reduce((n, t) => n + t.tier, 0), 'a ring is lit for every tier the family knows');
+  assert.match(html, /class="hub"/);
+  assert.equal((html.match(/class="know[^"]* sel"/g) || []).length, 1, 'the trade looked at stands out');
+  assert.match(html, /know shut/, 'a trade not known yet is dimmed');
+  assert.match(C.family(v, E.hud(g)), /class="wheel"/, 'it is the tree of the family sheet');
+  // a trade being paid for or learned shows its next ring coming
+  g.family.clean = 99999; const shut = v.tree.find((t) => t.tier === 0 && t.next);
+  E.command(g, { type: 'research', building: shut.kind });
+  assert.equal((C.wheel(E.view(g), shut.kind).match(/<i class="ring next"/g) || []).length, 1);
+});
