@@ -564,14 +564,14 @@ test('a place stands in the front row of its block, the one that faces the playe
   assert.equal(M.spotOf(0, 4, 7), M.spotOf(0, 4, 7), 'and a block keeps its spot');
 });
 
-test('the block of a headquarters changes with it: alone at first, then a yard for the cars, then wings, then the whole block', () => {
+test('the block of a headquarters changes with it: alone at first, then a yard for the cars, then the whole front row, then the whole block', () => {
   const lots = [1, 2, 3, 4].map((s) => M.hqBlock(s));
   lots.forEach((b, i) => { assert.equal(b.length, 6); assert.equal(b[4].model, ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'][i], 'the headquarters stands in the middle of the front row'); });
   const changed = (b) => b.filter(Boolean).length;
   assert.equal(changed(lots[0]), 1, 'a back room hides among its neighbours');
   assert.ok(changed(lots[1]) > 1 && lots[1].some((l) => l && l.open === 'yard'), 'a club has a yard for the cars');
-  assert.ok(lots[2][3].model === 'hq_wing' && lots[2][5].model === 'hq_wing', 'a hotel has a wing on each side');
-  assert.equal(changed(lots[3]), 6, 'the family seat takes the whole block'); assert.ok(lots[3].some((l) => l.open === 'park'), 'with its garden');
+  assert.ok(lots[2][3].open === 'court' && lots[2][5].open === 'court', 'a hotel is one wide building: the lots beside it are its own ground');
+  assert.equal(changed(lots[3]), 6, 'the family seat takes the whole block'); assert.ok(lots[3].slice(0, 3).every((l) => l.open === 'park'), 'with its garden behind');
   assert.ok(changed(lots[0]) < changed(lots[1]) && changed(lots[1]) < changed(lots[2]) && changed(lots[2]) < changed(lots[3]));
   assert.deepEqual(M.hqBlock(9), M.hqBlock(4)); assert.deepEqual(M.hqBlock(0), M.hqBlock(1));
 });

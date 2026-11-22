@@ -370,9 +370,10 @@ function voidGround(C, put) {
     else for (let k = 0; k < 3; k++) { const a = hsh(b.x * 5 + k, b.y), c = hsh(b.y * 3 + k, b.x); if (a > 0.55) put(x + (a - 0.5) * w * 0.8, 0.02, z + (c - 0.5) * d * 0.8, 0.5, 0.35 + c * 0.4, 0.5, LEAF[k]); }      // waste ground: the land shows, with a few bushes
   }
 }
+const COURT = '#8f8a80';
 function openGround(l, put) {
   if (VOIDS[l.open]) return;      // not part of the town: drawn block by block (voidGround)
-  put(l.x, 0.1, l.z, 1.9, 0.05, 1.9, l.open === 'park' ? LAWN : EARTH);
+  put(l.x, 0.1, l.z, l.open === 'court' ? 2 : 1.9, 0.05, l.open === 'court' ? 2 : 1.9, l.open === 'park' ? LAWN : l.open === 'court' ? COURT : EARTH);      // the court of a headquarters is paved, and runs under its wide front
   if (l.open !== 'park') return;
   for (let k = 0; k < 3; k++) { const a = hsh(l.i + k * 7, l.j), b = hsh(l.j, l.i + k * 5); if (a < 0.25) continue;
     put(l.x + (a - 0.5) * 1.4, 0.15, l.z + (b - 0.5) * 1.4, 0.42, 0.7 + b * 0.7, 0.42, LEAF[k]); }
@@ -448,7 +449,7 @@ function buildNear(C) {
       for (const [sx, sz] of [[-r, -r], [r, -r], [-r, r], [r, r]]) add('slab', ROOFMAT, l.x + sx, top / 2, l.z + sz, 0, 1, SCAFFOLD, false, [0.12, top, 0.12]);
       for (let y = 0.45; y < top; y += 0.5) for (const [sx, sz, w, d] of [[0, r, 2 * r, 0.22], [r, 0, 0.22, 2 * r], [0, -r, 2 * r, 0.22], [-r, 0, 0.22, 2 * r]]) add('slab', ROOFMAT, l.x + sx, y, l.z + sz, 0, 1, SCAFFOLD, false, [w, 0.06, d]);
     }
-    if (k.roof) add('roofcap', ROOFMAT, l.x, l.h, l.z, l.rot, 1, roofColor(k, new THREE.Color()));
+    if (k.roof && l.name.indexOf('hq_') !== 0) add('roofcap', ROOFMAT, l.x, l.h, l.z, l.rot, 1, roofColor(k, new THREE.Color()));
     if (l.tower) add('watertower', PLAINMAT, l.x + l.tx * 0.6, l.h, l.z - 0.2, l.tr, 1, PROPTINT);
     if (l.shop) {      // warm light spilling from the ground floor onto the pavement
       const dx = l.rot ? 0.95 : 0, dz = l.rot ? 0 : 0.95;
