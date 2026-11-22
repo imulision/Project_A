@@ -328,11 +328,11 @@
     });
   }
   // --- money between cities ---
-  // The next city on the way home from this one, by the fewest roads.
-  function towardHome(g, from) {
-    var home = g.cities.filter(function (c) { return c.home; })[0].id, seen = {}, line = [[home]];
-    if (from === home) return null;
-    seen[home] = true;
+  // The next city on the way from one city to another, by the fewest roads.
+  function toward(g, from, target) {
+    var seen = {}, line = [[target]];
+    if (from === target) return null;
+    seen[target] = true;
     while (line.length) {
       var path = line.shift(), last = path[path.length - 1];
       for (var i = 0; i < g.cities.length; i++) {
@@ -344,30 +344,46 @@
     }
     return null;
   }
-  // One day of the roads: every car carrying the family's money drives one road, and is the boss's when it reaches
-  // his city; then each city whose coffer holds a load sends one car, dirty money first.
+  function homeOf(g) { return g.cities.filter(function (c) { return c.home; })[0].id; }
+  function towardHome(g, from) { return toward(g, from, homeOf(g)); }
+  // What the armoured van of a city's headquarters carries: it grows with the headquarters.
+  function vanLoad(c) { var hq = T.hqOf(c, 'family'); return T.RULES.van.loads[(hq ? hq.stage : 1) - 1]; }
+  function vanAway(g, id) { return (g.family.onRoad || []).some(function (r) { return r.van === id; }); }
+  // One day of the roads. Each headquarters away from the boss's city has one armoured van. A road takes
+  // RULES.road.days; the money is the boss's the day the van reaches his city, and the van then drives back empty.
+  // A van at home leaves as soon as the coffer holds a car's load, with all it can carry, dirty money first.
   function carryHome(g, events) {
-    var f = g.family, load = T.RULES.convoy.cash, still = [];
+    var f = g.family, least = T.RULES.convoy.cash, days = T.RULES.road.days, still = [];
+    function leg(r) {
+      r.left = days;
+      var e = { type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean, days: days, van: r.van };
+      if (r.empty) e.empty = true;
+      events.push(e);
+      still.push(r);
+    }
     (f.onRoad || []).forEach(function (r) {
-      var next = towardHome(g, r.to);
+      if (!r.van) { r.van = r.from; r.left = 1; } // a car from an older save
+      r.left -= 1;
+      if (r.left > 0) { still.push(r); return; }
+      var next = toward(g, r.to, r.empty ? r.van : homeOf(g));
+      if (!next && r.empty) return; // back in its garage
       if (!next) {
         f.dirty += r.dirty; f.clean = (f.clean || 0) + r.clean;
-        events.push({ type: 'convoy', step: 'arrives', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
-        return;
+        events.push({ type: 'convoy', step: 'arrives', cargo: 'cash', from: r.van, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean, van: r.van });
+        r.amount = 0; r.dirty = 0; r.clean = 0; r.empty = true;
+        next = toward(g, r.to, r.van);
       }
       r.from = r.to; r.to = next;
-      events.push({ type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
-      still.push(r);
-    });
-    g.cities.forEach(function (c) {
-      var box = c.away && c.coffer, to = box && towardHome(g, c.id);
-      if (!box || !to || box.dirty + box.clean < load) return;
-      var dirty = Math.min(load, box.dirty), clean = load - dirty, r = { from: c.id, to: to, amount: load, dirty: dirty, clean: clean };
-      box.dirty -= dirty; box.clean -= clean;
-      events.push({ type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
-      still.push(r);
+      leg(r);
     });
     f.onRoad = still;
+    g.cities.forEach(function (c) {
+      var box = c.away && c.coffer, to = box && towardHome(g, c.id);
+      if (!box || !to || box.dirty + box.clean < least || vanAway(g, c.id)) return;
+      var load = Math.min(vanLoad(c), Math.floor(box.dirty + box.clean)), dirty = Math.min(load, Math.floor(box.dirty)), clean = load - dirty;
+      box.dirty -= dirty; box.clean -= clean;
+      leg({ van: c.id, from: c.id, to: to, amount: load, dirty: dirty, clean: clean });
+    });
   }
   // One day of the month (g.ticks counts them). The month opens on the first, every man has his own day, and it closes on the last.
   function day(g, events) {
@@ -591,6 +607,7 @@
                var v = T.view(c, g.family);
                v.name = specOf(c.id).name;
                v.held = held(g, c);
+               if (v.coffer) v.coffer.van = vanAway(g, c.id) ? 'away' : 'home'; // its armoured van is on the road, or waits for a load
                v.capos.forEach(function (k) { k.day = dayOf(k.id); }); // the day of the month he makes his move
                // where each man at the door could be sent instead: the cities next door that still have a seat
                var free = tableOf(g).filter(function (s) { return !s.capo; }).map(function (s) { return s.post; });
@@ -598,7 +615,7 @@
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along
-    out.onRoad = (g.family.onRoad || []).map(function (q) { return { from: q.from, to: q.to, amount: q.amount, dirty: q.dirty, clean: q.clean }; }); // the family's money between two cities today
+    out.onRoad = (g.family.onRoad || []).map(function (q) { return { from: q.from, to: q.to, amount: q.amount, dirty: q.dirty, clean: q.clean, van: q.van, days: T.RULES.road.days, gone: T.RULES.road.days - q.left, empty: !!q.empty }; }); // the family's money between two cities today
     var r = reignOf(g), share = shareNow(g);
     out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
                   acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, hq: a.hq, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
