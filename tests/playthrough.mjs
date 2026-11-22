@@ -337,6 +337,12 @@ const road = await page.evaluate(() => { const A = window.__ashport, v = A.view(
   const on = () => m.labels().filter((l) => l.car && l.car.kind === 'convoy'); m.run(5); const tags = on(); m.run(30); return { n: tags.length, tag: tags[0], left: on().length }; });
 assert.equal(road.n, 1, 'one truck on the road'); assert.ok(/ to /.test(road.tag.car.way), 'with its tag'); assert.equal(road.left, 0, 'it is gone once arrived');
 
+// a car the rules gave days to drive keeps to them at the speed of the game: six days are three seconds at 2x, wherever it goes
+const timed = await page.evaluate(() => { const A = window.__ashport, v = A.view(), r = v.routes[0], m = A.map(), M = window.AshportMapView, p = M.planEmpire(v, window.AshportWorld.CITIES);
+  const on = () => m.labels().filter((l) => l.car && l.car.kind === 'convoy').length;
+  m.traffic(M.tripsTurf(p, v).concat(M.convoysTurf(p, [{ from: r.from, to: r.to, cargo: 'cash', amount: 600, days: 6 }]))); m.pace(2); m.run(2.5); const before = on(); m.run(1); const after = on(); m.pace(1); return { before, after }; });
+assert.deepEqual(timed, { before: 1, after: 0 }, 'on the road for its six days, and not a day more');
+
 // the game is saved: a reload picks it up where it was
 const before = await hud();
 await page.reload();

@@ -51,7 +51,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -88,7 +88,7 @@
     $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
     // time that stands still is said in large, with the reason, and framed all around the screen
-    document.body.classList.toggle('stopped', !!k); if (map) map.hold(!!k);
+    document.body.classList.toggle('stopped', !!k); if (map) { map.hold(!!k); map.pace(g.speed || 1); }      // a car with days to drive keeps to them at the speed the boss chose
     $('sub').innerHTML = k ? '' : C.trendLine(tr);
     $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
     $('clock').dataset.go = h.pending ? 'requests' : 'play';
