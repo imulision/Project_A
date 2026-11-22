@@ -268,7 +268,7 @@ await still();
 await shot('c3-two-capos');
 
 // a touch on a street up close names it and says what stands there
-const place = await page.evaluate(() => { const c = window.__ashport.view().cities[0], p = c.places.find((p) => p.owner === 'family' && p.kind !== 'club'); window.__ashport.tap({ city: c.id, bx: p.x, by: p.y, near: true }); return p; });
+const place = await page.evaluate(() => { const c = window.__ashport.view().cities[0], p = c.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'); window.__ashport.tap({ city: c.id, bx: p.x, by: p.y, near: true }); return p; });
 assert.match(await page.textContent('#tip'), new RegExp(place.name));
 assert.match(await page.textContent('#tip'), /runs it/);
 await shot('c3-bubble');
