@@ -90,7 +90,7 @@
     respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club
     // a car leaves a place only with a full load of takings; what a car carries, the runs it makes in a month, its price and its upkeep (the car a man arrives with costs him nothing)
     // loads: what a car carries once the family has learned cars of tier 1, 2 and 3
-    car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 400, upkeep: 20, speed: 2 }, // speed: blocks a car drives in a day when it carries the boss's money
+    car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 400, upkeep: 20, speed: 1 }, // speed: blocks a car drives in a day when it carries the boss's money
     // a capo has a car of his own: with nothing else on his hands he goes where his business chokes. The runs he makes
     // himself when his cars left full tills behind, and what a place makes more the month he stands over it
     own: { runs: 2, boost: 0.15 },

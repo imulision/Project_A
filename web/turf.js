@@ -243,7 +243,7 @@
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
-      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: r.capo + ':own', from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
+      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: r.capo + (r.car ? ':car:' + r.car : ':own'), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
       hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
@@ -366,6 +366,13 @@
         m.cash -= RULES.car.cost; m.cars += 1; buys('car', RULES.car.cost);
         events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
                       label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: his takings were piling up' });
+      }
+      // the boss's money that keeps piling up at his club and his laundries with every car of his on the road: the same
+      var owed = B.waits(c, f, capo);
+      if (owed.busy && owed.amount >= 4 * load && had() >= RULES.car.cost) {
+        m.cash -= RULES.car.cost; m.cars += 1; buys('car', RULES.car.cost);
+        events.push({ type: 'car', capo: capo, city: c.id, cars: m.cars, cost: RULES.car.cost,
+                      label: first(capo) + ' buys a ' + (['', '', 'second', 'third', 'fourth', 'fifth'][m.cars] || 'new') + ' car: the boss\'s money was piling up' });
       }
       // loads that wait in his cellars while bars go dry, and no truck free: he buys another one
       if (makes && drink.dry && drink.idle[capo] === 0 && drink.waits[capo] >= 2 && had() >= RULES.truck.cost) {
