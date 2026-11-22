@@ -1310,3 +1310,10 @@ test('what the boss pays is on its way: the words for it, the gift button that w
   assert.match(C.capo(v, c.id, k.id, { clean: 5000 }), /data-act="gift"[^>]*disabled[^]*The money is on its way/);
   v.paying = []; assert.doesNotMatch(C.block(v, c.id, hq.x, hq.y), /Leaving from here/);
 });
+
+test('a club whose capo is away keeps its own mark on the map', () => {
+  const labels = [{ id: 'kashportsal', capo: 'sal', city: 'ashport', where: 'raid' }, { id: 'kashportmae', capo: 'mae', city: 'ashport', where: 'home' }, { id: 'kashportdutch', capo: 'dutch', city: 'ashport', where: 'home', riding: true },
+    { id: 's1', site: 'club', role: 'club', capo: 'sal', city: 'ashport' }];
+  const empty = C.emptyClubs(labels);
+  assert.deepEqual(Object.keys(empty).sort(), ['ashportdutch', 'ashportsal'], 'his face is elsewhere, or in his car: the club shows its mark');
+});

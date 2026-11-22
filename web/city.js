@@ -306,8 +306,8 @@
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn;
-      var seen = {}, boxes = [], badges = [];
-      map.labels().forEach(function (l) {
+      var seen = {}, boxes = [], badges = [], all = map.labels(), empty = C.emptyClubs(all);
+      all.forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
           e = labs[l.id] = document.createElement('div');
@@ -334,7 +334,8 @@
           var cash = C.carLoad(l.car), load = l.back ? '' : cash; if (e.load !== load || e.back !== l.back) { e.load = load; e.back = l.back; e.b.textContent = load; e.classList.toggle('amt', !!load); e.classList.toggle('empty', !!l.back && (!!cash || !!l.round)); e.w = load ? 30 + 7 * load.length : 22; } }
         else if (!l.car && !l.site && !l.claim) { var zs = l.ground ? zshares[l.id.slice(1)] : null, more = l.ground ? C.zoneMark(zs) : l.sub + (ctrends[l.city] || ''); if (e.name !== l.name + more) { e.name = l.name + more; e.style.setProperty('--c', l.color); e.b.textContent = l.name; e.s.textContent = more; e.classList.toggle('good', !!zs && zs.tone === 'good'); e.classList.toggle('bad', !!zs && zs.tone === 'bad'); e.classList.toggle('held', !!zs && zs.share >= 100); e.w = e.offsetWidth; e.h = e.offsetHeight; } }
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
-        if (l.role === 'club' || l.pop) return;
+        if (l.role === 'club') { var gone = !!empty[l.city + l.capo]; if (e.gone !== gone) { e.gone = gone; e.classList.toggle('empty', gone); } if (!gone) return; }      // a club is marked by its capo's face, and by its own mark while he is away
+        if (l.pop) return;
         if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
         if (l.claim) { boxes.push({ id: l.id, rank: 0.8 + (1 - l.advance) * 0.1, x: px - (e.w || 110) / 2, y: py - 40, w: e.w || 110, h: 40 }); return; }      // of two marks that meet, the one further along stays
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
