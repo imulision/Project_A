@@ -172,6 +172,15 @@
     var now = today(c), box = C.purse(c, f), still = [];
     (c.rides || []).forEach(function (r) {
       if (r.arrives > now) { still.push(r); return; }
+      if (r.kind === 'haul') {
+        // a truckload: on the shelf of the seller it was sent to, if the family still has it. One that was taken on the road is not.
+        var seller = at(c, r.to.x, r.to.y);
+        if (r.lost) return;
+        if (seller && seller.due) seller.due[r.shelf] = Math.max(0, (seller.due[r.shelf] || 0) - 1);
+        if (seller && seller.owner === 'family') seller[r.shelf] = (seller[r.shelf] || 0) + 1;
+        events.push({ type: 'arrived', kind: 'haul', cargo: r.cargo, city: c.id, capo: r.capo, x: r.to.x, y: r.to.y, from: r.from, amount: r.amount, vehicle: r.vehicle });
+        return;
+      }
       if (r.kind === 'takings') {
         // the takings a car brings home: the capo's from today (see `pass` in turf.js). A car the rivals stopped brings nothing.
         if (r.lost) return;

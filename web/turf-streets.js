@@ -163,6 +163,11 @@
     var site = function (kind, key) { return (kind === 'key' ? KEYS[key].name : D.SITES[kind].name).toLowerCase(); };
     var live = H.on(c, capo);
     if (live) return { x: live.x, y: live.y, why: 'hit', label: 'Hitting the ' + live.rival + 's\' ' + site(live.kind) + ' in ' + zoneOf(c, live.x, live.y).name };
+    var e = f.men && f.men[capo] && f.men[capo].errand;
+    if (e && e.city === c.id) {
+      var words = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' }[e.p.move], what = site(e.p.move === 'convert' ? e.p.from : e.p.kind);
+      return { x: e.p.x, y: e.p.y, why: e.p.move, label: 'On his way to ' + words + what + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
+    }
     if (op) {
       var b = at(c, op.x, op.y), whose = b && b.owner !== 'family' ? 'the ' + b.owner + 's\' ' : 'the ';
       return { x: op.x, y: op.y, why: 'take', label: 'Taking ' + whose + site(op.kind, op.key) + ' in ' + zoneOf(c, op.x, op.y).name };

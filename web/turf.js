@@ -243,7 +243,7 @@
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
-      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: G.carId(r.capo, r.car), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
+      rides: (c.rides || []).map(function (r) { return { kind: r.kind, cargo: r.cargo, capo: r.capo, vehicle: r.vehicle || G.carId(r.capo, r.car), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
       hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
@@ -304,7 +304,7 @@
   // A month has three parts: it opens (what was taken, the key places asked for, the trucks on the road), then every
   // capo has his day (his takings, his men, his share sent up, his next move), then it closes (the rivals, the boss's
   // money, the door). `c.turn` is the month being played; it is null between two months.
-  function opening(c, f, events) {
+  function opening(c, f, events, daily) {
     c.month += 1;
     learnt(c, f);
     c.flow = { up: 0, sent: {}, pay: 0, cut: 0, seized: 0, wash: {}, runs: [], made: {} }; // last month's money, for the screen
@@ -334,7 +334,7 @@
       if (p) m.help = { x: p.x, y: p.y, why: 'boost', kind: p.kind };
     });
     Object.keys(f.men).forEach(function (capo) { var h = clubOf(c, capo) && f.men[capo].help; if (h) c.push[h.y * c.w + h.x] = true; });
-    var trap = ambush(c), drink = distil(c, f, trap);
+    var trap = ambush(c), drink = distil(c, f, trap, daily);
     if (drink.seized) {
       events.push({ type: 'seizure', capo: drink.seized.capo, city: c.id, x: drink.seized.from.x, y: drink.seized.from.y, cargo: drink.seized.cargo, amount: drink.seized.amount,
                     label: 'The police stop ' + first(drink.seized.capo) + '\'s truck: ' + drink.seized.amount + CARGOES[drink.seized.cargo] + ' seized' });
@@ -408,10 +408,10 @@
       // what he puts aside is counted before what he pays for his moves: buying a place is what he was saving for
       var moved = function () { return (spent.open || 0) + (spent.enlarge || 0) + (spent.take || 0) + (spent.convert || 0); };
       if (!m.puts) m.puts = []; m.puts.push(m.book.put + moved()); if (m.puts.length > 6) m.puts.shift();
-      if (p.move === 'hold' || p.waiting) return;
+      if (p.move === 'hold' || p.waiting || m.errand) return;
       m.cash -= p.cost; buys(p.move, p.cost);
       m.puts[m.puts.length - 1] = m.book.put + moved();
-      enact(c, f, capo, p, events);
+      setOut(c, f, capo, p, events);
     })();
   }
   // What a capo owes his men and his garage over a cycle.
@@ -453,6 +453,8 @@
       if (each > 0) mine.forEach(function (q) { events.push({ type: 'pay', what: 'wages', city: c.id, capo: capo, x: q.x, y: q.y, amount: each }); });
       if (garage > 0) events.push({ type: 'pay', what: 'upkeep', city: c.id, capo: capo, x: club.x, y: club.y, amount: garage });
     }
+    arrived(c, f, capo, events);
+    if (m.errand) return; // he is out with the money of his last move
     // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
     if (h.need !== undefined && m.cash < h.need) return;
     var p = plan(c, f, capo);
@@ -460,7 +462,28 @@
     if (p.move === 'hold' || p.waiting) return;
     m.cash -= p.cost;
     if (p.cost > 0) { m.paid = m.paid || {}; m.paid[p.move] = (m.paid[p.move] || 0) + p.cost; } // counted in his books at his next count
-    enact(c, f, capo, p, events);
+    setOut(c, f, capo, p, events);
+  }
+  // In a city played day by day a place is opened, made bigger or turned by the capo in person: he drives there from
+  // his club with the money, a block a day, and the move is made the day he arrives (m.errand meanwhile).
+  var ERRANDS = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' };
+  function setOut(c, f, capo, p, events) {
+    if (!(c.turn && c.turn.daily) || !ERRANDS[p.move]) { enact(c, f, capo, p, events); return; }
+    var m = f.men[capo], club = clubOf(c, capo), days = B.tripDays(club, p);
+    m.errand = { city: c.id, p: p, left: B.today(c), days: days, arrives: B.today(c) + days };
+    events.push({ type: 'errand', step: 'leaves', capo: capo, city: c.id, from: { x: club.x, y: club.y }, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost, days: days });
+  }
+  // The day he gets there: the move is made, unless the street is no longer what he set out for; he then comes
+  // home with his money.
+  function arrived(c, f, capo, events) {
+    var m = f.men[capo], e = m.errand;
+    if (!e || e.city !== c.id || e.arrives > B.today(c)) return;
+    delete m.errand;
+    var p = e.p, b = at(c, p.x, p.y), still = p.move === 'open' ? !b : b && b.owner === 'family' && b.capo === capo && (p.move !== 'convert' || b.kind === p.from);
+    if (still) { enact(c, f, capo, p, events); return; }
+    m.cash += p.cost;
+    if (m.paid && m.paid[p.move]) m.paid[p.move] = Math.max(0, m.paid[p.move] - p.cost);
+    events.push({ type: 'errand', step: 'back', capo: capo, city: c.id, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost });
   }
   // A move paid for is made: a place turned, men sent for a rival's place, a place opened or made bigger.
   function enact(c, f, capo, p, events) {
@@ -582,13 +605,14 @@
   // --- the month day by day ---
   // While a month is being played the city goes on showing the money of the month before (c.flow); the month's own
   // figures are kept aside and shown when it closes.
-  function begin(f, cities) {
+  // (`whole`: the trucks make their rounds as the cycle opens, as in a city played cycle by cycle)
+  function begin(f, cities, whole) {
     var events = [];
     f.convoys = []; f.rode = true; // played day by day the trucks between cities leave on their own days (rideDay)
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) {
       var shown = c.flow;
-      opening(c, f, events); homed(c, f, events);
+      opening(c, f, events, !whole); homed(c, f, events);
       c.turn.flow = c.flow; c.turn.shown = shown; c.flow = shown;
     });
     return events;
@@ -604,6 +628,18 @@
       var got = {}, mine = [];
       chores(c, f, day, events);
       G.pass(c, f, day, loadOf(f)).forEach(function (e) { events.push(e); });
+      // the trucks that leave today: a load each, to the shelf it will be on the day the truck gets there
+      var seized = c.turn.drink.seized;
+      G.haulDay(c, f, c.turn.drink, c.turn.trap).forEach(function (h) {
+        var e = { type: 'haul', city: c.id, capo: h.capo, cargo: h.cargo, from: h.from, x: h.to.x, y: h.to.y, amount: h.amount, day: day, wait: h.wait, days: h.days, vehicle: h.vehicle };
+        if (h.lost) e.lost = h.lost;
+        events.push(e);
+      });
+      if (!seized && c.turn.drink.seized) {
+        var z = c.turn.drink.seized;
+        events.push({ type: 'seizure', capo: z.capo, city: c.id, x: z.from.x, y: z.from.y, cargo: z.cargo, amount: z.amount,
+                      label: 'The police stop ' + first(z.capo) + '\'s truck: ' + z.amount + CARGOES[z.cargo] + ' seized' });
+      }
       // a car is days on its way: the takings count the day it is back at the club (B.arrive)
       got = c.came || {}; c.came = {};
       Object.keys(got).forEach(function (capo) { if (c.hauls && c.hauls[capo]) c.hauls[capo].got += got[capo]; });
