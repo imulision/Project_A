@@ -608,13 +608,14 @@ test('the share of the boss drives from the club to the headquarters in the capo
   assert.ok(car, 'a round of a vehicle'); assert.equal(car.vehicle, 'car'); assert.equal(car.color, M.FLOW.money);
   const drop = car.stops.filter((s) => s.kind === 'tribute' && !s.load)[0];
   assert.deepEqual(car.path[drop.k], [hq.i, hq.j], 'it stops at the headquarters');
-  const fx = M.effectsTurf([ev], p);
-  assert.equal(fx.length, 1); assert.deepEqual([fx[0].kind, fx[0].i, fx[0].j, fx[0].gain, fx[0].spent], ['pay', hq.i, hq.j, ev.amount, 0], 'the figure rises over the headquarters, as money that comes in');
+  const fx = M.effectsTurf([ev, { ...ev, type: 'arrived', kind: 'tribute' }], p);
+  assert.equal(fx.length, 1, 'nothing is counted when the car leaves'); assert.deepEqual([fx[0].kind, fx[0].type, fx[0].i, fx[0].j, fx[0].gain, fx[0].spent], ['pay', 'tribute', hq.i, hq.j, ev.amount, 0], 'the figure rises over the headquarters when the car arrives, as money that comes in');
 });
 
 test('washed money is counted over the headquarters when its car arrives; dirty money on its way to a laundry is only a car', () => {
   const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], hq = c.hq.family, k = c.capos[0];
-  const fx = M.effectsTurf([{ type: 'wash', city: c.id, capo: k.id, x: k.x, y: k.y, from: { x: hq.x, y: hq.y }, amount: 150 }, { type: 'clean', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 120.4 }], p);
+  const fx = M.effectsTurf([{ type: 'wash', city: c.id, capo: k.id, x: k.x, y: k.y, from: { x: hq.x, y: hq.y }, amount: 150 }, { type: 'clean', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 120.4 },
+    { type: 'arrived', kind: 'wash', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 150 }, { type: 'arrived', kind: 'clean', city: c.id, capo: k.id, x: hq.x, y: hq.y, from: { x: k.x, y: k.y }, amount: 120.4 }], p);
   assert.deepEqual(fx.map((f) => [f.kind, f.type, f.gain, f.bx, f.by]), [['pay', 'clean', 120, hq.x, hq.y]]);
   assert.equal(M.tripsTurf(p, { cities: [{ ...c, trips: [{ kind: 'clean', cargo: 'clean', capo: k.id, from: { x: k.x + 1, y: k.y }, to: { x: hq.x, y: hq.y }, amount: 150, vehicle: k.id + ':own', leg: 0, home: { x: k.x, y: k.y } }] }] }).filter((t) => t.round)[0].color, M.FLOW.sales);
 });

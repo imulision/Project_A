@@ -372,10 +372,10 @@
         if (vl) out.push({ kind: 'pay', type: 'convoy', city: vc.id, capo: null, i: vl.i, j: vl.j, bx: vl.bx, by: vl.by, say: null, spent: 0, gain: Math.round(e.amount) });
         return;
       }
-      if (e.type === 'wash') return;      // dirty money driven to a laundry: its car is seen, nothing is counted yet
-      if (e.type === 'tribute' || e.type === 'clean' || e.type === 'loot') {      // the share of the boss driven in from a club, washed money driven back: counted over the headquarters where it arrives
+      if (e.type === 'wash' || e.type === 'tribute' || e.type === 'clean') return;      // a car that leaves with money: the car is seen, nothing is counted before it arrives      // dirty money driven to a laundry: its car is seen, nothing is counted yet
+      if (e.type === 'arrived' || e.type === 'loot') {      // the share of the boss driven in from a club, washed money driven back: counted over the headquarters where it arrives
         var tc = plan.cities.filter(function (x) { return x.id === e.city; })[0], tl = tc && typeof e.x === 'number' ? lotOfBlock(tc, e.x, e.y) : null;
-        if (tl && e.amount > 0) out.push({ kind: 'pay', type: e.type, city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
+        if (tl && e.amount > 0 && e.kind !== 'wash') out.push({ kind: 'pay', type: e.kind || e.type, city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
         return;
       }
       var kind = e.type === 'taken' ? (e.kind === 'key' ? 'key' : e.way === 'force' ? 'gunfire' : 'promotion') : e.type === 'outcome' ? (e.good ? 'good' : 'bad') : FXOF[e.type] || 'news';

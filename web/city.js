@@ -349,7 +349,7 @@
   }
 
   // ---- time
-  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1 };
+  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1 };
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
