@@ -167,11 +167,32 @@ test('a trade being learned shows how far along it is and offers no second order
   g.family.clean = 99999;
   const shut = E.view(g).tree.find((t) => t.tier === 0 && t.next);
   E.command(g, { type: 'research', building: shut.kind });
-  const v = E.view(g), html = C.know(v, shut.kind, E.hud(g));
-  assert.match(html, /Learning/);
+  let v = E.view(g), html = C.know(v, shut.kind, E.hud(g));
+  assert.ok(v.tree.find((t) => t.kind === shut.kind).paying, 'its money is on the road first');
+  assert.match(html, /money is on its way/i);
   assert.doesNotMatch(html, /data-act="research"/);
   const other = v.tree.find((t) => t.kind !== shut.kind && t.next);
   assert.match(C.know(v, other.kind, E.hud(g)), /one thing at a time/i);
+  assert.doesNotMatch(C.know(v, other.kind, E.hud(g)), /data-act="research"/);
+  assert.match(C.payingLine(v.paying[v.paying.length - 1], v), new RegExp('for learning ' + shut.name.toLowerCase()));
+  for (let i = 0; i < 400 && !E.view(g).tree.find((t) => t.kind === shut.kind).studying; i++) E.tick(g);
+  v = E.view(g); html = C.know(v, shut.kind, E.hud(g));
+  assert.match(html, /Learning/);
+  assert.doesNotMatch(html, /data-act="research"/);
+  assert.match(C.know(v, other.kind, E.hud(g)), /one thing at a time/i);
+});
+
+test('a holding being paid for says its money is on the road and is not sold twice', () => {
+  const { g } = play((v) => v.month >= 12);
+  g.family.clean = 99999;
+  const h = E.view(g).holdings.find((q) => q.next);
+  E.command(g, { type: 'buy', holding: h.id });
+  const v = E.view(g), now = v.holdings.find((q) => q.id === h.id);
+  assert.ok(now.paying, 'paid by trip');
+  const html = C.family(v, E.hud(g));
+  assert.match(html, /money is on its way/i);
+  assert.doesNotMatch(html, new RegExp('data-act="buy" data-holding="' + h.id + '"(?![^>]*disabled)'));
+  assert.match(C.payingLine(v.paying[v.paying.length - 1], v), new RegExp('for ' + h.name.toLowerCase() + ', signed at City Hall'));
 });
 
 test('the journal reads newest first, each line with its date', () => {

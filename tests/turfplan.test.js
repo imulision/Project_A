@@ -700,3 +700,21 @@ test('a car sent for the takings of a place drives out empty for its days, loads
   const fx = M.effectsTurf([{ type: 'arrived', kind: 'takings', city: c.id, capo: k.id, x: k.x, y: k.y, from: { x: place.x, y: place.y }, amount: 87.4 }], p);
   assert.deepEqual(fx.map((f) => [f.kind, f.type, f.bx, f.by, f.gain]), [['pay', 'takings', k.x, k.y, 87]]);
 });
+
+test('what the family buys for good is driven to City Hall, and what it learns to the man who sets it up', () => {
+  for (const order of [{ type: 'buy' }, { type: 'research' }]) {
+    const g = play(12); g.family.clean = 99999;
+    const v0 = E.view(g);
+    if (order.type === 'buy') order.holding = v0.holdings.find((h) => h.next).id; else order.building = v0.tree.find((t) => t.tier === 0 && t.next).kind;
+    E.command(g, order);
+    let left = null, there = null;
+    for (let i = 0; i < 200 && !there; i++) { const evs = E.tick(g) || []; if (g.paused) E.command(g, { type: 'resume' });
+      evs.forEach((e) => { if (e.type === 'payment' && e.order === order.type) { if (e.step === 'leaves' && !left) left = e; if (e.step === 'arrives') there = e; } }); }
+    assert.ok(left && there, order.type + ': a van leaves and arrives');
+    const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
+    const vans = M.paymentsTurf([left], p);
+    assert.equal(vans.length, 1, order.type + ': the van is on the map'); assert.ok(vans[0].path.length > 1 && vans[0].days >= 1);
+    const marks = M.effectsTurf([there], p).filter((m) => m.type === 'payment');
+    assert.equal(marks.length, 1, order.type + ': the money is seen arriving'); assert.ok(marks[0].gain > 0);
+  }
+});

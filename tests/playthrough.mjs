@@ -311,7 +311,14 @@ assert.ok(await page.locator('#sheet [data-act=buy][data-holding=' + what + ']')
 await page.evaluate((price) => { window.__ashport.game().family.clean = price; }, price);
 await page.click('#sheet [data-act=close]'); await page.click('#family');
 await page.click('#sheet [data-act=buy][data-holding=' + what + ']');
+// its money leaves the headquarters by van for City Hall: the holding is the family's once the last load is there
+assert.ok(await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).paying, what), 'the money is on its way');
+assert.match(await page.textContent('#sheet [data-act=buy][data-holding=' + what + ']'), /on its way/);
+assert.ok(await page.locator('#sheet [data-act=buy][data-holding=' + what + ']').isDisabled(), 'nothing is paid for twice');
+await page.click('#sheet [data-act=close]');
+for (let n = 0; n < 12 && (await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).level, what)) < 1; n++) await months(1);
 assert.equal(await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).level, what), 1, 'it is the family\'s for good');
+await page.click('#family');
 assert.match(await page.textContent('#sheet li.hold'), /1 \/ 3/);
 await page.evaluate((had) => { window.__ashport.game().family.clean = had; }, had);
 await shot('c5-family');
