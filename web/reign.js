@@ -35,14 +35,14 @@
   // What each act opens, what the boss watches in it and what threatens him. `opens` are keys for the screen and for
   // the orders: nothing of an act is shown or allowed before the family has reached it once.
   var ACTS = [
-    { id: 'street', name: 'The Street', opens: ['places', 'men', 'dirty', 'jobs'], watch: 'Every place, every man', threat: 'The gang next door',
+    { id: 'street', name: 'The Street', hq: 'Back room', opens: ['places', 'men', 'dirty', 'jobs'], watch: 'Every place, every man', threat: 'The gang next door',
       gives: 'One street, your first men and dirty money' },
-    { id: 'city', name: 'The City', opens: ['clean', 'table', 'underboss', 'laws'], watch: 'Your capos more than their places', threat: 'The police, and the chief who holds the city',
-      gives: 'Clean money, a table of trusted men and an underboss to hold the city for you' },
-    { id: 'roads', name: 'The Roads', opens: ['roads', 'convoys', 'nerve'], watch: 'Your underbosses and your roads', threat: 'War between families, and betrayal',
-      gives: 'The roads to the other cities, and the loads that travel them' },
-    { id: 'commission', name: 'The Commission', opens: ['politics', 'press', 'heir'], watch: 'Your name, and who comes after you', threat: 'The federal case, and a knife from inside',
-      gives: 'A seat among the families that count' }
+    { id: 'city', name: 'The City', hq: 'Club', opens: ['clean', 'table', 'roads', 'vault', 'laws'], watch: 'Your capos more than their places', threat: 'The police, and the chief who holds the city',
+      gives: 'A table of trusted men, the roads to the cities next door, and a vault where more dirty money sleeps unseen' },
+    { id: 'roads', name: 'The Roads', hq: 'Hotel floor', opens: ['underboss', 'convoys', 'nerve'], watch: 'Your underbosses and your roads', threat: 'War between families, and betrayal',
+      gives: 'An underboss to hold each city for you, and a deeper vault' },
+    { id: 'commission', name: 'The Commission', hq: 'Mansion', opens: ['counsel', 'politics', 'press', 'heir'], watch: 'Your name, and who comes after you', threat: 'The federal case, and a knife from inside',
+      gives: 'A seat among the families that count, and a Counsel at your table' }
   ];
   var NUMERAL = ['I', 'II', 'III', 'IV'];
 
@@ -69,10 +69,15 @@
   }
   function act(r) {
     var a = ACTS[r.act];
-    return { n: r.act, id: a.id, name: a.name, numeral: NUMERAL[r.act], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives };
+    return { n: r.act, id: a.id, name: a.name, hq: a.hq, numeral: NUMERAL[r.act], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives };
   }
   // Is this open yet: something stays open once its act has been reached, even if the family falls back.
   function open(r, what) { return ACTS.some(function (a, i) { return i <= r.reached && a.opens.indexOf(what) >= 0; }); }
+  // The act that opens it, in words for the boss; null for what no act holds back.
+  function opensAt(what) {
+    for (var i = 0; i < ACTS.length; i++) if (ACTS[i].opens.indexOf(what) >= 0) return 'Act ' + NUMERAL[i] + ': ' + ACTS[i].name;
+    return null;
+  }
   // The family holds this share of the map today: the acts it wins or loses, told one by one.
   function place(r, share) {
     var out = [], top = ACTS.length - 1;
@@ -154,7 +159,7 @@
     return out;
   }
 
-  var api = { RULES: RULES, ACTS: ACTS, rank: rank, create: create, act: act, open: open, place: place, hear: hear, direct: direct,
+  var api = { RULES: RULES, ACTS: ACTS, rank: rank, create: create, act: act, open: open, opensAt: opensAt, place: place, hear: hear, direct: direct,
               setDays: function (n) { DAYS = n; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportReign = api;

@@ -506,10 +506,10 @@ const knocking = () => {
   return { c, f };
 };
 
-test('the table has three chairs, empty at first; a man at the door can be given one instead of a street', () => {
+test('the table has four chairs, empty at first; a man at the door can be given one instead of a street', () => {
   const { c, f } = knocking();
   assert.deepEqual(coming(c, f), ['danny', 'mae', 'sal']);
-  assert.deepEqual(T.table(f).map((s) => [s.post, s.name, s.capo]), [['bookkeeper', 'Bookkeeper', null], ['routes', 'Routes', null], ['fixer', 'Fixer', null]]);
+  assert.deepEqual(T.table(f).map((s) => [s.post, s.name, s.capo]), [['bookkeeper', 'Bookkeeper', null], ['routes', 'Routes', null], ['fixer', 'Fixer', null], ['counsel', 'Counsel', null]]);
   const cost = T.doors(c, f).find((d) => d.capo === 'mae').cost, had = T.funds(f);
   T.seat(c, f, 'mae', 'bookkeeper');
   assert.equal(T.funds(f), had - cost, 'he costs what he would have cost on a street');
