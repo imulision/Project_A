@@ -718,3 +718,19 @@ test('what the family buys for good is driven to City Hall, and what it learns t
     assert.equal(marks.length, 1, order.type + ': the money is seen arriving'); assert.ok(marks[0].gain > 0);
   }
 });
+
+test('a capo who is out at work still drives to the place he opens', () => {
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
+  let last = M.planEmpire(E.view(g), global.AshportWorld.CITIES), seen = 0, away = 0;
+  for (let i = 0; i < 300; i++) { const ev = E.tick(g) || []; if (E.hud(g).paused) E.command(g, { type: 'resume' });
+    const opened = ev.filter((e) => e.type === 'opened' && e.capo); if (!opened.length && g.ticks) continue;
+    const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), moves = M.movesTurf(last, p); last = p;
+    if (!opened.length) continue;
+    seen++; if (v.cities[0].capos[0].at.why !== 'home') away++;
+    const trip = moves.filter((m) => m.cargo === 'open')[0];
+    assert.ok(trip, 'day ' + i + ': he is seen driving there (' + v.cities[0].capos[0].at.why + ')');
+    const lot = p.cities[0].lots.filter((l) => l && l.site && l.bx === opened[0].x && l.by === opened[0].y)[0];
+    assert.ok(trip.path.some((q) => q[0] === lot.i && q[1] === lot.j) || trip.path.length > 2, 'his way goes by the new place');
+  }
+  assert.ok(seen >= 2 && away >= 1, 'places opened, one of them while he was away (' + seen + ', ' + away + ')');
+});
