@@ -173,24 +173,71 @@
       made[p.kind] = (made[p.kind] || 0) + e;
     });
   }
+  // The fullest till of a capo that holds a load, if any.
+  function fullest(c, capo, load) {
+    var mine = run(c, capo), best = null;
+    for (var i = 0; i < mine.length; i++) { var b = at(c, mine[i].x, mine[i].y); if (b.till >= load && (!best || b.till > best.b.till)) best = { p: mine[i], b: b }; }
+    return best;
+  }
+  // A car loads at a place: it leaves the men of the place their pay first, and takes what is left, a full load
+  // when there is one. Returns what it takes.
+  function loadUp(c, capo, best, load) {
+    var paid = Math.min(best.b.owed || 0, best.b.till);
+    if (paid > 0) {
+      best.b.till -= paid; best.b.owed -= paid;
+      var all = c.left || (c.left = {}), left = all[capo] || (all[capo] = { sum: 0, at: [] });
+      left.sum += paid; left.at.push({ x: best.p.x, y: best.p.y, amount: paid });
+    }
+    var takes = Math.min(load, best.b.till);
+    if (takes >= 1) best.b.till -= takes;
+    return takes;
+  }
+  // --- cars and time ---
+  // The day it is, counted from the first day of the game; the days a car takes between two blocks (never less than
+  // one); and the cars of a man: his own first, then every car he bought, each somewhere and free from a given day.
+  function today(c) { return c.month * RULES.days + ((c.turn && c.turn.day) || 0); }
+  function tripDays(a, b) { return Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / RULES.car.speed)); }
+  // The name of the n-th car of a man, the same whatever it carries: his cars are numbered from 1.
+  function carId(capo, n) { return capo + ':car:' + ((n || 0) + 1); }
+  function fleet(m, club) {
+    if (!m.fleet) { m.fleet = m.car ? [m.car] : []; delete m.car; }
+    while (m.fleet.length < (m.cars || 1)) m.fleet.push({ x: club.x, y: club.y, free: 0 });
+    return m.fleet;
+  }
+  // In a city played day by day: every car of the capo that is free goes for the fullest till that holds a load. It
+  // drives there, loads, and drives back to the club; the money is his the day it is back (c.rides, kind 'takings').
+  // There is no count of runs: a car goes again when it is home. `h.left` is told the cars that found nothing to fetch.
+  function dispatch(c, f, capo, h, load, trap) {
+    var out = [], m = f.men[capo], club = clubOf(c, capo), now = today(c);
+    h.left = 0;
+    fleet(m, club).forEach(function (car, n) {
+      if (car.free > now) return;
+      var best = fullest(c, capo, load), takes = best ? loadUp(c, capo, best, load) : 0;
+      if (takes < 1) { h.left += 1; return; }
+      var here = car.x === best.p.x && car.y === best.p.y, wait = here ? 0 : tripDays(car, best.p), days = tripDays(best.p, club);
+      var r = { kind: 'takings', capo: capo, car: n, x: best.p.x, y: best.p.y, from: { x: best.p.x, y: best.p.y }, to: { x: club.x, y: club.y },
+                amount: takes, wait: wait, left: now + wait, days: days, arrives: now + wait + days };
+      // the car the rivals wait for never reaches the club
+      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; }
+      // the name of the car, and the place of this run in its round, for the trips of the cycle
+      r.vehicle = carId(capo, n);
+      r.leg = c.flow.runs.filter(function (q) { return q.capo === capo && q.car === n; }).length;
+      car.x = club.x; car.y = club.y; car.free = r.arrives;
+      (c.rides = c.rides || []).push(r);
+      c.flow.runs.push(r);
+      out.push(r);
+    });
+    return out;
+  }
   // The cars go for the fullest till that holds a load, as long as one is free. `h` is what the capo's cars have done
   // since his last day; every run is written in the cycle's trips and returned.
   function drive(c, capo, h, cars, load, trap) {
-    var mine = run(c, capo), out = [];
+    var out = [];
     while (h.left + h.mine > 0) {
-      var best = null;
-      for (var i = 0; i < mine.length; i++) { var b = at(c, mine[i].x, mine[i].y); if (b.till >= load && (!best || b.till > best.b.till)) best = { p: mine[i], b: b }; }
+      var best = fullest(c, capo, load);
       if (!best) break;
-      // the car leaves the men of the place their pay first, and takes what is left: a full load when there is one
-      var paid = Math.min(best.b.owed || 0, best.b.till);
-      if (paid > 0) {
-        best.b.till -= paid; best.b.owed -= paid;
-        var all = c.left || (c.left = {}), left = all[capo] || (all[capo] = { sum: 0, at: [] });
-        left.sum += paid; left.at.push({ x: best.p.x, y: best.p.y, amount: paid });
-      }
-      var takes = Math.min(load, best.b.till);
+      var takes = loadUp(c, capo, best, load);
       if (takes < 1) continue; // their pay was all there was: nothing to drive home
-      best.b.till -= takes;
       var r = { capo: capo, x: best.p.x, y: best.p.y, amount: takes };
       // the car the rivals wait for never reaches the club
       if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else h.got += takes;
@@ -213,9 +260,9 @@
       if (!clubOf(c, capo)) return;
       var cars = f.men[capo].cars || 1, h = c.hauls[capo] || (c.hauls[capo] = fresh(cars, 0));
       fill(c, capo, 1 / RULES.days);
-      drive(c, capo, h, cars, load, trap).forEach(function (r) {
-        var e = { type: 'run', city: c.id, capo: capo, x: r.x, y: r.y, amount: r.amount, day: day, vehicle: capo + (r.own ? ':own' : ':car:' + r.car) };
-        if (r.own) e.own = true;
+      dispatch(c, f, capo, h, load, trap).forEach(function (r) {
+        // a departure: the car is `wait` days on its way to the place, then `days` on its way home
+        var e = { type: 'run', city: c.id, capo: capo, x: r.x, y: r.y, amount: r.amount, day: day, wait: r.wait, days: r.days, vehicle: r.vehicle };
         if (r.lost) e.lost = r.lost;
         r.day = day;
         out.push(e);
@@ -378,7 +425,7 @@
   }
 
   var api = { liquor: liquor, CHAINS: CHAINS, loadOfCargo: loadOfCargo, supplied: supplied, cellars: cellars, ambush: ambush, CARGOES: CARGOES,
-      distil: distil, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
+      distil: distil, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, today: today, tripDays: tripDays, fleet: fleet, carId: carId, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
       wants: wants, washing: washing, laundries: laundries };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfGoods = api;
