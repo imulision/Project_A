@@ -251,6 +251,7 @@
         var man = f.men[id], club = clubOf(c, id), led = P.follows(c, f, id);
         return { follows: led ? led.follows : null, followsWhy: led ? led.why : null, id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
                  share: Math.round(man.share || 0), shareLoad: loadOf(f), // the boss's share waiting at his club, and the load a car takes to the headquarters
+                 rigs: (man.rigs || []).map(function (t, n) { return { vehicle: id + ':truck:' + (n + 1), x: t.x, y: t.y, busy: t.free > B.today(c) }; }), // where each of his trucks stands, or is going
                  places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), counts: (man.puts || []).length, book: bookOf(man), partings: partings(c, f, id) };
       })
     };
@@ -631,7 +632,7 @@
       // the trucks that leave today: a load each, to the shelf it will be on the day the truck gets there
       var seized = c.turn.drink.seized;
       G.haulDay(c, f, c.turn.drink, c.turn.trap).forEach(function (h) {
-        var e = { type: 'haul', city: c.id, capo: h.capo, cargo: h.cargo, from: h.from, x: h.to.x, y: h.to.y, amount: h.amount, day: day, wait: h.wait, days: h.days, vehicle: h.vehicle };
+        var e = { type: 'haul', city: c.id, capo: h.capo, cargo: h.cargo, at: h.at, from: h.from, x: h.to.x, y: h.to.y, amount: h.amount, day: day, wait: h.wait, days: h.days, vehicle: h.vehicle };
         if (h.lost) e.lost = h.lost;
         events.push(e);
       });
