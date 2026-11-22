@@ -349,7 +349,7 @@
     return out;
   }
   var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'build', enlarged: 'build', converted: 'build', learned: 'promotion' };
-  var PAID = { converted: 1, opened: 1, enlarged: 1, moving: 1, car: 1, truck: 1, welcomed: 1, gift: 1 };      // what was paid for when it happened (a capo who only asks has spent nothing yet)
+  var PAID = { converted: 1, opened: 1, enlarged: 1, moving: 1, car: 1, truck: 1 };      // what a capo paid out of his own purse when it happened (one who only asks has spent nothing yet; what the boss pays leaves his headquarters, not the place)
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
     var out = [];
@@ -362,8 +362,11 @@
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0] || (kind === 'news' ? null : plan.cities[0]); if (!c) return;
       var lot = typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null;
       if (!lot && kind !== 'news') { var k = c.capos.filter(function (m) { return m.id === e.capo; })[0] || c.capos[0]; if (k && typeof k.i === 'number') lot = { i: k.i, j: k.j, bx: k.bx, by: k.by }; }
+      // money never leaves from thin air: no figure over the place itself, what it cost is seen leaving the purse at the capo's club
+      var payer = PAID[e.type] && e.cost > 0 ? c.capos.filter(function (m) { return m.id === e.capo && typeof m.i === 'number'; })[0] : null;
+      if (payer) out.push({ kind: 'pay', type: 'pay', city: c.id, capo: payer.id, i: payer.i, j: payer.j, bx: payer.bx, by: payer.by, say: null, spent: Math.round(e.cost) });
       if (!lot) return;
-      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: PAID[e.type] && e.cost > 0 ? e.cost : 0 });
+      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: 0 });
     });
     // a take under way: the place being taken is ringed for as long as the capo stands before it
     plan.cities.forEach(function (c) { c.capos.forEach(function (k) { if (k.at && k.at.why === 'take' && typeof k.at.i === 'number') out.push({ kind: 'siege', type: 'take', city: c.id, i: k.at.i, j: k.at.j, say: null, spent: 0 }); }); });
