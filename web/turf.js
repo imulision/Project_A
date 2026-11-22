@@ -63,6 +63,12 @@
       if (r.lost) t.lost = r.lost;
       out.push(t);
     });
+    // the boss's share on its way to the headquarters: one load a trip, in the capo's own car
+    var seat = C.hqOf(c, 'family');
+    if (seat) ((c.flow && c.flow.tributes) || []).forEach(function (r, n) {
+      var club = clubOf(c, r.capo);
+      if (club) out.push({ kind: 'tribute', cargo: 'cash', capo: r.capo, from: { x: club.x, y: club.y }, to: { x: seat.x, y: seat.y }, amount: r.amount, vehicle: r.capo + ':own', leg: n, home: { x: club.x, y: club.y } });
+    });
     Object.keys(f.men || {}).forEach(function (id) {
       var club = clubOf(c, id), w = club && whereabouts(c, f, id);
       if (w && w.why !== 'home') out.push({ kind: 'capo', cargo: w.why, capo: id, from: { x: club.x, y: club.y }, to: { x: w.x, y: w.y }, vehicle: id + ':own', home: { x: club.x, y: club.y } });
@@ -414,6 +420,7 @@
     else if (m.share >= full) {
       m.share -= full; f.dirty += full;
       events.push({ type: 'tribute', city: c.id, capo: capo, x: seat.x, y: seat.y, from: { x: home.x, y: home.y }, amount: full });
+      if (c.flow) (c.flow.tributes = c.flow.tributes || []).push({ capo: capo, amount: full });
     }
     // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
     if (r.pay > 0) {

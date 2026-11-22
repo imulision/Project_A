@@ -154,3 +154,13 @@ test('in a city with no headquarters the share reaches the boss at once, as befo
   assert.ok(f.dirty > 0);
   assert.ok(!f.men.dutch.share);
 });
+
+test('a load of the boss\'s share is one of the trips of the city: the capo\'s own car, from his club to the headquarters', () => {
+  const g = start();
+  let trip = null;
+  for (let i = 0; i < 480 && !trip; i++) { g.paused = false; if (E.tick(g).some((e) => e.type === 'tribute')) trip = E.view(g).cities[0].trips.find((t) => t.kind === 'tribute'); }
+  assert.ok(trip, 'the trip is in the view the day it leaves');
+  const c = E.view(g).cities[0], club = c.capos[0], hq = c.hq.family;
+  assert.deepStrictEqual([trip.from.x, trip.from.y, trip.to.x, trip.to.y], [club.x, club.y, hq.x, hq.y]);
+  assert.deepStrictEqual([trip.capo, trip.vehicle, trip.cargo, trip.amount], ['sal', 'sal:own', 'cash', T.RULES.car.loads[0]]);
+});
