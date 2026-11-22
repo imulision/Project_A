@@ -312,7 +312,7 @@
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
-  var PASSING = { run: true, pay: true, tribute: true };
+  var PASSING = { run: true, pay: true, tribute: true, wash: true, clean: true };
   function passing(e) { return PASSING[e.type] || (e.type === 'hit' && (e.step === 'call' || e.step === 'stage')); } // a hit's steps are for the screen: the journal keeps how it began and how it ended // told to the screen as they happen, never written in the journal
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {

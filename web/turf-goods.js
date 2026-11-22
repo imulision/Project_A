@@ -354,7 +354,7 @@
   function laundries(c) {
     var site = function (p) { return D.SITES[p.kind]; };
     return everyPlace(c).filter(function (p) { return p.owner === 'family' && site(p) && site(p).wash; }).map(function (p) {
-      return { x: p.x, y: p.y, most: site(p).wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5) * (can(c, p.capo, 'ledgers') ? 1.25 : 1) * ((c.board && c.board.wash) || 1), loss: site(p).loss };
+      return { x: p.x, y: p.y, capo: p.capo, most: site(p).wash * worth(c, p.x, p.y, p.kind) * (1 + (p.level - 1) * 1.5) * (can(c, p.capo, 'ledgers') ? 1.25 : 1) * ((c.board && c.board.wash) || 1), loss: site(p).loss };
     }).sort(function (a, b) { return a.loss - b.loss; });
   }
 
