@@ -447,7 +447,8 @@
     return out;
   }
 
-  // What a capo pays, the day he pays it: the takings his cars brought to the club are shared out there, so the figure leaves from the club
+  // What a capo pays, the day he pays it: the takings his cars brought to the club are shared out there, so the figure leaves from the club;
+  // what a car left at a place on its way is paid at that place.
   // (wages of all his places and the upkeep of his garage together), read by the map as money that leaves.
   function paysTurf(events, plan) {
     var by = {}, out = [];
@@ -455,8 +456,9 @@
     (events || []).forEach(function (e) {
       if (e.type !== 'pay') return;
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], k = c && c.capos.filter(function (m) { return m.id === e.capo; })[0]; if (!k || typeof k.i !== 'number') return;
-      var id = c.id + ':' + k.id, o = by[id];
-      if (!o) { o = by[id] = { kind: 'pay', type: 'pay', city: c.id, capo: k.id, i: k.i, j: k.j, bx: k.bx, by: k.by, say: null, spent: 0 }; out.push(o); }
+      // wages the car that came for the takings left with the men of a place are paid there, where the money was
+      var at = e.left && typeof e.x === 'number' ? lotOfBlock(c, e.x, e.y) : null, id = c.id + ':' + k.id + (at ? ':' + e.x + '.' + e.y : ''), o = by[id];
+      if (!o) { o = by[id] = { kind: 'pay', type: 'pay', city: c.id, capo: k.id, i: at ? at.i : k.i, j: at ? at.j : k.j, bx: at ? at.bx : k.bx, by: at ? at.by : k.by, say: null, spent: 0 }; out.push(o); }
       o.spent += +e.amount || 0;
     });
     return out.map(function (o) { o.spent = Math.round(o.spent); return o; }).filter(function (o) { return o.spent >= 1; });
