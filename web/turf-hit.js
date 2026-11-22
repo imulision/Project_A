@@ -96,7 +96,9 @@
       P.sway(f, h.capo, -K.face);
       if (outcome === 'routed') heat += K.noise;
     }
-    if (m) m.cash = Math.max(0, m.cash + till - h.lost * K.blood);
+    if (m) m.cash = Math.max(0, m.cash - h.lost * K.blood);
+    // the till comes home with the men: it is the capo's when they are back at the club
+    if (till > 0) { (c.loots = c.loots || []).push({ capo: h.capo, x: h.x, y: h.y, amount: till }); if (!(c.turn && c.turn.daily)) home(c, f, events); }
     c.heat = Math.min(99, (c.heat || 0) + heat);
     var result = { outcome: outcome, won: outcome === 'won', call: call, watched: watched, place: outcome === 'won' ? 1 : 0, streets: ours(c) - before, till: till, lost: h.lost, heat: Math.min(99, heat) };
     result.title = { won: 'The ' + name + ' is ours', held: 'The ' + name + ' burns', pulled: him + ' pulled out of the ' + name.toLowerCase(), routed: him + '\'s men ran' }[outcome];
@@ -105,6 +107,16 @@
       + ' He lost ' + men + (outcome === 'won' ? ' and took $' + till + ' from the till.' : outcome === 'held' ? ' and their place is gone.' : outcome === 'pulled' ? ' and kept the rest.' : ' and has nothing to show for it.');
     c.hitLast = { id: h.id, capo: h.capo, x: h.x, y: h.y, kind: h.kind, name: name, rival: h.rival, month: c.month, result: result };
     events.push(tell(c, h, 'end', { call: call, watched: watched, result: result, label: result.title + ': ' + him + ' lost ' + men }));
+  }
+  // The men are back from a place they took: its till is counted at the club.
+  function home(c, f, events) {
+    (c.loots || []).forEach(function (l) {
+      var m = f.men[l.capo], club = C.clubOf(c, l.capo);
+      if (!m || !club) return; // nobody left to bring it to: it is lost
+      m.cash += l.amount;
+      events.push({ type: 'loot', city: c.id, capo: l.capo, x: club.x, y: club.y, from: { x: l.x, y: l.y }, amount: l.amount });
+    });
+    c.loots = [];
   }
   // A call is carried out, by the boss (watched) or by the capo alone.
   function resolve(c, f, h, call, watched, events) {
@@ -140,6 +152,7 @@
   }
   // One day goes by: a capo left without a word decides alone.
   function pass(c, f, events) {
+    home(c, f, events);
     (c.hits || []).slice().forEach(function (h) {
       h.left -= 1;
       if (h.left <= 0) resolve(c, f, h, alone(h), false, events);
