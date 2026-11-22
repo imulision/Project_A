@@ -72,7 +72,8 @@ test('pressing on to the end takes the place, its till, and tells what it cost',
   assert.strictEqual(T.at(c, 3, 3).owner, 'family');
   assert.strictEqual(T.at(c, 3, 3).capo, 'sal');
   assert.ok(end.result.till > 0);
-  assert.strictEqual(f.men.sal.cash, had + end.result.till - end.result.lost * K.blood);
+  H.pass(c, f, []); // the men come home with the till
+  assert.strictEqual(f.men.sal.cash, Math.max(0, had - end.result.lost * K.blood) + end.result.till);
   assert.deepStrictEqual([end.result.place, end.result.watched], [1, true]);
   assert.ok(end.result.heat > 0);
   assert.ok(b.concat(a).some((e) => e.type === 'taken' && e.way === 'force'));
@@ -190,4 +191,27 @@ test('a hit does not stop the clock, and its news reach the screen', () => {
   for (let i = 0; i < 6000 && !seen; i++) { g.paused = false; const e = E.tick(g).find((q) => q.type === 'hit'); if (e) seen = { e, paused: g.paused }; }
   if (!seen) return; // this start may never meet a guarded place: the rules above are tested on their own
   assert.strictEqual(seen.paused, false);
+});
+
+// --- every flow is physical: the till of the place comes home with the men ---
+test('the till taken in a hit is the capo\'s only when his men are back at the club, the day after', () => {
+  const { c, f, hit } = live('sal', 1), had = f.men.sal.cash, club = T.clubOf(c, 'sal');
+  let ev = H.call(c, f, hit.id, 'press'), end = ended(ev);
+  while (!end) { ev = H.call(c, f, hit.id, 'press'); end = ended(ev); }
+  assert.strictEqual(end.result.outcome, 'won');
+  assert.strictEqual(f.men.sal.cash, Math.max(0, had - end.result.lost * K.blood), 'the till is still on the road');
+  const next = []; H.pass(c, f, next);
+  const loot = next.find((e) => e.type === 'loot');
+  assert.deepStrictEqual([loot.capo, loot.amount, loot.x, loot.y, loot.from], ['sal', end.result.till, club.x, club.y, { x: hit.x, y: hit.y }]);
+  assert.strictEqual(f.men.sal.cash, Math.max(0, had - end.result.lost * K.blood) + end.result.till);
+  const again = []; H.pass(c, f, again);
+  assert.ok(!again.some((e) => e.type === 'loot'), 'told once');
+});
+
+test('a hit played in one blow brings its till home at once', () => {
+  const s = scene('sal', 1), had = s.f.men.sal.cash, events = [];
+  H.open(s.c, s.f, s.o, events);
+  const end = ended(events);
+  if (end.result.outcome === 'won') assert.strictEqual(s.f.men.sal.cash, Math.max(0, had - end.result.lost * K.blood) + end.result.till);
+  assert.ok(!(s.c.loots || []).length);
 });

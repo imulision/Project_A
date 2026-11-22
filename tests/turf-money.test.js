@@ -243,3 +243,10 @@ test('no capo opens one more still when the family already makes more liquor tha
   assert.equal(next(0), 'still');
   assert.equal(next(2), 'rented', 'two stills and not one bar: he puts his money elsewhere');
 });
+
+test('the police take the money where it sleeps: the raid is at the family\'s headquarters', () => {
+  const { c, f } = laundry(0), hq = T.raiseHq(c, 'family');
+  let bust = null;
+  for (let i = 0; i < 200 && !bust; i++) { f.dirty = T.RULES.stash * 10; bust = T.stepMonth(c, f).find((e) => e.type === 'bust'); }
+  assert.deepStrictEqual([bust.x, bust.y], [hq.x, hq.y]);
+});

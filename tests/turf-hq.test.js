@@ -164,3 +164,10 @@ test('a load of the boss\'s share is one of the trips of the city: the capo\'s o
   assert.deepStrictEqual([trip.from.x, trip.from.y, trip.to.x, trip.to.y], [club.x, club.y, hq.x, hq.y]);
   assert.deepStrictEqual([trip.capo, trip.vehicle, trip.cargo, trip.amount], ['sal', 'sal:own', 'cash', T.RULES.car.loads[0]]);
 });
+
+test('the rivals\' headquarters has its true size from the first day, not after the first cycle', () => {
+  const g = start(), size = () => E.view(g).cities.map((c) => c.hq.rival && c.hq.rival.stage);
+  const first = size();
+  play(g, 30);
+  assert.deepStrictEqual(first, size());
+});
