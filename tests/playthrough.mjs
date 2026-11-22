@@ -22,7 +22,7 @@ const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men']
 const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   const A = window.__ashport, q = (s) => document.querySelector('#veil.on ' + s), seen = window.__seen = window.__seen || { answer: 0, rule: 0, seat: 0, waited: 0, away: 0, rides: 0 };
   for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
-    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay'), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
+    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay' && !(e.type === 'arrived' && e.kind === 'takings')), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
     if (document.getElementById('date').textContent !== 'Day ' + (A.game().month * AshportEmpire.TICKS_PER_MONTH + day + 1)) seen.date = (seen.date || 0) + 1;      // the date is a count of days
     if (A.map().labels().some((l) => l.pop < 0)) seen.paid = (seen.paid || 0) + 1;      // a pay packet is seen leaving its place

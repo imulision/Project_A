@@ -737,6 +737,6 @@ addEventListener('resize', () => {
   const waking = f => (...a) => { stale = 3; return f(...a); };      // an order to the map changes the picture
   // run(seconds): the streets a few seconds later, at once (the tests do not wait for a car to cross the town)
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: [...agents].filter(([, a]) => a.round).map(([id, a]) => ({ id, parked: !!a.parked, loaded: a.loaded, x: a.x, z: a.z })) }) };     // counted now, not at the last frame drawn; moving while the camera glides
 }

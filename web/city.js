@@ -51,7 +51,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -355,7 +355,11 @@
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
-    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    // a car sent for takings leaves the day the rules send it, and its money is counted at the club the day it is home: both are seen
+    // on the map at once, with nothing else redrawn
+    var home = function (e) { return e.type === 'arrived' && e.kind === 'takings'; };
+    if (map && lastPlan) { var runs = M.runsTurf(events, lastPlan); if (runs.length) map.send(runs); var got = M.effectsTurf(events.filter(home), lastPlan); if (got.length) map.effects(got); }
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay' && !home(e); });      // a car that leaves, a pay packet: seen on the map, never news
     events.forEach(function (e) { if (e.type === 'payment' && e.step === 'back') toast('The money comes back to your headquarters: ' + say(e.why || 'nobody is there to take it') + '.', true); });
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
