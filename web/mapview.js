@@ -363,7 +363,7 @@
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
       if (e.type === 'run' || e.type === 'pay') return;      // a car that leaves and a pay packet are seen as money moving, never as a mark
       if (e.type === 'wash') return;      // dirty money driven to a laundry: its car is seen, nothing is counted yet
-      if (e.type === 'tribute' || e.type === 'clean') {      // the share of the boss driven in from a club, washed money driven back: counted over the headquarters where it arrives
+      if (e.type === 'tribute' || e.type === 'clean' || e.type === 'loot') {      // the share of the boss driven in from a club, washed money driven back: counted over the headquarters where it arrives
         var tc = plan.cities.filter(function (x) { return x.id === e.city; })[0], tl = tc && typeof e.x === 'number' ? lotOfBlock(tc, e.x, e.y) : null;
         if (tl && e.amount > 0) out.push({ kind: 'pay', type: e.type, city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
         return;
@@ -376,7 +376,7 @@
       var payer = PAID[e.type] && e.cost > 0 ? c.capos.filter(function (m) { return m.id === e.capo && typeof m.i === 'number'; })[0] : null;
       if (payer) out.push({ kind: 'pay', type: 'pay', city: c.id, capo: payer.id, i: payer.i, j: payer.j, bx: payer.bx, by: payer.by, say: null, spent: Math.round(e.cost) });
       if (!lot) return;
-      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: 0 });
+      out.push({ kind: kind, type: e.type, city: c.id, i: lot.i, j: lot.j, bx: lot.bx, by: lot.by, say: e.label, spent: e.type === 'bust' && e.seized > 0 && typeof e.x === 'number' ? Math.round(e.seized) : 0 });      // (what the police seize, they take where it is kept)
     });
     // a take under way: the place being taken is ringed for as long as the capo stands before it
     plan.cities.forEach(function (c) { c.capos.forEach(function (k) { if (k.at && k.at.why === 'take' && typeof k.at.i === 'number') out.push({ kind: 'siege', type: 'take', city: c.id, i: k.at.i, j: k.at.j, say: null, spent: 0 }); }); });
@@ -386,6 +386,12 @@
   function arrivalsTurf(events, plan) {
     var out = [];
     (events || []).forEach(function (e) {
+      if (e.type === 'loot' && e.from) {      // the take of a hit: the men drive it home, from the place they took to their club
+        var lc = plan.cities.filter(function (x) { return x.id === e.city; })[0], la = lc && lotOfBlock(lc, e.from.x, e.from.y), lb = lc && lotOfBlock(lc, e.x, e.y); if (!la || !lb || la === lb) return;
+        out.push({ id: lc.id + ':loot:' + e.capo + ':' + e.from.x + '.' + e.from.y, kind: 'loot', city: lc.id, loop: false, color: FLOW.money, vehicle: 'car', violent: false, path: route([la.i, la.j], [lb.i, lb.j], lc),
+                   cargo: 'cash', amount: e.amount || 0, load: {}, capo: e.capo || null, from: la.site ? la.site.type : 'street', to: 'club', by: null, way: null, target: null, n: 0 });
+        return;
+      }
       if (e.type !== 'welcomed' || typeof e.x !== 'number') return;
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0]; if (!c) return;
       var k = c.capos.filter(function (m) { return m.id === e.capo; })[0], lot = k && typeof k.i === 'number' ? k : lotOfBlock(c, e.x, e.y); if (!lot) return;

@@ -618,3 +618,14 @@ test('washed money is counted over the headquarters when its car arrives; dirty 
   assert.deepEqual(fx.map((f) => [f.kind, f.type, f.gain, f.bx, f.by]), [['pay', 'clean', 120, hq.x, hq.y]]);
   assert.equal(M.tripsTurf(p, { cities: [{ ...c, trips: [{ kind: 'clean', cargo: 'clean', capo: k.id, from: { x: k.x + 1, y: k.y }, to: { x: hq.x, y: hq.y }, amount: 150, vehicle: k.id + ':own', leg: 0, home: { x: k.x, y: k.y } }] }] }).filter((t) => t.round)[0].color, M.FLOW.sales);
 });
+
+test('the take of a hit comes home by car: from the place taken to the club, where it is counted; the police take what they seize at the headquarters', () => {
+  const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], pc = p.cities[0], hq = c.hq.family, k = c.capos[0];
+  const far = c.places.find((q) => q.owner !== 'family' && q.kind !== 'hq' && Math.abs(q.x - k.x) + Math.abs(q.y - k.y) > 2);
+  const loot = { type: 'loot', city: c.id, capo: k.id, x: k.x, y: k.y, from: { x: far.x, y: far.y }, amount: 240 };
+  const cars = M.arrivalsTurf([loot], p), a = lotsOf(pc, far.x, far.y).find((l) => l.site), club = lotsOf(pc, k.x, k.y).find((l) => l.site);
+  assert.equal(cars.length, 1); assert.deepEqual([cars[0].kind, cars[0].loop, cars[0].vehicle, cars[0].color, cars[0].cargo, cars[0].amount], ['loot', false, 'car', M.FLOW.money, 'cash', 240]);
+  assert.deepEqual(cars[0].path[0], [a.i, a.j]); assert.deepEqual(cars[0].path[cars[0].path.length - 1], [club.i, club.j]);
+  const fx = M.effectsTurf([loot, { type: 'bust', city: c.id, x: hq.x, y: hq.y, seized: 500, label: 'The police raid' }], p);
+  assert.deepEqual(fx.map((f) => [f.kind, f.bx, f.by, f.gain || 0, f.spent]), [['pay', k.x, k.y, 240, 0], ['police', hq.x, hq.y, 0, 500]]);
+});
