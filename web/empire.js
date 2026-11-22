@@ -206,6 +206,7 @@
     T.raiseHq(home, 'family');
     g.reign = R.create(NAMES.indexOf(capo) + 1);
     g.started = true;
+    seats(g); // every headquarters has its true size from the first day
   }
 
   function record(g, e, month) {
