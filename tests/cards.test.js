@@ -1232,3 +1232,14 @@ test('the share of the boss that waits at a club is seen there, with the load it
   assert.match(C.block(v, c.id, k.x, k.y), /\$60 \/ \$150<\/b> of your share/);
   k.share = 0; assert.doesNotMatch(C.blockTip(v, c.id, k.x, k.y), /your share/);
 });
+
+test('what an act has not opened yet says so: the underboss button is greyed with the reason, the police threshold is the one of the vault', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), city = v.cities[0], k = city.capos[0], other = { ...k, id: 'mae', name: 'Mae Rourke' };
+  const two = { ...v, cities: [{ ...city, under: null, capos: [k, other] }] };
+  assert.ok(v.reign.closed.underboss);
+  assert.match(C.capo(two, city.id, k.id), /data-act="underboss"[^>]*disabled[^]*An underboss comes with Act III/);
+  two.reign = { ...v.reign, closed: {} };
+  assert.doesNotMatch(C.capo(two, city.id, k.id), /data-act="underboss"[^>]*disabled/);
+  assert.equal(C.vault(v, { vault: 5000 }), 5000); assert.equal(C.vault({ reign: { vault: 4000 } }, {}), 4000);
+  assert.equal(C.wash(v, { dirty: 4500, vault: 5000 }).hot, false); assert.equal(C.wash(v, { dirty: 5500, vault: 5000 }).hot, true);
+});

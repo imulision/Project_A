@@ -93,11 +93,13 @@
   }
   // The laundries of the whole family: what they can wash a month, what they washed and kept last month,
   // and whether the dirty cash has grown past what the boss can keep unnoticed.
+  // Above how much dirty cash the police take notice: it grows with the headquarters (the rules say how much).
+  function vault(view, hud) { return (hud && hud.vault) || ((view || {}).reign || {}).vault || T.RULES.stash; }
   function wash(view, hud) {
     var o = { washes: 0, washed: 0, cut: 0 };
     view.cities.forEach(function (c) { var m = c.money || {}; o.washes += m.washes || 0; o.washed += m.washed || 0; o.cut += m.cut || 0; });
     o.washes = Math.round(o.washes); o.washed = Math.round(o.washed); o.cut = Math.round(o.cut);
-    o.hot = hud.dirty > T.RULES.stash;
+    o.hot = hud.dirty > vault(view, hud);
     o.line = o.washes > 0 ? 'washes ' + money(o.washes) + '/mo' : 'no laundry yet';
     return o;
   }
@@ -299,7 +301,7 @@
       text: function () { return 'A capo waits for your word, and time has stopped. Tap the banner to answer him.'; } },
     { id: 'money', icon: 'tribute', when: function (v, h, c) { return c.capos.some(function (k) { return k.sent > 0; }); },
       text: function () { return 'Money comes up to you: a share of what each place made. The cars on the map carry it.'; } },
-    { id: 'wash', icon: 'laundering', when: function (v, h) { return h.dirty > T.RULES.stash; },
+    { id: 'wash', icon: 'laundering', when: function (v, h) { return h.dirty > vault(v, h); },
       text: function () { return 'Too much dirty cash draws the police. Only clean money pays for gifts and learning: it needs a laundry.'; } },
     { id: 'door', icon: 'hideout', when: function (v, h, c) { return c.doors.length > 0; },
       text: function () { return 'A man knocks at your door. Take him in and he opens a club of his own, on a street he picks himself.'; } }
@@ -326,6 +328,7 @@
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
     var w = WAY[k.way] || WAY.force;
     var boss = c.under === k.id || k.under === true;
+    var shut = (view.reign || {}).closed || {};      // what the act of the family has not opened yet, with the words for it
     return head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
       healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'TAKINGS', money(k.income), 'What reached his club over ' + LAST) +
@@ -336,7 +339,7 @@
       (k.waiting > 0 ? '<div class="move">' + icon('time') + '<span>' + money(k.waiting) + ' waits in his tills for a car</span></div>' : '') +
       (k.at && k.at.label ? '<div class="move" data-tip="Where he is now. He has a car of his own and goes where he is needed.">' + icon('car') + '<span>' + esc(k.at.label) + '</span></div>' : '') +
       '<div class="move" style="--c:' + w.color + '" data-tip="' + esc(w.tip) + '">' + icon(w.icon) + '<span>His way of taking a place: ' + w.word.toLowerCase() + '</span></div>' +
-      (!boss && c.capos.length > 1 ? '<div class="acts col">' + button('underboss', { city: c.id, capo: k.id }, 'Make him underboss of ' + esc(c.name) + '<small style="color:var(--dim)">He takes in the men at the door himself</small>') + '</div>' : '') +
+      (!boss && c.capos.length > 1 ? '<div class="acts col">' + button('underboss', { city: c.id, capo: k.id }, 'Make him underboss of ' + esc(c.name) + '<small style="color:var(--dim)">' + esc(shut.underboss || 'He takes in the men at the door himself') + '</small>', { off: !!shut.underboss }) + '</div>' : '') +
       gift(c, k, hud) +
       '<h3 class="sub2">Part with him</h3>' + ((k.partings || []).length ? '<div class="acts col">' + k.partings.map(function (p) { return button('parting', { city: c.id, capo: k.id, way: p.way }, esc(p.name) + (p.cost ? ' · ' + money(p.cost) : '')); }).join('') + '</div>'
         : '<p>He is your only capo: the family cannot do without him.</p>') +
@@ -873,7 +876,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, vault: vault, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

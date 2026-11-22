@@ -254,7 +254,7 @@
     for (var n = first; n < first + 6; n++) if (c.lots[n] && c.lots[n].site) return c.lots[n];
     return spot || null;
   }
-  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, goods: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, tribute: { flow: 'money', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
+  var HAUL = { liquor: { flow: 'logistics', vehicle: 'truck' }, goods: { flow: 'logistics', vehicle: 'truck' }, takings: { flow: 'money', vehicle: 'car' }, tribute: { flow: 'money', vehicle: 'car' }, clean: { flow: 'sales', vehicle: 'car' }, wash: { flow: 'sales', vehicle: 'car' }, crew: { flow: 'violence', vehicle: 'car' } };
   // tripsTurf(plan, view): every trip the rules list in a city becomes a car between its two buildings. All of them run the whole month.
   // The spot on the street, by the club, where the n-th vehicle of a capo is parked.
   function parking(lot, n) { var r = lot.j % 3 === 1 ? lot.j - 1 : lot.j + 1; return [lot.i + (n % 2 ? 1 : -1) * 0.45 * Math.ceil(n / 2), r]; }
@@ -362,9 +362,10 @@
       // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
       if (e.type === 'run' || e.type === 'pay') return;      // a car that leaves and a pay packet are seen as money moving, never as a mark
-      if (e.type === 'tribute') {      // the share of the boss, driven in from a club: counted over the headquarters where it arrives
+      if (e.type === 'wash') return;      // dirty money driven to a laundry: its car is seen, nothing is counted yet
+      if (e.type === 'tribute' || e.type === 'clean') {      // the share of the boss driven in from a club, washed money driven back: counted over the headquarters where it arrives
         var tc = plan.cities.filter(function (x) { return x.id === e.city; })[0], tl = tc && typeof e.x === 'number' ? lotOfBlock(tc, e.x, e.y) : null;
-        if (tl && e.amount > 0) out.push({ kind: 'pay', type: 'tribute', city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
+        if (tl && e.amount > 0) out.push({ kind: 'pay', type: e.type, city: tc.id, capo: e.capo || null, i: tl.i, j: tl.j, bx: tl.bx, by: tl.by, say: null, spent: 0, gain: Math.round(e.amount) });
         return;
       }
       var kind = e.type === 'taken' ? (e.kind === 'key' ? 'key' : e.way === 'force' ? 'gunfire' : 'promotion') : e.type === 'outcome' ? (e.good ? 'good' : 'bad') : FXOF[e.type] || 'news';

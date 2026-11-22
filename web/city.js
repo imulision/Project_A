@@ -93,7 +93,7 @@
     $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
     $('clock').dataset.go = h.pending ? 'requests' : 'play';
     $('alerts').innerHTML = (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
-        (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(T.RULES.stash) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
+        (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(C.vault(view, h)) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
   // ---- the live hit: when a capo goes for a guarded place, the screen goes to the street and the boss may call each step
   // The usual figures step aside; the band says who hits what, the sheet gives the three calls. If the boss looks away the capo decides alone.
@@ -349,15 +349,17 @@
   }
 
   // ---- time
+  var CARRIED = { tribute: 1, wash: 1, clean: 1 };
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
-    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay' && e.type !== 'tribute'; });      // a car that leaves, a pay packet: seen on the map, never news
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
-    if (!live) C.untold(news, told, g.month).forEach(tell);      // the same alert is not told again month after month
+    if (!live) C.untold(told0, told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store(); hits(); showLive();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;
