@@ -151,15 +151,25 @@
     return run(c, capo).reduce(function (n, p) { return n + earns(c, p, wet); }, clubOf(c, capo) ? RULES.club : 0);
   }
 
+  // The places of a capo that put nothing in a till (a still, a warehouse): no car comes for takings there, so their
+  // men are paid at his club.
+  function idlePlaces(c, capo) { var wet = liquor(c).wet; return run(c, capo).filter(function (p) { return !(earns(c, p, wet) > 0); }); }
+  function clubWages(c, capo) { return RULES.wage * idlePlaces(c, capo).length * (can(c, capo, 'tight') ? 0.85 : 1); }
+  // What the men of a capo's places were paid on the spot since it was last asked: { sum, at: [{ x, y, amount }] }.
+  function leftPay(c, capo) { var l = (c.left && c.left[capo]) || { sum: 0, at: [] }; if (c.left) delete c.left[capo]; return l; }
   function wages(c, capo) { return RULES.wage * run(c, capo).length * (can(c, capo, 'tight') ? 0.85 : 1); }
 
   // What a place made goes into its till. The capo's cars fetch it one full load at a time, the fullest till first.
   // What a capo's places put in their tills: all of a cycle's takings, or the part of it one day makes.
   function fill(c, capo, part) {
     var wet = liquor(c).wet, made = c.flow.made || (c.flow.made = {});
+    var whole = RULES.wage * (can(c, capo, 'tight') ? 0.85 : 1);
     run(c, capo).forEach(function (p) {
       var b = at(c, p.x, p.y), e = earns(c, p, wet) * part;
       b.till = (b.till || 0) + e; b.making = (b.making || 0) + e;
+      // its men are owed their pay as the days go (never more than RULES.owed cycles of it): the car that comes for
+      // the takings leaves it to them first (see `drive`)
+      if (e > 0) b.owed = Math.min(RULES.owed * whole, (b.owed || 0) + whole * part);
       made[p.kind] = (made[p.kind] || 0) + e;
     });
   }
@@ -171,10 +181,19 @@
       var best = null;
       for (var i = 0; i < mine.length; i++) { var b = at(c, mine[i].x, mine[i].y); if (b.till >= load && (!best || b.till > best.b.till)) best = { p: mine[i], b: b }; }
       if (!best) break;
-      best.b.till -= load;
-      var r = { capo: capo, x: best.p.x, y: best.p.y, amount: load };
+      // the car leaves the men of the place their pay first, and takes what is left: a full load when there is one
+      var paid = Math.min(best.b.owed || 0, best.b.till);
+      if (paid > 0) {
+        best.b.till -= paid; best.b.owed -= paid;
+        var all = c.left || (c.left = {}), left = all[capo] || (all[capo] = { sum: 0, at: [] });
+        left.sum += paid; left.at.push({ x: best.p.x, y: best.p.y, amount: paid });
+      }
+      var takes = Math.min(load, best.b.till);
+      if (takes < 1) continue; // their pay was all there was: nothing to drive home
+      best.b.till -= takes;
+      var r = { capo: capo, x: best.p.x, y: best.p.y, amount: takes };
       // the car the rivals wait for never reaches the club
-      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else h.got += load;
+      if (trap && !trap.done && trap.at[r.y * c.w + r.x]) { r.lost = 'hijack'; r.cargo = 'cash'; trap.done = r; trap.x = r.x; trap.y = r.y; } else h.got += takes;
       // its car and the leg of that car's round, counted over the trips of the cycle the city will show
       var n = 0, own = 0, legs = {};
       c.flow.runs.forEach(function (q) { if (q.capo === capo) { if (q.own) own += 1; else { n += 1; legs[q.car] = (legs[q.car] || 0) + 1; } } });
@@ -359,7 +378,7 @@
   }
 
   var api = { liquor: liquor, CHAINS: CHAINS, loadOfCargo: loadOfCargo, supplied: supplied, cellars: cellars, ambush: ambush, CARGOES: CARGOES,
-      distil: distil, earns: earns, income: income, wages: wages, collect: collect, pass: pass, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
+      distil: distil, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
       wants: wants, washing: washing, laundries: laundries };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfGoods = api;

@@ -256,7 +256,7 @@ test('Money: tight books cut what his men cost, double ledgers wash more, a sile
     for (const k of Object.keys(f.tech)) f.tech[k] = 0;
     return { c, f };
   };
-  const cost = (rank) => { const { c, f } = books(rank); f.men.mae.cash = 0; T.stepMonth(c, f); return f.men.mae.income - c.flow.sent.mae - f.men.mae.cash; };
+  const cost = (rank) => { const { c, f } = books(rank); f.men.mae.cash = 0; T.stepMonth(c, f); return f.men.mae.book.wages + f.men.mae.book.left; }; // at her club and where her men work
   assert.ok(Math.abs(cost(1) / cost(0) - 0.85) < 1e-6, 'wages ' + cost(0) + ' then ' + cost(1));
   const wash = (rank) => { const { c, f } = books(rank); T.stepMonth(c, f); return T.washing(c).most; };
   assert.ok(Math.abs(wash(2) / wash(1) - 1.25) < 1e-6);

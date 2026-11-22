@@ -159,7 +159,7 @@ test('over a cycle counted from one of his days to the next, what the places say
     for (let d = 0; d < DAYS; d++) {
       const ev = T.pass(f, [c], d);
       paid += ev.filter((e) => e.type === 'pay').reduce((n, e) => n + e.amount, 0);
-      if (T.dayOf('dutch') === d) { T.act(f, [c], 'dutch'); if (i === 0) { paid = 0; book = false; } else if (book === false) { book = f.men.dutch.book.wages; assert.ok(Math.abs(paid - book) < 1e-6, paid + ' against ' + book); } }
+      if (T.dayOf('dutch') === d) { T.act(f, [c], 'dutch'); if (i === 0) { paid = 0; book = false; } else if (book === false) { book = f.men.dutch.book.wages + f.men.dutch.book.left; assert.ok(Math.abs(paid - book) < 1e-6, paid + ' against ' + book); } }
     }
     T.end(f, [c], []);
   }
