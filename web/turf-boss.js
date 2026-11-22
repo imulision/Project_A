@@ -162,35 +162,57 @@
       flow.wash[key(l.x, l.y)] = (flow.wash[key(l.x, l.y)] || 0) + n;
     });
   }
-  // The capo's car and the money to wash: one load each way, and as many trips as there are full loads. Up, the
-  // clean money of his laundry (unless the car already carries the boss's share: `went`); back, dirty money from the
-  // headquarters for the laundry of his with the most room. A car leaves only for a full load (or for all an empty
-  // small laundry can take); on the way back of a trip it makes anyway it takes what there is. No laundry is
-  // brought more than it washes in a cycle.
-  function carry(c, f, capo, went, full, events) {
-    var seat = C.hqOf(c, 'family'), mine = laundries(c).filter(function (l) { return l.capo === capo; });
-    if (!seat || !mine.length) return;
-    var flow = c.flow || (c.flow = { up: 0, sent: {} }), hq = { x: seat.x, y: seat.y }, box = C.purse(c, f); // the money of this city
-    var block = function (l) { return at(c, l.x, l.y); }, room = function (l) { return l.most - (block(l).dirty || 0); };
-    for (var trip = 0; trip < 500; trip++) {
-      var moved = false;
-      if (!went) {
-        var rich = mine.slice().sort(function (a, b) { return (block(b).washed || 0) - (block(a).washed || 0); })[0], rb = block(rich), up = Math.min(full, rb.washed || 0);
-        if (up >= full) {
-          rb.washed -= up; box.clean = (box.clean || 0) + up; went = true; moved = true;
-          events.push({ type: 'clean', city: c.id, capo: capo, x: hq.x, y: hq.y, from: { x: rich.x, y: rich.y }, amount: up });
-          (flow.cleans = flow.cleans || []).push({ capo: capo, x: rich.x, y: rich.y, amount: up });
-        }
+  // --- the capo's own car and the boss's money ---
+  // A trip takes time: a day for every `RULES.car.speed` blocks, never less than a day. The car that makes it does
+  // nothing else meanwhile, so the only limit is the cars a man has. What it carries is on the road (c.rides) and
+  // counts where it is going only the day the car gets there.
+  function today(c) { return c.month * RULES.days + ((c.turn && c.turn.day) || 0); }
+  function tripDays(a, b) { return Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / RULES.car.speed)); }
+  // The loads that reach their place today.
+  function arrive(c, f, events) {
+    var now = today(c), box = C.purse(c, f), still = [];
+    (c.rides || []).forEach(function (r) {
+      if (r.arrives > now) { still.push(r); return; }
+      if (r.kind === 'tribute') box.dirty += r.amount;
+      else if (r.kind === 'clean') box.clean = (box.clean || 0) + r.amount;
+      else {
+        var b = at(c, r.to.x, r.to.y);
+        if (b) { b.coming = Math.max(0, (b.coming || 0) - r.amount); if (b.owner === 'family') b.dirty = (b.dirty || 0) + r.amount; } // a laundry lost meanwhile: the load is lost with it
       }
-      var open = mine.slice().sort(function (a, b) { return room(b) - room(a); })[0], n = Math.min(full, room(open), Math.max(0, box.dirty));
-      if (n >= (went ? 1 : Math.min(full, open.most))) {
-        box.dirty -= n; block(open).dirty = (block(open).dirty || 0) + n; moved = true;
-        events.push({ type: 'wash', city: c.id, capo: capo, x: open.x, y: open.y, from: hq, amount: n, back: went ? true : false });
-        (flow.washes = flow.washes || []).push({ capo: capo, x: open.x, y: open.y, amount: n });
-      }
-      if (!moved) return;
-      went = false; // the next trip of the day starts from the laundry again
-    }
+      events.push({ type: 'arrived', kind: r.kind, city: c.id, capo: r.capo, x: r.to.x, y: r.to.y, from: r.from, amount: r.amount });
+    });
+    c.rides = still;
+  }
+  // The car leaves with a load: it first comes to where the load is, then drives it. Told as it is decided.
+  function leave(c, m, capo, kind, from, to, amount, events) {
+    var now = today(c), car = m.car, wait = car.x === from.x && car.y === from.y ? 0 : tripDays(car, from), days = tripDays(from, to);
+    var r = { kind: kind, capo: capo, from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }, amount: amount, left: now + wait, days: days, arrives: now + wait + days };
+    (c.rides = c.rides || []).push(r);
+    m.car = { x: to.x, y: to.y, free: r.arrives };
+    events.push({ type: kind, city: c.id, capo: capo, x: to.x, y: to.y, from: r.from, amount: amount, wait: wait, days: days });
+    var flow = c.flow || (c.flow = { up: 0, sent: {} }), list = { tribute: 'tributes', clean: 'cleans', wash: 'washes' }[kind];
+    (flow[list] = flow[list] || []).push({ capo: capo, x: kind === 'wash' ? to.x : from.x, y: kind === 'wash' ? to.y : from.y, amount: amount, days: days });
+  }
+  // What the capo's car does next, once it is free: the boss's share from the club to the headquarters, a full load
+  // of clean money from his laundry to the headquarters, or dirty money from the headquarters to the laundry of his
+  // with the most room. It leaves only for a full load (or for all an empty small laundry can take); when it has
+  // just unloaded at the headquarters it takes back what there is. No laundry is brought more than it washes in a cycle.
+  function carry(c, f, capo, full, events) {
+    var m = f.men[capo], seat = C.hqOf(c, 'family'), club = clubOf(c, capo), box = C.purse(c, f);
+    if (!seat || !club) { box.dirty += m.share || 0; m.share = 0; return; } // no headquarters here: it goes up as it comes
+    if (!m.car) m.car = { x: club.x, y: club.y, free: 0 };
+    if (m.car.free > today(c)) return;
+    var mine = laundries(c).filter(function (l) { return l.capo === capo; }), hq = { x: seat.x, y: seat.y };
+    var block = function (l) { return at(c, l.x, l.y); }, room = function (l) { return l.most - (block(l).dirty || 0) - (block(l).coming || 0); };
+    var open = mine.slice().sort(function (a, b) { return room(b) - room(a); })[0];
+    var down = open ? Math.min(full, room(open), Math.max(0, box.dirty)) : 0, there = m.car.x === hq.x && m.car.y === hq.y && m.car.unloaded;
+    m.car.unloaded = false;
+    var wash = function () { box.dirty -= down; block(open).coming = (block(open).coming || 0) + down; leave(c, m, capo, 'wash', hq, open, down, events); };
+    if (there && down >= 1) return wash(); // the way back of a trip already made
+    if ((m.share || 0) >= full) { m.share -= full; leave(c, m, capo, 'tribute', club, hq, full, events); m.car.unloaded = true; return; }
+    var rich = mine.slice().sort(function (a, b) { return (block(b).washed || 0) - (block(a).washed || 0); })[0];
+    if (rich && (block(rich).washed || 0) >= full) { block(rich).washed -= full; leave(c, m, capo, 'clean', rich, hq, full, events); m.car.unloaded = true; return; }
+    if (open && down >= Math.min(full, open.most)) wash();
   }
   // The police raid the counting rooms.
   function bust(c, f, events) {
@@ -340,7 +362,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { launder: launder, wash: wash, carry: carry, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { launder: launder, wash: wash, carry: carry, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

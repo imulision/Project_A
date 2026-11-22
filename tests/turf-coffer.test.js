@@ -39,10 +39,10 @@ test('the share of a capo in another city goes to that city\'s coffer, not to th
   const road = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).roads[0];
   E.command(g, { type: 'welcome', city: road.city, from: 'ashport', capo: knock.capo });
   let sent = null;
-  for (let i = 0; i < 24 * 60 && !sent; i++) sent = day(g).find((e) => e.type === 'tribute' && e.city === road.city);
+  for (let i = 0; i < 24 * 60 && !sent; i++) sent = day(g).find((e) => e.type === 'arrived' && e.kind === 'tribute' && e.city === road.city);
   assert.ok(sent, 'a load of his share reaches the headquarters of ' + road.city);
   const c = city(g, road.city);
-  const washing = Object.values(c.blocks).reduce((n, b) => n + (b.dirty || 0), 0); // his own car may have taken it straight on to his laundry
+  const washing = Object.values(c.blocks).reduce((n, b) => n + (b.dirty || 0) + (b.coming || 0), 0); // his own car may have taken it straight on to his laundry
   assert.ok(c.coffer.dirty > 0 || washing > 0 || (f.onRoad || []).length > 0, 'it is in the coffer there, at a laundry there, or already on the road');
 });
 
