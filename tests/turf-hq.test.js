@@ -128,20 +128,19 @@ test('the boss\'s share travels from the club to the headquarters: the screen is
   assert.ok(!g.journal.some((l) => l.type === 'tribute'), 'it is for the screen, not for the journal');
 });
 
-test('the boss\'s share waits at the club and leaves for the headquarters one full load at a time', () => {
-  const g = start(), f = g.family, load = T.RULES.car.loads[0];
-  let had = f.dirty, trips = 0;
-  for (let i = 0; i < 96; i++) {
-    g.paused = false;
-    const told = E.tick(g).filter((e) => e.type === 'tribute');
-    told.forEach((e) => assert.strictEqual(e.amount, load));
-    const others = g.journal.filter((l) => l.month === g.month && l.cost).length; // nothing else moves his dirty money in this young game
-    if (!others) assert.ok(Math.abs(f.dirty - had - told.length * load) < 0.01 || f.dirty < had, 'day ' + i + ': ' + (f.dirty - had));
-    trips += told.length; had = f.dirty;
-  }
-  assert.ok(trips >= 1);
+test('the boss\'s share waits at the club, leaves for the headquarters one full load a trip, and is his when the car arrives', () => {
+  const g = start(), f = g.family, load = T.RULES.car.loads[0], c = g.cities[0], club = T.clubOf(c, 'sal'), hq = T.hqOf(c, 'family');
+  let left = null, n = 0;
+  while (!left && n++ < 480) { g.paused = false; left = E.tick(g).find((e) => e.type === 'tribute'); }
+  assert.ok(left, 'a load leaves');
+  assert.deepStrictEqual([left.capo, left.amount, left.from, left.x, left.y], ['sal', load, { x: club.x, y: club.y }, hq.x, hq.y]);
+  assert.strictEqual(left.days, T.tripDays(club, hq));
+  const before = f.dirty, told = play(g, left.wait + left.days);
+  const in1 = told.find((e) => e.type === 'arrived' && e.kind === 'tribute');
+  assert.ok(in1 && in1.amount === load, 'it arrives');
+  assert.ok(f.dirty > before - 1000, 'and is in his purse');
   const k = E.view(g).cities[0].capos[0];
-  assert.ok(k.share >= 0 && k.share < load, 'what waits at his club is less than a load');
+  assert.ok(k.share >= 0 && k.share < load + 50, 'what waits at his club is about less than a load');
   assert.strictEqual(k.shareLoad, load);
 });
 

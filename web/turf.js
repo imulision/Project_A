@@ -243,6 +243,7 @@
       lieutenants: lieutenantsOf(c).map(function (id) {
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
+      rides: (c.rides || []).map(function (r) { return { kind: r.kind, capo: r.capo, vehicle: r.capo + ':own', from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
       hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.convoy.cash } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
@@ -426,18 +427,10 @@
     tab.owed += dues(c, f, capo, c.turn.drink.idle[capo] !== undefined) / RULES.days;
     var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed, true);
     tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.sent += r.sent;
-    // the boss's share waits at the club; a car takes it to the headquarters one full load at a time, one trip a day,
-    // and it is his only when it gets there. A city with no headquarters sends it up as it comes.
-    var seat = C.hqOf(c, 'family'), home = clubOf(c, capo), full = loadOf(f);
-    var went = false;
+    // the boss's share waits at the club; the capo's own car takes it to the headquarters one full load a trip, and
+    // it is the boss's only when it gets there. The same car carries the money to wash and the money washed.
     m.share = (m.share || 0) + r.sent;
-    if (!seat) { C.purse(c, f).dirty += m.share; m.share = 0; }
-    else while (m.share >= full) { // no limit of trips: the car goes again as long as a full load waits
-      m.share -= full; C.purse(c, f).dirty += full; went = true;
-      events.push({ type: 'tribute', city: c.id, capo: capo, x: seat.x, y: seat.y, from: { x: home.x, y: home.y }, amount: full });
-      if (c.flow) (c.flow.tributes = c.flow.tributes || []).push({ capo: capo, amount: full });
-    }
-    B.carry(c, f, capo, went, full, events); // the same car, the same day: the money to wash and the money washed
+    B.carry(c, f, capo, loadOf(f), events);
     // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
     if (r.pay > 0) {
       var mine = run(c, capo), all = dues(c, f, capo, c.turn.drink.idle[capo] !== undefined), men = wages(c, capo), club = clubOf(c, capo);
@@ -540,6 +533,7 @@
     var t = c.turn, mine = [];
     t.day = day; t.done = t.done || {};
     settleTakes(c, mine, f);
+    B.arrive(c, f, mine); // the loads of the boss's money that reach their place today
     H.pass(c, f, mine);
     if (!t.done.rivals && day >= choreDay(c, 'rivals')) { t.done.rivals = true; rivals(c, f, mine); }
     if (!t.done.door && day >= choreDay(c, 'door')) { t.done.door = true; door(c, f, mine); }
@@ -659,7 +653,7 @@
     f.study = null;
   }
 
-  var api = { purse: C.purse, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

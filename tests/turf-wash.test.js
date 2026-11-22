@@ -1,5 +1,6 @@
 // Washing money is physical: dirty money is driven from the headquarters to a laundry, washed there at the
-// laundry's pace, and the clean money is driven back. One load a trip, and as many trips as there are full loads.
+// laundry's pace, and the clean money is driven back. One load a trip. A trip takes time (two blocks a day), and
+// the car that makes it does nothing else meanwhile: the only limit is the cars a man has.
 const test = require('node:test');
 const assert = require('node:assert');
 const T = require('../web/turf.js');
@@ -12,12 +13,20 @@ const start = (dirty, level) => {
   T.open(c, s.x, s.y, { owner: 'family', kind: 'rented', capo: 'sal' });
   if (level) c.blocks[s.x + ',' + s.y].level = level;
   g.family.dirty = dirty; g.family.clean = 0;
-  return { g, c, f: g.family, at: c.blocks[s.x + ',' + s.y], s, hq: T.hqOf(c, 'family') };
+  return { g, c, f: g.family, at: c.blocks[s.x + ',' + s.y], s, hq: T.hqOf(c, 'family'), club: T.clubOf(c, 'sal') };
 };
 const day = (g) => { g.paused = false; return E.tick(g); };
 const days = (g, n) => { const all = []; for (let i = 0; i < n; i++) all.push(...day(g)); return all; };
 const place = (g, s) => E.view(g).cities[0].places.find((p) => p.x === s.x && p.y === s.y);
 const LOAD = T.RULES.car.loads[1];
+const far = (a, b) => Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / T.RULES.car.speed));
+
+test('a trip takes a day for every two blocks, and never less than a day', () => {
+  assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 3, y: 3 }), 1);
+  assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 4, y: 3 }), 1);
+  assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 5, y: 4 }), 2);
+  assert.strictEqual(T.tripDays({ x: 0, y: 0 }, { x: 4, y: 3 }), 4);
+});
 
 test('dirty money does not turn clean where it sleeps', () => {
   const { g, f } = start(5000);
@@ -25,23 +34,33 @@ test('dirty money does not turn clean where it sleeps', () => {
   assert.strictEqual(f.clean, 0);
 });
 
-test('a capo\'s car takes dirty money from the headquarters to his laundry, one load a trip', () => {
-  const { g, f, c, hq } = start(5000);
-  let driven = 0;
-  for (let i = 0; i < 5; i++) {
-    const told = day(g).filter((e) => e.type === 'wash');
-    told.forEach((e) => {
-      assert.ok(e.amount > 0 && e.amount <= LOAD);
-      assert.deepStrictEqual([e.capo, e.from], ['sal', { x: hq.x, y: hq.y }]);
-      const there = c.blocks[e.x + ',' + e.y];
-      assert.deepStrictEqual([there.kind, there.capo], ['rented', 'sal'], 'a laundry of his');
-      assert.ok(there.dirty > 0, 'it is at the laundry now');
-      driven += e.amount;
-    });
+test('a load of dirty money leaves the headquarters in the capo\'s car and is at the laundry when the car gets there', () => {
+  const { g, f, c, hq } = start(5000, 3);
+  let left = null, n = 0;
+  while (!left && n++ < 30) left = day(g).find((e) => e.type === 'wash');
+  assert.ok(left, 'the car leaves');
+  assert.deepStrictEqual([left.capo, left.from, left.amount], ['sal', { x: hq.x, y: hq.y }, LOAD]);
+  const there = c.blocks[left.x + ',' + left.y];
+  assert.deepStrictEqual([there.kind, there.capo], ['rented', 'sal'], 'a laundry of his');
+  assert.strictEqual(left.days, far(hq, left), 'the trip says how long it takes');
+  assert.ok(left.wait >= 0, 'and how long the car takes to come and load');
+  assert.ok(f.dirty <= 5000 - LOAD + 1000, 'the load has left the purse');
+  assert.strictEqual(there.dirty || 0, 0, 'it is on the road, not at the laundry');
+  const told = days(g, left.wait + left.days);
+  assert.ok(told.some((e) => e.type === 'arrived' && e.kind === 'wash' && e.x === left.x && e.y === left.y && e.amount === LOAD));
+  assert.ok(there.dirty > 0, 'now it is there');
+  assert.ok(!g.journal.some((l) => l.type === 'wash' || l.type === 'arrived'), 'for the screen, not for the journal');
+});
+
+test('one car, one trip at a time: while it is on the road nothing else of his leaves', () => {
+  const { g } = start(50000, 3);
+  let busy = 0;
+  for (let i = 0; i < 40; i++) {
+    const left = day(g).filter((e) => (e.type === 'wash' || e.type === 'clean' || e.type === 'tribute') && e.capo === 'sal');
+    assert.ok(left.length <= 1, 'day ' + i + ': one departure at most');
+    if (left.length) { assert.ok(busy <= 0, 'day ' + i + ': the car was still out for ' + busy + ' days'); busy = left[0].wait + left[0].days; }
+    busy -= 1;
   }
-  assert.ok(driven > 0);
-  assert.ok(f.dirty < 5000);
-  assert.ok(!g.journal.some((l) => l.type === 'wash'), 'it is for the screen, not for the journal');
 });
 
 test('the laundry washes what waits there at its own pace, and keeps its cut', () => {
@@ -55,43 +74,45 @@ test('the laundry washes what waits there at its own pace, and keeps its cut', (
   assert.strictEqual(f.clean, 0, 'it is not the boss\'s until it comes back');
 });
 
-test('clean money is driven back to the headquarters one load at a time; only there is it the boss\'s', () => {
+test('clean money is driven back to the headquarters one load at a time; it is the boss\'s when the car arrives', () => {
   const { g, f, at, s, hq } = start(0);
   at.washed = 1000;
-  const told = day(g).filter((e) => e.type === 'clean'), trips = Math.floor(1000 / LOAD);
-  assert.strictEqual(told.length, trips, 'no limit of trips: the car goes again as long as a full load waits');
-  told.forEach((e) => assert.strictEqual(e.amount, LOAD));
-  assert.deepStrictEqual([told[0].capo, told[0].x, told[0].y, told[0].from], ['sal', hq.x, hq.y, { x: s.x, y: s.y }]);
-  assert.strictEqual(f.clean, trips * LOAD);
-  assert.ok(Math.abs(at.washed - (1000 - trips * LOAD)) < 0.01, 'less than a load waits');
+  const left = day(g).find((e) => e.type === 'clean');
+  assert.deepStrictEqual([left.capo, left.x, left.y, left.from, left.amount], ['sal', hq.x, hq.y, { x: s.x, y: s.y }, LOAD]);
+  assert.strictEqual(left.days, far(s, hq));
+  assert.ok(Math.abs(at.washed - (1000 - LOAD)) < 0.01, 'the load has left the laundry');
+  assert.strictEqual(f.clean, 0, 'not his yet');
+  days(g, left.wait + left.days);
+  assert.strictEqual(f.clean, LOAD);
 });
 
-test('the car that went up loaded comes back loaded: the dirty money rides the same trip', () => {
-  const { g, at } = start(5000);
+test('the car that went up loaded comes back loaded: dirty money rides the way back', () => {
+  const { g, at, hq } = start(5000);
   at.washed = 1000;
-  const told = day(g), up = told.find((e) => e.type === 'clean'), back = told.find((e) => e.type === 'wash');
-  assert.ok(up && back);
-  assert.strictEqual(back.back, true, 'the return leg of the same trip');
+  const up = day(g).find((e) => e.type === 'clean');
+  const told = days(g, up.wait + up.days + 1), back = told.find((e) => e.type === 'wash');
+  assert.ok(back, 'it leaves the headquarters again with dirty money');
+  assert.deepStrictEqual([back.from, back.wait], [{ x: hq.x, y: hq.y }, 0], 'at once: the car is already there');
 });
 
 test('a car does not leave for less than a full load', () => {
   const { g, at } = start(LOAD - 10);
   at.washed = LOAD - 10;
-  const told = days(g, 2).filter((e) => (e.type === 'wash' && !e.back) || e.type === 'clean');
+  const told = days(g, 2).filter((e) => e.type === 'wash' || e.type === 'clean');
   assert.deepStrictEqual(told, []);
 });
 
-test('a laundry is never brought more than it washes in a cycle', () => {
+test('a laundry is never brought more than it washes in a cycle, counting what is on the road', () => {
   const { g, at, s } = start(50000);
   const most = place(g, s).wash.most;
-  for (let i = 0; i < 60; i++) { day(g); assert.ok((at.dirty || 0) <= most + 0.01, 'day ' + i + ': ' + at.dirty); }
+  for (let i = 0; i < 60; i++) { day(g); assert.ok((at.dirty || 0) + (at.coming || 0) <= most + 0.01, 'day ' + i + ': ' + at.dirty + ' + ' + at.coming); }
 });
 
 test('over a year a boss with a laundry ends with clean money, and none of it came without a car', () => {
   const { g, f } = start(3000);
-  const all = days(g, 24 * 12), driven = all.filter((e) => e.type === 'clean').reduce((n, e) => n + e.amount, 0);
-  assert.ok(f.clean > 0 || driven > 0);
+  const all = days(g, 24 * 12), driven = all.filter((e) => e.type === 'arrived' && e.kind === 'clean').reduce((n, e) => n + e.amount, 0);
   assert.ok(driven > 0);
+  assert.ok(f.clean > 0 || driven > 0);
 });
 
 test('the laundry says what waits to be washed, what waits to be fetched and what it can wash', () => {
@@ -102,24 +123,13 @@ test('the laundry says what waits to be washed, what waits to be fetched and wha
   assert.ok(w.most > 0);
 });
 
-test('each leg is one of the trips of the city: the capo\'s own car, between the headquarters and the laundry', () => {
-  const { g, at, s, hq } = start(5000);
+test('the city says what is on the road today: each load, its car, where from, where to, the day it left and how long it takes', () => {
+  const { g, at, s, hq } = start(0);
   at.washed = 1000;
-  // the city shows the trips of the cycle that has just closed
-  let wash, clean;
-  for (let i = 0; i < 60 && !(wash && clean); i++) {
-    day(g);
-    const trips = E.view(g).cities[0].trips;
-    wash = trips.find((t) => t.kind === 'wash' && t.to.x === s.x && t.to.y === s.y); clean = trips.find((t) => t.kind === 'clean');
-  }
-  assert.deepStrictEqual([wash.capo, wash.vehicle, wash.cargo, wash.from, wash.to], ['sal', 'sal:own', 'cash', { x: hq.x, y: hq.y }, { x: s.x, y: s.y }]);
-  assert.deepStrictEqual([clean.capo, clean.vehicle, clean.cargo, clean.from, clean.to, clean.amount], ['sal', 'sal:own', 'clean', { x: s.x, y: s.y }, { x: hq.x, y: hq.y }, LOAD]);
-});
-
-test('the car takes dirty money down again and again the same day, until the laundry has all it can wash', () => {
-  const { g, s } = start(50000, 3); // a big laundry: several loads fit
-  const told = day(g).filter((e) => e.type === 'wash' && e.x === s.x && e.y === s.y);
-  assert.ok(told.length > 1, 'more than one trip the first day');
-  const w = place(g, s).wash;
-  assert.ok(w.most - w.waiting < LOAD + w.most / T.RULES.days + 1, 'no room left there for a full load');
+  day(g);
+  const r = E.view(g).cities[0].rides.find((q) => q.kind === 'clean');
+  assert.deepStrictEqual([r.capo, r.vehicle, r.from, r.to, r.amount, r.days], ['sal', 'sal:own', { x: s.x, y: s.y }, { x: hq.x, y: hq.y }, LOAD, far(s, hq)]);
+  assert.ok(r.gone >= 0 && r.gone <= r.days, 'days already driven');
+  const back = E.view(E.load(E.save(g))).cities[0].rides.find((q) => q.kind === 'clean');
+  assert.deepStrictEqual(back, r, 'kept through a save');
 });
