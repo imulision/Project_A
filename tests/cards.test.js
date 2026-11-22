@@ -245,7 +245,7 @@ test('money that can be followed: the month\'s change beside a total, the amount
   assert.ok(sheet.includes('SENT UP</small><b>' + C.money(k.sent)), 'what he sent up');
   assert.ok(sheet.includes('CARS</small><b>' + k.cars), 'his cars');
   // cash that waits in a place's till for a car is said on the place and on the capo
-  const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club'); p.till = 90; k.waiting = 90;
+  const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club' && q.kind !== 'hq'); p.till = 90; k.waiting = 90;
   assert.match(C.block(v, c.id, p.x, p.y), /\$90 \/ \$150<\/b> in the till[^]*class="nxb"><u style="width:60%"/);
   assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
 });
@@ -336,7 +336,7 @@ test('a touched street answers with a few words beside the finger, not a sheet',
 
 test('a place that chokes says so: on its bubble, on its page, and in the list the map reads', () => {
   const { v } = play((v) => v.month >= 12);
-  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club');
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq');
   const p = { ...ours, strains: [{ kind: 'cash', label: 'The till is full: no car comes often enough' }, { kind: 'dry', label: 'Not enough liquor to sell' }] };
   const c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] };
   assert.match(C.blockTip(w, c.id, p.x, p.y), /The till is full/);
@@ -371,7 +371,7 @@ test('a truck says what it hauls: liquor, crates, stolen cars or weed, each with
 
 test('a place says what it has in store, in the bubble and on its page', () => {
   const { v } = play((v) => v.month >= 12);
-  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club');
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq');
   const see = (more) => { const p = { ...ours, ...more }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] }; return [C.blockTip(w, c.id, p.x, p.y), C.block(w, c.id, p.x, p.y)]; };
   see({ stock: 40, holds: 'liquor' }).forEach((t) => assert.match(t, /40 cases of liquor in store/));
   see({ stock: 8, holds: 'cars' }).forEach((t) => assert.match(t, /8 stolen cars in store/));
@@ -1206,4 +1206,52 @@ test('the end of a hit says what was won and what it cost', () => {
   assert.equal(C.eventIcon({ type: 'hit' }), 'muscle');
   assert.match(C.news({ type: 'hit', step: 'end', result: { won: false }, label: 'Sal pulled out' }), /class="news bad"/);
   assert.match(C.news({ type: 'hit', step: 'end', result: { won: true }, label: 'The chop shop is ours' }), /class="news good"/);
+});
+
+// ---- the headquarters
+test('a headquarters has a bubble and a sheet of its own: whose it is, what it is at this act, who sits there', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family, rv = c.hq.rival;
+  rv.stage = 4; c.places.forEach((q) => { if (q.kind === 'hq' && q.owner !== 'family') q.stage = 4; });
+  const mine = C.blockTip(v, c.id, hq.x, hq.y), theirs = C.blockTip(v, c.id, rv.x, rv.y);
+  assert.match(mine, /Your headquarters/); assert.match(mine, /Back room/); assert.match(mine, /You sit here/);
+  assert.doesNotMatch(mine, /level/); assert.doesNotMatch(mine, /unknown/);
+  assert.match(theirs, new RegExp('The ' + c.rival + ' headquarters')); assert.match(theirs, /Mansion/);
+  if (c.chief) assert.match(theirs, new RegExp(c.chief.name.split(' ')[0] + '.* sits here'));
+  const sheet = C.block(v, c.id, hq.x, hq.y);
+  assert.match(sheet, /Your headquarters/); assert.match(sheet, /Act I/); assert.doesNotMatch(sheet, /level 2/);
+  assert.match(sheet, /share of every capo is driven here/);
+  const pin = C.pin({ site: 'hq', owner: 'family', level: 1 }); assert.doesNotMatch(pin, /unknown/);
+  const town = JSON.parse(JSON.stringify(v)); town.cities[0].hq.family.home = false; town.cities[0].hq.family.who = [];
+  assert.match(C.blockTip(town, c.id, hq.x, hq.y), /Nobody sits here yet/);
+});
+
+test('the share of the boss that waits at a club is seen there, with the load it leaves by', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
+  k.share = 60; k.shareLoad = 150;
+  assert.match(C.blockTip(v, c.id, k.x, k.y), /\$60 \/ \$150.*your share/);
+  assert.match(C.block(v, c.id, k.x, k.y), /\$60 \/ \$150<\/b> of your share/);
+  k.share = 0; assert.doesNotMatch(C.blockTip(v, c.id, k.x, k.y), /your share/);
+});
+
+test('what an act has not opened yet says so: the underboss button is greyed with the reason, the police threshold is the one of the vault', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), city = v.cities[0], k = city.capos[0], other = { ...k, id: 'mae', name: 'Mae Rourke' };
+  const two = { ...v, cities: [{ ...city, under: null, capos: [k, other] }] };
+  assert.ok(v.reign.closed.underboss);
+  assert.match(C.capo(two, city.id, k.id), /data-act="underboss"[^>]*disabled[^]*An underboss comes with Act III/);
+  two.reign = { ...v.reign, closed: {} };
+  assert.doesNotMatch(C.capo(two, city.id, k.id), /data-act="underboss"[^>]*disabled/);
+  assert.equal(C.vault(v, { vault: 5000 }), 5000); assert.equal(C.vault({ reign: { vault: 4000 } }, {}), 4000);
+  assert.equal(C.wash(v, { dirty: 4500, vault: 5000 }).hot, false); assert.equal(C.wash(v, { dirty: 5500, vault: 5000 }).hot, true);
+});
+
+test('a laundry says what waits there: dirty money to be washed, clean money that waits for the car', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
+  const p = { x: k.x + 1, y: k.y, owner: 'family', kind: 'rented', name: 'Rented laundry', level: 1, capo: k.id, wash: { waiting: 63, ready: 49, most: 210 } };
+  c.places = c.places.filter((q) => q.x !== p.x || q.y !== p.y).concat([p]);
+  assert.match(C.blockTip(v, c.id, p.x, p.y), /\$63 to wash[^]*\$49 clean, waiting for the car/);
+  const sheet = C.block(v, c.id, p.x, p.y);
+  assert.match(sheet, /<b>\$63 \/ \$210<\/b> of dirty money waits to be washed[^]*width:30%/);
+  assert.match(sheet, /<b>\$49<\/b> washed, waiting for the car to the headquarters/);
+  p.wash = { waiting: 0, ready: 0, most: 210 };
+  assert.doesNotMatch(C.blockTip(v, c.id, p.x, p.y), /to wash|waiting for the car/); assert.doesNotMatch(C.block(v, c.id, p.x, p.y), /washed, waiting/);
 });
