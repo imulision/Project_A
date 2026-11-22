@@ -51,7 +51,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.errandsTurf(events || [], p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -350,7 +350,8 @@
   }
 
   // ---- time
-  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1, payment: 1 };
+  var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1, payment: 1, errand: 1 };
+  var standing = {};      // where each truck was left after its last delivery: it leaves from there the next time
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
@@ -358,9 +359,10 @@
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
     // a car sent for takings leaves the day the rules send it, and its money is counted at the club the day it is home: both are seen
     // on the map at once, with nothing else redrawn
-    var home = function (e) { return e.type === 'arrived' && e.kind === 'takings'; };
-    if (map && lastPlan) { var runs = M.runsTurf(events, lastPlan); if (runs.length) map.send(runs); var got = M.effectsTurf(events.filter(home), lastPlan); if (got.length) map.effects(got); }
-    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay' && !home(e); });      // a car that leaves, a pay packet: seen on the map, never news
+    var home = function (e) { return e.type === 'arrived' && (e.kind === 'takings' || e.kind === 'haul'); };
+    if (map && lastPlan) { var runs = M.runsTurf(events, lastPlan).concat(M.haulsTurf(events, lastPlan, standing)); if (runs.length) map.send(runs);
+      events.forEach(function (e) { if (e.type === 'arrived' && e.kind === 'haul') standing[e.city + ':' + e.vehicle] = { x: e.x, y: e.y }; }); var got = M.effectsTurf(events.filter(home), lastPlan); if (got.length) map.effects(got); }
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'haul' && e.type !== 'pay' && !home(e); });      // a car that leaves, a pay packet: seen on the map, never news
     events.forEach(function (e) { if (e.type === 'payment' && e.step === 'back') toast('The money comes back to your headquarters: ' + say(e.why || 'nobody is there to take it') + '.', true); });
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
@@ -379,7 +381,7 @@
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
-    if (g.started) { refresh(); home(); if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
+    if (g.started) { refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
     if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });

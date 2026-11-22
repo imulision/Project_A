@@ -29,22 +29,26 @@ const cycle = (c, f, each) => {
   return out;
 };
 
-test('a capo who has the money opens his place that very day, whatever his day of the cycle', () => {
+test('a capo who has the money sets out for his place that very day, whatever his day of the cycle', () => {
   const { c, f } = dutch(5000);
   assert.ok(T.dayOf('dutch') > 0);
   T.begin(f, [c]);
-  const ev = T.pass(f, [c], 0), opened = ev.filter((e) => e.type === 'opened' || e.type === 'enlarged' || e.type === 'moving');
+  const ev = T.pass(f, [c], 0), opened = ev.filter((e) => (e.type === 'errand' && e.step === 'leaves') || e.type === 'moving');
   assert.equal(opened.length, 1);
   assert.equal(opened[0].capo, 'dutch');
   assert.ok(f.men.dutch.cash < 5000);
 });
 
-test('he makes one move a day at most, and goes on the next day if he still can', () => {
+test('he makes one move at a time: he sets out again the day he is there, if he still can', () => {
   const { c, f } = dutch(50000);
   T.begin(f, [c]);
-  const moves = (ev) => ev.filter((e) => ['opened', 'enlarged', 'moving', 'converted'].includes(e.type)).length;
-  assert.equal(moves(T.pass(f, [c], 0)), 1);
-  assert.equal(moves(T.pass(f, [c], 1)), 1);
+  const out = (ev) => ev.filter((e) => (e.type === 'errand' && e.step === 'leaves') || e.type === 'moving');
+  const first = out(T.pass(f, [c], 0));
+  assert.equal(first.length, 1);
+  for (let d = 1; d < first[0].days; d++) assert.equal(out(T.pass(f, [c], d)).length, 0, 'he is on the road');
+  const there = T.pass(f, [c], first[0].days);
+  assert.equal(there.filter((e) => e.type === 'opened').length, 1);
+  assert.equal(out(there).length, 1);
 });
 
 test('the money of a car is his the day it comes back: the boss has his share and the men their pay at once', () => {
@@ -86,7 +90,7 @@ test('his men are never paid more than his places brought in over a cycle', () =
   for (let i = 0; i < 12; i++) {
     cycle(c, f);
     const b = f.men.dutch.book;
-    assert.ok(b.wages <= b.made - T.RULES.club + 1e-6, JSON.stringify(b));
+    assert.ok(b.wages <= Math.max(0, b.made - T.RULES.club) + 1e-6, JSON.stringify(b)); // (his first count comes before a full cycle of his club)
     assert.ok(f.men.dutch.cash >= 0);
   }
 });

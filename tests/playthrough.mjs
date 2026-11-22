@@ -22,7 +22,7 @@ const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men']
 const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   const A = window.__ashport, q = (s) => document.querySelector('#veil.on ' + s), seen = window.__seen = window.__seen || { answer: 0, rule: 0, seat: 0, waited: 0, away: 0, rides: 0 };
   for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
-    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay' && !(e.type === 'arrived' && e.kind === 'takings')), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
+    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'haul' && e.type !== 'pay' && !(e.type === 'arrived' && (e.kind === 'takings' || e.kind === 'haul'))), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
     if (document.getElementById('date').textContent !== 'Day ' + (A.game().month * AshportEmpire.TICKS_PER_MONTH + day + 1)) seen.date = (seen.date || 0) + 1;      // the date is a count of days
     if (A.map().labels().some((l) => l.pop < 0)) seen.paid = (seen.paid || 0) + 1;      // a pay packet is seen leaving its place
@@ -353,10 +353,18 @@ const timed = await page.evaluate(() => { const A = window.__ashport, v = A.view
 assert.deepEqual(timed, { before: 1, after: 0 }, 'on the road for its six days, and not a day more');
 
 // the game is saved: a reload picks it up where it was
+// (he leaves while a car is out with money: it must still be on its way when he comes back)
+const riding = () => page.evaluate(() => window.__ashport.view().cities.reduce((n, c) => n + (c.rides || []).filter((r) => r.gone > 0 && r.gone < r.days).length, 0));
+for (let n = 0; n < 120 && !(await riding()); n++) await page.evaluate(() => { const g = window.__ashport.game(); if (!g.paused && !document.querySelector('#veil.on')) window.__ashport.beat(); else { const b = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]') || document.querySelector('#veil.on button'); if (b) b.click(); else g.paused = false; } });
+const out = await riding();
+assert.ok(out > 0, 'a car is on its way with money');
 const before = await hud();
 await page.reload();
 await page.waitForFunction(() => window.__ashport && window.__ashport.map());
 assert.equal(await hud(), before, 'the saved game comes back after a reload');
+await page.evaluate(() => window.__ashport.home()); await still();
+const again = await page.evaluate(() => window.__ashport.map().stats().timed);
+assert.ok(again >= out, 'the car that was on its way is on the map again (' + again + ' of ' + out + ')');
 
 // a save today's screen cannot read must not stop the game from opening: it is set aside, the player is told, a new game starts
 await page.evaluate(() => localStorage.setItem('ashport-city-3', JSON.stringify({ version: 3, started: true, cities: [{ id: 'ashport' }], journal: [] })));
