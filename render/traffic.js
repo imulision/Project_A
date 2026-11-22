@@ -37,7 +37,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
     return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: (t.path || []).join(';'), leaving: false,
              geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 6 : DAY, days: t.days || 0, el: 0, still: !!t.days, veh: t.veh || null,
+             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 6 : DAY, days: t.days || 0, el: 0, still: !!t.days, veh: t.veh || null, stay: !!t.stay, lost: t.lost || null,
              plan: t.days ? legsOf(t.stages || [{ days: t.days }], len, L, t.wait || 0) : null,      // legs that each take their own days (out empty, home loaded)
              o: null,
              // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
@@ -63,7 +63,9 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
         if (old && old.round && t.round) { reroute(t.id, old, t); continue; }
         if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (n0++), old); }      // the route changed: the old car finishes its run
         if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load, amount: t.amount || 0 }); }
-      else { const a = agentFor(t); if (a) agents.set('once' + (n0++), a); }
+      else { const a = agentFor(t); if (!a) return;
+        if (a.veh) for (const [id, b] of agents) if (b.veh === a.veh && b.stay && b.done) agents.delete(id);      // the truck that waited where it unloaded is the one that leaves
+        agents.set('once' + (n0++), a); }
     }
     // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there
     if (!add) for (const [id, a] of agents) if (a.loop && !a.leaving && !seen.has(id)) { a.leaving = true; agents.delete(id); agents.set('old' + (n0++), a); }
@@ -88,13 +90,16 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
         }
       } else {
         // a trip the rules gave a length in days keeps to it at any speed of the game: it waits its days by the door, then drives
-        if (a.days) { const d = dt * pace;
-          a.el += d; along(a); }
+        if (a.done) { /* waiting where it unloaded */ }
+        else if (a.days) { a.el += dt * pace; along(a); }
         else a.p += a.dir * a.speed * dt * pace;
         if (a.p >= a.L) {
-          if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); agents.delete(id); continue; }
-          if (a.leaving) { agents.delete(id); continue; }
-          a.p = a.L; a.dir = -1; a.wait = 1.5;
+          if (!a.loop) { const e = a.pts[a.pts.length - 1];
+            if (a.done) { a.p = a.L; }      // a truck waits where it unloaded until it is sent again
+            else { if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); if (a.lost) spawnFx(a.lost === 'seizure' ? 'police' : 'gunfire', e[0], e[1], 1, a.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone');
+              if (a.stay) { a.done = true; a.p = a.L; a.loaded = false; } else { agents.delete(id); continue; } } }
+          else { if (a.leaving) { agents.delete(id); continue; }
+            a.p = a.L; a.dir = -1; a.wait = 1.5; }
         } else if (a.p <= 0) { if (a.leaving) { agents.delete(id); continue; } a.p = 0; a.dir = 1; a.wait = 1.5; }
       }
       let k = 0; while (k < a.len.length - 1 && a.len[k] < a.p) k++;
@@ -104,7 +109,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
         const fx = (p1[0] - p0[0]) * a.dir, fz = (p1[1] - p0[1]) * a.dir; if (fx || fz) a.rot = Math.atan2(fx, fz);
         putCar(a.geo, a.mat, x, 0.17, z, a.rot || 0, a.kind === 'convoy' ? 3 : a.vehicle === 'truck' ? 1.2 : 1);      // seen from far above, a truck between two cities is drawn large
       }
-      a.parked = (a.round && (!a.L || (a.p === 0 && a.wait > 0))) || (!!a.plan && a.still && a.p === 0);
+      a.parked = (a.round && (!a.L || (a.p === 0 && a.wait > 0))) || (!!a.plan && a.still && a.p === 0) || !!a.done;
       if (n < MAXDOTS && !a.parked) { pos.setXYZ(n, x, 0.9, z); col.setXYZ(n, a.color.r, a.color.g, a.color.b); n++; }
     }
     dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;

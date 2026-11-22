@@ -210,6 +210,9 @@ test('a capo is seen where he is this month, and drives there in his own car whe
   assert.equal(M.tripsTurf(p, v).filter((c) => c.kind === 'capo').length, 0, 'his car is not one more car that comes and goes');
   // the month before he was at his club: one drive, from the club to where he is now, with him in it
   const home = JSON.parse(JSON.stringify(p)); home.cities[0].capos[0].at = { i: pk.i, j: pk.j, why: 'home' };
+  const errand = ['open', 'enlarge', 'convert'].includes(pk.at.why);
+  assert.equal(M.movesTurf(home, p).length, errand ? 0 : 1, 'an errand is timed by the rules and drawn apart');
+  pk.at.why = 'raid';
   const moves = M.movesTurf(home, p);
   assert.equal(moves.length, 1);
   assert.equal(moves[0].kind, 'capo'); assert.equal(moves[0].capo, 'sal'); assert.equal(moves[0].loop, false);
@@ -346,11 +349,11 @@ test('a betrayal is marked on the map with a light of its own, where the man had
 
 test('money never leaves from thin air: a building site shows no figure, what it cost leaves the purse at the club of the capo', () => {
   const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = p.cities[0].capos[0];
-  const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 400 }, { type: 'asks', city: 'ashport', capo: k.id, x: 4, y: 10, cost: 900 }, { type: 'gift', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 1500 },
+  const fx = M.effectsTurf([{ type: 'errand', step: 'leaves', city: 'ashport', capo: k.id, x: 5, y: 10, move: 'open', amount: 400, days: 2, from: { x: 0, y: 0 } }, { type: 'opened', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 400 }, { type: 'asks', city: 'ashport', capo: k.id, x: 4, y: 10, cost: 900 }, { type: 'gift', city: 'ashport', capo: k.id, x: 5, y: 10, cost: 1500 },
     { type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'truck', city: 'ashport', capo: k.id, cost: 300 }, { type: 'opened', city: 'ashport', x: 5, y: 10, cost: 200 }], p);
   const marks = fx.filter((f) => f.kind !== 'pay'), pays = fx.filter((f) => f.kind === 'pay');
   assert.deepEqual(marks.map((f) => f.spent || 0), [0, 0, 0, 0, 0], 'no figure over the place itself (a car bought has no place of its own)');
-  assert.deepEqual(pays.map((f) => f.spent), [400, 300], 'what a capo paid is seen at his club; what the boss paid, or a cost nobody carries, shows nothing');
+  assert.deepEqual(pays.map((f) => f.spent), [400, 300], 'what a capo pays is seen leaving his club when he sets out with it, once; what the boss paid, or a cost nobody carries, shows nothing');
   pays.forEach((f) => assert.deepEqual([f.i, f.j, f.capo], [k.i, k.j, k.id]));
 });
 
@@ -465,25 +468,6 @@ test('a street name that grew over the year thrives, one that shrank goes quiet,
   const v = E.view(play(30)), h = v.history, row = h[Math.max(0, h.length - 13)];
   const older = { ...v, history: h.map((r) => (r === row ? { ...r, cities: { ...r.cities, [v.cities[0].id]: { ...r.cities[v.cities[0].id], zones: v.cities[0].zones.map(() => 100) } } } : r)) };
   assert.ok(M.planEmpire(older, global.AshportWorld.CITIES).cities[0].districts.some((d) => d.trend === 'down'));
-});
-
-test('a capo who opens a place drives to it and back to his club, once', () => {
-  const g = E.createGame({ capo: 'sal' });
-  const mine = (p) => p.cities[0].lots.filter((l) => l && l.site && l.site.owner === 'family' && l.site.capo === 'sal' && l.site.type !== 'club' && l.site.type !== 'key');
-  let p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
-  for (let i = 0; i < 400 && !mine(p).length; i++) { E.tick(g); if (g.paused) E.command(g, { type: 'resume' }); p = M.planEmpire(E.view(g), global.AshportWorld.CITIES); }
-  const lot = mine(p)[0], k = p.cities[0].capos[0];
-  assert.ok(lot, 'he runs a place');
-  k.at = { i: k.i, j: k.j, why: 'home' };
-  const before = JSON.parse(JSON.stringify(p));
-  before.cities[0].lots.forEach((l) => { if (l && l.i === lot.i && l.j === lot.j) l.site = null; });
-  const moves = M.movesTurf(before, p);
-  assert.equal(moves.length, 1);
-  assert.equal(moves[0].capo, 'sal'); assert.equal(moves[0].cargo, 'open'); assert.equal(moves[0].loop, false);
-  assert.deepEqual(moves[0].path[0], [k.i, k.j]);
-  assert.deepEqual(moves[0].path[moves[0].path.length - 1], [k.i, k.j], 'he comes home');
-  assert.ok(moves[0].path.some((q) => q[0] === lot.i && q[1] === lot.j), 'by way of the new place');
-  assert.equal(M.movesTurf(p, p).length, 0);
 });
 
 test('what the family builds, wins or learns from a decision has a sight of its own on the map', () => {
@@ -719,22 +703,6 @@ test('what the family buys for good is driven to City Hall, and what it learns t
   }
 });
 
-test('a capo who is out at work still drives to the place he opens', () => {
-  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
-  let last = M.planEmpire(E.view(g), global.AshportWorld.CITIES), seen = 0, away = 0;
-  for (let i = 0; i < 300; i++) { const ev = E.tick(g) || []; if (E.hud(g).paused) E.command(g, { type: 'resume' });
-    const opened = ev.filter((e) => e.type === 'opened' && e.capo); if (!opened.length && g.ticks) continue;
-    const v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), moves = M.movesTurf(last, p); last = p;
-    if (!opened.length) continue;
-    seen++; if (v.cities[0].capos[0].at.why !== 'home') away++;
-    const trip = moves.filter((m) => m.cargo === 'open')[0];
-    assert.ok(trip, 'day ' + i + ': he is seen driving there (' + v.cities[0].capos[0].at.why + ')');
-    const lot = p.cities[0].lots.filter((l) => l && l.site && l.bx === opened[0].x && l.by === opened[0].y)[0];
-    assert.ok(trip.path.some((q) => q[0] === lot.i && q[1] === lot.j) || trip.path.length > 2, 'his way goes by the new place');
-  }
-  assert.ok(seen >= 2 && away >= 1, 'places opened, one of them while he was away (' + seen + ', ' + away + ')');
-});
-
 test('a game opened again shows the cars that were already on their way, as far along as they were', () => {
   const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
   let seen = 0, far = 0, kinds = {};
@@ -749,5 +717,51 @@ test('a game opened again shows the cars that were already on their way, as far 
     seen++;
   }
   assert.ok(seen > 20 && far > 5, 'rides were in progress (' + seen + ', ' + far + ')');
-  assert.ok(kinds.takings && kinds.payment, 'takings and what the boss pays: ' + Object.keys(kinds));
+  assert.ok(kinds.takings && kinds.payment && kinds.liquor, 'takings, trucks and what the boss pays: ' + Object.keys(kinds));
 });
+
+const days = (g, n, each) => { for (let i = 0; i < n; i++) { const ev = E.tick(g) || []; if (E.hud(g).paused) E.command(g, { type: 'resume' }); if (each(ev, i) === false) return; } };
+
+test('a capo drives to the place he opens with the money, and it is only there when he arrives', () => {
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
+  let left = null, plan = null, opened = null, spent = null;
+  days(g, 400, (ev) => {
+    const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
+    const e = ev.find((q) => q.type === 'errand' && q.step === 'leaves' && q.move === 'open');
+    if (e && !left) { left = e; plan = p; spent = M.effectsTurf(ev, p).filter((m) => m.spent > 0); }
+    if (left && !opened) opened = ev.find((q) => q.type === 'opened' && q.x === left.x && q.y === left.y) ? { marks: M.effectsTurf(ev, p) } : null;
+    return !opened;
+  });
+  assert.ok(left && opened, 'he left, and the place opened later');
+  const trips = M.errandsTurf([left], plan);
+  assert.equal(trips.length, 1); const t = trips[0];
+  assert.equal(t.kind, 'capo'); assert.equal(t.capo, 'sal'); assert.equal(t.cargo, 'open'); assert.equal(t.loop, false);
+  assert.equal(t.days, left.days, 'he takes the days the rules give him'); assert.equal(t.amount, Math.round(left.amount), 'the money he carries is on his car');
+  const club = plan.cities[0].capos[0], site = plan.cities[0].lots.find((l) => l.bx === left.x && l.by === left.y);
+  assert.deepEqual(t.path[0], [club.i, club.j], 'from his club'); assert.equal(t.path[t.path.length - 1][0], site.i);
+  assert.ok(spent.some((m) => m.spent === Math.round(left.amount) && m.capo === 'sal'), 'the money is seen leaving his club the day he leaves');
+  assert.ok(!opened.marks.some((m) => m.spent > 0 && m.type === 'opened'), 'and is not counted a second time when the place opens');
+  assert.equal(M.movesTurf(plan, plan).length, 0);
+});
+
+test('a truck drives from where it stands to the cellar, then to the seller, in the days the rules give', () => {
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
+  let haul = null, plan = null, n = 0;
+  days(g, 300, (ev) => { const e = ev.find((q) => q.type === 'haul' && !q.lost); if (e) { n++; if (n === 3) { haul = e; plan = M.planEmpire(E.view(g), global.AshportWorld.CITIES); } } return !haul; });
+  assert.ok(haul, 'a truck left');
+  const c = plan.cities[0], cellar = c.lots.find((l) => l.site && l.bx === haul.from.x && l.by === haul.from.y), seller = c.lots.find((l) => l.site && l.bx === haul.x && l.by === haul.y);
+  const t = M.haulsTurf([haul], plan, {})[0];
+  assert.ok(t, 'it is on the map'); assert.equal(t.vehicle, 'truck'); assert.equal(t.loop, false); assert.equal(t.stay, true, 'it waits where it unloads');
+  assert.equal(t.veh, c.id + ':' + haul.vehicle);
+  assert.deepEqual(t.path[t.stages[0].k], [cellar.i, cellar.j], 'it loads at the cellar');
+  assert.deepEqual(t.path[t.path.length - 1], [seller.i, seller.j], 'and unloads at the seller');
+  assert.equal(t.stages[1].days, haul.days); assert.equal(t.cargo, haul.cargo);
+  // the next time, it leaves from the seller where it was left
+  const next = M.haulsTurf([haul], plan, { [t.veh]: { x: haul.x, y: haul.y } })[0];
+  assert.deepEqual(next.path[0], [seller.i, seller.j]);
+  // goods that arrive are not money: nothing is counted over the seller
+  assert.equal(M.effectsTurf([{ type: 'arrived', kind: 'haul', cargo: haul.cargo, city: c.id, capo: 'sal', x: haul.x, y: haul.y, from: haul.from, amount: haul.amount, vehicle: haul.vehicle }], plan).length, 0);
+  // and the trucks no longer run the rounds of the cycle
+  assert.ok(!M.tripsTurf(plan, E.view(g), true).some((q) => q.round && !q.parked), 'no round left: every vehicle is out on a timed trip or parked');
+});
+
