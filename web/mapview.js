@@ -383,7 +383,7 @@
         out.push({ id: c.id + ':capo:' + k.id, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false,
                    path: route([old.at.i, old.at.j], [k.at.i, k.at.j], c), cargo: k.at.why, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
       });
-      // a place of his that was not there last month: he went to open it himself, and came back
+      // a place of his that was not there before: he drives there to open it himself, and back to what he was doing
       var had = {};
       was.lots.forEach(function (l) { if (l && l.site && l.site.owner === 'family') had[l.site.id] = true; });
       var driving = {};
@@ -391,9 +391,10 @@
       c.lots.forEach(function (l) {
         if (!l || !l.site || l.site.owner !== 'family' || !l.site.capo || l.site.role === 'club' || had[l.site.id] || driving[l.site.capo]) return;
         var k = c.capos.filter(function (x) { return x.id === l.site.capo; })[0];
-        if (!k || typeof k.i !== 'number' || !k.at || k.at.why !== 'home') return;
-        var path = route([k.i, k.j], [l.i, l.j], c);
-        join(path, route([l.i, l.j], [k.i, k.j], c));
+        if (!k || typeof k.i !== 'number' || !k.at) return;
+        var from = typeof k.at.i === 'number' ? [k.at.i, k.at.j] : [k.i, k.j];      // from where he stands: his club, or the place he was seeing to
+        var path = route(from, [l.i, l.j], c);
+        join(path, route([l.i, l.j], from, c));
         driving[k.id] = true;
         out.push({ id: c.id + ':capo:' + k.id, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false,
                    path: path, cargo: 'open', load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });

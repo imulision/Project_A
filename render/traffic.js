@@ -1,6 +1,7 @@
 // The streets at work: every trip of the plan is a vehicle. Loops come and go, rounds leave the club and come home, convoys take the road between two cities.
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
 export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
+  const DAY = 3.5 * T;      // every car keeps the same pace: a block of the town in a day of the game, six days for a road
   let n0 = 0, pace = 1;      // pace: days of the game in a second (the speed the boss chose)
   // the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
   // Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
@@ -23,7 +24,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
     return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: (t.path || []).join(';'), leaving: false,
              geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.days ? L / t.days : road ? L / 14 : t.loop ? 2.4 : 5, days: t.days || 0, idle: t.days ? t.wait || 0 : 0, veh: t.veh || null,
+             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: t.days ? L / t.days : road ? L / 6 : DAY, days: t.days || 0, idle: t.days ? t.wait || 0 : 0, veh: t.veh || null,
              plan: t.days && t.stages ? t.stages.map(q => ({ d: q.k ? len[q.k - 1] : 0, days: q.days })) : null,      // legs that each take their own days (out empty, home loaded)
              o: null,
              // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
@@ -56,7 +57,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
       else if (a.round) {
         if (!a.L) { if (a.leaving) { agents.delete(id); continue; } }
         else {
-          a.p += a.speed * dt; const s = a.stops[a.si];
+          a.p += a.speed * dt * pace; const s = a.stops[a.si];
           if (s && a.p >= s.d) { a.p = s.d; a.si++; a.wait = 1.2; a.loaded = s.load; if (s.lost) a.got = 0; else if (s.load && (s.kind === 'takings' || s.kind === 'wash')) a.got = (a.got || 0) + (s.amount || 0); if (s.lost) { a.wait = 3; spawnFx(s.lost === 'seizure' ? 'police' : 'gunfire', a.x === undefined ? a.pts[0][0] : a.x, a.z === undefined ? a.pts[0][1] : a.z, 1, s.lost === 'seizure' ? 'The police stop it: the load is seized' : 'Held up: the load is gone'); } if (s.load) Object.assign(a.tag, { amount: s.amount, kind: s.kind, cargo: s.cargo }); }
           else if (a.p >= a.L) {      // home again: it rests by the club, then goes out again, by the new way if the month changed it
             if (a.leaving) { agents.delete(id); continue; }
@@ -72,7 +73,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
           if (a.idle > 0) a.idle -= d;
           else if (a.plan) { let n = 0; while (n < a.plan.length - 1 && a.p >= a.plan[n].d) n++; const from = n ? a.plan[n - 1].d : 0; a.p += (a.plan[n].d - from) / a.plan[n].days * d; a.loaded = a.p >= a.plan[0].d; }
           else a.p += a.speed * d; }
-        else a.p += a.dir * a.speed * dt;
+        else a.p += a.dir * a.speed * dt * pace;
         if (a.p >= a.L) {
           if (!a.loop) { const e = a.pts[a.pts.length - 1]; if (['seizure', 'hit', 'kidnap'].includes(a.kind)) spawnFx('gunfire', e[0], e[1]); agents.delete(id); continue; }
           if (a.leaving) { agents.delete(id); continue; }
