@@ -134,10 +134,9 @@ test('the boss\'s share waits at the club and leaves for the headquarters one fu
   for (let i = 0; i < 96; i++) {
     g.paused = false;
     const told = E.tick(g).filter((e) => e.type === 'tribute');
-    assert.ok(told.length <= 1, 'one trip a day at most');
     told.forEach((e) => assert.strictEqual(e.amount, load));
     const others = g.journal.filter((l) => l.month === g.month && l.cost).length; // nothing else moves his dirty money in this young game
-    if (!others) assert.ok(Math.abs(f.dirty - had - (told.length ? load : 0)) < 0.01 || f.dirty < had, 'day ' + i + ': ' + (f.dirty - had));
+    if (!others) assert.ok(Math.abs(f.dirty - had - told.length * load) < 0.01 || f.dirty < had, 'day ' + i + ': ' + (f.dirty - had));
     trips += told.length; had = f.dirty;
   }
   assert.ok(trips >= 1);
