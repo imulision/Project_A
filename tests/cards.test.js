@@ -1255,3 +1255,11 @@ test('a laundry says what waits there: dirty money to be washed, clean money tha
   p.wash = { waiting: 0, ready: 0, most: 210 };
   assert.doesNotMatch(C.blockTip(v, c.id, p.x, p.y), /to wash|waiting for the car/); assert.doesNotMatch(C.block(v, c.id, p.x, p.y), /washed, waiting/);
 });
+
+test('the headquarters of another city says what sleeps in its coffer, and the load that takes the road', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family;
+  hq.home = false; c.coffer = { dirty: 250, clean: 50, load: 600 };
+  assert.match(C.blockTip(v, c.id, hq.x, hq.y), /\$300 \/ \$600 in the coffer/);
+  assert.match(C.block(v, c.id, hq.x, hq.y), /<b>\$300 \/ \$600<\/b> in the coffer[^]*width:50%[^]*\$250 dirty[^]*\$50 clean/);
+  delete c.coffer; assert.doesNotMatch(C.block(v, c.id, hq.x, hq.y), /in the coffer/);
+});

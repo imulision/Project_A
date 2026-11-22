@@ -629,3 +629,13 @@ test('the take of a hit comes home by car: from the place taken to the club, whe
   const fx = M.effectsTurf([loot, { type: 'bust', city: c.id, x: hq.x, y: hq.y, seized: 500, label: 'The police raid' }], p);
   assert.deepEqual(fx.map((f) => [f.kind, f.bx, f.by, f.gain || 0, f.spent]), [['pay', k.x, k.y, 240, 0], ['police', hq.x, hq.y, 0, 500]]);
 });
+
+test('money from another city takes the road: a car leaves with one load, and it is counted over the headquarters where it arrives', () => {
+  const g = play(1), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), a = v.cities[1].id, b = v.cities[0].id, hq = v.cities[0].hq.family;
+  const leaves = { type: 'convoy', cargo: 'cash', step: 'leaves', from: a, to: b, amount: 600, dirty: 400, clean: 200 }, arrives = { ...leaves, step: 'arrives' };
+  const cars = M.convoysTurf(p, [leaves, arrives].filter((e) => e.step === 'leaves'));
+  assert.equal(cars.length, 1); assert.deepEqual([cars[0].kind, cars[0].vehicle, cars[0].color, cars[0].cargo, cars[0].amount, cars[0].a, cars[0].b], ['convoy', 'car', M.FLOW.money, 'cash', 600, 1, 0]);
+  assert.notEqual(cars[0].id, M.convoysTurf(p, [{ from: a, to: b, cargo: 'liquor', amount: 20 }])[0].id, 'never mistaken for the trucks of the same road');
+  const fx = M.effectsTurf([leaves, arrives], p);
+  assert.deepEqual(fx.map((f) => [f.kind, f.city, f.bx, f.by, f.gain]), [['pay', b, hq.x, hq.y, 600]]);
+});
