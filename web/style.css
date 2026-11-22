@@ -131,7 +131,14 @@ body.money .till{display:flex;gap:4px;position:absolute;left:50%;top:-20px;trans
 body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.sm,body.money .lab.fx{opacity:.5}
 .bot button{padding:0 7px;font-size:.93em}body.money .lab.tag:not(.m){display:none}
 .sub2{font-size:17px!important;margin:6px 0 8px!important;color:var(--dim)}
-.tree{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.wheel{position:relative;width:min(100%,360px);aspect-ratio:1;margin:4px auto 12px}
+.wheel svg{position:absolute;inset:0;width:100%;height:100%}.wheel circle{fill:none;stroke:#ffffff14;stroke-width:.4}.wheel line{stroke:#ffffff1f;stroke-width:.5}.wheel line.on{stroke:var(--accent);opacity:.55}
+.wheel .ring{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#15131a;border:1.5px solid #ffffff3d}
+.wheel .ring.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 6px #e8c46388}.wheel .ring.next{border-color:var(--accent);animation:pulse .8s infinite alternate}
+.wheel .hub{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;display:grid;place-items:center;background:#15131a;border:2px solid var(--accent);color:var(--accent)}.wheel .hub .ic{width:22px;height:22px}
+.wheel .know{position:absolute;width:38px;height:38px;margin:-19px 0 0 -19px;padding:0;min-height:0;border:1.5px solid var(--accent);border-radius:50%;display:grid;place-items:center;background:#1b1820}
+.wheel .know>.ic{margin:0;width:20px;height:20px}.wheel .know .gauge{margin:0;width:34px;height:34px}
+.wheel .know.shut{border-color:#ffffff30;border-style:dashed}.wheel .know.sel{outline:2px solid var(--ink);outline-offset:2px;background:#2a2530}
 .know{position:relative;display:block;padding:9px 4px 7px;min-height:0;border-top:2px solid var(--accent);background:#ffffff0d}
 .know>.ic{display:block;margin:0 auto 5px;width:28px;height:28px;color:var(--accent)}.know .gauge{margin:0 auto 5px;width:34px;height:34px}
 .know .lv i{width:12px;height:4px;background:#ffffff26}.know .lv i.on{background:var(--accent)}
@@ -326,3 +333,4 @@ body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-t
 #call .tally div.b{border-color:var(--bad)}#call .tally b{display:block;font:500 19px/1 var(--title);white-space:nowrap}#live.over .vs,#live.over .steps{display:none}
 #call .tally span{white-space:nowrap;font:600 9px var(--text);letter-spacing:.3px;color:var(--dim);text-transform:uppercase}
 #call .go{display:block;width:100%;border:1px solid var(--accent);color:var(--accent);background:none}
+.wheel .know.shut>.ic{opacity:.8}
