@@ -432,7 +432,7 @@
     var went = false;
     m.share = (m.share || 0) + r.sent;
     if (!seat) { C.purse(c, f).dirty += m.share; m.share = 0; }
-    else if (m.share >= full) {
+    else while (m.share >= full) { // no limit of trips: the car goes again as long as a full load waits
       m.share -= full; C.purse(c, f).dirty += full; went = true;
       events.push({ type: 'tribute', city: c.id, capo: capo, x: seat.x, y: seat.y, from: { x: home.x, y: home.y }, amount: full });
       if (c.flow) (c.flow.tributes = c.flow.tributes || []).push({ capo: capo, amount: full });
