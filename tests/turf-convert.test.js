@@ -86,7 +86,7 @@ test('twenty years: capos do turn places, and not back and forth', () => {
     }
     for (const c of E.view(g).cities) {
       for (const a of c.asks) { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } }
-      for (const d of c.doors) { const s = T.spots(g.cities.find((q) => q.id === c.id))[0]; try { E.command(g, { type: 'welcome', city: c.id, capo: d.capo, x: s.x, y: s.y }); } catch (e) { /* cannot pay yet */ } }
+      for (const d of c.doors) { try { E.command(g, { type: 'welcome', city: c.id, capo: d.capo }); } catch (e) { /* cannot pay yet */ } }
     }
   }
   assert.ok(turns >= 1, 'a place was turned');

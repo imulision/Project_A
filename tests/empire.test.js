@@ -217,7 +217,7 @@ test('every city has its own three lieutenants: no man answers for places in two
       assert.deepEqual([p.lieutenant, p.home], [c.rival, c.id]);
       assert.ok(T.tradeOf(l.id) && l.places >= 3, l.name + ' holds a real zone');
     }
-    assert.ok(c.places.filter((p) => p.owner === c.rival && p.kind !== 'key').every((p) => seen[p.man] === c.id));
+    assert.ok(c.places.filter((p) => p.owner === c.rival && p.kind !== 'key' && p.kind !== 'hq').every((p) => seen[p.man] === c.id));
   }
   assert.equal(new Set(Object.keys(seen).map((id) => T.PEOPLE[id].name)).size, 18, 'eighteen names, all different');
 });

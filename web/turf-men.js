@@ -204,7 +204,7 @@
   function revenge(c, events) {
     c.jailed = (c.jailed || []).filter(function (j) {
       if (j.out > c.month) return true;
-      places(c).filter(function (p) { return p.owner === 'family' && p.kind !== 'club' && p.kind !== 'key'; }).sort(function (a, b) {
+      places(c).filter(function (p) { return p.owner === 'family' && p.kind !== 'club' && p.kind !== 'key' && p.kind !== 'hq'; }).sort(function (a, b) {
         return far(a.x, a.y, j.x, j.y) - far(b.x, b.y, j.x, j.y) || a.y - b.y || a.x - b.x;
       }).slice(0, j.n).forEach(function (p) {
         delete c.blocks[key(p.x, p.y)];

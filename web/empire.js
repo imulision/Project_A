@@ -194,6 +194,7 @@
       c.dice = i + 1;
       T.crown(c, spec.rival);
       T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
+      T.raiseHq(c, spec.rival);
       return c;
     });
     var home = g.cities[0], spot = T.landing(home);
@@ -201,6 +202,8 @@
     g.family.dirty = START_CASH;
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
+    home.home = true; // the boss lives here
+    T.raiseHq(home, 'family');
     g.reign = R.create(NAMES.indexOf(capo) + 1);
     g.started = true;
   }
@@ -252,9 +255,22 @@
   function reignOf(g) { if (!g.reign) g.reign = R.create(); return g.reign; }
   function mapShare(line) { var s = 0, n = 0; Object.keys((line && line.cities) || {}).forEach(function (k) { s += line.cities[k].share || 0; n += 1; }); return n ? s / n : 0; }
   function shareNow(g) { var h = g.history || []; return h.length ? mapShare(h[h.length - 1]) : 0; }
+  // Headquarters follow the family: its own grows with the acts and never shrinks, a city's with what the family holds
+  // there (a back room until an underboss sits in it), the rivals' with what they hold; a city left empty loses its own.
+  function seats(g) {
+    var r = reignOf(g);
+    g.cities.forEach(function (c) {
+      var s = T.share(c);
+      T.sizeHq(c, 'rival', T.hqStage(s.rival));
+      if (c.home) return T.sizeHq(c, 'family', r.reached + 1);
+      if (!held(g, c)) return T.razeHq(c, 'family');
+      T.sizeHq(c, 'family', c.under && T.clubOf(c, c.under) ? Math.max(2, T.hqStage(s.family)) : 1);
+    });
+  }
   // The family's share of the map has just been counted: the acts it wins or loses go into the journal.
   function settle(g) {
     var told = R.place(reignOf(g), shareNow(g));
+    seats(g);
     told.forEach(function (e) { record(g, e, g.month); });
     return told;
   }
@@ -295,13 +311,14 @@
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
-  var PASSING = { run: true, pay: true };
+  var PASSING = { run: true, pay: true, tribute: true };
   function passing(e) { return PASSING[e.type] || (e.type === 'hit' && (e.step === 'call' || e.step === 'stage')); } // a hit's steps are for the screen: the journal keeps how it began and how it ended // told to the screen as they happen, never written in the journal
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
     happened.forEach(function (e) {
-      record(g, e, month);
       events.push(e);
+      if (passing(e)) return; // for the screen only
+      record(g, e, month);
       // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
       if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
       if (STOPS[e.type]) g.paused = true;
@@ -453,6 +470,7 @@
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
       T.send(from, c, g.family, o.capo, o.x, o.y);
+      T.raiseHq(c, 'family'); // the first man in a city opens the family's back room there
       decide(g, { type: 'welcomed', city: c.id, capo: o.capo, label: (from !== c ? 'You sent ' + T.person(o.capo).name + ' to ' : 'You took in ' + T.person(o.capo).name + ' in ') + specOf(c.id).name });
       var club = T.clubOf(c, o.capo), e = { type: 'welcomed', capo: o.capo, city: c.id, x: club.x, y: club.y,
         label: T.person(o.capo).name + ' joins the family and opens his club in ' + T.zoneOf(c, club.x, club.y).name + (from !== c ? ', ' + specOf(c.id).name : '') };
@@ -558,6 +576,12 @@
     if (!g || typeof g !== 'object') throw new Error('this saved game cannot be read');
     if (g.version !== VERSION) throw new Error('this game was saved by an older version of Ashport and cannot be continued');
     (g.cities || []).forEach(outline);
+    // a game saved before headquarters existed: they go up where they would have
+    if (g.started && g.family) (g.cities || []).forEach(function (c, i) {
+      if (i === 0) c.home = true;
+      if (c.rival) T.raiseHq(c, c.rival);
+      if (held(g, c)) T.raiseHq(c, 'family');
+    });
     // a game saved when a month was played in one blow, or cut off in a way that cannot be picked up: its month starts again
     if (!(g.ticks >= 0 && g.ticks < TICKS_PER_MONTH) || (g.ticks > 0 && (g.cities || []).some(function (c) { return !c.turn; }))) {
       g.ticks = 0;

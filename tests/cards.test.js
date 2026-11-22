@@ -124,7 +124,7 @@ test('parting with a capo is asked twice: the second sheet says what it costs an
 
 test('a block: its street, who holds it, and the place that stands there', () => {
   const { v } = play((v) => v.month >= 12);
-  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club'), key = city.keys[0];
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'), key = city.keys[0];
   const mine = C.block(v, 'ashport', ours.x, ours.y);
   assert.match(mine, new RegExp(city.zones[city.blocks[ours.y * city.w + ours.x].zone].name));
   // (a street name can be any shape: the block says which one it is on, not a rectangle)
@@ -320,7 +320,7 @@ test('a badge over the map says what just happened there', () => {
 
 test('a touched street answers with a few words beside the finger, not a sheet', () => {
   const { v } = play((v) => v.month >= 12);
-  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club'), key = city.keys[0];
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'), key = city.keys[0];
   const mine = C.blockTip(v, 'ashport', ours.x, ours.y);
   assert.match(mine, new RegExp(ours.name)); assert.match(mine, /Sal runs it/);
   assert.doesNotMatch(mine, /<button|<h2/, 'no button, no title: it is a word, not a page');
