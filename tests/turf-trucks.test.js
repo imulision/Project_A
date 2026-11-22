@@ -70,3 +70,12 @@ test('a load the rivals hold up never reaches the shelf', () => {
   assert.equal(there(ev).length, 0);
   assert.equal(shelf(c, 6, 2), 0);
 });
+
+test('a haul says where the truck stood, and the city says where each truck of a man stands and when it is free', () => {
+  const { c, f } = brewer([[6, 2]]);
+  const seen = [];
+  days(c, f, 6, (d, ev) => left(ev).forEach((e) => seen.push(e.at)));
+  assert.deepEqual(seen, [{ x: 2, y: 3 }, { x: 6, y: 2 }], 'from his club the first time, then from the bar it delivered to');
+  const k = T.view(c, f).capos.filter((q) => q.id === 'dutch')[0];
+  assert.deepEqual(k.rigs.map((r) => [r.vehicle, r.x, r.y, r.busy]), [['dutch:truck:1', 6, 2, true]]);
+});
