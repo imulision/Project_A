@@ -117,10 +117,9 @@ test('each leg is one of the trips of the city: the capo\'s own car, between the
 });
 
 test('the car takes dirty money down again and again the same day, until the laundry has all it can wash', () => {
-  const { g, c } = start(50000, 3); // a big laundry: several loads fit
-  const told = day(g).filter((e) => e.type === 'wash');
+  const { g, s } = start(50000, 3); // a big laundry: several loads fit
+  const told = day(g).filter((e) => e.type === 'wash' && e.x === s.x && e.y === s.y);
   assert.ok(told.length > 1, 'more than one trip the first day');
-  const v = E.view(g).cities[0].places.filter((p) => p.wash);
-  v.forEach((p) => assert.ok(p.wash.most - p.wash.waiting < LOAD + p.wash.most / T.RULES.days + 1, 'no room left for a full load at ' + p.x + ',' + p.y));
-  assert.ok(c);
+  const w = place(g, s).wash;
+  assert.ok(w.most - w.waiting < LOAD + w.most / T.RULES.days + 1, 'no room left there for a full load');
 });
