@@ -164,7 +164,7 @@ assert.equal(await page.locator('.res .net').count(), 0, 'the totals at the top 
 // a live hit: a capo goes for a guarded place, the screen goes to the street, the boss calls each step, and the end says what it cost
 const hit = await page.evaluate(() => {
   const A = window.__ashport, g = A.game(), v = A.view().cities.find((c) => c.held), c = g.cities.find((x) => x.id === v.id), o = {};
-  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club'); if (!p) return { none: true };
+  const p = v.places.find((q) => q.owner !== 'family' && q.kind !== 'key' && q.kind !== 'club' && q.kind !== 'hq'); if (!p) return { none: true };
   c.turn = Object.assign(c.turn || {}, { daily: true });
   AshportTurfHit.open(c, g.family, { capo: v.capos[0].id, x: p.x, y: p.y, way: 'force', kind: p.kind, cost: 0, month: c.month, months: 0 }, []);
   A.beat();
