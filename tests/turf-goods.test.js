@@ -492,3 +492,26 @@ test('a road runs both ways, and carries goods for the fences like liquor for th
   assert.equal(went.length, T.RULES.convoy.loads);
   for (const v of went) assert.deepEqual([v.from, v.to, v.cargo, v.capo], ['next', 'town', 'goods', 'mae']);
 });
+
+// Played day by day, the trucks between cities are real: one a day down each road, in the last days of the cycle,
+// when every city has served itself.
+test('played day by day, the loads leave on different days, one truck a day down a road', () => {
+  const { a, b, f } = twoTowns(3), left = {};
+  T.begin(f, [a, b]);
+  for (let d = 0; d < T.RULES.days; d++) {
+    T.pass(f, [a, b], d);
+    const went = T.rideDay(f, [a, b], ROAD, d);
+    assert.ok(went.filter((e) => e.from === 'town' && e.to === 'next').length <= 1, 'day ' + d);
+    went.forEach((e) => {
+      assert.deepEqual([e.type, e.step, e.cargo, e.amount, e.capo], ['convoy', 'leaves', 'liquor', CRATES, 'dutch']);
+      left[d] = true;
+    });
+  }
+  Object.keys(f.men).forEach((capo) => T.act(f, [a, b], capo));
+  const before = T.convoys(f).length;
+  T.end(f, [a, b], ROAD);
+  assert.equal(Object.keys(left).length, T.RULES.convoy.loads, 'as many days as loads');
+  assert.equal(T.convoys(f).length, before, 'nothing more rides when the cycle closes');
+  assert.equal(before, T.RULES.convoy.loads);
+  assert.equal(T.view(b, f).places.filter((p) => p.kind === 'speakeasy' && p.stock === CRATES).length, T.RULES.convoy.loads, 'and it is on the shelves next door');
+});
