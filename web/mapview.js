@@ -186,11 +186,11 @@
   // the town made it. The headquarters stands in the middle of the front row; the block around it becomes the family's as it grows.
   var HQS = ['hq_backroom', 'hq_club', 'hq_hotel', 'hq_seat'];
   function hqBlock(stage) {
-    var s = Math.max(1, Math.min(4, stage || 1)), hq = { model: HQS[s - 1], hq: true }, wing = function () { return { model: 'hq_wing' }; }, yard = { open: 'yard' }, park = { open: 'park' };
+    var s = Math.max(1, Math.min(4, stage || 1)), hq = { model: HQS[s - 1], hq: true }, court = { open: 'court' }, yard = { open: 'yard' }, park = { open: 'park' };
     return s === 1 ? [null, null, null, null, hq, null]
       : s === 2 ? [null, yard, null, null, hq, yard]
-      : s === 3 ? [null, yard, null, wing(), hq, wing()]
-      : [wing(), park, wing(), wing(), hq, wing()];
+      : s === 3 ? [null, yard, null, court, hq, court]      // from here on it is one wide building: the lots beside it are its own paved ground
+      : [park, park, park, court, hq, court];
   }
 
   // ---- who drives where

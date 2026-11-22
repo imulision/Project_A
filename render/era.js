@@ -106,6 +106,54 @@ export function makeEraBuildings(THREE, mergeGeometries) {
     const geo = mergeGeometries(parts); parts.forEach(g => g.dispose()); geo.computeBoundingSphere();
     return { geo, h: top };
   }
+  // ---- a headquarters from the club on: not a box with windows. Pale stone, a portico of round columns under a pediment, copper
+  // roofs gone green, lamps that never go out; then wings on each side (one wide building over three lots), then a dome.
+  const STONE = [1.5, 1.46, 1.38], COPPER = [0.6, 1.16, 1.0];
+  const round = (r0, r1, h, x, y, z, c, seg = 8, win = 0) => { const g = new THREE.CylinderGeometry(r0, r1, h, seg); g.translate(x, y + h / 2, z); push(g, c, win); };
+  // a pitched copper roof over a W x D wing, its ridge along x, closed by stepped stone gables
+  const pitched = (W, D, y, x0, h) => {
+    const run = Math.hypot(D / 2 + 0.06, h), a = Math.atan2(h, D / 2 + 0.06);
+    for (const s of [-1, 1]) { const g = new THREE.BoxGeometry(W + 0.1, 0.04, run); g.rotateX(s * a); g.translate(x0, y + h / 2, s * (D / 4 + 0.02)); push(g, COPPER); }
+    for (const e of [-1, 1]) for (let k = 0; k < 4; k++) block(0.06, D * (1 - (k + 0.5) / 4), y + k * h / 4, h / 4, x0 + e * (W / 2 - 0.03), 0, STONE);
+    block(W + 0.12, 0.06, y + h - 0.02, 0.05, x0, 0, COPPER);
+  };
+  function palace(seed, p) {
+    parts = []; wid = seed; sd = seed * 7919 + 13;
+    const D = 1.5, fh = 0.42, gh = 0.62, cw = p.cw, H = gh + p.n * fh, pz = D / 2 + 0.3, ch = gh + fh * Math.min(2, p.n) - 0.1;
+    block(cw, D, 0, H, 0, 0, STONE); block(cw + 0.05, D + 0.05, 0, 0.16, 0, 0, TRIM); block(cw + 0.06, D + 0.06, gh - 0.02, 0.04, 0, 0, TRIM);
+    floors(cw, D, gh, p.n, fh, 0.3);
+    for (const s of [-1, 1]) for (let c = 0; c < 2; c++) panel(cw, D, 0, s * (p.pw / 2 + 0.12 + c * 0.24), gh * 0.56, 0.13, gh * 0.5, 0.008, GLASS, windowId());
+    cornice(cw, D, H, 0, 0, 1.2);
+    let top = H;
+    if (p.wings) for (const s of [-1, 1]) {
+      const ww = p.wings.w, wd = D - 0.16, x0 = s * (cw / 2 + ww / 2), Hw = gh + p.wings.n * fh;
+      block(ww, wd, 0, Hw, x0, 0, STONE); block(ww + 0.05, wd + 0.05, 0, 0.16, x0, 0, TRIM); block(ww + 0.06, wd + 0.06, gh - 0.02, 0.04, x0, 0, TRIM);
+      floors(ww, wd, gh, p.wings.n, fh, 0.3, x0, 0); for (let c = 0; c < 4; c++) panel(ww, wd, 0, ((c + 0.5) / 4 - 0.5) * ww * 0.9, gh * 0.56, 0.13, gh * 0.5, 0.008, GLASS, windowId(), x0, 0);
+      cornice(ww, wd, Hw, x0, 0); pitched(ww, wd, Hw, x0, 0.42);
+      panel(ww, wd, 0, 0, gh + p.wings.n * fh * 0.5, 0.05, 0.3, 0.03, GOLD, 3.2 + s * 0.1, x0, 0);       // a lamp on each wing
+    }
+    // the portico: steps, round columns, an entablature and a stepped pediment, with the door alight behind
+    for (let k = 0; k < 3; k++) block(p.pw + 0.5 - k * 0.12, 0.7 - k * 0.14, k * 0.05, 0.05, 0, D / 2 + 0.3 - k * 0.07 + 0.05, TRIM);
+    for (let c = 0; c < p.cols; c++) { const u = ((c + 0.5) / p.cols - 0.5) * p.pw; round(0.05, 0.062, ch, u, 0.15, pz, STONE); block(0.15, 0.15, 0.15 + ch, 0.04, u, pz, TRIM); block(0.15, 0.15, 0.13, 0.04, u, pz, TRIM); }
+    block(p.pw + 0.14, 0.5, 0.19 + ch, 0.12, 0, D / 2 + 0.16, TRIM);
+    for (let k = 0; k < 5; k++) block((p.pw + 0.2) * (1 - k / 5), 0.52, 0.31 + ch + k * 0.07, 0.07, 0, D / 2 + 0.16, k ? STONE : COPPER);
+    panel(cw, D, 0, 0, gh * 0.55, 0.34, gh * 0.9, 0.008, GOLD, 3.31);
+    for (const s of [-1, 1]) { faceBox(cw, D, 0, s * 0.3, gh * 0.8, 0.06, 0.1, 0.06, 0.04, IRON); panel(cw, D, 0, s * 0.3, gh * 0.8, 0.045, 0.075, 0.072, GOLD, 3.5 + s * 0.1); }
+    panel(cw, D, 0, 0, 0.25 + ch, p.pw * 0.8, 0.07, 0.42, GOLD, 3.7);                                           // the name over the columns, always lit
+    if (p.dome) {
+      const r = 0.72;
+      block(cw - 0.3, D - 0.3, top, 0.3, 0, 0, STONE); top += 0.3; round(r, r + 0.03, 0.55, 0, top, 0, STONE, 14);
+      for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, g = new THREE.PlaneGeometry(0.2, 0.34); g.translate(0, top + 0.3, r + 0.022); g.rotateY(a); push(g, GOLD, 3.1 + k * 0.1); }
+      top += 0.55; { const g = new THREE.SphereGeometry(r + 0.02, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2); g.translate(0, top, 0); push(g, COPPER); }
+      top += r; round(0.12, 0.14, 0.22, 0, top - 0.04, 0, STONE, 8); round(0.1, 0.1, 0.12, 0, top + 0.02, 0, GOLD, 8, 3.9); round(0.02, 0.1, 0.2, 0, top + 0.18, 0, COPPER, 8); top += 0.4;
+    } else {      // a mansard roof in copper, with lit dormers
+      block(cw - 0.12, D - 0.12, top, 0.34, 0, 0, COPPER); for (let c = 0; c < 3; c++) { const u = ((c + 0.5) / 3 - 0.5) * cw * 0.7; faceBox(cw - 0.12, D - 0.12, 0, u, top + 0.17, 0.16, 0.2, 0.06, 0.02, STONE); panel(cw - 0.12, D - 0.12, 0, u, top + 0.17, 0.1, 0.13, 0.052, GOLD, 3.3 + c * 0.1); }
+      block(cw - 0.4, D - 0.4, top + 0.34, 0.05, 0, 0, COPPER); top += 0.39;
+    }
+    if (p.flags) for (const s of [-1, 1]) { const fx = s * (cw / 2 - 0.12), fz = D / 2 - 0.12; block(0.024, 0.024, H, 0.9, fx, fz, IRON); block(0.28, 0.012, H + 0.68, 0.18, fx + 0.15, fz, GOLD); }
+    const geo = mergeGeometries(parts); parts.forEach(g => g.dispose()); geo.computeBoundingSphere();
+    return { geo, h: top };
+  }
   return {
     low: ['era_row3', 'era_shop2', 'era_tenement4', 'era_tenement4b', 'era_warehouse', 'era_works'],
     mid: ['era_tenement5', 'era_tenement6', 'era_hotel6', 'era_corner5'],
@@ -125,11 +173,10 @@ export function makeEraBuildings(THREE, mergeGeometries) {
       era_office8: make(37, { W: 1.5, D: 1.5, n: 6, stone: true, piers: true, shop: true, awn: null, setbacks: [[0.3, 2]] }),
       era_hotel9: make(41, { W: 1.55, D: 1.5, n: 7, stone: true, shop: true, corner: true, setbacks: [[0.35, 2]] }),
       era_deco11: make(43, { W: 1.55, D: 1.55, n: 6, stone: true, piers: true, shop: true, awn: null, setbacks: [[0.3, 3], [0.3, 2]], crown: true }),
-      hq_wing: make(67, { W: 1.6, D: 1.5, n: 3, stone: true, piers: true, stoop: true, lanterns: true }),      // the wings of a headquarters: the same stone, its lamps
       hq_backroom: make(47, { W: 1.6, D: 1.45, n: 2, shop: true, gh: 0.58, awn: null, stripes: true, pole: true, lanterns: true, roofSign: 0.5 }),
-      hq_club: make(53, { W: 1.65, D: 1.5, n: 4, stone: true, piers: true, shop: true, corner: true, awn: null, marquee: true, lanterns: true, roofSign: 0.8 }),
-      hq_hotel: make(59, { W: 1.65, D: 1.5, n: 7, stone: true, piers: true, shop: true, corner: true, awn: null, marquee: true, blade: true, flags: true, setbacks: [[0.35, 2]], roofSign: 0.85 }),
-      hq_seat: make(61, { W: 1.7, D: 1.55, n: 7, stone: true, piers: true, shop: true, awn: null, marquee: true, blade: true, flags: true, setbacks: [[0.3, 3], [0.3, 3]], crown: true, crownLit: true }),
+      hq_club: palace(53, { cw: 1.7, n: 2, cols: 4, pw: 1.25 }),
+      hq_hotel: palace(59, { cw: 2.3, n: 4, wings: { w: 1.5, n: 3 }, cols: 6, pw: 1.9, flags: true }),
+      hq_seat: palace(61, { cw: 2.5, n: 4, wings: { w: 1.45, n: 3 }, cols: 8, pw: 2.2, dome: true, flags: true }),
     },
   };
 }
