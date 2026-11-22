@@ -86,9 +86,11 @@ test('the boss buys through an order; the screen is told what he owns; it is sav
   g.family.clean = K.paper.cost[0];
   E.command(g, { type: 'buy', holding: 'paper' });
   const mine = (game) => E.view(game).holdings.find((h) => h.id === 'paper');
+  assert.deepEqual([mine(g).level, mine(g).paying, g.family.clean], [0, true, 0], 'set aside, and on its way to City Hall');
+  for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); }
   assert.equal(mine(g).level, 1);
   assert.equal(g.family.clean, 0);
-  const line = g.journal[g.journal.length - 1];
+  const line = g.journal.filter((l) => l.type === 'bought').pop();
   assert.deepEqual([line.type, line.holding, line.level, line.cost], ['bought', 'paper', 1, K.paper.cost[0]]);
   assert.ok(line.label.includes(K.paper.name));
   assert.equal(mine(E.load(E.save(g))).level, 1);
