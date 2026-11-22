@@ -307,8 +307,9 @@
         var h = typeof k.x === 'number' ? lotOfBlock(c, k.x, k.y) : null; if (!h) return;
         [['car', k.cars || 0, 'takings'], ['truck', k.trucks || 0, 'liquor']].forEach(function (f) {
           for (var n = 1; n <= f[1]; n++) { var id = k.id + ':' + f[0] + ':' + n; if (rounds[id]) continue;
-            out.push({ id: c.id + ':' + id, round: true, parked: true, loop: true, kind: f[2], city: c.id, color: FLOW[HAUL[f[2]].flow], vehicle: f[0], violent: false, home: parking(h, nth(id)),
-                       path: [parking(h, nth(id))], stops: [], cargo: null, amount: 0, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 }); }
+            var rig = f[0] === 'truck' ? (k.rigs || [])[n - 1] : null, lot = (rig && typeof rig.x === 'number' && lotOfBlock(c, rig.x, rig.y)) || h, spot = parking(lot, nth(id));      // a truck waits where it last unloaded
+            out.push({ id: c.id + ':' + id, round: true, parked: true, loop: true, kind: f[2], city: c.id, color: FLOW[HAUL[f[2]].flow], vehicle: f[0], violent: false, home: spot,
+                       path: [spot], stops: [], cargo: null, amount: 0, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 }); }
         });
       });
     });
@@ -380,7 +381,7 @@
       if (e.type !== 'haul' || !e.from || typeof e.x !== 'number') return;
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], k = c && c.capos.filter(function (m) { return m.id === e.capo; })[0]; if (!k) return;
       var a = lotOfBlock(c, e.from.x, e.from.y), b = lotOfBlock(c, e.x, e.y); if (!a || !b || a === b) return;
-      var veh = c.id + ':' + (e.vehicle || e.capo + ':truck:1'), at = (standing || {})[veh], s = at ? lotOfBlock(c, at.x, at.y) : null, start = s ? [s.i, s.j] : typeof k.i === 'number' ? [k.i, k.j] : [a.i, a.j];
+      var veh = c.id + ':' + (e.vehicle || e.capo + ':truck:1'), at = e.at || (standing || {})[veh], s = at ? lotOfBlock(c, at.x, at.y) : null, start = s ? [s.i, s.j] : typeof k.i === 'number' ? [k.i, k.j] : [a.i, a.j];
       var go = start[0] === a.i && start[1] === a.j ? [[a.i, a.j]] : route(start, [a.i, a.j], c), leg = route([a.i, a.j], [b.i, b.j], c);
       if (e.lost) leg = leg.slice(0, Math.max(2, Math.ceil(leg.length / 2)));      // a load held up or seized never arrives: the truck is stopped half way
       var path = join(go.slice(), leg), look = HAUL[e.cargo] || HAUL.liquor;
