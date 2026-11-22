@@ -203,6 +203,7 @@
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
     home.home = true; // the boss lives here
+    g.cities.forEach(function (c) { c.away = c !== home; }); // anywhere else his money sleeps in the city's coffer until a car brings it
     T.raiseHq(home, 'family');
     g.reign = R.create(NAMES.indexOf(capo) + 1);
     g.started = true;
@@ -313,7 +314,7 @@
   }
   // The day of the month a man makes his move: always the same one, between the opening of the month and its closing.
   var dayOf = T.dayOf;
-  var PASSING = { run: true, pay: true, tribute: true, wash: true, clean: true, loot: true };
+  var PASSING = { run: true, pay: true, tribute: true, wash: true, clean: true, loot: true, convoy: true };
   function passing(e) { return PASSING[e.type] || (e.type === 'hit' && (e.step === 'call' || e.step === 'stage')); } // a hit's steps are for the screen: the journal keeps how it began and how it ended // told to the screen as they happen, never written in the journal
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
@@ -326,6 +327,48 @@
       if (STOPS[e.type]) g.paused = true;
     });
   }
+  // --- money between cities ---
+  // The next city on the way home from this one, by the fewest roads.
+  function towardHome(g, from) {
+    var home = g.cities.filter(function (c) { return c.home; })[0].id, seen = {}, line = [[home]];
+    if (from === home) return null;
+    seen[home] = true;
+    while (line.length) {
+      var path = line.shift(), last = path[path.length - 1];
+      for (var i = 0; i < g.cities.length; i++) {
+        var id = g.cities[i].id;
+        if (seen[id] || !linked(last, id)) continue;
+        if (id === from) return last;
+        seen[id] = true; line.push(path.concat([id]));
+      }
+    }
+    return null;
+  }
+  // One day of the roads: every car carrying the family's money drives one road, and is the boss's when it reaches
+  // his city; then each city whose coffer holds a load sends one car, dirty money first.
+  function carryHome(g, events) {
+    var f = g.family, load = T.RULES.convoy.cash, still = [];
+    (f.onRoad || []).forEach(function (r) {
+      var next = towardHome(g, r.to);
+      if (!next) {
+        f.dirty += r.dirty; f.clean = (f.clean || 0) + r.clean;
+        events.push({ type: 'convoy', step: 'arrives', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
+        return;
+      }
+      r.from = r.to; r.to = next;
+      events.push({ type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
+      still.push(r);
+    });
+    g.cities.forEach(function (c) {
+      var box = c.away && c.coffer, to = box && towardHome(g, c.id);
+      if (!box || !to || box.dirty + box.clean < load) return;
+      var dirty = Math.min(load, box.dirty), clean = load - dirty, r = { from: c.id, to: to, amount: load, dirty: dirty, clean: clean };
+      box.dirty -= dirty; box.clean -= clean;
+      events.push({ type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean });
+      still.push(r);
+    });
+    f.onRoad = still;
+  }
   // One day of the month (g.ticks counts them). The month opens on the first, every man has his own day, and it closes on the last.
   function day(g, events) {
     var d = g.ticks, month = g.month, f = g.family, last = d >= TICKS_PER_MONTH - 1, heard = events.length;
@@ -334,6 +377,7 @@
       tell(g, T.begin(f, g.cities), month, events);
     }
     // the cars that leave today are for the screen to drive: they are not news for the journal
+    carryHome(g, events);
     var passed = T.pass(f, g.cities, d);
     passed.forEach(function (e) { if (passing(e)) events.push(e); });
     tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
@@ -553,6 +597,7 @@
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along
+    out.onRoad = (g.family.onRoad || []).map(function (q) { return { from: q.from, to: q.to, amount: q.amount, dirty: q.dirty, clean: q.clean }; }); // the family's money between two cities today
     var r = reignOf(g), share = shareNow(g);
     out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
                   acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, hq: a.hq, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
@@ -599,6 +644,7 @@
     // a game saved before headquarters existed: they go up where they would have
     if (g.started && g.family) (g.cities || []).forEach(function (c, i) {
       if (i === 0) c.home = true;
+      c.away = !c.home;
       if (c.rival) T.raiseHq(c, c.rival);
       if (held(g, c)) T.raiseHq(c, 'family');
     });
