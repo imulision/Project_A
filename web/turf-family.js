@@ -87,13 +87,17 @@
 
   // Once every city has served itself, what waits in its cellars and stores goes down each road to the family's sellers
   // that had nothing to sell next door. It is on their shelves for the month to come.
-  function ride(f, cities, roads) {
-    f.convoys = [];
+  // `day`: played day by day, one truck a day leaves down each road, in the last days of the cycle (as many days as
+  // the road has loads), when every city has served itself. Returns the trucks that left today.
+  function ride(f, cities, roads, day) {
+    var daily = day !== undefined, went = [];
+    if (!daily) f.convoys = [];
     (roads || []).forEach(function (r) {
       [[r.from, r.to], [r.to, r.from]].forEach(function (way) {
         var a = cities.filter(function (c) { return c.id === way[0]; })[0], b = cities.filter(function (c) { return c.id === way[1]; })[0];
         var left = RULES.convoy.loads + (sits(f, 'routes') ? Math.floor(who(sits(f, 'routes')).cunning / RULES.table.cunning) : 0);
         if (!a || !b) return;
+        if (daily) { if (day < RULES.days - left) return; left = 1; }
         CHAINS.forEach(function (chain) {
           if (chain.bonus) return;
           var src = cellars(a).filter(function (s) { return s.chain === chain.id; });
@@ -105,11 +109,13 @@
             sellers.forEach(function (q) { var has = q.b[chain.shelf] || 0; if (has + 1 <= RULES.truck.shelf && (!to || has < (to.b[chain.shelf] || 0))) to = q; });
             if (!from || !to) break;
             from.b.stock -= 1; to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1; left -= 1;
-            f.convoys.push({ from: a.id, to: b.id, cargo: from.cargo, amount: loadOfCargo(from.cargo), capo: from.p.capo, x: from.p.x, y: from.p.y, tx: to.p.x, ty: to.p.y });
+            var load = { from: a.id, to: b.id, cargo: from.cargo, amount: loadOfCargo(from.cargo), capo: from.p.capo, x: from.p.x, y: from.p.y, tx: to.p.x, ty: to.p.y };
+            f.convoys.push(load); went.push(load);
           }
         });
       });
     });
+    return went;
   }
 
   var api = { loadOf: loadOf, createFamily: createFamily, tree: tree, research: research, wishes: wishes, convoys: convoys, ride: ride };

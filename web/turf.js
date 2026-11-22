@@ -575,6 +575,7 @@
   // figures are kept aside and shown when it closes.
   function begin(f, cities) {
     var events = [];
+    f.convoys = []; f.rode = true; // played day by day the trucks between cities leave on their own days (rideDay)
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) {
       var shown = c.flow;
@@ -601,6 +602,12 @@
       c.flow = c.turn.shown;
     });
     return events;
+  }
+  // The trucks that leave for the next city today, told to the screen as they go.
+  function rideDay(f, cities, roads, day) {
+    return ride(f, cities, roads, day).map(function (v) {
+      return { type: 'convoy', step: 'leaves', cargo: v.cargo, from: v.from, to: v.to, amount: v.amount, capo: v.capo, x: v.x, y: v.y, tx: v.tx, ty: v.ty };
+    });
   }
   // The day of the cycle a man counts his takings, pays his men and makes his move: his own, and always the same.
   function dayOf(capo) {
@@ -640,7 +647,7 @@
   }
   // What the family does once every city has played its month: the convoys, the table, what it is learning.
   function after(f, cities, roads, events) {
-    ride(f, cities, roads);
+    if (f.rode) delete f.rode; else ride(f, cities, roads);
     payTable(f, events);
     // what was paid for on a day of a cycle is learned on that day (T.pass); otherwise as the cycle closes
     if (f.study && --f.study.monthsLeft <= 0 && f.study.day === undefined) learn(f, events);
@@ -652,7 +659,7 @@
     f.study = null;
   }
 
-  var api = { purse: C.purse, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { purse: C.purse, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

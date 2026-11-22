@@ -380,6 +380,7 @@
     carryHome(g, events);
     var passed = T.pass(f, g.cities, d);
     passed.forEach(function (e) { if (passing(e)) events.push(e); });
+    T.rideDay(f, g.cities, W.ROUTES, d).forEach(function (e) { events.push(e); }); // the trucks between cities, for the screen to drive
     tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     direct(g, events.slice(heard), month, events);
