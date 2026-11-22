@@ -25,6 +25,7 @@
     vouch: 6,           // places a capo runs before he brings his man to the boss's door // a place is turned into another trade when that trade would be worth this much more there; at this part of the price of a new one; and then left alone this many months
     purse: 600,         // dirty $ a capo arrives with
     club: 150,          // dirty $ a month a social club makes on its own: no capo is ever left with nothing
+    owed: 4,            // cycles of pay the men of a place can be owed at most, when no car comes for its takings
     wage: 100,          // dirty $ a month for the men of one place
     yield: 0.5,         // share of a place's worth that is left once it has paid its own costs
     pocket: 1500,       // dirty $ a capo keeps on top of what his next move costs: the rest goes up to the boss

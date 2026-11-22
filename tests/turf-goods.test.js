@@ -16,20 +16,23 @@ test('takings wait in the till of a place until one of the capo\'s cars fetches 
   const earned = T.income(c, 'dutch') - T.RULES.club;
   assert.ok(earned > 2 * RUNS * LOAD, 'six bars make more than two cars can carry');
   assert.equal(f.men.dutch.cars, 1);
+  f.men.dutch.cash = 0; // (nothing to buy a second car with)
   T.stepMonth(c, f);
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.equal(runs.length, RUNS);
   assert.ok(runs.every((t) => t.amount === LOAD && t.to.x === 2 && t.to.y === 2));
   assert.equal(new Set(runs.map((t) => t.from.x + ',' + t.from.y)).size, Math.min(6, RUNS), 'the fullest till first: every bar is visited before any is visited twice');
   assert.equal(f.men.dutch.income, T.RULES.club + RUNS * LOAD, 'he only has what reached his club');
-  assert.ok(Math.abs(tills(c) - (earned - RUNS * LOAD)) < 1e-6, 'the rest waits where it was made');
+  const rest = earned - 6 * T.RULES.wage - RUNS * LOAD; // the men of each place were paid on the spot
+  assert.ok(Math.abs(tills(c) - rest) < 1e-6, 'the rest waits where it was made');
   const man = T.view(c, f).capos[0];
-  assert.deepEqual([man.cars, man.waiting], [1, Math.round(earned - RUNS * LOAD)]);
+  assert.deepEqual([man.cars, man.waiting], [1, Math.round(rest)]);
 });
 
 test('a second car brings home twice as much', () => {
   const { c, f } = sixBars();
   f.men.dutch.cars = 2;
+  for (const b of Object.values(c.blocks)) if (b.kind === 'gambling') b.till = 2 * LOAD; // enough waiting for two cars
   T.stepMonth(c, f);
   assert.equal(T.trips(c, f).filter((t) => t.kind === 'takings').length, 2 * RUNS);
   assert.equal(f.men.dutch.income, T.RULES.club + 2 * RUNS * LOAD);
@@ -60,17 +63,17 @@ test('every car after the first costs its upkeep each month', () => {
   assert.ok(Math.abs(five.money - six.money - T.RULES.car.upkeep) < 1e-6, 'one car more, with nothing more to carry, costs $' + T.RULES.car.upkeep);
   assert.ok(after(1).money < after(2).money, 'and a car that has loads to carry pays for itself');
   const { c, f } = sixBars(); f.men.dutch.cash = 0; T.stepMonth(c, f);
-  assert.equal(f.men.dutch.cash + f.dirty, T.RULES.club + RUNS * LOAD - 6 * T.RULES.wage, 'the car a man came with costs nothing');
+  assert.equal(f.men.dutch.cash + f.dirty, T.RULES.club + RUNS * LOAD, 'the car a man came with costs nothing');
 });
 
-test('a car only leaves full: a small place waits until its till holds a whole load', () => {
+test('a car only comes for a full load: a small place waits until its till holds one, and the car leaves the men their pay first', () => {
   const c = town(), f = family();
   T.settle(c, 'dutch', 2, 2); T.join(f, 'dutch');
-  T.open(c, 8, 2, { owner: 'family', kind: 'rented', capo: 'dutch' });
+  T.open(c, 8, 2, { owner: 'family', kind: 'gambling', capo: 'dutch' });
   kept(c, 'dutch');
   for (const k of Object.keys(f.tech)) f.tech[k] = 0;
   const made = T.income(c, 'dutch') - T.RULES.club;
-  assert.ok(made > 0 && made < T.RULES.car.load / 2, 'it makes $' + made + ' a month');
+  assert.ok(made > T.RULES.wage && made < T.RULES.car.load, 'it makes $' + made + ' a month');
   const months = Math.ceil(T.RULES.car.load / made);
   for (let m = 1; m < months; m++) {
     T.stepMonth(c, f);
@@ -78,9 +81,11 @@ test('a car only leaves full: a small place waits until its till holds a whole l
     assert.equal(f.men.dutch.income, T.RULES.club);
   }
   T.stepMonth(c, f);
-  const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
-  assert.deepEqual(runs.map((t) => t.amount), [T.RULES.car.load]);
-  assert.ok(Math.abs(tills(c) - (made * months - T.RULES.car.load)) < 1e-6, 'what is over stays for the next car');
+  const runs = T.trips(c, f).filter((t) => t.kind === 'takings'), left = months * T.RULES.wage;
+  assert.equal(runs.length, 1);
+  assert.ok(Math.abs(runs[0].amount - (made * months - left)) < 1e-6, 'the men were owed $' + left + ': the car takes the rest, $' + runs[0].amount);
+  assert.ok(Math.abs(f.men.dutch.book.left - left) < 1e-6);
+  assert.ok(Math.abs(tills(c)) < 1e-6, 'and nothing is left in the till');
 });
 
 // --- a free capo takes his own car to where his business chokes ---
@@ -99,7 +104,7 @@ test('with nothing else on his hands a capo stands over his best place, and it m
   const at = whereIs(c, f, 'dutch');
   assert.deepEqual([at.x, at.y, at.why], [3, 2, 'boost']);
   assert.match(at.label, /Standing over his .* in Lantern Row/);
-  const made = f.men.dutch.income - T.RULES.club + tills(c);
+  const made = f.men.dutch.income - T.RULES.club + tills(c) + T.RULES.wage; // (its men were paid on the spot)
   assert.ok(Math.abs(made - plain * (1 + T.RULES.own.boost)) < 1e-6, 'it made $' + made + ' instead of $' + plain);
   assert.deepEqual(T.trips(c, f).filter((t) => t.kind === 'capo'), [{ kind: 'capo', cargo: 'boost', capo: 'dutch', from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, vehicle: 'dutch:own', home: { x: 2, y: 2 } }]);
 });
@@ -111,7 +116,7 @@ test('a capo who is busy elsewhere boosts nothing', () => {
   c.ops.push({ capo: 'dutch', x: 9, y: 3, way: 'buy', kind: 'speakeasy', cost: 1, month: 0, months: 6 });
   T.stepMonth(c, f);
   assert.equal(whereIs(c, f, 'dutch').why, 'take');
-  assert.ok(Math.abs(f.men.dutch.income - T.RULES.club + tills(c) - plain) < 1e-6);
+  assert.ok(Math.abs(f.men.dutch.income - T.RULES.club + tills(c) + T.RULES.wage - plain) < 1e-6);
 });
 
 test('when the bars run dry he stands over his still, and it pours more', () => {
@@ -236,6 +241,7 @@ test('the brewery is a still like no other: its capo\'s trucks drive its loads t
 test('each run is made by one of the capo\'s own cars, numbered, out of his club and back', () => {
   const { c, f } = sixBars();
   f.men.dutch.cars = 2; f.men.dutch.cash = 0;
+  for (const b of Object.values(c.blocks)) if (b.kind === 'gambling') b.till = 2 * LOAD; // enough waiting for two cars
   T.stepMonth(c, f);
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.equal(runs.length, 2 * RUNS);
@@ -411,12 +417,14 @@ test('now and then the rivals hold up a car that leaves a street they press on: 
   const { c, f } = exposed('mae');
   const e = until(c, f, 'hijack', T.RULES.road.every);
   assert.ok(e, 'within ' + T.RULES.road.every + ' months');
-  assert.deepEqual([e.capo, e.x, e.y, e.cargo, e.amount, e.by], ['mae', 5, 3, 'cash', LOAD, 'Callahan']);
-  assert.equal(e.label, 'The Callahans hold up Mae\'s car in Lantern Row: $' + LOAD + ' gone');
+  assert.deepEqual([e.capo, e.x, e.y, e.cargo, e.by], ['mae', 5, 3, 'cash', 'Callahan']);
+  assert.ok(e.amount > 0 && e.amount <= LOAD, 'what the car carried once the men of the place had their pay: ' + e.amount);
+  assert.equal(e.label, 'The Callahans hold up Mae\'s car in Lantern Row: $' + Math.round(e.amount) + ' gone');
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.equal(runs.filter((t) => t.lost === 'hijack').length, 1);
-  assert.equal(f.men.mae.income, T.RULES.club + LOAD * (runs.length - 1), 'every load but that one came in');
-  assert.equal(c.flow.hijacked, LOAD);
+  const came = runs.filter((t) => !t.lost).reduce((n, t) => n + t.amount, 0);
+  assert.ok(Math.abs(f.men.mae.income - (T.RULES.club + came)) < 1e-6, 'every load but that one came in');
+  assert.equal(c.flow.hijacked, e.amount);
 });
 
 test('they leave a hard man\'s cars alone, and the streets the family holds firmly', () => {

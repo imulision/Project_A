@@ -125,7 +125,7 @@ const idle = (capo, months, each) => {
 test('nineteen years of standing still are explained: a man left at the door, a capo saving alone for a place, money asleep', () => {
   // (a capo is boxed in some months and not others: the test reads the first month it is said)
   let boxed = null, k = null, top = null;
-  const g = idle('dutch', 228, (q) => { if (boxed) return; const c = E.view(q).cities[0]; boxed = c.stalls.find((s) => s.id.startsWith('boxed:')) || null; k = boxed && c.capos.find((m) => m.id === boxed.capo); top = E.view(q).stalls; }), v = E.view(g), a = v.cities[0];
+  const g = idle('tommy', 228, (q) => { if (boxed) return; const c = E.view(q).cities[0]; boxed = c.stalls.find((s) => s.id.startsWith('boxed:')) || null; k = boxed && c.capos.find((m) => m.id === boxed.capo); top = E.view(q).stalls; }), v = E.view(g), a = v.cities[0];
   // nobody new: a man has been waiting at the door for years (his capo runs six places), and that is the boss's to answer
   assert.equal(E.hud(g).men, 3);
   assert.ok(a.doors.some((d) => d.door === 'rise'), 'a man waits at the door');

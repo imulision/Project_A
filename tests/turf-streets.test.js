@@ -449,7 +449,7 @@ test('a key place is not one of the places a capo\'s rank limits, and costs him 
   assert.equal(f.men.sal.xp, 1, 'one place run, not two');
   const waiting = T.places(c, 'sal').reduce((n, p) => n + (p.till || 0), 0);
   const made = (before - T.RULES.club) * (1 + T.RULES.own.boost); // Sal, with nothing else to do, stands over his one business
-  assert.ok(Math.abs(f.men.sal.income + waiting - T.RULES.club - made) < 1e-6, 'and the precinct is not a business: nothing to fetch there');
+  assert.ok(Math.abs(f.men.sal.income + waiting + f.men.sal.book.left - T.RULES.club - made) < 1e-6, 'and the precinct is not a business: nothing to fetch there');
   assert.equal(T.places(c, 'sal').find((p) => p.kind === 'key').till, undefined);
 });
 

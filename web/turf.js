@@ -357,8 +357,11 @@
       var load = loadOf(f), haul = collect(c, capo, m.cars, drives[capo], load, trap);
       m.stuck = haul.full > 0;
       if (haul.went && at(c, haul.went.x, haul.went.y)) m.help = { x: haul.went.x, y: haul.went.y, why: 'carry', kind: at(c, haul.went.x, haul.went.y).kind }; // (the place may have burnt since)
-      var makes = drink.idle[capo] !== undefined, inc = tab ? tab.made : haul.got + RULES.club,
-          pay = tab ? tab.wages : Math.min(dues(c, f, capo, makes), haul.got), had = function () { return tab ? m.cash : m.cash - pay; };
+      var makes = drink.idle[capo] !== undefined,
+          kept = tab ? tab.left || 0 : G.leftPay(c, capo).sum, // what his men were paid where they work: it never came to the club
+          inc = tab ? tab.made : haul.got + RULES.club, // what reached his club
+          atClub = tab ? tab.wages : Math.min(dues(c, f, capo, makes), haul.got), // what he pays at his club: the rest of his men, his cars
+          pay = atClub, had = function () { return tab ? m.cash : m.cash - atClub; };
       if (tab) before = m.cash - (tab.made - tab.wages - tab.sent) + Object.keys(spent).reduce(function (n, k) { return n + spent[k]; }, 0);
       m.income = inc; m.waiting = haul.waiting;
       // tills that keep filling with no car free to empty them: he buys another one
@@ -382,7 +385,7 @@
       }
       // the boss's share comes off the top, before the men are paid; a capo with nothing left sends what he has
       // a bitter man sends nothing at all
-      var gives = giving(c, f, capo), sent = tab ? tab.sent : shareOut(c, f, capo, haul.got, RULES.club, pay).sent;
+      var gives = giving(c, f, capo), sent = tab ? tab.sent : shareOut(c, f, capo, haul.got, RULES.club, atClub, false, kept).sent;
       m.xp += run(c, capo).length;
       if (m.rank < RANKS.length - 1 && m.xp >= RULES.xp[m.rank + 1]) {
         m.rank += 1;
@@ -394,11 +397,11 @@
       }
       var p = plan(c, f, capo);
       // what he cannot use goes up to the boss rather than sleep in his club; the bigger the man, the more of it he spends on himself
-      var spare = m.cash - (p.cost || 0) - pay - RULES.pocket;
+      var spare = m.cash - (p.cost || 0) - (atClub + kept) - RULES.pocket; // (he keeps a cycle of his men's pay in hand, as before)
       if (spare > 0 && gives === 1 && (p.move === 'hold' || p.waiting !== 'money')) { var his = RULES.keeps[m.rank] * (can(c, capo, 'silent') ? 0.5 : 1); m.cash -= spare; f.dirty += spare * (1 - his); sent += spare * (1 - his); buys('himself', spare * his); }
       c.flow.sent[capo] = sent; c.flow.up += sent;
       B.patience(c, f, capo, p, events);
-      m.book = { made: inc, wages: pay, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
+      m.book = { made: inc, wages: pay, left: kept, sent: sent, spent: spent, saved: m.cash, put: m.cash - before };
       c.flow.made.club = (c.flow.made.club || 0) + RULES.club;
       var home = clubOf(c, capo), den = at(c, home.x, home.y); if (!den.mades) den.mades = []; den.mades.push(RULES.club); if (den.mades.length > 6) den.mades.shift();
       // what he puts aside is counted before what he pays for his moves: buying a place is what he was saving for
@@ -413,16 +416,17 @@
   // What a capo owes his men and his garage over a cycle.
   function dues(c, f, capo, makes) {
     var m = f.men[capo];
-    return wages(c, capo) + RULES.car.upkeep * ((m.cars || 1) - 1) + (makes ? RULES.truck.upkeep * ((m.trucks || 1) - 1) : 0);
+    return G.clubWages(c, capo) + RULES.car.upkeep * ((m.cars || 1) - 1) + (makes ? RULES.truck.upkeep * ((m.trucks || 1) - 1) : 0);
   }
   // A bitter man sends nothing at all.
   function giving(c, f, capo) { return mood(f, capo) === 'bitter' ? 0 : willing(c, capo); }
   // Money comes in: the boss's share comes off the top, the men are paid out of what the places brought (a bad
   // spell never puts him in debt, and what his club makes on its own stays his), the rest is the capo's.
   // `held`: the share stays at the club until the capo drives it to the headquarters (a city played day by day).
-  function shareOut(c, f, capo, got, club, due, held) {
+  function shareOut(c, f, capo, got, club, due, held, kept) {
     var m = f.men[capo], inc = got + club, pay = Math.min(due, got), profit = inc - pay;
-    var sent = Math.max(0, Math.min(RULES.cut[B.cutOf(c)].share * giving(c, f, capo) * inc, m.cash + profit));
+    // the boss's share is counted on all his places made, the pay left on the spot included
+    var sent = Math.max(0, Math.min(RULES.cut[B.cutOf(c)].share * giving(c, f, capo) * (inc + (kept || 0)), m.cash + profit));
     if (!held) f.dirty += sent;
     m.cash += profit - sent;
     return { inc: inc, pay: pay, sent: sent };
@@ -431,16 +435,19 @@
   // pay for his next move he makes it.
   function ready(c, f, capo, got, events) {
     var m = f.men[capo], h = c.hauls[capo], tab = h.tab || (h.tab = { made: 0, wages: 0, sent: 0, owed: 0 });
+    var left = G.leftPay(c, capo);
     tab.owed += dues(c, f, capo, c.turn.drink.idle[capo] !== undefined) / RULES.days;
-    var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed, true);
-    tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.sent += r.sent;
+    var r = shareOut(c, f, capo, got, RULES.club / RULES.days, tab.owed, true, left.sum);
+    tab.owed -= r.pay; tab.made += r.inc; tab.wages += r.pay; tab.left = (tab.left || 0) + left.sum; tab.sent += r.sent;
+    left.at.forEach(function (q) { events.push({ type: 'pay', what: 'wages', left: true, city: c.id, capo: capo, x: q.x, y: q.y, amount: q.amount }); });
     // the boss's share waits at the club; the capo's own car takes it to the headquarters one full load a trip, and
     // it is the boss's only when it gets there. The same car carries the money to wash and the money washed.
     m.share = (m.share || 0) + r.sent;
+    B.keep(m); // his own pay first, if the club still owes him some
     B.carry(c, f, capo, loadOf(f), events);
     // what was paid is told place by place, for the screen: the men of each place, and the garage at the club
     if (r.pay > 0) {
-      var mine = run(c, capo), all = dues(c, f, capo, c.turn.drink.idle[capo] !== undefined), men = wages(c, capo), club = clubOf(c, capo);
+      var mine = G.idlePlaces(c, capo), all = dues(c, f, capo, c.turn.drink.idle[capo] !== undefined), men = G.clubWages(c, capo), club = clubOf(c, capo); // (the men of the places a car comes to are paid by that car)
       var each = all > 0 && mine.length ? r.pay * (men / all) / mine.length : 0, garage = all > 0 ? r.pay * (1 - men / all) : 0;
       if (each > 0) mine.forEach(function (q) { events.push({ type: 'pay', what: 'wages', city: c.id, capo: capo, x: q.x, y: q.y, amount: each }); });
       if (garage > 0) events.push({ type: 'pay', what: 'upkeep', city: c.id, capo: capo, x: club.x, y: club.y, amount: garage });
@@ -503,7 +510,7 @@
     c.lurk = c.month + RULES.road.every; // they lie low for a while
     events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
               label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
-                + (cash ? '$' + held2.amount : held2.amount + CARGOES[held2.cargo]) + ' gone' });
+                + (cash ? '$' + Math.round(held2.amount) : held2.amount + CARGOES[held2.cargo]) + ' gone' });
   }
   function rivals(c, f, events) {
     rivalGrows(c);

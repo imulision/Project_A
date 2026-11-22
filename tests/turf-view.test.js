@@ -27,7 +27,7 @@ test('the view of a city gives the map everything it draws', () => {
   const { till, strains, ...drawn } = bar;
   assert.deepEqual(strains, [{ kind: 'dry', label: 'Nothing to pour: the family has no still' }]);
   assert.deepEqual(drawn, { x: 3, y: 2, owner: 'family', kind: 'speakeasy', name: D.SITES.speakeasy.name, level: 2, capo: 'dutch', made: drawn.made, made6: drawn.made6, costs: T.RULES.wage, load: T.RULES.car.load }); // (its books: tests/turf-ledger.test.js)
-  assert.ok(till > 0 && till < T.RULES.car.load, 'and what waits in its till for the next car');
+  assert.ok((till || 0) < T.RULES.car.load, 'and what waits in its till for the next car'); // (a car came this month: it left the men their pay and took the rest)
   assert.equal(v.places.find((p) => p.kind === 'club').name, 'Social Club');
   const port = v.places.find((p) => p.kind === 'key');
   assert.equal(port.key, 'port'); assert.equal(port.name, 'The Port'); assert.equal(port.owner, 'Callahan');
@@ -167,7 +167,7 @@ test('a place whose till holds two loads or more shows cash piling up', () => {
   const { c, f } = sixBars();
   assert.deepEqual(strainsAt(c, f, 1, 1), [], 'nothing yet');
   f.men.dutch.cash = 0;
-  T.stepMonth(c, f);
+  T.stepMonth(c, f); f.men.dutch.cash = 0; T.stepMonth(c, f); // (two months: the men of a place are paid out of its till first)
   const full = T.view(c, f).places.filter((p) => (p.till || 0) >= 2 * LOAD);
   assert.ok(full.length > 0);
   for (const p of full) {

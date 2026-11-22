@@ -242,6 +242,12 @@
     if (seat) { raid.x = seat.x; raid.y = seat.y; } // the money sleeps at the headquarters: that is where they come for it
     events.push(raid);
   }
+  // A capo takes what he is still owed out of the boss's share at his club, before it leaves.
+  function keep(m) {
+    var take = Math.min(m.unpaid || 0, m.share || 0);
+    if (take > 0) { m.share -= take; m.unpaid -= take; }
+    if (!m.unpaid) delete m.unpaid;
+  }
   // `daily`: the city is played day by day, the fronts have washed as the days went and the police pick their own day.
   function money(c, f, events, heard, daily) {
     f.clean = f.clean || 0;
@@ -253,6 +259,14 @@
     Object.keys(f.men).forEach(function (capo) {
       if (!clubOf(c, capo)) return;
       var due = Math.min(RULES.pay[f.men[capo].rank], RULES.payShare * (flow.sent[capo] || 0));
+      if (daily) {
+        // his pay never comes down from the headquarters: he keeps it out of the boss's share that still sleeps at
+        // his club, and what the club cannot cover today out of the next money that comes in (see `keep`)
+        var m = f.men[capo];
+        m.unpaid = (m.unpaid || 0) + due; flow.pay += due;
+        keep(m);
+        return;
+      }
       var dirty = Math.min(due, Math.max(0, f.dirty)), clean = Math.min(due - dirty, Math.max(0, f.clean));
       f.dirty -= dirty; f.clean -= clean; flow.pay += dirty + clean;
     });
@@ -380,7 +394,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { launder: launder, wash: wash, carry: carry, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { launder: launder, wash: wash, carry: carry, keep: keep, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

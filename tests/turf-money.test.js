@@ -223,7 +223,8 @@ test('a capo kicks up a share of his takings, even the month his men cost him al
   T.stepMonth(c, f);
   const m = f.men.dutch, sent = c.flow.sent.dutch;
   assert.ok(m.income > 0);
-  assert.ok(Math.abs(sent - T.RULES.tribute * m.income) < 1e-6, 'sent ' + sent + ' of ' + m.income);
+  // (his share is counted on all his places made: what reached his club and the pay left on the spot)
+  assert.ok(Math.abs(sent - T.RULES.tribute * (m.income + m.book.left)) < 1e-6, 'sent ' + sent + ' of ' + (m.income + m.book.left));
 });
 
 test('a capo with an empty club sends up what he has and no more: he never owes the boss', () => {

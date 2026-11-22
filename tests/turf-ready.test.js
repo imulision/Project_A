@@ -54,9 +54,9 @@ test('the money of a car is his the day it comes back: the boss has his share an
   cycle(c, f, (d, ev) => {});
   T.begin(f, [c]);
   for (let d = 0; d < DAYS && d < T.dayOf('dutch'); d++) {
-    const cash = f.men.dutch.cash, dirty = f.dirty;
+    const cash = f.men.dutch.cash, dirty = f.dirty, spent = sum(f.men.dutch.paid || {});
     const got = T.pass(f, [c], d).filter((e) => e.type === 'run' && !e.lost).reduce((n, r) => n + r.amount, 0);
-    if (got > 0 && !f.men.dutch.paid) { seen++; assert.ok(f.men.dutch.cash > cash, 'day ' + d); assert.ok(f.dirty > dirty, 'day ' + d); assert.ok(f.men.dutch.cash - cash < got); }
+    if (got > 0 && sum(f.men.dutch.paid || {}) === spent) { seen++; assert.ok(f.men.dutch.cash > cash, 'day ' + d); assert.ok(f.dirty > dirty, 'day ' + d); assert.ok(f.men.dutch.cash - cash < got); }
   }
   assert.ok(seen > 0);
 });
