@@ -1,5 +1,5 @@
 // Washing money is physical: dirty money is driven from the headquarters to a laundry, washed there at the
-// laundry's pace, and the clean money is driven back. One load a trip. A trip takes time (two blocks a day), and
+// laundry's pace, and the clean money is driven back. One load a trip. A trip takes time (a block a day), and
 // the car that makes it does nothing else meanwhile: the only limit is the cars a man has.
 const test = require('node:test');
 const assert = require('node:assert');
@@ -21,11 +21,22 @@ const place = (g, s) => E.view(g).cities[0].places.find((p) => p.x === s.x && p.
 const LOAD = T.RULES.car.loads[1];
 const far = (a, b) => Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / T.RULES.car.speed));
 
-test('a trip takes a day for every two blocks, and never less than a day', () => {
+test('a trip takes a day a block, and never less than a day', () => {
+  assert.strictEqual(T.RULES.car.speed, 1);
   assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 3, y: 3 }), 1);
   assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 4, y: 3 }), 1);
-  assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 5, y: 4 }), 2);
-  assert.strictEqual(T.tripDays({ x: 0, y: 0 }, { x: 4, y: 3 }), 4);
+  assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 5, y: 4 }), 3);
+  assert.strictEqual(T.tripDays({ x: 0, y: 0 }, { x: 4, y: 3 }), 7);
+});
+
+test('the car goes first where the most money waits: the laundry before the club when more sleeps there', () => {
+  const { g, f, at } = start(0);
+  f.men.sal.share = LOAD; at.washed = 3 * LOAD;
+  const first = day(g).find((e) => e.type === 'clean' || e.type === 'tribute');
+  assert.strictEqual(first.type, 'clean');
+  const other = start(0);
+  other.f.men.sal.share = 3 * LOAD; other.at.washed = LOAD;
+  assert.strictEqual(day(other.g).find((e) => e.type === 'clean' || e.type === 'tribute').type, 'tribute');
 });
 
 test('dirty money does not turn clean where it sleeps', () => {
@@ -132,4 +143,28 @@ test('the city says what is on the road today: each load, its car, where from, w
   assert.ok(r.gone >= 0 && r.gone <= r.days, 'days already driven');
   const back = E.view(E.load(E.save(g))).cities[0].rides.find((q) => q.kind === 'clean');
   assert.deepStrictEqual(back, r, 'kept through a save');
+});
+
+// --- every car a man has can carry the boss's money ---
+test('a man with two cars sends two loads the same day; with one car, one', () => {
+  const two = start(0);
+  two.f.men.sal.cars = 2; two.f.men.sal.share = LOAD; two.at.washed = 2 * LOAD;
+  const left = day(two.g).filter((e) => e.type === 'clean' || e.type === 'tribute');
+  assert.deepStrictEqual(left.map((e) => e.type).sort(), ['clean', 'tribute']);
+  assert.deepStrictEqual(E.view(two.g).cities[0].rides.map((r) => r.vehicle).sort(), ['sal:car:1', 'sal:own']);
+  const one = start(0);
+  one.f.men.sal.share = LOAD; one.at.washed = 2 * LOAD;
+  assert.strictEqual(day(one.g).filter((e) => e.type === 'clean' || e.type === 'tribute').length, 1);
+});
+
+test('when the boss\'s money piles up with every car of his on the road, the capo buys another car and says why', () => {
+  const { g, f, at } = start(0);
+  f.men.sal.cash = 5000; at.washed = 10 * LOAD;
+  const bought = days(g, T.RULES.days).find((e) => e.type === 'car');
+  assert.ok(bought, 'he buys one');
+  assert.match(bought.label, /Sal buys a second car: the boss's money was piling up/);
+  assert.strictEqual(f.men.sal.cars, 2);
+  const poor = start(0);
+  poor.f.men.sal.cash = 0; poor.at.washed = LOAD;
+  assert.ok(!days(poor.g, T.RULES.days).some((e) => e.type === 'car' && /boss/.test(e.label)), 'a single load waiting is no reason');
 });

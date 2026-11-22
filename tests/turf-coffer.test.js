@@ -46,58 +46,97 @@ test('the share of a capo in another city goes to that city\'s coffer, not to th
   assert.ok(c.coffer.dirty > 0 || washing > 0 || (f.onRoad || []).length > 0, 'it is in the coffer there, at a laundry there, or already on the road');
 });
 
-test('when a coffer holds a load a car takes it down the road; it is the boss\'s the day after, when it arrives', () => {
+const cash = (g) => day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
+const ROAD = T.RULES.road.days;
+const VAN = T.RULES.van.loads;
+
+test('the armoured van of a headquarters carries more as the headquarters grows', () => {
+  assert.deepStrictEqual(VAN, [600, 1500, 4000, 10000]);
+  assert.strictEqual(ROAD, 6);
+});
+
+test('when a coffer holds a load the van takes it down the road; it is the boss\'s six days later, when it arrives', () => {
   const g = start(), f = g.family, calder = city(g, 'calder');
-  T.purse(calder, f).dirty = 2 * LOAD + 30;
+  T.purse(calder, f).dirty = 2 * VAN[0] + 30;
   const had = f.dirty;
-  const left = day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-  assert.deepStrictEqual(left.map((e) => [e.step, e.from, e.to, e.amount]), [['leaves', 'calder', 'ashport', LOAD]], 'one car a day, one load');
-  assert.strictEqual(calder.coffer.dirty, LOAD + 30);
-  assert.ok(f.dirty < had + LOAD, 'not his yet');
-  const before = f.dirty, next = day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-  const in1 = next.find((e) => e.step === 'arrives');
-  assert.deepStrictEqual([in1.from, in1.to, in1.amount], ['calder', 'ashport', LOAD]);
-  assert.ok(f.dirty >= before + LOAD - 600, 'it is in the purse (less the day\'s own spending)');
-  assert.ok(next.some((e) => e.step === 'leaves'), 'and the next car leaves');
+  const left = cash(g);
+  assert.deepStrictEqual(left.map((e) => [e.step, e.from, e.to, e.amount, e.days, e.van]), [['leaves', 'calder', 'ashport', VAN[0], ROAD, 'calder']], 'one van, one load');
+  assert.strictEqual(calder.coffer.dirty, VAN[0] + 30);
+  for (let i = 1; i < ROAD; i++) assert.deepStrictEqual(cash(g), [], 'the van is on the road: nothing else leaves (day ' + i + ')');
+  assert.ok(f.dirty < had + VAN[0], 'not his yet');
+  const before = f.dirty, next = cash(g);
+  assert.deepStrictEqual(next.map((e) => [e.step, e.from, e.to, e.amount]), [['arrives', 'calder', 'ashport', VAN[0]], ['leaves', 'ashport', 'calder', 0]], 'it unloads and drives back empty');
+  assert.ok(next[1].empty && next[1].days === ROAD);
+  assert.ok(f.dirty >= before + VAN[0] - 600, 'it is in the purse (less the day\'s own spending)');
   assert.ok(!g.journal.some((l) => l.type === 'convoy'), 'for the screen, not for the journal');
 });
 
-test('less than a load waits in the coffer', () => {
+test('the van leaves again only once it is back', () => {
+  const g = start(), f = g.family, calder = city(g, 'calder');
+  T.purse(calder, f).dirty = 2 * VAN[0] + 30;
+  let leaves = [];
+  for (let d = 0; d < 2 * ROAD + 1; d++) cash(g).forEach((e) => { if (e.step === 'leaves' && !e.empty) leaves.push(d); });
+  assert.deepStrictEqual(leaves, [0, 2 * ROAD]);
+  assert.strictEqual(calder.coffer.dirty, 30);
+});
+
+test('a bigger headquarters has a bigger van: it takes all that waits, up to its load', () => {
+  const g = start(), f = g.family, calder = city(g, 'calder');
+  T.open(calder, 3, 3, { owner: 'family', kind: 'club', capo: 'dutch' });
+  T.raiseHq(calder, 'family'); T.sizeHq(calder, 'family', 3);
+  T.purse(calder, f).clean = VAN[2] + 500;
+  assert.deepStrictEqual(cash(g).filter((e) => e.step === 'leaves').map((e) => e.amount), [VAN[2]]);
+  const v = E.view(g).cities.find((c) => c.id === 'calder').coffer;
+  assert.strictEqual(v.load, VAN[2]);
+  assert.strictEqual(v.van, 'away');
+  const h = start(), small = city(h, 'calder');
+  T.purse(small, h.family).clean = VAN[0] + 200;
+  assert.deepStrictEqual(cash(h).map((e) => e.amount), [VAN[0]], 'a back room has the small one');
+  const k = start();
+  T.purse(city(k, 'calder'), k.family).clean = VAN[0] * 3;
+  T.open(city(k, 'calder'), 3, 3, { owner: 'family', kind: 'club', capo: 'dutch' });
+  T.raiseHq(city(k, 'calder'), 'family'); T.sizeHq(city(k, 'calder'), 'family', 4);
+  assert.deepStrictEqual(cash(k).map((e) => e.amount), [VAN[0] * 3], 'a big van does not wait to be full');
+});
+
+test('less than a car\'s load waits in the coffer', () => {
   const g = start(), calder = city(g, 'calder');
   T.purse(calder, g.family).dirty = LOAD - 1;
-  assert.deepStrictEqual(day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash'), []);
+  assert.deepStrictEqual(cash(g), []);
   assert.strictEqual(calder.coffer.dirty, LOAD - 1);
+  assert.strictEqual(E.view(g).cities.find((c) => c.id === 'calder').coffer.van, 'home');
 });
 
 test('clean money travels the same way and arrives clean', () => {
   const g = start(), f = g.family, calder = city(g, 'calder');
   f.clean = 0;
   T.purse(calder, f).clean = LOAD;
-  const left = day(g).find((e) => e.type === 'convoy' && e.cargo === 'cash');
-  assert.strictEqual(left.clean, LOAD);
-  day(g);
+  assert.strictEqual(cash(g)[0].clean, LOAD);
+  for (let i = 0; i < ROAD; i++) day(g);
   assert.strictEqual(f.clean, LOAD);
 });
 
-test('from a city two roads away the car takes two days, one road a day', () => {
+test('from a city two roads away the van takes twelve days, six a road', () => {
   const g = start(), f = g.family, where = far();
   f.clean = 0;
   T.purse(city(g, where.far), f).clean = LOAD;
-  const d1 = day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-  assert.deepStrictEqual(d1.map((e) => [e.step, e.from, e.to]), [['leaves', where.far, where.mid]]);
-  const d2 = day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-  assert.deepStrictEqual(d2.map((e) => [e.step, e.from, e.to]), [['leaves', where.mid, 'ashport']]);
-  assert.strictEqual(f.clean, 0);
-  const d3 = day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-  assert.deepStrictEqual(d3.map((e) => [e.step, e.to]), [['arrives', 'ashport']]);
+  const seen = [];
+  for (let d = 0; d <= 2 * ROAD; d++) cash(g).forEach((e) => seen.push([d, e.step, e.from, e.to, e.amount]));
+  assert.deepStrictEqual(seen, [
+    [0, 'leaves', where.far, where.mid, LOAD],
+    [ROAD, 'leaves', where.mid, 'ashport', LOAD],
+    [2 * ROAD, 'arrives', where.far, 'ashport', LOAD],
+    [2 * ROAD, 'leaves', 'ashport', where.mid, 0],
+  ]);
   assert.strictEqual(f.clean, LOAD);
 });
 
 test('the money on the road is told to the screen, and kept through a save', () => {
   const g = start(), calder = city(g, 'calder');
   T.purse(calder, g.family).dirty = LOAD;
-  day(g);
-  assert.deepStrictEqual(E.view(g).onRoad.map((r) => [r.from, r.to, r.amount]), [['calder', 'ashport', LOAD]]);
+  day(g); day(g);
+  const want = [['calder', 'ashport', LOAD, ROAD, 1, 'calder']];
+  assert.deepStrictEqual(E.view(g).onRoad.map((r) => [r.from, r.to, r.amount, r.days, r.gone, r.van]), want);
   const back = E.load(E.save(g));
-  assert.deepStrictEqual(E.view(back).onRoad.map((r) => [r.from, r.to, r.amount]), [['calder', 'ashport', LOAD]]);
+  assert.deepStrictEqual(E.view(back).onRoad.map((r) => [r.from, r.to, r.amount, r.days, r.gone, r.van]), want);
 });
