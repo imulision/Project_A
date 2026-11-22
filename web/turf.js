@@ -408,10 +408,10 @@
       // what he puts aside is counted before what he pays for his moves: buying a place is what he was saving for
       var moved = function () { return (spent.open || 0) + (spent.enlarge || 0) + (spent.take || 0) + (spent.convert || 0); };
       if (!m.puts) m.puts = []; m.puts.push(m.book.put + moved()); if (m.puts.length > 6) m.puts.shift();
-      if (p.move === 'hold' || p.waiting) return;
+      if (p.move === 'hold' || p.waiting || m.errand) return;
       m.cash -= p.cost; buys(p.move, p.cost);
       m.puts[m.puts.length - 1] = m.book.put + moved();
-      enact(c, f, capo, p, events);
+      setOut(c, f, capo, p, events);
     })();
   }
   // What a capo owes his men and his garage over a cycle.
@@ -453,6 +453,8 @@
       if (each > 0) mine.forEach(function (q) { events.push({ type: 'pay', what: 'wages', city: c.id, capo: capo, x: q.x, y: q.y, amount: each }); });
       if (garage > 0) events.push({ type: 'pay', what: 'upkeep', city: c.id, capo: capo, x: club.x, y: club.y, amount: garage });
     }
+    arrived(c, f, capo, events);
+    if (m.errand) return; // he is out with the money of his last move
     // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
     if (h.need !== undefined && m.cash < h.need) return;
     var p = plan(c, f, capo);
@@ -460,7 +462,28 @@
     if (p.move === 'hold' || p.waiting) return;
     m.cash -= p.cost;
     if (p.cost > 0) { m.paid = m.paid || {}; m.paid[p.move] = (m.paid[p.move] || 0) + p.cost; } // counted in his books at his next count
-    enact(c, f, capo, p, events);
+    setOut(c, f, capo, p, events);
+  }
+  // In a city played day by day a place is opened, made bigger or turned by the capo in person: he drives there from
+  // his club with the money, a block a day, and the move is made the day he arrives (m.errand meanwhile).
+  var ERRANDS = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' };
+  function setOut(c, f, capo, p, events) {
+    if (!(c.turn && c.turn.daily) || !ERRANDS[p.move]) { enact(c, f, capo, p, events); return; }
+    var m = f.men[capo], club = clubOf(c, capo), days = B.tripDays(club, p);
+    m.errand = { city: c.id, p: p, left: B.today(c), days: days, arrives: B.today(c) + days };
+    events.push({ type: 'errand', step: 'leaves', capo: capo, city: c.id, from: { x: club.x, y: club.y }, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost, days: days });
+  }
+  // The day he gets there: the move is made, unless the street is no longer what he set out for; he then comes
+  // home with his money.
+  function arrived(c, f, capo, events) {
+    var m = f.men[capo], e = m.errand;
+    if (!e || e.city !== c.id || e.arrives > B.today(c)) return;
+    delete m.errand;
+    var p = e.p, b = at(c, p.x, p.y), still = p.move === 'open' ? !b : b && b.owner === 'family' && b.capo === capo && (p.move !== 'convert' || b.kind === p.from);
+    if (still) { enact(c, f, capo, p, events); return; }
+    m.cash += p.cost;
+    if (m.paid && m.paid[p.move]) m.paid[p.move] = Math.max(0, m.paid[p.move] - p.cost);
+    events.push({ type: 'errand', step: 'back', capo: capo, city: c.id, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost });
   }
   // A move paid for is made: a place turned, men sent for a rival's place, a place opened or made bigger.
   function enact(c, f, capo, p, events) {
