@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const E = require('../web/empire.js');
 const T = require('../web/turf.js');
 const W = require('../web/world.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
 const months = (g, n) => { const out = []; for (let i = 0; i < n * E.TICKS_PER_MONTH; i++) { out.push(...E.tick(g)); if (g.paused) E.command(g, { type: 'resume' }); } return out; };
 
@@ -78,8 +80,9 @@ test('time stops when someone needs the boss\'s word, and his orders reach the r
   const spot = T.spots(g.cities[0])[0];
   assert.throws(() => E.command(g, { type: 'welcome', city: 'ashport', capo: 'nobody', x: spot.x, y: spot.y }), /not at the door/);
   E.command(g, { type: 'welcome', city: 'ashport', capo: knock.capo, x: spot.x, y: spot.y });
+  settle(g);
   assert.equal(E.hud(g).men, 2);
-  assert.equal(g.journal[g.journal.length - 1].type, 'welcomed');
+  assert.ok(g.journal.some((l) => l.type === 'welcomed' && l.capo === knock.capo));
   g.family.clean = 1000;
   E.command(g, { type: 'research', building: 'loans' });
   assert.equal(E.view(g).tree.find((t) => t.kind === 'loans').studying > 0, true);
@@ -189,13 +192,14 @@ test('a man at the door can be sent down the road to a city next door, and the d
   assert.ok(T.spots(calder).some((s) => s.x === spot.x && s.y === spot.y));
   assert.throws(() => E.command(g, { type: 'welcome', city: 'vesper', from: 'ashport', capo: 'danny', x: 1, y: 1 }), /no road/);
   E.command(g, { type: 'welcome', city: 'calder', from: 'ashport', capo: 'danny', x: spot.x, y: spot.y });
-  assert.equal(g.family.dirty, 20000 - d.cost - T.RULES.doors.road);
+  assert.equal(g.family.dirty, 20000 - d.cost - T.RULES.doors.road, 'set aside the day he is sent');
+  settle(g);
   const v = E.view(g), there = v.cities.find((c) => c.id === 'calder');
   assert.deepEqual(there.capos.map((m) => m.id), ['danny']);
   assert.equal(there.held, true);
   assert.deepEqual(v.cities[0].capos.map((m) => m.id), ['dutch']);
   assert.deepEqual(E.hud(g).cities, { held: 2, total: 6 });
-  const line = g.journal[g.journal.length - 1];
+  const line = g.journal.filter((l) => l.type === 'welcomed').pop();
   assert.deepEqual([line.type, line.capo, line.city, line.from], ['welcomed', 'danny', 'calder', 'ashport']);
   assert.match(line.label, /Calder Falls/);
   assert.ok(months(g, 12).some((e) => e.type === 'opened' && e.capo === 'danny' && e.city === 'calder'), 'and he goes to work there');
@@ -273,7 +277,7 @@ test('the boss starts with enough dirty money to take in the first man who knock
     for (let m = 1; m <= 24 && !taken; m++) {
       months(g, 1);
       const d = E.view(g).cities[0].doors[0], spot = T.spots(g.cities[0])[0];
-      if (d) { E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: spot.x, y: spot.y }); taken = m; }
+      if (d) { E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: spot.x, y: spot.y }); settle(g); taken = m; }
     }
     assert.ok(taken, start + ': nobody could be taken in during the first two years');
     assert.equal(E.hud(g).men, 2);
@@ -374,6 +378,7 @@ test('the boss names an underboss; from then on the men at that city\'s door no 
   const c = g.cities.find((q) => q.id === knock.city), spot = T.spots(c)[0];
   assert.throws(() => E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' }), /needs no underboss yet/);
   E.command(g, { type: 'welcome', city: c.id, capo: knock.capo, x: spot.x, y: spot.y });
+  settle(g);
   E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' });
   const said = g.journal[g.journal.length - 1];
   assert.deepEqual([said.type, said.capo, said.city], ['underboss', 'dutch', c.id]);
@@ -395,6 +400,7 @@ test('a man the underboss could not take in for want of money is not announced t
   const { g, knock } = firstKnock((g) => { g.family.dirty = 20000; });
   const c = g.cities.find((q) => q.id === knock.city), spot = T.spots(c)[0];
   E.command(g, { type: 'welcome', city: c.id, capo: knock.capo, x: spot.x, y: spot.y });
+  settle(g);
   E.command(g, { type: 'underboss', city: c.id, capo: 'dutch' });
   const waiting = () => E.view(g).cities.find((q) => q.id === c.id).doors.filter((d) => d.door !== 'poach');
   for (let i = 0; i < 4000 && !waiting().length; i++) { g.paused = false; g.family.dirty = 0; g.family.clean = 0; E.tick(g); }
@@ -446,6 +452,7 @@ test('the boss makes a capo a gift; the game shows each man\'s mood and what a g
   assert.throws(() => E.command(g, { type: 'gift', city: 'ashport', capo: 'vince' }), /clean money to make Vince a gift/);
   g.family.clean = 5000;
   E.command(g, { type: 'gift', city: 'ashport', capo: 'vince' });
+  settle(g);
   assert.equal(g.family.clean, 5000 - T.RULES.loyal.gift);
   assert.equal(k().mood, 'steady');
   const said = g.journal[g.journal.length - 1];

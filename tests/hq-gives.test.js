@@ -4,6 +4,8 @@ const assert = require('node:assert');
 const T = require('../web/turf.js');
 const R = require('../web/reign.js');
 const E = require('../web/empire.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
 const knocked = (act) => {
   const g = E.createGame({ capo: 'dutch' }); g.reign.left = 1e9;
@@ -66,6 +68,7 @@ test('from the second act the roads are open', () => {
   const { g, knock } = knocked(1), road = door(g, knock.capo).roads[0];
   assert.ok(road);
   E.command(g, { type: 'welcome', city: road.city, from: 'ashport', capo: knock.capo });
+  settle(g);
   assert.ok(T.clubOf(g.cities.find((c) => c.id === road.city), knock.capo));
 });
 

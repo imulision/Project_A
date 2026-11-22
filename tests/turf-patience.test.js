@@ -6,6 +6,8 @@ const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 const D = require('../web/district.js');
 const H = require('./turf-helpers.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 const town = H.town, family = H.family, year = H.year;
 const ALL = () => { const t = {}; for (const k of Object.keys(D.SITES)) t[k] = 3; return t; };
 
@@ -160,10 +162,13 @@ test('money asked for a place is a decision like the others: a year on, the game
   assert.ok(ask, 'a capo asked for money');
   g.family.dirty += 50000;
   E.command(g, { type: 'answer', city: ask.city, id: ask.a.id, yes: true });
+  settle(g);
   const d = E.view(g).decisions[0], name = T.person(ask.a.capo).name;
   assert.deepEqual([d.type, d.capo, d.x, d.y], ['funded', ask.a.capo, ask.a.x, ask.a.y]);
-  assert.equal(d.label, 'You gave ' + name + ' $' + ask.a.cost.toLocaleString('en-US') + ' for the ' + ask.a.name);
-  assert.equal(g.journal[g.journal.length - 1].label, 'You give ' + name + ' $' + ask.a.cost.toLocaleString('en-US') + ' for the ' + ask.a.name);
+  // (the place may cost less the day the van gets there than the day the boss said yes: he is given the price of the day)
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  assert.match(d.label, new RegExp('^You gave ' + esc(name) + ' \\$[\\d,]+ for the ' + esc(ask.a.name) + '$'));
+  assert.ok(g.journal.some((l) => l.type === 'granted' && l.fund && new RegExp('^You give ' + esc(name) + ' \\$[\\d,]+ for the ' + esc(ask.a.name) + '$').test(l.label)));
   let told = null;
   for (let m = 0; m < 12 && !told; m++) {
     for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; told = told || E.tick(g).find((e) => e.type === 'outcome' && e.decision === d.id); }

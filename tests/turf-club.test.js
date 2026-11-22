@@ -4,6 +4,8 @@ const assert = require('node:assert');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 const { town, family } = require('./turf-helpers.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
 test('a man picks a street made for his trade', () => {
   const c = town();
@@ -47,15 +49,17 @@ const knocked = () => {
 test('the boss takes a man in without naming a street: the man opens his club where he chose', () => {
   const { g, knock } = knocked(), want = T.clubSpot(g.cities[0], knock.capo);
   E.command(g, { type: 'welcome', city: 'ashport', capo: knock.capo });
+  settle(g);
   const club = T.clubOf(g.cities[0], knock.capo);
   assert.deepStrictEqual([club.x, club.y], [want.x, want.y]);
-  assert.strictEqual(g.journal[g.journal.length - 1].type, 'welcomed');
+  assert.ok(g.journal.some((l) => l.type === 'welcomed' && l.capo === knock.capo));
 });
 
 test('sent down a road without a street named, he chooses there too', () => {
   const { g, knock } = knocked(), road = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).roads[0];
   const to = g.cities.find((c) => c.id === road.city), want = T.clubSpot(to, knock.capo);
   E.command(g, { type: 'welcome', city: to.id, from: 'ashport', capo: knock.capo });
+  settle(g);
   const club = T.clubOf(to, knock.capo);
   assert.deepStrictEqual([club.x, club.y], [want.x, want.y]);
 });

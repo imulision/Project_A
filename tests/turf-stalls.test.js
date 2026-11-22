@@ -112,7 +112,7 @@ test('at most three troubles a city, the gravest first: unpaid men, ground lost,
 const idle = (capo, months, each) => {
   const g = E.createGame({ capo }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let m = 1; m <= months; m++) {
-    if (each && m % 12 === 0) each(g);
+    if (each) each(g);
     for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
     for (const c of E.view(g).cities) {
       for (const a of c.asks) { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } }
@@ -123,7 +123,7 @@ const idle = (capo, months, each) => {
 };
 
 test('nineteen years of standing still are explained: a man left at the door, a capo saving alone for a place, money asleep', () => {
-  // (a capo is boxed in some years and not others: the test reads the first year it is said)
+  // (a capo is boxed in some months and not others: the test reads the first month it is said)
   let boxed = null, k = null, top = null;
   const g = idle('dutch', 228, (q) => { if (boxed) return; const c = E.view(q).cities[0]; boxed = c.stalls.find((s) => s.id.startsWith('boxed:')) || null; k = boxed && c.capos.find((m) => m.id === boxed.capo); top = E.view(q).stalls; }), v = E.view(g), a = v.cities[0];
   // nobody new: a man has been waiting at the door for years (his capo runs six places), and that is the boss's to answer

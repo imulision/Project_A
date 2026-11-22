@@ -111,7 +111,7 @@
     road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08, days: 6 },
     // between two cities joined by a road: the loads one city makes and cannot sell that go, each way and each month,
     // to the family's sellers that went without in the other
-    van: { loads: [600, 1500, 4000, 10000] }, // $ the armoured van of a headquarters carries, by the size of the headquarters
+    van: { loads: [600, 1500, 4000, 10000], count: [2, 3, 4, 6] }, // $ the armoured van of a headquarters carries, by the size of the headquarters
     convoy: { loads: 2, cash: 600 }, // truckloads of goods down a road each cycle; $ a car takes from a city's coffer to the boss's city
     // the boss's table: what a man who sits there is paid a month, what each point of the Bookkeeper's Business adds
     // to every laundry, the points of Cunning Routes needs for one more load down every road, and the points of
