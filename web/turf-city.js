@@ -207,6 +207,13 @@
   }
 
   // A capo arrives: his social club is his base, and where he is found.
+  // Where the boss's money is in this city: in his own purse at home, in the city's coffer anywhere else. What is in
+  // a coffer is his only once a car has brought it home by road (empire.js drives it).
+  function purse(c, f) {
+    if (!c.away) return f;
+    if (!c.coffer) c.coffer = { dirty: 0, clean: 0 };
+    return c.coffer;
+  }
   function clubOf(c, capo) {
     var k = crowns(c);
     if (k.club[capo] === undefined) k.club[capo] = memo(c).places.filter(function (p) { return p.kind === 'club' && p.capo === capo; })[0] || null;
@@ -333,7 +340,7 @@
 
   function others(c, f, capo) { return Object.keys(f.men).filter(function (id) { return id !== capo && clubOf(c, id); }); }
 
-  var api = { learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
+  var api = { purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
       hqOf: hqOf, raiseHq: raiseHq, hqStage: hqStage, sizeHq: sizeHq, razeHq: razeHq, clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };
