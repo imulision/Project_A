@@ -336,6 +336,19 @@
     });
     return out;
   }
+  // paymentsTurf(events, plan): what the boss pays leaves his headquarters in its van, one load a trip. In his own city the van
+  // drives to the place that is owed; for another city it takes the road. It keeps to the days the rules give it.
+  function paymentsTurf(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      if (e.type !== 'payment' || e.step !== 'leaves') return;
+      if (e.van && e.van !== e.city) { out.push.apply(out, convoysTurf(plan, [{ from: e.van, to: e.city, cargo: 'cash', amount: e.amount, capo: e.capo, days: e.days }]).map(function (t) { t.id = 'pay:' + e.id + ':' + t.id; return t; })); return; }
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], a = c && e.from && lotOfBlock(c, e.from.x, e.from.y), b = c && lotOfBlock(c, e.x, e.y); if (!a || !b || a === b) return;
+      out.push({ id: c.id + ':payment:' + e.id + ':' + (e.vehicle || ''), kind: 'payment', city: c.id, loop: false, color: FLOW.money, vehicle: 'truck', violent: false, path: route([a.i, a.j], [b.i, b.j], c),
+                 days: Math.max(1, e.days || 1), wait: 0, cargo: 'cash', amount: e.amount || 0, load: {}, capo: e.capo || null, from: 'hq', to: b.site ? b.site.type : 'street', by: null, way: e.order || null, target: null, n: 0 });
+    });
+    return out;
+  }
   // leavingTurf(events, plan, day): what takes the road to another city today, goods in a truck and money in a car, each seen once.
   // The day is part of its name: the truck of tomorrow is another truck, not this one sent back to the start.
   function leavingTurf(events, plan, day) {
@@ -381,6 +394,12 @@
       // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
       if (e.type === 'run' || e.type === 'pay') return;      // a car that leaves and a pay packet are seen as money moving, never as a mark
+      if (e.type === 'payment') {      // what the boss pays: seen leaving his headquarters load by load, and arriving where it is owed
+        var yc = plan.cities.filter(function (x) { return x.id === (e.step === 'leaves' ? e.van || e.city : e.city); })[0]; if (!yc || !(e.amount > 0)) return;
+        var yl = e.step === 'leaves' ? yc.lots.filter(function (l) { return l.site && l.site.role === 'hq' && l.site.owner === 'family'; })[0] : e.step === 'arrives' && typeof e.x === 'number' ? lotOfBlock(yc, e.x, e.y) : null;
+        if (yl) out.push({ kind: 'pay', type: 'payment', city: yc.id, capo: e.capo || null, i: yl.i, j: yl.j, bx: yl.bx, by: yl.by, say: null, spent: e.step === 'leaves' ? Math.round(e.amount) : 0, gain: e.step === 'leaves' ? 0 : Math.round(e.amount) });
+        return;
+      }
       if (e.type === 'convoy') {      // money of another city on the road: its car is seen leaving, and the load is counted over the headquarters it reaches
         var vc = e.step === 'arrives' && e.amount > 0 ? plan.cities.filter(function (x) { return x.id === e.to; })[0] : null, vl = vc && vc.lots.filter(function (l) { return l.site && l.site.role === 'hq' && l.site.owner === 'family'; })[0];
         if (vl) out.push({ kind: 'pay', type: 'convoy', city: vc.id, capo: null, i: vl.i, j: vl.j, bx: vl.bx, by: vl.by, say: null, spent: 0, gain: Math.round(e.amount) });
@@ -457,7 +476,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, departuresTurf: departuresTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, paymentsTurf: paymentsTurf, departuresTurf: departuresTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

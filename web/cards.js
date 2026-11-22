@@ -324,8 +324,8 @@
   }
   function gift(c, k, hud) {
     var t = k.gift; if (!t) return '';
-    var short = !hud || (hud.clean || 0) < t.cost, why = t.wait > 0 ? 'He had one not long ago: again in ' + months(t.wait) : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
-    return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.wait > 0 || short }) + '</div>';
+    var short = !hud || (hud.clean || 0) < t.cost, why = t.paying ? 'The money is on its way' : t.wait > 0 ? 'He had one not long ago: again in ' + months(t.wait) : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
+    return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.paying || t.wait > 0 || short }) + '</div>';
   }
   function capo(view, cityId, id, hud, pw, rows) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
@@ -432,11 +432,24 @@
     return '<div class="move till">' + icon('dirty') + '<span><b>' + money(sum) + ' / ' + money(load) + '</b> in the coffer' + (part >= 1 ? ': a car takes the road with it' : ', until there is a load for the road') +
       '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i><small>' + money(Math.round(k.dirty || 0)) + ' dirty \u00b7 ' + money(Math.round(k.clean || 0)) + ' clean</small></span></div>';
   }
+  // What the boss pays leaves his headquarters by loads, and the order waits for the last of them.
+  var PAYS = { gift: 'a gift to ', welcome: 'the club of ', answer: 'what ' };
+  function payingLine(p) { var who = p.capo ? first(nameOf(p.capo)) : 'a man'; return money(Math.round(p.amount)) + ' for ' + (PAYS[p.order] || 'what is owed to ') + who + (p.order === 'answer' ? ' asked' : ''); }
+  function onItsWay(view, type, city, capo) {
+    var p = (view.paying || []).filter(function (q) { return q.order === type && q.city === city && (!capo || q.capo === capo); }).pop();
+    return p ? 'The money leaves your headquarters by loads: ' + payingLine(p) + '.' : '';
+  }
+  function payingList(view, h) {
+    var list = h && h.home ? view.paying || [] : []; if (!list.length) return '';
+    return '<h3 class="sub2">Leaving from here</h3>' + list.map(function (p) { var road = (p.rides || []).reduce(function (n, r) { return n + (r.amount || 0); }, 0), part = Math.min(1, p.arrived / Math.max(1, p.amount));
+      return '<div class="move till">' + icon('clean') + '<span>' + esc(payingLine(p)) + '<br><b>' + money(Math.round(p.arrived)) + ' / ' + money(Math.round(p.amount)) + '</b> arrived' + (road > 0 ? ' \u00b7 ' + money(Math.round(road)) + ' on the road' : '') +
+        '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>'; }).join('');
+  }
   function hqSheet(view, c, p, b) {
     var h = hqOf(c, p), ours = p.owner === 'family';
     return '<h2>' + esc(zoneOf(c, p.x, p.y).name) + '</h2><p>' + esc(c.name) + ' \u00b7 ' + (GRIP[b.grip] || 'Nobody holds this street yet') + '</p>' +
       '<div class="intent' + (ours ? '' : ' wish') + '"><span class="gauge">' + I.ring(Math.max(1, Math.min(4, p.stage || 1)) / 4, 'ambition') + '</span><div><b>' + esc(hqTitle(p)) + '</b><small>' + esc(hqWhat(view, p) + ' \u00b7 ' + hqWho(h)) + '</small></div></div>' +
-      cofferBar(c, p) +
+      cofferBar(c, p) + (ours ? payingList(view, h) : '') +
       (ours ? '<div class="move">' + icon('dirty') + '<span>The share of every capo is driven here from his club, one full load a trip.</span></div>' +
               '<div class="move">' + icon('works') + '<span>It grows with each act of the family, and its block with it.</span></div>'
             : '<div class="move no">' + icon('attack') + '<span>The seat of the rivals in ' + esc(c.name) + '.</span></div>') +
@@ -897,7 +910,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, vault: vault, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

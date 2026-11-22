@@ -4,6 +4,8 @@ const assert = require('node:assert');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 const { town, family } = require('./turf-helpers.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
 const start = (capo = 'sal') => { const g = E.createGame({ capo }); g.reign.left = 1e9; return g; };
 const play = (g, days) => { const all = []; for (let i = 0; i < days; i++) { g.paused = false; all.push(...E.tick(g)); } return all; };
@@ -90,6 +92,7 @@ test('a city headquarters appears the day the first man settles in another city'
   g.family.dirty = 50000; g.reign.reached = 2; // the roads are open (see hq-gives.test.js)
   const road = E.view(g).cities[0].doors.find((d) => d.capo === knock.capo).roads[0];
   E.command(g, { type: 'welcome', city: road.city, from: 'ashport', capo: knock.capo });
+  settle(g);
   const there = E.view(g).cities.find((c) => c.id === road.city);
   assert.ok(there.hq.family);
   assert.strictEqual(there.hq.family.stage, 1);

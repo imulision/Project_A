@@ -1275,3 +1275,17 @@ test('a car that carries money says whose and where to: the share of the boss, w
   assert.equal(C.carLoad({ kind: 'tribute', amount: 150 }), '$150'); assert.equal(C.carLoad({ kind: 'convoy', cargo: 'cash', amount: 600 }), '$600'); assert.equal(C.carLoad({ kind: 'convoy', cargo: 'cash', amount: 0 }), '');
   assert.equal(C.carLoad({ kind: 'convoy', cargo: 'liquor', amount: 20 }), '');
 });
+
+test('what the boss pays is on its way: the words for it, the gift button that waits, the list at the headquarters', () => {
+  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0], hq = c.hq.family;
+  const p = { id: 1, order: 'gift', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 1500, sent: 600, arrived: 300, rides: [{ amount: 300, days: 2, gone: 1 }] };
+  assert.equal(C.payingLine(p), '$1,500 for a gift to Sal'); assert.equal(C.payingLine({ ...p, order: 'welcome' }), '$1,500 for the club of Sal'); assert.equal(C.payingLine({ ...p, order: 'answer' }), '$1,500 for what Sal asked');
+  assert.equal(C.onItsWay({ ...v, paying: [p] }, 'gift', c.id, k.id), 'The money leaves your headquarters by loads: $1,500 for a gift to Sal.');
+  assert.equal(C.onItsWay(v, 'gift', c.id, k.id), '');
+  v.paying = [p];
+  const sheet = C.block(v, c.id, hq.x, hq.y);
+  assert.match(sheet, /Leaving from here[^]*\$1,500 for a gift to Sal[^]*\$300 \/ \$1,500<\/b> arrived[^]*\$300 on the road[^]*width:20%/);
+  k.gift = { cost: 1500, wait: 0, paying: true };
+  assert.match(C.capo(v, c.id, k.id, { clean: 5000 }), /data-act="gift"[^>]*disabled[^]*The money is on its way/);
+  v.paying = []; assert.doesNotMatch(C.block(v, c.id, hq.x, hq.y), /Leaving from here/);
+});

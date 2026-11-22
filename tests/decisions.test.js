@@ -3,6 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const E = require('../web/empire.js');
 const T = require('../web/turf.js');
+// what the boss pays travels: play on until his van has delivered it and the order is carried out
+const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
 const months = (g, n) => { const out = []; for (let i = 0; i < n * E.TICKS_PER_MONTH; i++) { g.paused = false; out.push(...E.tick(g)); } return out; };
 const ashport = (g) => g.cities[0];
@@ -12,6 +14,7 @@ const withTwo = () => {
   g.family.dirty = 50000; g.family.clean = 50000; c.burnt = 99; // (a city this burnt brings a man of need to the door)
   const d = T.doors(c, g.family)[0], s = T.spots(c)[0];
   E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: s.x, y: s.y });
+  settle(g);
   return { g, capo: d.capo };
 };
 
