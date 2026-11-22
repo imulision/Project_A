@@ -22,7 +22,7 @@ const hud = () => page.evaluate(() => ['date', 'dirty', 'clean', 'share', 'men']
 const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
   const A = window.__ashport, q = (s) => document.querySelector('#veil.on ' + s), seen = window.__seen = window.__seen || { answer: 0, rule: 0, seat: 0, waited: 0, away: 0, rides: 0 };
   for (let i = 0; i < n * AshportEmpire.TICKS_PER_MONTH; i++) {
-    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay'), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
+    const ev = (A.beat() || []).filter((e) => e.type !== 'run' && e.type !== 'pay' && !(e.type === 'arrived' && e.kind === 'takings')), day = A.game().ticks;      // (a car leaving with the takings changes nothing the page must redraw)
     if (ev.length && day) { seen.midmonth = (seen.midmonth || 0) + 1; if (A.view().day !== day) seen.stale = (seen.stale || 0) + 1; }      // what happens inside a month is on the screen the same day
     if (document.getElementById('date').textContent !== 'Day ' + (A.game().month * AshportEmpire.TICKS_PER_MONTH + day + 1)) seen.date = (seen.date || 0) + 1;      // the date is a count of days
     if (A.map().labels().some((l) => l.pop < 0)) seen.paid = (seen.paid || 0) + 1;      // a pay packet is seen leaving its place
@@ -206,9 +206,9 @@ await page.waitForFunction((n) => window.__ashport.map().stats().drawn > n, d0, 
 await page.click('#clock');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped') || window.__ashport.game().paused), false, 'the banner starts time again');
 await page.waitForFunction((was) => { const m = window.__ashport.map(); return !m.stats().held && m.labels().filter((l) => l.car).map((l) => l.id + ':' + Math.round(l.x) + ',' + Math.round(l.y)).join(' ') !== was; }, stood.at, { timeout: 20000 });      // the cars leave again with the clock
-// the loaded car comes home: what it brings is seen coming in over the club, and the dirty total answers
-const came = await page.evaluate(async () => { const m = window.__ashport.map(), fresh = () => m.labels().some((l) => l.pop > 0 && l.part < 0.4);
-  for (let n = 0; n < 800 && !fresh(); n++) { m.run(0.25); if (n % 40 === 39) await new Promise((r) => setTimeout(r, 300)); }      // (old figures fade away meanwhile)
+// the loaded car comes home: what it brings is seen coming in over the club the day the rules count it, and the dirty total answers
+const came = await page.evaluate(async () => { const A = window.__ashport, m = A.map(), fresh = () => m.labels().some((l) => l.pop > 0 && l.part < 0.4);
+  for (let n = 0; n < 400 && !fresh(); n++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); m.run(0.25); if (n % 40 === 39) await new Promise((r) => setTimeout(r, 300)); }      // (old figures fade away meanwhile)
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   const e = document.querySelector('.lab.pop.in'); return { text: e && e.textContent, bump: document.getElementById('dirty').classList.contains('bump') }; });
 assert.match(came.text || '', /^\+\$\d/, 'the takings are written over the club');
@@ -311,7 +311,14 @@ assert.ok(await page.locator('#sheet [data-act=buy][data-holding=' + what + ']')
 await page.evaluate((price) => { window.__ashport.game().family.clean = price; }, price);
 await page.click('#sheet [data-act=close]'); await page.click('#family');
 await page.click('#sheet [data-act=buy][data-holding=' + what + ']');
+// its money leaves the headquarters by van for City Hall: the holding is the family's once the last load is there
+assert.ok(await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).paying, what), 'the money is on its way');
+assert.match(await page.textContent('#sheet [data-act=buy][data-holding=' + what + ']'), /on its way/);
+assert.ok(await page.locator('#sheet [data-act=buy][data-holding=' + what + ']').isDisabled(), 'nothing is paid for twice');
+await page.click('#sheet [data-act=close]');
+for (let n = 0; n < 12 && (await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).level, what)) < 1; n++) await months(1);
 assert.equal(await page.evaluate((id) => window.__ashport.view().holdings.find((h) => h.id === id).level, what), 1, 'it is the family\'s for good');
+await page.click('#family');
 assert.match(await page.textContent('#sheet li.hold'), /1 \/ 3/);
 await page.evaluate((had) => { window.__ashport.game().family.clean = had; }, had);
 await shot('c5-family');

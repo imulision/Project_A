@@ -262,12 +262,15 @@
   // tripsTurf(plan, view): what drives in the streets.
   // The trips that name their vehicle are the legs of its round: it leaves its place by the club empty, loads, delivers, and comes home;
   // a vehicle with no trip this month stays parked there. The other trips come and go between their two ends, as before.
-  function tripsTurf(plan, view) {
+  // `timed`: the page draws the cars sent for takings from their own departures (runsTurf), each with its real days; they are left out here,
+  // and so wait parked by the club until a run sends them out.
+  function tripsTurf(plan, view, timed) {
     var out = [];
     view.cities.forEach(function (vc, ci) {
       var c = plan.cities[ci]; if (!c) return;
       var same = {}, rounds = {}, order = [];
       (vc.trips || []).forEach(function (t, n) {
+        if (timed && t.kind === 'takings' && t.vehicle) return;
         if (t.kind === 'capo') return;      // a capo's own car does not come and go: it drives once, when he moves (movesTurf)
         var a = lotOfBlock(c, t.from.x, t.from.y), b = lotOfBlock(c, t.to.x, t.to.y), look = HAUL[t.kind] || HAUL.takings; if (!a || !b || a === b) return;
         if (t.vehicle && t.home) { if (!rounds[t.vehicle]) { rounds[t.vehicle] = []; order.push(t.vehicle); } rounds[t.vehicle].push({ t: t, a: a, b: b, n: n }); return; }
@@ -322,6 +325,20 @@
     });
     return out;
   }
+  // runsTurf(events, plan): a car sent for the takings of a place. It drives out empty for `wait` days, loads, and drives home for `days`:
+  // one car, out and back once, named after the car of the capo it is (veh), so that the same car is not also seen parked.
+  function runsTurf(events, plan) {
+    var out = [];
+    (events || []).forEach(function (e) {
+      if (e.type !== 'run' || typeof e.x !== 'number') return;
+      var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], k = c && c.capos.filter(function (m) { return m.id === e.capo; })[0]; if (!k || typeof k.i !== 'number') return;
+      var b = lotOfBlock(c, e.x, e.y); if (!b || (b.i === k.i && b.j === k.j)) return;
+      var go = route([k.i, k.j], [b.i, b.j], c), path = join(go.slice(), route([b.i, b.j], [k.i, k.j], c)), w = Math.max(0.25, e.wait || 0), d = Math.max(0.25, e.days || 1);
+      out.push({ id: c.id + ':run:' + (e.vehicle || e.capo) + ':' + e.x + '.' + e.y, veh: e.vehicle ? c.id + ':' + e.vehicle : null, kind: 'takings', city: c.id, loop: false, color: FLOW.money, vehicle: 'car', violent: false, path: path,
+                 stages: [{ k: go.length - 1, days: w }, { k: path.length - 1, days: d }], days: w + d, wait: 0, cargo: 'cash', amount: Math.round(e.amount || 0), load: {}, capo: e.capo, from: b.site ? b.site.type : 'street', to: 'club', by: null, way: null, target: null, n: 0 });
+    });
+    return out;
+  }
   // departuresTurf(events, plan): a car that leaves with money (the share of the boss, money to wash, washed money) drives once,
   // from where it loads to where it is counted. The rules say how many days it waits before it has loaded (wait) and how many it
   // drives (days): the map keeps to them at any speed of the game, so that it arrives the day the money is counted.
@@ -331,7 +348,7 @@
     (events || []).forEach(function (e) {
       if (!CARRIES[e.type] || !e.from || typeof e.x !== 'number') return;
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], a = c && lotOfBlock(c, e.from.x, e.from.y), b = c && lotOfBlock(c, e.x, e.y); if (!a || !b || a === b) return;
-      out.push({ id: c.id + ':' + e.type + ':' + (e.capo || '') + ':' + e.from.x + '.' + e.from.y, kind: e.type, city: c.id, loop: false, color: FLOW[HAUL[e.type].flow], vehicle: 'car', violent: false, path: route([a.i, a.j], [b.i, b.j], c),
+      out.push({ id: c.id + ':' + e.type + ':' + (e.capo || '') + ':' + e.from.x + '.' + e.from.y, veh: e.vehicle ? c.id + ':' + e.vehicle : null, kind: e.type, city: c.id, loop: false, color: FLOW[HAUL[e.type].flow], vehicle: 'car', violent: false, path: route([a.i, a.j], [b.i, b.j], c),
                  days: Math.max(1, e.days || 1), wait: Math.max(0, e.wait || 0), cargo: CARRIES[e.type], amount: e.amount || 0, load: {}, capo: e.capo || null, from: a.site ? a.site.type : 'street', to: b.site ? b.site.type : 'street', by: null, way: null, target: null, n: 0 });
     });
     return out;
@@ -478,7 +495,7 @@
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
   }
-  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, paymentsTurf: paymentsTurf, departuresTurf: departuresTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
+  var api = { MODELS: MODELS, COLORS: COLORS, SITES: SITES, FLOW: FLOW, planTurf: planTurf, planEmpire: planEmpire, spotOf: spotOf, hqBlock: hqBlock, leavingTurf: leavingTurf, paymentsTurf: paymentsTurf, departuresTurf: departuresTurf, runsTurf: runsTurf, tripsTurf: tripsTurf, movesTurf: movesTurf, convoysTurf: convoysTurf, effectsTurf: effectsTurf, arrivalsTurf: arrivalsTurf, claimsTurf: claimsTurf, paysTurf: paysTurf, route: route };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportMapView = api;
 })(typeof self !== 'undefined' ? self : this);

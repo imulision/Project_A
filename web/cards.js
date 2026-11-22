@@ -434,15 +434,19 @@
   }
   // What the boss pays leaves his headquarters by loads, and the order waits for the last of them.
   var PAYS = { gift: 'a gift to ', welcome: 'the club of ', answer: 'what ' };
-  function payingLine(p) { var who = p.capo ? first(nameOf(p.capo)) : 'a man'; return money(Math.round(p.amount)) + ' for ' + (PAYS[p.order] || 'what is owed to ') + who + (p.order === 'answer' ? ' asked' : ''); }
+  function payingLine(p, view) {
+    var t = p.order === 'research' && view ? (view.tree || []).filter(function (q) { return q.paying; })[0] : null, h = p.order === 'buy' && view ? (view.holdings || []).filter(function (q) { return q.paying; })[0] : null;
+    if (p.order === 'research') return money(Math.round(p.amount)) + ' for learning ' + (t ? t.name.toLowerCase() : 'a trade');
+    if (p.order === 'buy') return money(Math.round(p.amount)) + ' for ' + (h ? h.name.toLowerCase() : 'what the family buys') + ', signed at City Hall';
+    var who = p.capo ? first(nameOf(p.capo)) : 'a man'; return money(Math.round(p.amount)) + ' for ' + (PAYS[p.order] || 'what is owed to ') + who + (p.order === 'answer' ? ' asked' : ''); }
   function onItsWay(view, type, city, capo) {
-    var p = (view.paying || []).filter(function (q) { return q.order === type && q.city === city && (!capo || q.capo === capo); }).pop();
-    return p ? 'The money leaves your headquarters by loads: ' + payingLine(p) + '.' : '';
+    var p = (view.paying || []).filter(function (q) { return q.order === type && (!city || q.city === city) && (!capo || q.capo === capo); }).pop();
+    return p ? 'The money leaves your headquarters by loads: ' + payingLine(p, view) + '.' : '';
   }
   function payingList(view, h) {
     var list = h && h.home ? view.paying || [] : []; if (!list.length) return '';
     return '<h3 class="sub2">Leaving from here</h3>' + list.map(function (p) { var road = (p.rides || []).reduce(function (n, r) { return n + (r.amount || 0); }, 0), part = Math.min(1, p.arrived / Math.max(1, p.amount));
-      return '<div class="move till">' + icon('clean') + '<span>' + esc(payingLine(p)) + '<br><b>' + money(Math.round(p.arrived)) + ' / ' + money(Math.round(p.amount)) + '</b> arrived' + (road > 0 ? ' \u00b7 ' + money(Math.round(road)) + ' on the road' : '') +
+      return '<div class="move till">' + icon('clean') + '<span>' + esc(payingLine(p, view)) + '<br><b>' + money(Math.round(p.arrived)) + ' / ' + money(Math.round(p.amount)) + '</b> arrived' + (road > 0 ? ' \u00b7 ' + money(Math.round(road)) + ' on the road' : '') +
         '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>'; }).join('');
   }
   function hqSheet(view, c, p, b) {
@@ -515,9 +519,9 @@
   // What clean money buys for good: each holding has three sizes; the button says the price, or why it cannot be paid.
   function holdings(view, hud) {
     var list = view.holdings; if (!list || !list.length) return '';
-    return '<h3 class="sub2">What clean money buys</h3><ul class="list">' + list.map(function (h) { var n = h.next, short = n && (!hud || (hud.clean || 0) < n.cost);
+    return '<h3 class="sub2">What clean money buys</h3><ul class="list">' + list.map(function (h) { var n = h.next, short = n && !h.paying && (!hud || (hud.clean || 0) < n.cost);
       return '<li class="ev hold"><div><b>' + esc(h.name) + '</b> · ' + h.level + ' / ' + h.most + '<small>' + esc(h.gives) + '</small></div>' +
-        (n ? button('buy', { holding: h.id }, money(n.cost) + (short ? '<small>It takes ' + money(n.cost) + ' of clean money</small>' : ''), { off: short }) : '') + '</li>'; }).join('') + '</ul>';
+        (n ? button('buy', { holding: h.id }, money(n.cost) + (h.paying ? '<small>The money is on its way</small>' : short ? '<small>It takes ' + money(n.cost) + ' of clean money</small>' : ''), { off: short || h.paying }) : '') + '</li>'; }).join('') + '</ul>';
   }
   // The rival of the city has a face: who he is, how much of the town is his, what he last did, and whether he is out for blood.
   // The strength of the rival family in a city, against a year ago: a rival who weakens is good news.
@@ -575,10 +579,11 @@
   }
   function know(view, kind, hud) {
     var t = view.tree.filter(function (q) { return q.kind === kind; })[0]; if (!t) return '';
-    var busy = view.tree.filter(function (q) { return q.studying; })[0], wanted = (t.wanted || []).map(function (id) { return first(nameOf(id)); });
+    var busy = view.tree.filter(function (q) { return q.studying || q.paying; })[0], wanted = (t.wanted || []).map(function (id) { return first(nameOf(id)); });
     var html = '<b>' + esc(t.name) + (t.tier ? ' · tier ' + t.tier : ' · not known yet') + '</b>' + (wanted.length ? '<small>Asked for by ' + esc(wanted.join(', ')) + '</small>' : '') +
       (t.gives ? '<p class="gives">' + esc(t.gives) + '</p>' : '') +
       (t.next && t.next.gives ? '<div class="move next">' + I.icon('yes') + '<span><b>' + (t.tier ? 'Tier ' + t.next.tier + ' brings' : 'Learning it brings') + '</b> ' + esc(t.next.gives) + '</span></div>' : '');
+    if (t.paying) return html + '<div class="move">' + I.icon('clean') + '<span>The money is on its way from your headquarters: the learning starts when the last load is there</span></div>';
     if (t.studying) return html + '<div class="move">' + I.icon('time') + '<span>Learning: ' + months(t.studying) + ' left</span></div>';
     if (!t.next) return html + '<div class="move yes">' + I.icon('yes') + '<span>Nothing more to learn</span></div>';
     var what = (t.tier ? 'Tier ' + t.next.tier : 'Learn it') + ' · ' + money(t.next.cost) + ' clean · ready in ' + months(t.next.months);
@@ -856,7 +861,7 @@
     var men = '';
     view.cities.forEach(function (c) { if (c.capos.length) men += '<div class="tier"><small>' + esc(c.name) + ' · ' + c.seats.taken + ' / ' + c.seats.total + ' seats</small><div>' +
       c.capos.map(function (m) { return '<button class="slot" data-act="capo"' + data({ city: c.id, capo: m.id }) + ' data-tip="' + esc(m.name + ', ' + m.rankName) + '">' + I.portrait(m.id) + '</button>'; }).join('') + '</div></div>'; });
-    var pick = view.tree.filter(function (t) { return t.studying; })[0] || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
+    var pick = view.tree.filter(function (t) { return t.studying || t.paying; })[0] || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
     return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p>' + curves(view) + (rows ? ranking(view, rows) : '') + '<div class="pyr">' + men + '</div>' + table(view) + holdings(view, hud) +
       '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. A face marks what a capo is asking for.</p><div class="tree">' + view.tree.map(function (t) { return knowBtn(t, pick && t.kind === pick.kind); }).join('') + '</div>' +
       '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';

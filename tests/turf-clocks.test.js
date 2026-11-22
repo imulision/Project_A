@@ -144,13 +144,16 @@ test('when the heat boils over the police come on a day of their own, not as the
   assert.equal(c.heat <= T.RULES.afterBust + T.RULES.hot, true);
 });
 
-test('what the family learns is learned on the day the boss paid for it, so many cycles later', () => {
+test('what the family learns is learned on the day its money arrived, so many cycles later', () => {
   const g = E.createGame({ capo: 'dutch' });
   g.family.clean = 50000;
   for (let i = 0; i < 9; i++) { E.tick(g); g.paused = false; }
   const kind = E.view(g).tree.filter((t) => t.next && t.kind !== 'cars')[0];
   E.command(g, { type: 'research', building: kind.kind });
-  const started = { month: g.month, day: g.ticks };
+  // the money is driven to the man who sets it up: the study starts the day the last load is there
+  let started = null;
+  for (let i = 0; i < DAYS * 4 && !started; i++) { const at = { month: g.month, day: g.ticks }; E.tick(g); g.paused = false; if (g.family.study) started = at; }
+  assert.ok(started);
   assert.equal(g.family.study.day, started.day);
   let learned = null;
   for (let i = 0; i < DAYS * 14 && !learned; i++) { const at = { month: g.month, day: g.ticks }; if (E.tick(g).some((e) => e.type === 'learned')) learned = at; g.paused = false; }

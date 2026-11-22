@@ -51,7 +51,7 @@
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view);
     if (!map) return;
-    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
+    var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
     map.effects(M.effectsTurf(events || [], p));
     lastPlan = p;      // a capo who is not where he was last month drives there, once
@@ -225,7 +225,7 @@
     else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(C.onItsWay(view, 'gift', d.city, d.capo) || g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
-    else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
+    else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(C.onItsWay(view, 'buy') || g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
     else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
@@ -240,7 +240,7 @@
     else if (act === 'city') show(C.city(view, d.city));
     else if (act === 'focus') { close(); map.focus(d.city); }
     else if (act === 'show') { close(); map.focus(d.city, zoneId(d.city, +d.x, +d.y), { x: +d.x, y: +d.y }); }
-    else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
+    else if (act === 'research') { var top = $('sheet').scrollTop; if (order({ type: 'research', building: d.building })) { var sent = C.onItsWay(view, 'research'); if (sent) toast(sent); show(C.family(view, E.hud(g), rows)); $('know').innerHTML = C.know(view, d.building, E.hud(g)); $('sheet').scrollTop = top; } }
     else if (act === 'account') show(C.accountCard(view, E.hud(g), d.which, +d.span || 6));
     else if (act === 'books') show(C.booksCard(view, d.city, d.capo, +d.span || 6));
     else if (act === 'restart') show(C.restart({ month: g.month, day: g.ticks }));
@@ -355,7 +355,11 @@
     var before = g.month, events = E.tick(g), turned = g.month !== before;
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
-    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay'; });      // a car that leaves, a pay packet: seen on the map, never news
+    // a car sent for takings leaves the day the rules send it, and its money is counted at the club the day it is home: both are seen
+    // on the map at once, with nothing else redrawn
+    var home = function (e) { return e.type === 'arrived' && e.kind === 'takings'; };
+    if (map && lastPlan) { var runs = M.runsTurf(events, lastPlan); if (runs.length) map.send(runs); var got = M.effectsTurf(events.filter(home), lastPlan); if (got.length) map.effects(got); }
+    var news = events.filter(function (e) { return e.type !== 'run' && e.type !== 'pay' && !home(e); });      // a car that leaves, a pay packet: seen on the map, never news
     events.forEach(function (e) { if (e.type === 'payment' && e.step === 'back') toast('The money comes back to your headquarters: ' + say(e.why || 'nobody is there to take it') + '.', true); });
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });

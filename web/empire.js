@@ -393,7 +393,21 @@
   var PAID = {
     gift: function (g, o) { var club = T.clubOf(cityOf(g, o.city), o.capo); return { city: o.city, x: club.x, y: club.y, capo: o.capo }; },
     welcome: function (g, o, after) { var club = T.clubOf(cityOf(after, o.city), o.capo); return { city: o.city, x: club.x, y: club.y, capo: o.capo }; },
-    answer: function (g, o) { var a = T.asks(cityOf(g, o.city)).filter(function (q) { return q.id === o.id; })[0]; return { city: o.city, x: a.x, y: a.y, capo: a.capo }; }
+    answer: function (g, o) { var a = T.asks(cityOf(g, o.city)).filter(function (q) { return q.id === o.id; })[0]; return { city: o.city, x: a.x, y: a.y, capo: a.capo }; },
+    // what the family learns is paid to the man who sets it up: one who asked for it, or else its first man at home
+    research: function (g, o) {
+      var t = T.tree(g.family).filter(function (q) { return q.kind === o.building; })[0], home = homeOf(g);
+      var men = ((t && t.wanted) || []).concat(Object.keys(g.family.men)), at = null;
+      men.some(function (id) {
+        return [cityOf(g, home)].concat(g.cities).some(function (c) { var club = T.clubOf(c, id); if (club) at = { city: c.id, x: club.x, y: club.y, capo: id }; return !!club; });
+      });
+      return at;
+    },
+    // what the family buys for good is signed for at the City Hall of its own city
+    buy: function (g) {
+      var home = homeOf(g), hall = T.keys(cityOf(g, home)).filter(function (k) { return k.key === 'cityhall'; })[0];
+      return hall ? { city: home, x: hall.x, y: hall.y, capo: null } : null;
+    }
   };
   function nowOf(g) { return g.month * TICKS_PER_MONTH + g.ticks; }
   function roadsBetween(g, a, b) { var n = 0; while (a !== b && n < 20) { a = toward(g, a, b); n++; if (!a) return 0; } return n; }
@@ -416,6 +430,7 @@
     var dirty = f.dirty - after.family.dirty, clean = (f.clean || 0) - (after.family.clean || 0);
     if (dirty + clean <= 0) return false;
     var to = where(g, order, after);
+    if (!to) return false; // nowhere on the map to drive it to: paid on the spot
     f.dirty -= dirty; f.clean = (f.clean || 0) - clean;
     f.paid = (f.paid || 0) + 1;
     (f.paying = f.paying || []).push({ id: f.paid, key: key, order: order, city: to.city, x: to.x, y: to.y, capo: to.capo, dirty: dirty, clean: clean, amount: dirty + clean, sent: 0, arrived: 0 });
@@ -663,6 +678,8 @@
     if (!run) throw new Error('no such order: ' + (order && order.type));
     if (!g.started && order.type !== 'start') throw new Error('the game has not started');
     if ((order.type === 'answer' && owed(g, 'answer', order.city, order.id)) || (order.type === 'welcome' && owed(g, 'welcome', order.from || order.city, order.capo))) throw new Error('the money for that is already on its way');
+    var study = order.type === 'research' && (g.family.paying || []).filter(function (p) { return p.order.type === 'research'; })[0];
+    if (study) throw new Error('the family is already paying to learn ' + (study.order.building === 'cars' ? 'bigger cars' : D.SITES[study.order.building].name));
     if (pay(g, order, run)) return; // its money has to get there first
     run(g, order);
   }
@@ -702,6 +719,12 @@
     out.paying = (g.family.paying || []).map(function (p) {
       return { id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, sent: p.sent, arrived: p.arrived,
                rides: (g.family.payRides || []).filter(function (q) { return q.pay === p.id; }).map(function (q) { return { amount: q.amount, days: q.days, gone: Math.min(q.days, nowOf(g) - q.left) }; }) };
+    });
+    // what is being paid for says so where the boss ordered it
+    out.paying.forEach(function (p, i) {
+      var o = g.family.paying[i].order;
+      if (o.type === 'research') out.tree.forEach(function (t) { if (t.kind === o.building) t.paying = true; });
+      if (o.type === 'buy') out.holdings.forEach(function (h) { if (h.id === o.holding) h.paying = true; });
     });
     var r = reignOf(g), share = shareNow(g);
     out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),

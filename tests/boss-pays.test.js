@@ -89,3 +89,46 @@ test('what is on the road is kept through a save, and the journal does not hear 
   assert.strictEqual(mood(back), 'steady');
   assert.deepStrictEqual(E.view(back).paying, []);
 });
+
+// --- what the family learns and what it buys for good is paid the same way ---
+const keyAt = (c, key) => T.keys(c).filter((k) => k.key === key)[0];
+const learnable = (g) => E.view(g).tree.filter((t) => t.next && t.kind !== 'cars')[0];
+
+test('the money to learn a trade is driven to the club of a man of the family: the study starts when it is all there', () => {
+  const { g, f, hq, club } = start(3);
+  const t = learnable(g), far = T.tripDays(hq, club);
+  E.command(g, { type: 'research', building: t.kind });
+  assert.strictEqual(f.clean, 5000 - t.next.cost, 'set aside the day of the order');
+  assert.ok(!f.study, 'nothing is learned yet');
+  assert.deepStrictEqual(E.view(g).paying.map((q) => [q.order, q.city, q.capo, q.x, q.y, q.amount]), [['research', 'ashport', 'vince', club.x, club.y, t.next.cost]]);
+  assert.strictEqual(E.view(g).tree.filter((q) => q.kind === t.kind)[0].paying, true, 'the tree says its money is on its way');
+  for (let i = 0; i < far; i++) { assert.ok(!f.study); day(g); }
+  day(g);
+  assert.strictEqual(f.study.kind, t.kind);
+  assert.ok(g.journal.some((l) => l.type === 'studying'));
+  assert.ok(!E.view(g).tree.some((q) => q.paying));
+});
+
+test('one thing is learned at a time: nothing else can be ordered while the money of a study is on the road', () => {
+  const { g, f } = start(3);
+  const all = E.view(g).tree.filter((t) => t.next && t.kind !== 'cars');
+  E.command(g, { type: 'research', building: all[0].kind });
+  const had = f.clean;
+  assert.throws(() => E.command(g, { type: 'research', building: all[1].kind }), /already paying to learn/);
+  assert.strictEqual(f.clean, had);
+});
+
+test('what the family buys for good is paid at City Hall: it is the family\'s when the last load is in', () => {
+  const { g, f, c, hq } = start(3);
+  f.clean = 20000;
+  const hall = keyAt(c, 'cityhall'), far = T.tripDays(hq, hall), cost = T.RULES.holdings.lawyer.cost[0];
+  E.command(g, { type: 'buy', holding: 'lawyer' });
+  assert.strictEqual(f.clean, 20000 - cost);
+  assert.deepStrictEqual(E.view(g).paying.map((q) => [q.order, q.city, q.x, q.y, q.amount]), [['buy', 'ashport', hall.x, hall.y, cost]]);
+  const own = () => E.view(g).holdings.filter((h) => h.id === 'lawyer')[0];
+  assert.deepStrictEqual([own().level, own().paying], [0, true]);
+  assert.throws(() => E.command(g, { type: 'buy', holding: 'lawyer' }), /already on its way/);
+  for (let i = 0; i <= far; i++) day(g);
+  assert.deepStrictEqual([own().level, own().paying], [1, undefined]);
+  assert.ok(g.journal.some((l) => l.type === 'bought'));
+});

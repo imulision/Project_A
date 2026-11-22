@@ -680,3 +680,41 @@ test('wages a car leaves at a place on its way are seen at that place, not at th
     { type: 'pay', what: 'upkeep', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 20 }], p);
   assert.deepEqual(out.map((o) => [o.bx, o.by, o.spent]).sort(), [[k.x, k.y, 20], [place.x, place.y, 50]].sort());
 });
+
+// ---- collection rounds that take their real days
+test('a car sent for the takings of a place drives out empty for its days, loads, and drives home for its days: one car, seen once', () => {
+  const g = play(30), v = E.view(g), p = M.planEmpire(v, global.AshportWorld.CITIES), c = v.cities[0], pc = p.cities[0], k = c.capos[0];
+  const place = c.places.find((q) => q.owner === 'family' && q.capo === k.id && q.kind !== 'club' && q.kind !== 'hq'), club = lotsOf(pc, k.x, k.y).find((l) => l.site), at = lotsOf(pc, place.x, place.y).find((l) => l.site);
+  const run = { type: 'run', city: c.id, capo: k.id, x: place.x, y: place.y, amount: 87.4, wait: 2, days: 3, vehicle: k.id + ':car:1' };
+  const cars = M.runsTurf([run, { type: 'pay', city: c.id, capo: k.id, amount: 5 }, { ...run, capo: 'nobody' }], p);
+  assert.equal(cars.length, 1); const car = cars[0];
+  assert.deepEqual([car.kind, car.loop, car.vehicle, car.cargo, car.amount, car.color, car.veh], ['takings', false, 'car', 'cash', 87, M.FLOW.money, c.id + ':' + k.id + ':car:1']);
+  assert.deepEqual(car.path[0], [club.i, club.j]); assert.deepEqual(car.path[car.path.length - 1], [club.i, club.j]);
+  assert.deepEqual(car.stages.map((s) => s.days), [2, 3]); assert.deepEqual(car.path[car.stages[0].k], [at.i, at.j], 'the first leg ends at the place'); assert.equal(car.stages[1].k, car.path.length - 1);
+  assert.equal(car.days, 5);
+  // the page draws the rounds of the cycle without the takings: those cars are parked at the club until a run sends them out
+  c.trips = [{ kind: 'takings', cargo: 'cash', capo: k.id, from: { x: place.x, y: place.y }, to: { x: k.x, y: k.y }, amount: 150, vehicle: k.id + ':car:1', leg: 0, home: { x: k.x, y: k.y } }]; k.cars = 1;
+  const live = M.tripsTurf(p, v, true).filter((t) => t.id === c.id + ':' + k.id + ':car:1');
+  assert.equal(live.length, 1); assert.ok(live[0].parked, 'parked, with the name the run will hide while it is out');
+  assert.ok(!M.tripsTurf(p, v).find((t) => t.id === c.id + ':' + k.id + ':car:1').parked, 'without that, the round of the cycle as before');
+  const fx = M.effectsTurf([{ type: 'arrived', kind: 'takings', city: c.id, capo: k.id, x: k.x, y: k.y, from: { x: place.x, y: place.y }, amount: 87.4 }], p);
+  assert.deepEqual(fx.map((f) => [f.kind, f.type, f.bx, f.by, f.gain]), [['pay', 'takings', k.x, k.y, 87]]);
+});
+
+test('what the family buys for good is driven to City Hall, and what it learns to the man who sets it up', () => {
+  for (const order of [{ type: 'buy' }, { type: 'research' }]) {
+    const g = play(12); g.family.clean = 99999;
+    const v0 = E.view(g);
+    if (order.type === 'buy') order.holding = v0.holdings.find((h) => h.next).id; else order.building = v0.tree.find((t) => t.tier === 0 && t.next).kind;
+    E.command(g, order);
+    let left = null, there = null;
+    for (let i = 0; i < 200 && !there; i++) { const evs = E.tick(g) || []; if (g.paused) E.command(g, { type: 'resume' });
+      evs.forEach((e) => { if (e.type === 'payment' && e.order === order.type) { if (e.step === 'leaves' && !left) left = e; if (e.step === 'arrives') there = e; } }); }
+    assert.ok(left && there, order.type + ': a van leaves and arrives');
+    const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
+    const vans = M.paymentsTurf([left], p);
+    assert.equal(vans.length, 1, order.type + ': the van is on the map'); assert.ok(vans[0].path.length > 1 && vans[0].days >= 1);
+    const marks = M.effectsTurf([there], p).filter((m) => m.type === 'payment');
+    assert.equal(marks.length, 1, order.type + ': the money is seen arriving'); assert.ok(marks[0].gain > 0);
+  }
+});
