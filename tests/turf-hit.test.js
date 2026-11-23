@@ -215,3 +215,14 @@ test('a hit played in one blow brings its till home at once', () => {
   if (end.result.outcome === 'won') assert.strictEqual(s.f.men.sal.cash, Math.max(0, had - end.result.lost * K.blood) + end.result.till);
   assert.ok(!(s.c.loots || []).length);
 });
+
+test('a place that is gone before the hit is over (burnt out meanwhile) is still taken as an empty street, without a crash', () => {
+  const { c, f, hit } = live('sal', 1);
+  delete c.blocks['3,3'];
+  const ev = [];
+  H.call(c, f, hit.id, 'press').forEach((e) => ev.push(e));
+  for (let i = 0; i < 4 && c.hits.length; i++) H.call(c, f, hit.id, 'press').forEach((e) => ev.push(e));
+  assert.strictEqual(c.hits.length, 0, 'the hit ends');
+  assert.strictEqual(ended(ev).result.outcome, 'won');
+  assert.strictEqual(T.at(c, 3, 3).owner, 'family');
+});

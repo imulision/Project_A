@@ -708,7 +708,7 @@
   }
   function learn(f, events) {
     f.tech[f.study.kind] = f.study.tier;
-    events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry $' + RULES.car.loads[f.study.tier] + ' a run'
+    events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry up to $' + RULES.car.loads[f.study.tier] * RULES.car.holds + ' a run'
       : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
     f.study = null;
   }

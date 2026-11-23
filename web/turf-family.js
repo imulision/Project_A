@@ -18,7 +18,7 @@
   // What one car of the family carries in a run.
   function loadOf(f) { return RULES.car.loads[Math.max(1, Math.min(3, (f.tech && f.tech.cars) || 1))]; }
 
-  function carries(tier) { return 'A car carries $' + RULES.car.loads[tier] + ' a run'; }
+  function carries(tier) { return 'A car carries up to $' + RULES.car.loads[tier] * RULES.car.holds + ' a run'; }
 
   // What a trade is, in a line; and what a tier of it brings: the right to open it, then bigger places.
   function brings(kind, tier) {

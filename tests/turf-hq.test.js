@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 const { town, family } = require('./turf-helpers.js');
+require('./turf-helpers.js').plain(); // a block a day, one load a vehicle
 // what the boss pays travels: play on until his van has delivered it and the order is carried out
 const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 

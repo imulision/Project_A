@@ -27,7 +27,7 @@ test('the boss\'s city is home; the purse of any other city is its own coffer', 
   assert.notStrictEqual(p, f);
   p.dirty += 40;
   assert.strictEqual(E.view(g).cities.find((c) => c.id === 'calder').coffer.dirty, 40);
-  assert.strictEqual(E.view(g).cities.find((c) => c.id === 'calder').coffer.load, LOAD);
+  assert.strictEqual(E.view(g).cities.find((c) => c.id === 'calder').coffer.load, VAN[0], 'what its van can carry');
   assert.strictEqual(E.view(g).cities[0].coffer, undefined, 'at home the coffer is the boss\'s own purse');
 });
 
@@ -51,8 +51,8 @@ const ROAD = E.roadDays('calder', 'ashport');
 const VAN = T.RULES.van.loads;
 
 test('the armoured van of a headquarters carries more as the headquarters grows', () => {
-  assert.deepStrictEqual(VAN, [600, 1500, 4000, 10000]);
-  assert.strictEqual(ROAD, 6);
+  assert.deepStrictEqual(VAN, [1800, 4500, 12000, 30000]);
+  assert.strictEqual(ROAD, 18);
 });
 
 test('when a coffer holds a load the van takes it down the road; it is the boss\'s six days later, when it arrives', () => {
@@ -117,8 +117,8 @@ test('clean money travels the same way and arrives clean', () => {
 });
 
 test('a road takes the days of its length: every van drives at the same speed, so a long road is a long trip', () => {
-  assert.strictEqual(T.RULES.road.per, 21, 'the stretch of road a van drives in a day');
-  assert.deepStrictEqual([E.roadDays('calder', 'ashport'), E.roadDays('ashport', 'calder'), E.roadDays('dunmore', 'vesper'), E.roadDays('marrow', 'lorne')], [6, 6, 5, 11]);
+  assert.strictEqual(T.RULES.road.per, 7, 'the stretch of road a van drives in a day');
+  assert.deepStrictEqual([E.roadDays('calder', 'ashport'), E.roadDays('ashport', 'calder'), E.roadDays('dunmore', 'vesper'), E.roadDays('marrow', 'lorne')], [18, 18, 14, 32]);
 });
 
 test('from a city two roads away the van takes the days of both roads, one after the other', () => {

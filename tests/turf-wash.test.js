@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
+require('./turf-helpers.js').plain(); // a block a day, one load a vehicle
 
 // Sal's game with a rented laundry of his own; the director keeps out.
 const start = (dirty, level) => {
@@ -21,8 +22,7 @@ const place = (g, s) => E.view(g).cities[0].places.find((p) => p.x === s.x && p.
 const LOAD = T.RULES.car.loads[1];
 const far = (a, b) => Math.max(1, Math.ceil((Math.abs(a.x - b.x) + Math.abs(a.y - b.y)) / T.RULES.car.speed));
 
-test('a trip takes a day a block, and never less than a day', () => {
-  assert.strictEqual(T.RULES.car.speed, 1);
+test('a trip takes a day a block here, and never less than a day', () => {
   assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 3, y: 3 }), 1);
   assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 4, y: 3 }), 1);
   assert.strictEqual(T.tripDays({ x: 3, y: 3 }, { x: 5, y: 4 }), 3);

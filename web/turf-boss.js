@@ -176,8 +176,8 @@
         // a truckload: on the shelf of the seller it was sent to, if the family still has it. One that was taken on the road is not.
         var seller = at(c, r.to.x, r.to.y);
         if (r.lost) return;
-        if (seller && seller.due) seller.due[r.shelf] = Math.max(0, (seller.due[r.shelf] || 0) - 1);
-        if (seller && seller.owner === 'family') seller[r.shelf] = (seller[r.shelf] || 0) + 1;
+        if (seller && seller.due) seller.due[r.shelf] = Math.max(0, (seller.due[r.shelf] || 0) - (r.loads || 1));
+        if (seller && seller.owner === 'family') seller[r.shelf] = (seller[r.shelf] || 0) + (r.loads || 1);
         events.push({ type: 'arrived', kind: 'haul', cargo: r.cargo, city: c.id, capo: r.capo, x: r.to.x, y: r.to.y, from: r.from, amount: r.amount, vehicle: r.vehicle });
         return;
       }
@@ -225,7 +225,8 @@
     fleet(m, club).forEach(function (car, n) {
       if (car.free > today(c)) return;
       var open = mine.slice().sort(function (a, b) { return room(b) - room(a); })[0];
-      var down = open ? Math.min(full, room(open), Math.max(0, box.dirty)) : 0, there = car.x === hq.x && car.y === hq.y && car.unloaded;
+      var most = full * RULES.car.holds; // a pile of `full` calls a car; the car has room for so many times as much
+      var down = open ? Math.min(most, room(open), Math.max(0, box.dirty)) : 0, there = car.x === hq.x && car.y === hq.y && car.unloaded;
       car.unloaded = false;
       var go = function (kind, from, to, amount) { leave(c, m, capo, kind, from, to, amount, events, car, n); };
       var wash = function () { box.dirty -= down; block(open).coming = (block(open).coming || 0) + down; go('wash', hq, open, down); };
@@ -233,8 +234,9 @@
       var rich = mine.slice().sort(function (a, b) { return (block(b).washed || 0) - (block(a).washed || 0); })[0];
       var ready = rich ? block(rich).washed || 0 : 0, share = m.share || 0;
       // one car, two piles: it goes where the most money waits
-      if (ready >= full && ready > share) { block(rich).washed -= full; go('clean', rich, hq, full); car.unloaded = true; return; }
-      if (share >= full) { m.share -= full; go('tribute', club, hq, full); car.unloaded = true; return; }
+      var takes = Math.floor(Math.min(most, ready)), sends = Math.floor(Math.min(most, share)); // whole dollars in a car
+      if (ready >= full && ready > share) { block(rich).washed -= takes; go('clean', rich, hq, takes); car.unloaded = true; return; }
+      if (share >= full) { m.share -= sends; go('tribute', club, hq, sends); car.unloaded = true; return; }
       if (open && down >= Math.min(full, open.most)) wash();
     });
   }
