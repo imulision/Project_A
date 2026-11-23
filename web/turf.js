@@ -235,6 +235,9 @@
         var crates = p.owner === 'family' && holds ? Math.round((c.blocks[key(p.x, p.y)].stock || 0) * loadOfCargo(holds)) : 0;
         var bags = p.owner === 'family' ? Math.round((c.blocks[key(p.x, p.y)].weed || 0) * RULES.weed.load) : 0;
         if (bags) p.weed = bags; // bags of weed a bar or a brothel has left to sell
+        // the most it can hold, in the same units: a cellar, a store or a yard what it keeps before it stops making; a seller's shelf so many loads
+        if (p.owner === 'family' && holds) p.room = Math.round((choke.cellar[key(p.x, p.y)] ? choke.cellar[key(p.x, p.y)].most : RULES.truck.shelf) * loadOfCargo(holds));
+        if (p.owner === 'family' && (p.kind === 'speakeasy' || p.kind === 'brothel')) p.weedRoom = RULES.truck.shelf * RULES.weed.load;
         if (crates) { p.stock = crates; p.holds = holds; } // what waits in a cellar, a store or a yard, or on a seller's shelf: crates of liquor or goods, or cars
         var s = p.owner === 'family' ? strains(c, f, p, choke) : [];
         if (s.length) p.strains = s;
@@ -655,7 +658,9 @@
   // The trucks that leave for the next city today, told to the screen as they go.
   function rideDay(f, cities, roads, day) {
     return ride(f, cities, roads, day).map(function (v) {
-      return { type: 'convoy', step: 'leaves', cargo: v.cargo, from: v.from, to: v.to, amount: v.amount, capo: v.capo, x: v.x, y: v.y, tx: v.tx, ty: v.ty };
+      var e = { type: 'convoy', step: v.step || 'leaves', cargo: v.cargo, from: v.from, to: v.to, amount: v.amount, capo: v.capo, x: v.x, y: v.y, tx: v.tx, ty: v.ty };
+      if (e.step === 'leaves') e.days = v.days; // the days of its road: the load is on the shelf when the truck gets there
+      return e;
     });
   }
   // The day of the cycle a man counts his takings, pays his men and makes his move: his own, and always the same.
