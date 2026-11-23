@@ -462,7 +462,7 @@
         return;
       }
       if (e.type === 'convoy') {      // money of another city on the road: its car is seen leaving, and the load is counted over the headquarters it reaches
-        var vc = e.step === 'arrives' && e.amount > 0 ? plan.cities.filter(function (x) { return x.id === e.to; })[0] : null, vl = vc && vc.lots.filter(function (l) { return l.site && l.site.role === 'hq' && l.site.owner === 'family'; })[0];
+        var vc = e.step === 'arrives' && e.amount > 0 && (!e.cargo || e.cargo === 'cash') ? plan.cities.filter(function (x) { return x.id === e.to; })[0] : null, vl = vc && vc.lots.filter(function (l) { return l.site && l.site.role === 'hq' && l.site.owner === 'family'; })[0];
         if (vl) out.push({ kind: 'pay', type: 'convoy', city: vc.id, capo: null, i: vl.i, j: vl.j, bx: vl.bx, by: vl.by, say: null, spent: 0, gain: Math.round(e.amount) });
         return;
       }
