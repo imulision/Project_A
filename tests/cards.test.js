@@ -349,7 +349,7 @@ test('a touched street answers with a few words beside the finger, not a sheet',
   assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 90, 'short');
   assert.match(C.blockTip(v, 'ashport', key.x, key.y), new RegExp(key.name));
   const p = { ...ours, till: 90 }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) };
-  assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 in the till/);
+  assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 \/ \$150 in the till/);
   let empty = null; for (let y = 0; y < city.h && !empty; y++) for (let x = 0; x < city.w; x++) if (!city.places.some((q) => q.x === x && q.y === y)) { empty = C.blockTip(v, 'ashport', x, y); break; }
   assert.match(empty, /street|holds/i); assert.doesNotMatch(empty, /Nothing of note/);
   assert.equal(C.blockTip(v, 'nowhere', 0, 0), null);
@@ -1336,4 +1336,15 @@ test('what the family knows is drawn as a wheel: one spoke a trade, three rings 
   g.family.clean = 99999; const shut = v.tree.find((t) => t.tier === 0 && t.next);
   E.command(g, { type: 'research', building: shut.kind });
   assert.equal((C.wheel(E.view(g), shut.kind).match(/<i class="ring next"/g) || []).length, 1);
+});
+
+test('a till and a store say how much they hold out of how much', () => {
+  assert.deepEqual(C.store({ stock: 60, holds: 'liquor', room: 80 }).map((s) => s[1]), ['60 / 80 cases of liquor in store']);
+  assert.deepEqual(C.store({ stock: 60, holds: 'liquor' }).map((s) => s[1]), ['60 cases of liquor in store'], 'no ceiling told: the count alone');
+  assert.deepEqual(C.store({ stock: 0, holds: 'goods', room: 40 }).map((s) => s[1]), ['0 / 40 crates in store'], 'an empty store that has a ceiling still says so');
+  assert.deepEqual(C.store({ weed: 3, weedRoom: 5 }).map((s) => s[1]), ['3 / 5 bags of weed to sell']);
+  const { g } = play((v) => v.cities[0].places.some((p) => p.owner === 'family' && p.till > 0 && p.load > 0));
+  const v = E.view(g), p = v.cities[0].places.find((q) => q.owner === 'family' && q.till > 0 && q.load > 0);
+  const tip = C.blockTip(v, v.cities[0].id, p.x, p.y);
+  assert.ok(tip.includes('$' + Math.round(p.till) + ' / $' + p.load + ' in the till'), 'the till against the load a car comes for: ' + tip.replace(/<svg[^]*?<\/svg>/g, ''));
 });
