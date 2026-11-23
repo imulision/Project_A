@@ -655,7 +655,9 @@
   // The trucks that leave for the next city today, told to the screen as they go.
   function rideDay(f, cities, roads, day) {
     return ride(f, cities, roads, day).map(function (v) {
-      return { type: 'convoy', step: 'leaves', cargo: v.cargo, from: v.from, to: v.to, amount: v.amount, capo: v.capo, x: v.x, y: v.y, tx: v.tx, ty: v.ty };
+      var e = { type: 'convoy', step: v.step || 'leaves', cargo: v.cargo, from: v.from, to: v.to, amount: v.amount, capo: v.capo, x: v.x, y: v.y, tx: v.tx, ty: v.ty };
+      if (e.step === 'leaves') e.days = v.days; // the days of its road: the load is on the shelf when the truck gets there
+      return e;
     });
   }
   // The day of the cycle a man counts his takings, pays his men and makes his move: his own, and always the same.

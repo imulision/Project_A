@@ -327,6 +327,13 @@
       if (STOPS[e.type]) g.paused = true;
     });
   }
+  // The days a road takes: its length, at the stretch a van drives in a day (RULES.road.per). Every vehicle drives at
+  // the same speed, so a long road is a long trip. (RULES.road.days for two cities no road joins.)
+  function roadDays(a, b) {
+    var p = specOf(a), q = specOf(b);
+    if (!p || !q || !linked(a, b)) return T.RULES.road.days;
+    return Math.max(1, Math.round(Math.sqrt((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y)) / T.RULES.road.per));
+  }
   // --- money between cities ---
   // The next city on the way from one city to another, by the fewest roads.
   function toward(g, from, target) {
@@ -353,9 +360,10 @@
   // RULES.road.days; the money is the boss's the day the van reaches his city, and the van then drives back empty.
   // A van at home leaves as soon as the coffer holds a car's load, with all it can carry, dirty money first.
   function carryHome(g, events) {
-    var f = g.family, least = T.RULES.convoy.cash, days = T.RULES.road.days, still = [];
+    var f = g.family, least = T.RULES.convoy.cash, still = [];
     function leg(r) {
-      r.left = days;
+      var days = roadDays(r.from, r.to);
+      r.left = days; r.days = days;
       var e = { type: 'convoy', step: 'leaves', cargo: 'cash', from: r.from, to: r.to, amount: r.amount, dirty: r.dirty, clean: r.clean, days: days, van: r.van };
       if (r.empty) e.empty = true;
       events.push(e);
@@ -410,14 +418,15 @@
     }
   };
   function nowOf(g) { return g.month * TICKS_PER_MONTH + g.ticks; }
-  function roadsBetween(g, a, b) { var n = 0; while (a !== b && n < 20) { a = toward(g, a, b); n++; if (!a) return 0; } return n; }
   // Days the van takes from the boss's headquarters to where a payment is owed.
   function wayOf(g, p) {
     var home = cityOf(g, homeOf(g)), hq = T.hqOf(home, 'family'), there = cityOf(g, p.city);
     if (!hq) return 1;
     if (there === home) return T.tripDays(hq, p);
     var seat = T.hqOf(there, 'family');
-    return roadsBetween(g, home.id, there.id) * T.RULES.road.days + (seat ? T.tripDays(seat, p) : 1);
+    var days = 0, at = home.id, n = 0;
+    while (at !== there.id && n++ < 20) { var next = toward(g, at, there.id); if (!next) break; days += roadDays(at, next); at = next; }
+    return days + (seat ? T.tripDays(seat, p) : 1);
   }
   // The order is tried on a copy of the game: it is refused there exactly as it would be here, and the copy tells
   // what it costs. True when the money has to travel: the order then waits for it.
@@ -479,7 +488,7 @@
     carryHome(g, events);
     var passed = T.pass(f, g.cities, d);
     passed.forEach(function (e) { if (passing(e)) events.push(e); });
-    T.rideDay(f, g.cities, W.ROUTES, d).forEach(function (e) { events.push(e); }); // the trucks between cities, for the screen to drive
+    T.rideDay(f, g.cities, W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind, days: roadDays(r.from, r.to) }; }), d).forEach(function (e) { events.push(e); }); // the trucks between cities, for the screen to drive
     tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     direct(g, events.slice(heard), month, events);
@@ -714,7 +723,7 @@
                return v;
              }) };
     // the next streets to fall anywhere: the move that is furthest along
-    out.onRoad = (g.family.onRoad || []).map(function (q) { return { from: q.from, to: q.to, amount: q.amount, dirty: q.dirty, clean: q.clean, van: q.van, days: T.RULES.road.days, gone: T.RULES.road.days - q.left, empty: !!q.empty }; }); // the family's money between two cities today
+    out.onRoad = (g.family.onRoad || []).map(function (q) { return { from: q.from, to: q.to, amount: q.amount, dirty: q.dirty, clean: q.clean, van: q.van, days: q.days || T.RULES.road.days, gone: (q.days || T.RULES.road.days) - q.left, empty: !!q.empty }; }); // the family's money between two cities today
     // what the boss has ordered and is still paying for: the money set aside, what has left and what has arrived
     out.paying = (g.family.paying || []).map(function (p) {
       return { id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, sent: p.sent, arrived: p.arrived,
@@ -785,7 +794,7 @@
   }
 
   var api = { dayOf: dayOf, DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
-              createGame: createGame, settle: settle, strike: strike, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
+              createGame: createGame, roadDays: roadDays, settle: settle, strike: strike, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;
 })(typeof self !== 'undefined' ? self : this);
