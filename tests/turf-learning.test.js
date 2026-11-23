@@ -132,8 +132,8 @@ test('clean money pays for anything dirty money pays for, once the dirty runs ou
 test('the family tree has a line for cars: three sizes, the first one known from the start', () => {
   const f = T.createFamily();
   const cars = T.tree(f).find((t) => t.kind === 'cars');
-  assert.deepEqual([cars.name, cars.tier, cars.gives], ['Cars', 1, 'A car carries $' + T.RULES.car.loads[1] + ' a run']);
-  assert.deepEqual(cars.next, { tier: 2, cost: T.RULES.learn.cost[1], months: T.RULES.learn.months[1], gives: 'A car carries $' + T.RULES.car.loads[2] + ' a run' });
+  assert.deepEqual([cars.name, cars.tier, cars.gives], ['Cars', 1, 'A car carries up to $' + T.RULES.car.loads[1] * T.RULES.car.holds + ' a run']);
+  assert.deepEqual(cars.next, { tier: 2, cost: T.RULES.learn.cost[1], months: T.RULES.learn.months[1], gives: 'A car carries up to $' + T.RULES.car.loads[2] * T.RULES.car.holds + ' a run' });
   assert.equal(T.RULES.car.loads[1], T.RULES.car.load);
   assert.ok(T.RULES.car.loads[1] < T.RULES.car.loads[2] && T.RULES.car.loads[2] < T.RULES.car.loads[3]);
 });
@@ -146,7 +146,7 @@ test('once the family has learned bigger cars, every run carries the bigger load
   let learned = null;
   for (let m = 0; m < 12 && !learned; m++) learned = T.month(f, [c]).find((e) => e.type === 'learned');
   assert.deepEqual([learned.kind, learned.tier], ['cars', 2]);
-  assert.match(learned.label, /cars that carry \$250 a run/);
+  assert.match(learned.label, /cars that carry up to \$750 a run/);
   T.month(f, [c]);
   const runs = T.trips(c, f).filter((t) => t.kind === 'takings');
   assert.ok(runs.length > 0 && runs.every((t) => t.amount === T.RULES.car.loads[2]));

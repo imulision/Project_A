@@ -385,9 +385,9 @@ test('the boss names an underboss; from then on the men at that city\'s door no 
   assert.deepEqual([said.type, said.capo, said.city], ['underboss', 'dutch', c.id]);
   assert.equal(said.label, T.person('dutch').name + ' is now the family\'s underboss in ' + E.view(g).cities.find((q) => q.id === c.id).name);
   assert.equal(E.view(g).cities.find((q) => q.id === c.id).under, 'dutch');
-  // twenty years: nobody knocks in that city any more, and the family still grows there
+  // five years: nobody knocks in that city any more, and the family still grows there
   let knocks = 0, joined = 0;
-  for (let i = 0; i < 4 * 240; i++) {
+  for (let i = 0; i < 60 * E.TICKS_PER_MONTH; i++) {
     g.paused = false;
     for (const e of E.tick(g)) { if (e.type === 'knocks' && e.city === c.id && e.door !== 'poach') knocks++; if (e.type === 'welcomed' && e.by === 'dutch') joined++; }
     const v = E.view(g).cities.find((q) => q.id === c.id);
@@ -456,7 +456,7 @@ test('the boss makes a capo a gift; the game shows each man\'s mood and what a g
   settle(g);
   assert.equal(g.family.clean, 5000 - T.RULES.loyal.gift);
   assert.equal(k().mood, 'steady');
-  const said = g.journal[g.journal.length - 1];
+  const said = g.journal.filter((l) => l.type === 'gift').pop(); // the van took its time: other things were written since
   assert.deepEqual([said.type, said.capo, said.city, said.cost], ['gift', 'vince', 'ashport', T.RULES.loyal.gift]);
   assert.equal(said.label, 'You make ' + T.person('vince').name + ' a gift');
   assert.ok(said.x !== undefined && said.y !== undefined, 'it happens at his club');

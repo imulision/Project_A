@@ -108,5 +108,9 @@ const twoTowns = (bars) => {
 
 const ROAD = [{ from: 'town', to: 'next' }];
 
-module.exports = { town, ALL, year, family, ashport, rivals, siege, rich, coming, laundry, kinds, LOAD, RUNS, kept, sixBars, whereIs, brewer,
+// Tests of how a trip works are written a block a day and one load a vehicle; the pace and the room of the
+// game's vehicles are tested apart (turf-vehicles.test.js).
+const plain = () => { T.RULES.car.speed = 1; T.RULES.car.holds = 1; T.RULES.truck.holds = 1; };
+
+module.exports = { plain, town, ALL, year, family, ashport, rivals, siege, rich, coming, laundry, kinds, LOAD, RUNS, kept, sixBars, whereIs, brewer,
   placeAt, hauls, weed, exposed, until, twoTowns, ROAD };

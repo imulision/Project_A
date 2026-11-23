@@ -171,13 +171,18 @@
         if (!from || !to) return;
         var here = truck.x === from.p.x && truck.y === from.p.y, wait = here ? 0 : tripDays(truck, from.p), days = tripDays(from.p, to.p);
         var made = c.flow.hauls.filter(function (q) { return q.capo === capo && q.truck === n + 1; }).length;
-        var h = { kind: 'haul', capo: capo, at: { x: truck.x, y: truck.y }, cargo: from.cargo, shelf: chain.shelf, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loadOfCargo(from.cargo),
+        // a truck has room for RULES.truck.holds loads: it takes what the cellar has and the shelf has room for
+        var room = RULES.truck.shelf - ((to.b[chain.shelf] || 0) + ((to.b.due || {})[chain.shelf] || 0));
+        // (and it leaves the other sellers that have nothing their part of what the cellar holds)
+        var dry = everyPlace(c).filter(function (p) { var q = c.blocks[key(p.x, p.y)]; return p.owner === 'family' && chain.sells.indexOf(p.kind) >= 0 && (q[chain.shelf] || 0) + ((q.due || {})[chain.shelf] || 0) < 1; }).length;
+        var loads = Math.max(1, Math.min(RULES.truck.holds, Math.floor(from.b.stock / Math.max(1, dry)), Math.floor(room)));
+        var h = { kind: 'haul', capo: capo, at: { x: truck.x, y: truck.y }, cargo: from.cargo, shelf: chain.shelf, loads: loads, from: { x: from.p.x, y: from.p.y }, to: { x: to.p.x, y: to.p.y }, amount: loads * loadOfCargo(from.cargo),
                   truck: n + 1, leg: made, vehicle: capo + ':truck:' + (n + 1), wait: wait, left: now + wait, days: days, arrives: now + wait + days };
         // a load the rivals or the police take on the road never reaches the shelf
         if (trap && !trap.done && (trap.at[from.p.y * c.w + from.p.x] || trap.at[to.p.y * c.w + to.p.x])) { h.lost = 'hijack'; trap.done = h; trap.x = trap.at[from.p.y * c.w + from.p.x] ? from.p.x : to.p.x; trap.y = trap.at[from.p.y * c.w + from.p.x] ? from.p.y : to.p.y; }
         else if (police && drink && !drink.seized && !can(c, capo, 'friends')) { h.lost = 'seizure'; drink.seized = h; }
-        from.b.stock -= 1;
-        if (!h.lost) { to.b.due = to.b.due || {}; to.b.due[chain.shelf] = (to.b.due[chain.shelf] || 0) + 1; }
+        from.b.stock -= loads;
+        if (!h.lost) { to.b.due = to.b.due || {}; to.b.due[chain.shelf] = (to.b.due[chain.shelf] || 0) + loads; }
         truck.x = to.p.x; truck.y = to.p.y; truck.free = h.arrives;
         (c.rides = c.rides || []).push(h);
         c.flow.hauls.push(h);
@@ -233,14 +238,14 @@
   }
   // A car loads at a place: it leaves the men of the place their pay first, and takes what is left, a full load
   // when there is one. Returns what it takes.
-  function loadUp(c, capo, best, load) {
+  function loadUp(c, capo, best, load, room) {
     var paid = Math.min(best.b.owed || 0, best.b.till);
     if (paid > 0) {
       best.b.till -= paid; best.b.owed -= paid;
       var all = c.left || (c.left = {}), left = all[capo] || (all[capo] = { sum: 0, at: [] });
       left.sum += paid; left.at.push({ x: best.p.x, y: best.p.y, amount: paid });
     }
-    var takes = Math.min(load, best.b.till);
+    var takes = Math.min(room || load, best.b.till);
     if (takes >= 1) best.b.till -= takes;
     return takes;
   }
@@ -264,7 +269,8 @@
     h.left = 0;
     fleet(m, club).forEach(function (car, n) {
       if (car.free > now) return;
-      var best = fullest(c, capo, load), takes = best ? loadUp(c, capo, best, load) : 0;
+      // a till that holds `load` calls a car; the car has room for RULES.car.holds times as much
+      var best = fullest(c, capo, load), takes = best ? loadUp(c, capo, best, load, load * RULES.car.holds) : 0;
       if (takes < 1) { h.left += 1; return; }
       var here = car.x === best.p.x && car.y === best.p.y, wait = here ? 0 : tripDays(car, best.p), days = tripDays(best.p, club);
       var r = { kind: 'takings', capo: capo, car: n, x: best.p.x, y: best.p.y, from: { x: best.p.x, y: best.p.y }, to: { x: club.x, y: club.y },

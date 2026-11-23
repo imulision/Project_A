@@ -91,14 +91,15 @@
     respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club
     // a car leaves a place only with a full load of takings; what a car carries, the runs it makes in a month, its price and its upkeep (the car a man arrives with costs him nothing)
     // loads: what a car carries once the family has learned cars of tier 1, 2 and 3
-    car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 400, upkeep: 20, speed: 1 }, // speed: blocks a car drives in a day when it carries the boss's money
+    car: { load: 150, loads: [150, 150, 250, 400], runs: 8, cost: 130, upkeep: 7, speed: 1 / 3, holds: 3 }, // speed: blocks a car drives in a day when it carries the boss's money
     // a capo has a car of his own: with nothing else on his hands he goes where his business chokes. The runs he makes
     // himself when his cars left full tills behind, and what a place makes more the month he stands over it
     own: { runs: 2, boost: 0.15 },
+    // (every trip is three times longer than a block a day would make it: a vehicle holds three loads and costs a third)
     // liquor is carried too. A truck leaves a cellar only with a full load: the crates in a load, the runs a truck makes
     // in a month, its price and upkeep (the truck that comes with a man's first still costs nothing), the months of its
     // own making a cellar holds, and the loads a bar keeps on its shelf. A bar pours one load a month.
-    truck: { load: 20, runs: 4, cost: 500, upkeep: 25, cellar: 2, shelf: 2 },
+    truck: { load: 20, runs: 4, cost: 170, upkeep: 8, cellar: 4, shelf: 4, holds: 3 },
     // other goods ride the same trucks, after the liquor: the loads a warehouse and a chop shop make in a month, what
     // is in a load, and the share a fence earns the month it has nothing to sell
     goods: { makes: { warehouse: 2, chopshop: 1 }, load: { goods: 20, cars: 4 }, short: 0.6 },
@@ -109,10 +110,10 @@
     // hardest, unless its capo is hard enough to hold it (they wait there until one passes); and from this heat on the police stop one truck a month
     // `hold` and `muscle`: the share of the family's grip on a street the rivals must pass to dare, for a capo of no
     // Muscle, and what each point of his Muscle adds
-    road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08, days: 6, per: 21 },
+    road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08, days: 18, per: 7 },
     // between two cities joined by a road: the loads one city makes and cannot sell that go, each way and each month,
     // to the family's sellers that went without in the other
-    van: { loads: [600, 1500, 4000, 10000], count: [2, 3, 4, 6] }, // $ the armoured van of a headquarters carries, by the size of the headquarters
+    van: { loads: [1800, 4500, 12000, 30000], count: [2, 3, 4, 6] }, // $ the armoured van of a headquarters carries, by the size of the headquarters
     convoy: { loads: 2, cash: 600 }, // truckloads of goods down a road each cycle; $ a car takes from a city's coffer to the boss's city
     // the boss's table: what a man who sits there is paid a month, what each point of the Bookkeeper's Business adds
     // to every laundry, the points of Cunning Routes needs for one more load down every road, and the points of

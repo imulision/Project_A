@@ -6,6 +6,7 @@ const assert = require('node:assert');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 
+T.RULES.van.loads = [600, 1500, 4000, 10000]; // vans small enough for a gift to take several trips
 const GIFT = T.RULES.loyal.gift, VAN = T.RULES.van.loads;
 const start = (reached) => {
   const g = E.createGame({ capo: 'vince' }); g.reign.left = 1e9; g.reign.reached = reached || 0;
