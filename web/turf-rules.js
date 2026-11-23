@@ -109,7 +109,7 @@
     // hardest, unless its capo is hard enough to hold it (they wait there until one passes); and from this heat on the police stop one truck a month
     // `hold` and `muscle`: the share of the family's grip on a street the rivals must pass to dare, for a capo of no
     // Muscle, and what each point of his Muscle adds
-    road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08, days: 6 },
+    road: { every: 6, heat: 30, hold: 0.1, muscle: 0.08, days: 6, per: 21 },
     // between two cities joined by a road: the loads one city makes and cannot sell that go, each way and each month,
     // to the family's sellers that went without in the other
     van: { loads: [600, 1500, 4000, 10000], count: [2, 3, 4, 6] }, // $ the armoured van of a headquarters carries, by the size of the headquarters

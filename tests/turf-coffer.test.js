@@ -47,7 +47,7 @@ test('the share of a capo in another city goes to that city\'s coffer, not to th
 });
 
 const cash = (g) => day(g).filter((e) => e.type === 'convoy' && e.cargo === 'cash');
-const ROAD = T.RULES.road.days;
+const ROAD = E.roadDays('calder', 'ashport');
 const VAN = T.RULES.van.loads;
 
 test('the armoured van of a headquarters carries more as the headquarters grows', () => {
@@ -116,17 +116,22 @@ test('clean money travels the same way and arrives clean', () => {
   assert.strictEqual(f.clean, LOAD);
 });
 
-test('from a city two roads away the van takes twelve days, six a road', () => {
+test('a road takes the days of its length: every van drives at the same speed, so a long road is a long trip', () => {
+  assert.strictEqual(T.RULES.road.per, 21, 'the stretch of road a van drives in a day');
+  assert.deepStrictEqual([E.roadDays('calder', 'ashport'), E.roadDays('ashport', 'calder'), E.roadDays('dunmore', 'vesper'), E.roadDays('marrow', 'lorne')], [6, 6, 5, 11]);
+});
+
+test('from a city two roads away the van takes the days of both roads, one after the other', () => {
   const g = start(), f = g.family, where = far();
   f.clean = 0;
   T.purse(city(g, where.far), f).clean = LOAD;
-  const seen = [];
-  for (let d = 0; d <= 2 * ROAD; d++) cash(g).forEach((e) => seen.push([d, e.step, e.from, e.to, e.amount]));
+  const seen = [], one = E.roadDays(where.far, where.mid), two = E.roadDays(where.mid, 'ashport');
+  for (let d = 0; d <= one + two; d++) cash(g).forEach((e) => seen.push([d, e.step, e.from, e.to, e.amount, e.days]));
   assert.deepStrictEqual(seen, [
-    [0, 'leaves', where.far, where.mid, LOAD],
-    [ROAD, 'leaves', where.mid, 'ashport', LOAD],
-    [2 * ROAD, 'arrives', where.far, 'ashport', LOAD],
-    [2 * ROAD, 'leaves', 'ashport', where.mid, 0],
+    [0, 'leaves', where.far, where.mid, LOAD, one],
+    [one, 'leaves', where.mid, 'ashport', LOAD, two],
+    [one + two, 'arrives', where.far, 'ashport', LOAD, undefined],
+    [one + two, 'leaves', 'ashport', where.mid, 0, two],
   ]);
   assert.strictEqual(f.clean, LOAD);
 });

@@ -92,6 +92,17 @@
   function ride(f, cities, roads, day) {
     var daily = day !== undefined, went = [];
     if (!daily) f.convoys = [];
+    // played day by day a load is on the road for the days of its road (f.riding): it is on the shelf it was sent to
+    // the day its truck gets there, if the family still has the place
+    var now = daily && cities.length ? cities[0].month * RULES.days + day : 0;
+    if (daily) f.riding = (f.riding || []).filter(function (l) {
+      if (l.arrives > now) return true;
+      var town = cities.filter(function (c) { return c.id === l.to; })[0], q = town && town.blocks[key(l.tx, l.ty)];
+      if (q && q.due) q.due[l.shelf] = Math.max(0, (q.due[l.shelf] || 0) - 1);
+      if (q && q.owner === 'family') q[l.shelf] = (q[l.shelf] || 0) + 1;
+      went.push({ step: 'arrives', from: l.from, to: l.to, cargo: l.cargo, amount: l.amount, capo: l.capo, x: l.x, y: l.y, tx: l.tx, ty: l.ty });
+      return false;
+    });
     (roads || []).forEach(function (r) {
       [[r.from, r.to], [r.to, r.from]].forEach(function (way) {
         var a = cities.filter(function (c) { return c.id === way[0]; })[0], b = cities.filter(function (c) { return c.id === way[1]; })[0];
@@ -106,10 +117,16 @@
           while (left > 0) {
             var from = null, to = null;
             src.forEach(function (s) { if (s.b.stock >= 1 && (!from || s.b.stock > from.b.stock)) from = s; });
-            sellers.forEach(function (q) { var has = q.b[chain.shelf] || 0; if (has + 1 <= RULES.truck.shelf && (!to || has < (to.b[chain.shelf] || 0))) to = q; });
+            var has = function (q) { return (q.b[chain.shelf] || 0) + ((q.b.due || {})[chain.shelf] || 0); };
+            sellers.forEach(function (q) { if (has(q) + 1 <= RULES.truck.shelf && (!to || has(q) < has(to))) to = q; });
             if (!from || !to) break;
-            from.b.stock -= 1; to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1; left -= 1;
+            from.b.stock -= 1; left -= 1;
             var load = { from: a.id, to: b.id, cargo: from.cargo, amount: loadOfCargo(from.cargo), capo: from.p.capo, x: from.p.x, y: from.p.y, tx: to.p.x, ty: to.p.y };
+            if (daily) {
+              load.step = 'leaves'; load.shelf = chain.shelf; load.days = r.days || RULES.road.days; load.left = now; load.arrives = now + load.days;
+              to.b.due = to.b.due || {}; to.b.due[chain.shelf] = (to.b.due[chain.shelf] || 0) + 1;
+              (f.riding = f.riding || []).push(load);
+            } else to.b[chain.shelf] = (to.b[chain.shelf] || 0) + 1;
             f.convoys.push(load); went.push(load);
           }
         });

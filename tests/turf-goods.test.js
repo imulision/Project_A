@@ -521,5 +521,25 @@ test('played day by day, the loads leave on different days, one truck a day down
   assert.equal(Object.keys(left).length, T.RULES.convoy.loads, 'as many days as loads');
   assert.equal(T.convoys(f).length, before, 'nothing more rides when the cycle closes');
   assert.equal(before, T.RULES.convoy.loads);
-  assert.equal(T.view(b, f).places.filter((p) => p.kind === 'speakeasy' && p.stock === CRATES).length, T.RULES.convoy.loads, 'and it is on the shelves next door');
+  const shelves = () => T.view(b, f).places.filter((p) => p.kind === 'speakeasy' && p.stock === CRATES).length;
+  assert.equal(shelves(), 0, 'the trucks are still on the road');
+  // a road takes its days: each load is on the shelf next door the day its truck gets there
+  const first = Math.min(...Object.keys(left).map(Number)), far = T.RULES.road.days, there = [];
+  T.begin(f, [a, b]);
+  for (let d = 0; d < T.RULES.days; d++) {
+    T.pass(f, [a, b], d);
+    T.rideDay(f, [a, b], ROAD, d).filter((e) => e.step === 'arrives').forEach((e) => there.push([d, e.from, e.to, e.cargo, e.amount]));
+  }
+  const want = Object.keys(left).map((d) => [(Number(d) + far) % T.RULES.days, 'town', 'next', 'liquor', CRATES]);
+  assert.deepEqual(there.slice(0, want.length), want);
+});
+
+test('a truck that leaves for the next city says how many days its road takes', () => {
+  const { a, b, f } = twoTowns(3);
+  const long = ROAD.map((r) => ({ ...r, days: 9 }));
+  T.begin(f, [a, b]);
+  const went = [];
+  for (let d = 0; d < T.RULES.days; d++) { T.pass(f, [a, b], d); went.push(...T.rideDay(f, [a, b], long, d).filter((e) => e.step === 'leaves')); }
+  assert.ok(went.length > 0);
+  assert.ok(went.every((e) => e.days === 9));
 });

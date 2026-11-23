@@ -26,7 +26,7 @@ test('the view of a city gives the map everything it draws', () => {
   const bar = v.places.find((p) => p.x === 3 && p.y === 2);
   const { till, strains, ...drawn } = bar;
   assert.deepEqual(strains, [{ kind: 'dry', label: 'Nothing to pour: the family has no still' }]);
-  assert.deepEqual(drawn, { x: 3, y: 2, owner: 'family', kind: 'speakeasy', name: D.SITES.speakeasy.name, level: 2, capo: 'dutch', made: drawn.made, made6: drawn.made6, costs: T.RULES.wage, load: T.RULES.car.load }); // (its books: tests/turf-ledger.test.js)
+  assert.deepEqual(drawn, { x: 3, y: 2, owner: 'family', kind: 'speakeasy', name: D.SITES.speakeasy.name, level: 2, capo: 'dutch', made: drawn.made, made6: drawn.made6, costs: T.RULES.wage, load: T.RULES.car.load, room: T.RULES.truck.shelf * T.RULES.truck.load, weedRoom: T.RULES.truck.shelf * T.RULES.weed.load }); // (its books: tests/turf-ledger.test.js)
   assert.ok((till || 0) < T.RULES.car.load, 'and what waits in its till for the next car'); // (a car came this month: it left the men their pay and took the rest)
   assert.equal(v.places.find((p) => p.kind === 'club').name, 'Social Club');
   const port = v.places.find((p) => p.kind === 'key');
