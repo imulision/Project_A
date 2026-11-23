@@ -79,3 +79,15 @@ test('a haul says where the truck stood, and the city says where each truck of a
   const k = T.view(c, f).capos.filter((q) => q.id === 'dutch')[0];
   assert.deepEqual(k.rigs.map((r) => [r.vehicle, r.x, r.y, r.busy]), [['dutch:truck:1', 6, 2, true]]);
 });
+
+test('the city says the most each place can hold, in the unit of its stock: a cellar, a bar\'s shelf, the weed a bar keeps', () => {
+  const { c, f } = brewer([[6, 2]]);
+  T.open(c, 4, 4, { owner: 'family', kind: 'brothel', capo: 'dutch' });
+  const at = (x, y) => T.view(c, f).places.filter((p) => p.x === x && p.y === y)[0];
+  assert.equal(at(2, 2).room, T.RULES.truck.cellar * T.RULES.pours * CRATES, 'a small still keeps two cycles of what it makes');
+  assert.equal(at(6, 2).room, T.RULES.truck.shelf * CRATES);
+  assert.equal(at(6, 2).weedRoom, T.RULES.truck.shelf * T.RULES.weed.load);
+  assert.equal(at(4, 4).weedRoom, T.RULES.truck.shelf * T.RULES.weed.load);
+  assert.equal(at(4, 4).room, undefined, 'a brothel keeps no crates');
+  assert.equal(at(2, 3).room, undefined, 'nor does a club');
+});
