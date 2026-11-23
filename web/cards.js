@@ -479,7 +479,7 @@
   function store(p) {
     var out = [];
     if (p.stock >= 1 || p.room > 0) out.push([p.holds === 'liquor' || !p.holds ? 'liquor' : (GOODS[p.holds] || GOODS.goods)[0], Math.floor(p.stock || 0) + (p.room > 0 ? ' / ' + Math.floor(p.room) : '') + ' ' + (STORE[p.holds] || STORE.liquor) + ' in store']);
-    if (p.weed >= 1 || p.weedRoom > 0) out.push(['loft', Math.floor(p.weed || 0) + (p.weedRoom > 0 ? ' / ' + Math.floor(p.weedRoom) : '') + ' bags of weed to sell']);
+    if (p.weed >= 1) out.push(['loft', Math.floor(p.weed || 0) + (p.weedRoom > 0 ? ' / ' + Math.floor(p.weedRoom) : '') + ' bags of weed to sell']);
     return out;
   }
   function storeLines(p, sep) { return store(p).map(function (s) { return sep ? '<br>' + icon(s[0]) + ' ' + s[1] : '<div class="move">' + icon(s[0]) + '<span>' + s[1] + '</span></div>'; }).join(''); }

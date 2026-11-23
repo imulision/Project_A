@@ -393,7 +393,7 @@ test('a truck says what it hauls: liquor, crates, stolen cars or weed, each with
 test('a place says what it has in store, in the bubble and on its page', () => {
   const { v } = play((v) => v.month >= 12);
   const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq');
-  const see = (more) => { const p = { ...ours, ...more }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] }; return [C.blockTip(w, c.id, p.x, p.y), C.block(w, c.id, p.x, p.y)]; };
+  const see = (more) => { const p = { ...ours, room: 0, weedRoom: 0, ...more }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }, w = { ...v, cities: [c] }; return [C.blockTip(w, c.id, p.x, p.y), C.block(w, c.id, p.x, p.y)]; };
   see({ stock: 40, holds: 'liquor' }).forEach((t) => assert.match(t, /40 cases of liquor in store/));
   see({ stock: 8, holds: 'cars' }).forEach((t) => assert.match(t, /8 stolen cars in store/));
   see({ stock: 20, holds: 'weed' }).forEach((t) => assert.match(t, /20 bags of weed in store/));
@@ -1343,6 +1343,7 @@ test('a till and a store say how much they hold out of how much', () => {
   assert.deepEqual(C.store({ stock: 60, holds: 'liquor' }).map((s) => s[1]), ['60 cases of liquor in store'], 'no ceiling told: the count alone');
   assert.deepEqual(C.store({ stock: 0, holds: 'goods', room: 40 }).map((s) => s[1]), ['0 / 40 crates in store'], 'an empty store that has a ceiling still says so');
   assert.deepEqual(C.store({ weed: 3, weedRoom: 5 }).map((s) => s[1]), ['3 / 5 bags of weed to sell']);
+  assert.deepEqual(C.store({ weed: 0, weedRoom: 20 }), [], 'a bar that was never brought weed says nothing of it');
   const { g } = play((v) => v.cities[0].places.some((p) => p.owner === 'family' && p.till > 0 && p.load > 0));
   const v = E.view(g), p = v.cities[0].places.find((q) => q.owner === 'family' && q.till > 0 && q.load > 0);
   const tip = C.blockTip(v, v.cities[0].id, p.x, p.y);
