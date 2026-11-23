@@ -356,8 +356,9 @@ assert.deepEqual(timed, { before: 1, after: 0 }, 'on the road for its six days, 
 // (he leaves while a car is out with money: it must still be on its way when he comes back)
 const riding = () => page.evaluate(() => window.__ashport.view().cities.reduce((n, c) => n + (c.rides || []).filter((r) => r.gone > 0 && r.gone < r.days).length, 0));
 for (let n = 0; n < 120 && !(await riding()); n++) await page.evaluate(() => { const g = window.__ashport.game(); if (!g.paused && !document.querySelector('#veil.on')) window.__ashport.beat(); else { const b = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]') || document.querySelector('#veil.on button'); if (b) b.click(); else g.paused = false; } });
-const out = await riding();
-assert.ok(out > 0, 'a car is on its way with money');
+assert.ok(await riding() > 0, 'a car is on its way with money');
+/* one vehicle is one car on the map, whatever it carries: the cars are counted, not their loads */
+const out = await page.evaluate(() => { const seen = new Set(); window.__ashport.view().cities.forEach((c) => (c.rides || []).forEach((r) => { if (r.gone > 0 && r.gone < r.days) seen.add(r.vehicle || r.capo + ':' + r.kind); })); return seen.size; });
 const before = await hud();
 await page.reload();
 await page.waitForFunction(() => window.__ashport && window.__ashport.map());

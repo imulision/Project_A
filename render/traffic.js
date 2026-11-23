@@ -2,7 +2,7 @@
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
 import { roadWay } from './roads.mjs';
 export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
-  const DAY = 6 * T;      // every car keeps the same pace on the street: six lots in a day of the game (a block away, round the corner), six days for a road
+  const DAY = 2 * T;      /* every car keeps the same pace on the street: two lots in a day of the game (three days a block, as the rules count), eighteen days for a road */
   // legsOf(stages, len, L, wait): a trip the rules timed, leg by leg. On each leg the car waits by the door (hold), then drives at the pace of
   // every other car, so that it is there on the day the rules say; only a leg too long for its days is driven faster.
   function legsOf(stages, len, L, wait) {
@@ -37,7 +37,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     // a new car leaves from where its trip starts, after a short wait of its own so that they do not all leave at once
     return { C, pts, len, L, p: 0, dir: 1, loop: t.loop, wait: (t.loop ? hsh(pts[0][0] + L, pts[0][1]) * 3 : 0) + (t.delay || 0), sig: (t.path || []).join(';'), leaving: false,
              geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
-             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 6 : DAY, days: t.days || 0, el: 0, still: !!t.days, veh: t.veh || null, stay: !!t.stay, lost: t.lost || null,
+             tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 18 : DAY, days: t.days || 0, el: 0, still: !!t.days, veh: t.veh || null, stay: !!t.stay, lost: t.lost || null,
              plan: t.days ? legsOf(t.stages || [{ days: t.days }], len, L, t.wait || 0) : null,      // legs that each take their own days (out empty, home loaded)
              o: null,
              // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now

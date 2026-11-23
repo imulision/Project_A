@@ -53,7 +53,7 @@
   }
   // A place taken gun in hand becomes the family's, and their chief swears blood for it.
   function land(c, events, o) {
-    var was = at(c, o.x, o.y);
+    var was = at(c, o.x, o.y) || { owner: c.rival || 'rival' }; // (the place may have burnt out while they fought for it)
     c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
     changed(c);
     events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,

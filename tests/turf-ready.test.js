@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const T = require('../web/turf.js');
 const E = require('../web/empire.js');
 const H = require('./turf-helpers.js');
+require('./turf-helpers.js').plain(); // a block a day, one load a vehicle
 const town = H.town, family = H.family;
 const DAYS = T.RULES.days;
 

@@ -179,14 +179,17 @@ test('a bar earns in full only the month it has a load to pour', () => {
   assert.ok(one > 0);
 });
 
-test('a bar keeps at most two loads on its shelf, and what the trucks cannot place stays in the cellar', () => {
-  const { c, f } = brewer(1);
-  T.stepMonth(c, f);
-  assert.equal(hauls(c, f).length, 2, 'the first month both loads go to the one bar');
-  assert.equal(placeAt(c, f, 1, 1).stock, CRATES, 'it poured one and keeps one');
-  T.stepMonth(c, f);
-  assert.equal(hauls(c, f).length, 1, 'the shelf has room for one more only');
-  assert.equal(placeAt(c, f, 8, 2).stock, CRATES, 'the other load waits in the cellar');
+test('a bar keeps at most four loads on its shelf, and what the trucks cannot place stays in the cellar', () => {
+  const { c, f } = brewer(1), SHELF = T.RULES.truck.shelf;
+  assert.equal(SHELF, 4);
+  let short = null;
+  for (let m = 1; m <= 8 && short === null; m++) {
+    T.stepMonth(c, f);
+    if (hauls(c, f).length < T.RULES.pours) short = m;
+    assert.ok(placeAt(c, f, 1, 1).stock <= SHELF * CRATES, 'never more than its shelf holds');
+  }
+  assert.ok(short, 'a month comes when the shelf has no room for both loads');
+  assert.ok(placeAt(c, f, 8, 2).stock >= CRATES, 'the load that could not go waits in the cellar');
 });
 
 test('a still nobody drinks from fills its cellar, stops there, and says so', () => {
