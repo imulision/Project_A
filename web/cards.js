@@ -478,8 +478,8 @@
   var STORE = { liquor: 'cases of liquor', goods: 'crates', cars: 'stolen cars', weed: 'bags of weed' };
   function store(p) {
     var out = [];
-    if (p.stock >= 1) out.push([p.holds === 'liquor' || !p.holds ? 'liquor' : (GOODS[p.holds] || GOODS.goods)[0], Math.floor(p.stock) + ' ' + (STORE[p.holds] || STORE.liquor) + ' in store']);
-    if (p.weed >= 1) out.push(['loft', Math.floor(p.weed) + ' bags of weed to sell']);
+    if (p.stock >= 1 || p.room > 0) out.push([p.holds === 'liquor' || !p.holds ? 'liquor' : (GOODS[p.holds] || GOODS.goods)[0], Math.floor(p.stock || 0) + (p.room > 0 ? ' / ' + Math.floor(p.room) : '') + ' ' + (STORE[p.holds] || STORE.liquor) + ' in store']);
+    if (p.weed >= 1 || p.weedRoom > 0) out.push(['loft', Math.floor(p.weed || 0) + (p.weedRoom > 0 ? ' / ' + Math.floor(p.weedRoom) : '') + ' bags of weed to sell']);
     return out;
   }
   function storeLines(p, sep) { return store(p).map(function (s) { return sep ? '<br>' + icon(s[0]) + ' ' + s[1] : '<div class="move">' + icon(s[0]) + '<span>' + s[1] + '</span></div>'; }).join(''); }
@@ -500,7 +500,7 @@
     if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p))) + (cofferOf(c, p) ? '<br>' + icon('dirty') + ' ' + money(Math.round((c.coffer.dirty || 0) + (c.coffer.clean || 0))) + ' / ' + money(c.coffer.load || 0) + ' in the coffer' : '');
     var sh = shareOf(c, p);
     return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
-      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(p.till) + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + washTip(p) + storeLines(p, true) + strainLines(p, true);
+      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(Math.round(p.till)) + (ours && p.load > 0 ? ' / ' + money(p.load) : '') + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + washTip(p) + storeLines(p, true) + strainLines(p, true);
   }
   function shares(s) {
     var part = function (k, color) { return s[k] > 0 ? '<i style="flex:' + s[k].toFixed(1) + ';background:' + color + '" data-tip="' + { family: 'Yours', rival: 'The rivals', contested: 'Fought over', free: 'Held by nobody' }[k] + ': ' + Math.round(s[k]) + '%"></i>' : ''; };
@@ -929,7 +929,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, store: store, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

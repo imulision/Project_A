@@ -741,5 +741,6 @@ addEventListener('resize', () => {
     return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
   return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length }) };     // counted now, not at the last frame drawn; moving while the camera glides
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
+           cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
 }
