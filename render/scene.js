@@ -125,21 +125,27 @@ function sign(text, color, keep = true) {     // glowing shop sign; the ones not
   const m = new THREE.Mesh(SIGNGEO, SIGNS[key]); m.userData.keep = keep;
   return m;
 }
+const ADDMATS = new Map(), _lit = new THREE.Color();
+const addMat = (map) => { const k = map ? map.id : 'x'; if (!ADDMATS.has(k)) ADDMATS.set(k, new THREE.MeshBasicMaterial({ map, vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); return ADDMATS.get(k); };
 // merge every static mesh of a group into one mesh per material: a handful of draw calls instead of hundreds
 function bake(group) {
   const groups = new Map(), dead = [];
   group.updateMatrixWorld(true);
   group.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || o.userData.keep) return;
-    const key = o.material.uuid + ':' + o.renderOrder + ':' + o.castShadow + ':' + o.receiveShadow;
-    if (!groups.has(key)) groups.set(key, { o, geos: [] });
+    // An added light (a glow, a pool, a border) of any colour and strength is the same light with its colour times its
+    // strength in the vertices: all of them on one texture share one material, so one draw call, not one a colour.
+    const lit = o.material.blending === THREE.AdditiveBlending && !o.material.vertexColors, mat = lit ? addMat(o.material.map) : o.material;
+    const key = mat.uuid + ':' + o.renderOrder + ':' + o.castShadow + ':' + o.receiveShadow;
+    if (!groups.has(key)) groups.set(key, { o, mat, geos: [] });
     const g = o.geometry.clone().applyMatrix4(o.matrixWorld);
     for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(n)) g.deleteAttribute(n);
+    if (lit) colored(g, _lit.copy(o.material.color).multiplyScalar(o.material.opacity));
     groups.get(key).geos.push(g); dead.push(o);
   });
   for (const o of dead) o.removeFromParent();
-  for (const { o, geos } of groups.values()) {
-    const m = new THREE.Mesh(mergeGeometries(geos), o.material);
+  for (const { o, mat, geos } of groups.values()) {
+    const m = new THREE.Mesh(mergeGeometries(geos), mat);
     m.userData.merged = true; m.renderOrder = o.renderOrder; m.castShadow = o.castShadow; m.receiveShadow = o.receiveShadow; group.add(m);
     geos.forEach(g => g.dispose());
   }
