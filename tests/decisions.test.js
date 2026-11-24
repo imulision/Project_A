@@ -37,7 +37,10 @@ test('a year on, the game says what the man has become, once, in the news and on
   assert.ok(!months(g, 11).some((e) => e.type === 'outcome'), 'not before a year');
   const told = months(g, 1).filter((e) => e.type === 'outcome');
   assert.equal(told.length, 1);
-  const places = T.run(ashport(g), capo).length, income = g.family.men[capo].income, first = T.person(capo).name.split(' ')[0];
+  // (counted the day it is told: a place he finishes later that same day is not in it)
+  const income = g.family.men[capo].income, first = T.person(capo).name.split(' ')[0];
+  const said = told[0].label.match(/ runs (\d+) place/), places = said ? Number(said[1]) : -1;
+  assert.ok(places >= 0 && T.run(ashport(g), capo).length - places <= 1);
   assert.equal(told[0].label, T.days(12) + ' on: ' + first + ' runs ' + places + ' place' + (places === 1 ? '' : 's') + ' in Ashport and makes $' + income.toLocaleString('en-US') + ' ' + T.EVERY);
   assert.equal(told[0].good, places >= 2);
   assert.deepEqual([told[0].city, told[0].capo, told[0].decision], ['ashport', capo, E.view(g).decisions[0].id]);

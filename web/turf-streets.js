@@ -166,6 +166,9 @@
     var e = f.men && f.men[capo] && f.men[capo].errand;
     if (e && e.city === c.id) {
       var words = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' }[e.p.move], what = site(e.p.move === 'convert' ? e.p.from : e.p.kind);
+      if (e.step === 'returns') return { x: e.to.x, y: e.to.y, why: 'return', from: { x: e.p.x, y: e.p.y }, label: 'Driving back to his club from ' + zoneOf(c, e.p.x, e.p.y).name };
+      var doing = { open: 'Opening a ', enlarge: 'Enlarging his ', convert: 'Turning his ' }[e.p.move];
+      if (e.step === 'works') return { x: e.p.x, y: e.p.y, why: e.p.move, label: doing + what + (e.p.move === 'convert' ? ' into a ' + site(e.p.kind) : '') + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
       return { x: e.p.x, y: e.p.y, why: e.p.move, label: 'On his way to ' + words + what + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
     }
     if (op) {

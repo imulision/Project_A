@@ -40,16 +40,20 @@ test('a capo who has the money sets out for his place that very day, whatever hi
   assert.ok(f.men.dutch.cash < 5000);
 });
 
-test('he makes one move at a time: he sets out again the day he is there, if he still can', () => {
+test('he makes one move at a time: he sets out again the day he is home, if he still can', () => {
   const { c, f } = dutch(50000);
   T.begin(f, [c]);
   const out = (ev) => ev.filter((e) => (e.type === 'errand' && e.step === 'leaves') || e.type === 'moving');
   const first = out(T.pass(f, [c], 0));
   assert.equal(first.length, 1);
-  for (let d = 1; d < first[0].days; d++) assert.equal(out(T.pass(f, [c], d)).length, 0, 'he is on the road');
-  const there = T.pass(f, [c], first[0].days);
-  assert.equal(there.filter((e) => e.type === 'opened').length, 1);
-  assert.equal(out(there).length, 1);
+  let home = null;
+  for (let d = 1; d < DAYS && !home; d++) {
+    const ev = T.pass(f, [c], d);
+    home = ev.find((e) => e.type === 'errand' && e.step === 'home') ? ev : null;
+    if (!home) assert.equal(out(ev).length, 0, 'day ' + d + ': he is out');
+  }
+  assert.ok(home, 'he is home within the cycle');
+  assert.equal(out(home).length, 1);
 });
 
 test('the money of a car is his the day it comes back: the boss has his share and the men their pay at once', () => {
