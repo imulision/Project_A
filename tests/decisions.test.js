@@ -102,7 +102,9 @@ test('parting with a capo: a year on, what the city has become without him', () 
   const was = { places: T.places(c).filter((p) => p.owner === 'family').length, up: Math.round(c.flow.up) }, name = T.person(capo).name;
   E.command(g, { type: 'part', city: 'ashport', capo, way: 'retire' });
   assert.equal(E.view(g).decisions[0].label, 'You paid ' + name + ' off');
-  const told = months(g, 12).filter((e) => e.type === 'outcome').pop();
+  // (counted the day it is told: played on to that very day)
+  let told = null;
+  for (let i = 0; i < 12 * E.TICKS_PER_MONTH && !told; i++) { g.paused = false; told = E.tick(g).filter((e) => e.type === 'outcome' && / without /.test(e.label)).pop() || null; }
   const now = { places: T.places(c).filter((p) => p.owner === 'family').length, up: Math.round(c.flow.up) };
   assert.equal(told.label, T.days(12) + ' on without ' + name.split(' ')[0] + ': ' + now.places + ' places in Ashport (was ' + was.places + '), $' + now.up.toLocaleString('en-US') + ' ' + T.EVERY + ' sent up (was $' + was.up.toLocaleString('en-US') + ')');
   assert.equal(told.good, now.up > was.up ? true : now.up < was.up ? false : null);

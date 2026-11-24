@@ -66,6 +66,9 @@
       // men who left on a day of a cycle get there on that day, so many cycles later
       var gone = c.month - o.month, today = c.turn ? c.turn.day || 0 : 0;
       if (gone < o.months || (gone === o.months && o.day !== undefined && today < o.day)) return true;
+      // played day by day the capo must be there himself, a key place too
+      var m = f && f.men && f.men[o.capo];
+      if (m && m.pos && (m.drive || m.pos.x !== o.x || m.pos.y !== o.y)) return true;
       var was = at(c, o.x, o.y);
       if (!was || was.owner === 'family') return false; // nothing left to take
       if (o.key) {
@@ -158,13 +161,13 @@
 
   // Where a capo is this month, and what took him there: the place he is taking, the street the rivals
   // struck, the door of the man he quarrels with, the key place he asks for. Otherwise his club.
-  function whereabouts(c, f, capo) {
+  function whereabouts(c, f, capo, bare) { // bare: what he is after, his errand aside
     var club = clubOf(c, capo), op = c.ops.filter(function (o) { return o.capo === capo; })[0];
     var site = function (kind, key) { return (kind === 'key' ? KEYS[key].name : D.SITES[kind].name).toLowerCase(); };
     var live = H.on(c, capo);
     if (live) return { x: live.x, y: live.y, why: 'hit', label: 'Hitting the ' + live.rival + 's\' ' + site(live.kind) + ' in ' + zoneOf(c, live.x, live.y).name };
     var e = f.men && f.men[capo] && f.men[capo].errand;
-    if (e && e.city === c.id) {
+    if (e && e.city === c.id && !bare) {
       var words = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' }[e.p.move], what = site(e.p.move === 'convert' ? e.p.from : e.p.kind);
       if (e.step === 'returns') return { x: e.to.x, y: e.to.y, why: 'return', from: { x: e.p.x, y: e.p.y }, label: 'Driving back to his club from ' + zoneOf(c, e.p.x, e.p.y).name };
       var doing = { open: 'Opening a ', enlarge: 'Enlarging his ', convert: 'Turning his ' }[e.p.move];
