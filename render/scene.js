@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { due } from './pace.mjs';
+import { pacer, quality } from './pace.mjs';
 import { makeFx } from './fx.js';
 import { makeTraffic } from './traffic.js';
 import { makeLabels } from './labels.js';
@@ -429,9 +429,9 @@ function buildNear(C) {
   for (let i = 0; i < C.W; i++) for (let j = 0; j < C.H; j++) {
     const x = C.ox + i * T, z = C.oz + j * T, ri = i % 4 === 0, rj = j % 3 === 0;
     if ((ri || rj) && !streetAt(C, i, j)) continue;
-    if (ri && rj) add('road_junction', PLAINMAT, x, 0, z, 0, 1, ROADTINT);
-    else if (ri) add(j % 3 === 1 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, 0, 1, ROADTINT);
-    else if (rj) add(i % 4 === 2 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, Math.PI / 2, 1, ROADTINT);
+    if (ri && rj) add('road_junction', PLAINMAT, x, 0, z, 0, 1, ROADTINT, false);      // flat on the ground: it casts no shadow
+    else if (ri) add(j % 3 === 1 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, 0, 1, ROADTINT, false);
+    else if (rj) add(i % 4 === 2 ? 'road_straight_crossing' : 'road_straight', PLAINMAT, x, 0, z, Math.PI / 2, 1, ROADTINT, false);
   }
   voidGround(C, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), false, [w, h, d]));
   cur = new THREE.Group();
@@ -548,12 +548,13 @@ buildYear();
 
 // near or far? Only the cities in view, and only when close, get the full models. At most two are kept in memory.
 const NEAR_ZOOM = 3.6 * K, tgt = new THREE.Vector3();
+let nearMs = 0, nNear = 0;
 function levelOfDetail(now) {
   tgt.copy(cam.position).sub(OFF);
   const reach = VIEW / cam.zoom * 1.7; let built = false;
   for (const C of CITIES) {
     const want = cam.zoom >= NEAR_ZOOM && Math.hypot(tgt.x - C.cx, tgt.z - C.cz) < reach + C.r;
-    if (want && !C.near && !built) { buildNear(C); built = true; shadowDirty = true; }
+    if (want && !C.near && !built) { const t0 = performance.now(); buildNear(C); built = true; shadowDirty = true; nearMs = performance.now() - t0; nNear++; }
     const near = want && !!C.near;
     if (C.near) { if (C.near.visible !== near) shadowDirty = true; C.near.visible = near; if (near) C.nearAt = now; }
     if (C.farBody.visible === near) shadowDirty = true;
@@ -580,9 +581,9 @@ const Grade = {
     void main(){
       float d = abs(vUv.y - 0.5);                       // tilt-shift: blur the top and bottom
       float r = smoothstep(0.30, 0.5, d) * 1.6 / res.y;
-      vec3 c = vec3(0.);
-      for (int i = -2; i <= 2; i++) c += texture2D(tDiffuse, vUv + vec2(0., float(i) * r * 1.5)).rgb;
-      c /= 5.;
+      vec3 c;
+      if (r > 0.) { c = vec3(0.); for (int i = -2; i <= 2; i++) c += texture2D(tDiffuse, vUv + vec2(0., float(i) * r * 1.5)).rgb; c /= 5.; }
+      else c = texture2D(tDiffuse, vUv).rgb;                                   // the sharp middle of the screen reads one texel, not five
       float l = dot(c, vec3(.299,.587,.114));
       c = mix(c, c * shT, 1. - smoothstep(0., .45, l));                        // tinted shadows
       c = mix(c, c * hiT, smoothstep(.35, 1., l));                             // tinted highlights
@@ -596,6 +597,7 @@ const Grade = {
       gl_FragColor = vec4(c, 1.);
     }`
 };
+{ const size = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => size(Math.round(w / pr), Math.round(h / pr)); }      // the glow is drawn at screen pixels, not at the phone's 2x: it is blurred anyway, and its cost grows as the square of the resolution
 const grade = new ShaderPass(Grade);
 composer.addPass(bloom); composer.addPass(new OutputPass()); composer.addPass(grade);
 const V3 = (r, g, b) => new THREE.Vector3(r, g, b);
@@ -622,7 +624,7 @@ window.setFx(fxOn); if (Q.has('nobloom')) bloom.enabled = false; if (Q.has('nogr
 function setPr(v) { pr = v; stale = 3; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); grade.uniforms.res.value.set(innerWidth * pr, innerHeight * pr); }
 window.__setPr = setPr;
 renderer.info.autoReset = false;
-let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, slow = 0, held = false, stale = 3, lastView = '';
+let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, sharp = quality.start(pr), due = pacer(), held = false, stale = 3, lastView = '';
 const focus = (id, districtId, at) => {     // glide to the whole map, to a city, to one of its districts, or to one block of it (at: { x, y })
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
   goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + midX(d) * 4 * T, 0, c.oz + midY(d) * 3 * T).add(OFF), z: 11 * K }
@@ -631,14 +633,14 @@ const focus = (id, districtId, at) => {     // glide to the whole map, to a city
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
 // the state of the game changed: rebuild only the cities that look different
-let nWaves = 0;
+let nWaves = 0, nRebuilt = 0, rebuildMs = 0;      // how often a city is built again, and what the last one cost (the fps meter shows it)
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
     const C = CITIES[ci], changed = pc.key !== C.p.key, flips = pc.turf && C.p.turf ? turned(C.p.blocks, pc.blocks).slice(0, 8) : []; C.p = pc; C.d = pc.districts; C.held = pc.held;
     nWaves += flips.length; for (const b of flips) spawnFx(b.won ? 'won' : 'lost', C.ox + (b.x * 4 + 2) * T, C.oz + (b.y * 3 + 1.5) * T);      // a street changes hands: it is seen
     if (!changed) { if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); return; }
     if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null;
-    nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true;
+    const t0 = performance.now(); nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true; nRebuilt++; rebuildMs = performance.now() - t0;
   });
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
@@ -696,7 +698,7 @@ function pickAt(cx, cy) {
   return null;
 }
 function frame(now) {
-  if (!due(now, last)) { requestAnimationFrame(frame); return; }      // never more than 60 images a second (render/pace.mjs)
+  if (!due(now)) { requestAnimationFrame(frame); return; }      // never more than 60 images a second, on a 90 Hz screen too (render/pace.mjs)
   const real = Math.min(1, (now - last) / 1000), dt = Math.min(0.05, real); last = now;      // cars never jump more than a twentieth of a second; a fire burns its real time, however slow the machine
   if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
@@ -720,9 +722,8 @@ function frame(now) {
   fpsN++;
   if (now - fpsT > 1000) {
     const fps = Math.round(fpsN * 1000 / (now - fpsT)); window.__fps = fps; fpsT = now; fpsN = 0;
-    // adaptive quality: below 40 images a second for two seconds, lower the resolution one step
-    slow = fps < 40 ? slow + 1 : 0;
-    if (slow >= 2 && pr > 1 && !Q.has('fixed')) { setPr(Math.max(1, pr - 0.25)); slow = 0; }
+    // adaptive quality: the resolution goes down a step when the phone is slow for a while, and back up when it is at ease (render/pace.mjs)
+    if (!Q.has('fixed')) { sharp = quality.tick(sharp, fps, now); if (sharp.pr !== pr) setPr(sharp.pr); }
     const el = document.getElementById('fps'); if (el && !el.classList.contains('on')) el.textContent = fps + ' fps';     // the page writes the full reading itself when the meter is open
   }
   if (frames === 3) { window.__ready = true; if (opt.onStage) opt.onStage(4); }
@@ -752,6 +753,6 @@ addEventListener('resize', () => {
     return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
   return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, where, spot, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, rebuilt: nRebuilt, rebuildMs: Math.round(rebuildMs), near: nNear, nearMs: Math.round(nearMs), fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
            cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
 }
