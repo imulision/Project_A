@@ -1,6 +1,6 @@
 // The streets at work: every trip of the plan is a vehicle. Loops come and go, rounds leave the club and come home, convoys take the road between two cities.
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
-import { roadWay } from './roads.mjs';
+import { roadWay, goOn } from './roads.mjs';
 export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
   const DAY = 2 * T;      /* every car keeps the same pace on the street: two lots in a day of the game (three days a block, as the rules count), eighteen days for a road */
   // legsOf(stages, len, L, wait): a trip the rules timed, leg by leg. On each leg the car waits by the door (hold), then drives at the pace of
@@ -49,6 +49,15 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     a.wait = 0; a.el = t.gone; along(a);
     return a;
   }
+  // One car per capo: a new trip of his takes over the car he is in, from where it is, by what is left of its way.
+  function drivesOn(a, t) {
+    let was = null;
+    for (const [id, b] of agents) if (b.kind === 'capo' && b.tag.capo === a.tag.capo && b.C === a.C) { if (!b.done && b.L && b.p < b.L) was = b; agents.delete(id); }
+    if (!was) return a;
+    const at = was.x === undefined ? was.pts[0] : [was.x, was.z], pts = goOn(was.pts, was.len, was.p, at, a.pts), len = []; let L = 0;
+    for (let k = 1; k < pts.length; k++) { L += Math.abs(pts[k][0] - pts[k - 1][0]) + Math.abs(pts[k][1] - pts[k - 1][1]); len.push(L); }
+    return Object.assign(a, { pts, len, L, wait: 0, x: at[0], z: at[1], rot: was.rot, plan: t.days ? legsOf([{ days: t.days }], len, L, 0) : null });
+  }
   // A vehicle on its round takes the way of the new month once it is back by the club; parked, it takes it at once.
   function reroute(id, a, t) {
     if (a.sig === t.path.join(';')) { a.next = null; a.stops.forEach((s, i) => { if (t.stops[i]) s.amount = t.stops[i].amount; }); return; }      // same way, this month's loads
@@ -63,7 +72,8 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
         if (old && old.round && t.round) { reroute(t.id, old, t); continue; }
         if (old && old.sig !== t.path.join(';')) { old.leaving = true; agents.delete(t.id); agents.set('old' + (n0++), old); }      // the route changed: the old car finishes its run
         if (!agents.has(t.id)) { const a = agentFor(t); if (a) agents.set(t.id, a); } else Object.assign(agents.get(t.id).tag, { load: t.load, amount: t.amount || 0 }); }
-      else { const a = agentFor(t); if (!a) return;
+      else { let a = agentFor(t); if (!a) return;
+        if (a.kind === 'capo' && a.tag.capo) a = drivesOn(a, t);      /* a capo sent elsewhere while his car still drives goes on from where it is */
         if (a.veh) for (const [id, b] of agents) if (b.veh === a.veh && b.stay && b.done) agents.delete(id);      // the truck that waited where it unloaded is the one that leaves
         agents.set('once' + (n0++), a); }
     }

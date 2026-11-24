@@ -1,0 +1,31 @@
+import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const url = 'file://' + path.resolve(here, '../web/index.html') + '?fixed&manual';
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--allow-file-access-from-files'] });
+const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+page.on('pageerror', (e) => console.log('ERR', String(e)));
+await page.goto(url);
+await page.waitForSelector('.facebtn', { timeout: 120000 });
+await page.click('[data-face=sal]'); await page.click('#who [data-act=start]');
+await page.waitForSelector('#veil:not(.on)', { state: 'attached' });
+await page.evaluate(() => window.__ashport.home());
+await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 60000 });
+const res = await page.evaluate(() => {
+  const A = window.__ashport, m = A.map(), M = window.AshportMapView, W = window.AshportWorld, v = A.view();
+  const face = () => m.labels().find((l) => l.id[0] === 'k' && l.capo === 'sal');
+  m.run(3);
+  const k = v.cities[0].capos[0], i = k.at ? k.x : k.x, out = [];
+  const trip = (from, to) => ({ id: 'ashport:capo:sal', kind: 'capo', city: 'ashport', loop: false, color: '#fff', vehicle: 'car', violent: false, path: [from, [to[0], from[1]], to], cargo: 'boost', load: {}, capo: 'sal', from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
+  const p = M.planEmpire(v, W.CITIES), c = p.cities.find((x) => x.id === 'ashport'), kk = c.capos.find((x) => x.id === 'sal'), s = [kk.at.i, kk.at.j];
+  m.send([trip(s, [s[0] + 8, s[1] + 6])]);
+  let prev = face(), max = 0;
+  for (let n = 0; n < 12; n++) { m.run(0.25); const f = face(); max = Math.max(max, Math.hypot(f.x - prev.x, f.y - prev.y)); prev = f; }
+  out.push(['first trip, biggest step', Math.round(max), prev.riding]);
+  m.send([trip([s[0] + 8, s[1] + 6], [s[0] + 8, s[1] - 6])]);
+  m.run(0.05); const f = face(); out.push(['second trip sent mid-way, face moved', Math.round(Math.hypot(f.x - prev.x, f.y - prev.y)), f.riding, m.cars().filter((c) => c.kind === 'capo').length]);
+  return out;
+});
+console.log(JSON.stringify(res));
+await browser.close();
