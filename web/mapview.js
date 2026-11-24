@@ -161,7 +161,7 @@
       var lot = capoAt[k.id] || {}, pl = k.plan || {};
       // where he is this month (the rules say on which block and why); at his club when they say nothing
       var there = k.at && k.at.why !== 'home' ? lotOfBlock({ lots: lots, bx: c.w }, k.at.x, k.at.y) : null;
-      return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home' }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
+      return { at: { i: there ? there.i : lot.i, j: there ? there.j : lot.j, why: there ? k.at.why : 'home', road: !!(k.at && k.at.road) }, id: k.id, name: k.name, rank: k.rank, i: lot.i, j: lot.j, bx: k.x, by: k.y, move: pl.move || 'hold', kind: pl.kind || null, way: pl.way || null,
                tx: pl.x, ty: pl.y, progress: pl.progress === undefined ? 1 : pl.progress, waiting: pl.waiting || null, why: pl.why || '', cash: k.cash, income: k.income };
     });
     var key = c.places.map(function (p) { return p.x + '.' + p.y + p.owner.charAt(0) + p.kind + p.level + (p.stage || ''); }).sort().join(',') + '|' + looks.join('') + '|' + Object.keys(ill).sort().join(',') + '|' + marks.sort().join(',') + '|' + crews.sort().join(',') + '|' + trends.join('');
@@ -398,11 +398,13 @@
     (events || []).forEach(function (e) {
       /* he leaves from where he stands, which is not always his club */
       var bc = before && e.step === 'leaves' && before.cities.filter(function (x) { return x.id === e.city; })[0], bk = bc && bc.capos.filter(function (m) { return m.id === e.capo; })[0], stood = bk && bk.at && typeof bk.at.i === 'number' ? bk.at : null;
-      if (e.type !== 'errand' || (e.step !== 'leaves' && e.step !== 'returns') || !e.from || typeof e.x !== 'number') return;      /* out to the place, and home again once the work is done */
+      var drives = e.type === 'capo' && e.step === 'drives';      /* whatever he does away from his club, he drives there first */
+      if ((e.type !== 'errand' || (e.step !== 'leaves' && e.step !== 'returns')) && !drives) return;      /* out to the place, and home again once the work is done */
+      if (!e.from || typeof e.x !== 'number' || (drives && e.from.x === e.x && e.from.y === e.y)) return;
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], a = c && lotOfBlock(c, e.from.x, e.from.y), b = c && lotOfBlock(c, e.x, e.y); if (!a || !b) return;
       var start = stood ? [stood.i, stood.j] : [a.i, a.j], path = start[0] === b.i && start[1] === b.j ? [start, [b.i, b.j]] : route(start, [b.i, b.j], c);
       out.push({ id: c.id + ':capo:' + e.capo, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false, path: path, days: Math.max(0.25, e.days || 1), wait: 0,
-                 cargo: e.step === 'returns' ? 'return' : e.move, amount: e.step === 'returns' ? 0 : Math.round(e.amount || 0), load: {}, capo: e.capo, from: e.step === 'returns' ? (a.site ? a.site.type : 'street') : 'club', to: e.step === 'returns' ? 'club' : b.site ? b.site.type : 'street', by: null, way: e.move, target: null, n: 0, stay: true });
+                 cargo: drives ? e.why : e.step === 'returns' ? 'return' : e.move, amount: e.step === 'returns' ? 0 : Math.round(e.amount || 0), load: {}, capo: e.capo, from: e.step === 'returns' ? (a.site ? a.site.type : 'street') : 'club', to: e.step === 'returns' ? 'club' : b.site ? b.site.type : 'street', by: null, way: e.move, target: null, n: 0, stay: true });
     });
     return out;
   }
@@ -435,7 +437,7 @@
       var was = before.cities.filter(function (x) { return x.id === c.id; })[0]; if (!was) return;
       c.capos.forEach(function (k) {
         var old = was.capos.filter(function (x) { return x.id === k.id; })[0];
-        if (!old || !old.at || !k.at || typeof k.at.i !== 'number' || typeof old.at.i !== 'number' || (old.at.i === k.at.i && old.at.j === k.at.j) || ERRAND[k.at.why]) return;      // (an errand is timed by the rules: errandsTurf)
+        if (!old || !old.at || !k.at || typeof k.at.i !== 'number' || typeof old.at.i !== 'number' || (old.at.i === k.at.i && old.at.j === k.at.j) || ERRAND[k.at.why] || k.at.road || old.at.road) return;      // (an errand is timed by the rules: errandsTurf)
         out.push({ id: c.id + ':capo:' + k.id, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false,
                    path: route([old.at.i, old.at.j], [k.at.i, k.at.j], c), cargo: k.at.why, load: {}, capo: k.id, from: 'street', to: 'street', by: null, way: null, target: null, n: 0 });
       });

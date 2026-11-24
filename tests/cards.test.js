@@ -55,8 +55,8 @@ test('a man at the door: his price, a street to choose here, and each road he co
   const html = C.requests(v, E.hud(g));
   assert.match(html, new RegExp(d.name.split(' ')[0]));
   assert.match(html, new RegExp('\\' + C.money(d.cost)));
-  assert.equal(acts(html, 'seat').length, 1, 'one button to seat him in the city where he knocked');
-  assert.equal(acts(html, 'road').length, d.roads.length, 'one button per road');
+  assert.equal(acts(html, 'seat').filter((b) => b.includes('data-capo="' + d.capo + '"')).length, 1, 'one button to seat him in the city where he knocked');
+  assert.equal(acts(html, 'road').filter((b) => b.includes('data-capo="' + d.capo + '"')).length, d.roads.length, 'one button per road');
   assert.match(html, new RegExp('data-act="road" data-from="' + city.id + '" data-city="' + d.roads[0].city + '" data-capo="' + d.capo + '"'));
 });
 
@@ -64,7 +64,7 @@ test('what the boss cannot pay cannot be pressed, and the sheet says what is mis
   const { g, v } = play(some('doors'));
   const hud = Object.assign({}, E.hud(g), { dirty: 0, clean: 0 });
   const html = C.requests(v, hud);
-  assert.equal(acts(html, 'seat').filter((b) => /disabled/.test(b)).length, 1);
+  assert.equal(acts(html, 'seat').filter((b) => /disabled/.test(b)).length, v.cities.reduce((n, c) => n + c.doors.length, 0), 'each man at the door, when nothing can pay him');
   assert.match(html, /short/i);
 });
 
