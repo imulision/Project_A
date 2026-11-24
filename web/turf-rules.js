@@ -96,6 +96,8 @@
     // himself when his cars left full tills behind, and what a place makes more the month he stands over it
     own: { runs: 2, boost: 0.15 },
     // (every trip is three times longer than a block a day would make it: a vehicle holds three loads and costs a third)
+    // the days a capo works on the spot to open a place, make it bigger or turn it into another trade
+    work: { open: 4, enlarge: 3, convert: 3 },
     // liquor is carried too. A truck leaves a cellar only with a full load: the crates in a load, the runs a truck makes
     // in a month, its price and upkeep (the truck that comes with a man's first still costs nothing), the months of its
     // own making a cellar holds, and the loads a bar keeps on its shelf. A bar pours one load a month.

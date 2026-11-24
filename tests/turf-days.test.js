@@ -84,10 +84,10 @@ test('a month lasts twenty-four beats at speed 1, and every man has his own day 
   assert.equal(E.view(g).cities[0].capos[0].day, E.dayOf('dutch'));
 });
 
-test('what happens is spread over the days: a capo with money sets out the first day, opens when he is there, and again on the days after, never all at once', () => {
+test('what happens is spread over the days: a capo with money sets out the first day, opens when his work there is done, and again once he is home, never all at once', () => {
   const g = E.createGame({ capo: 'dutch' });
   g.family.men.dutch.cash = 20000;
-  const month = beats(g, E.TICKS_PER_MONTH), opens = month.map((events) => events.filter((e) => e.type === 'opened' && e.capo === 'dutch').length);
+  const month = beats(g, 3 * E.TICKS_PER_MONTH), opens = month.map((events) => events.filter((e) => e.type === 'opened' && e.capo === 'dutch').length);
   assert.equal(month[0].filter((e) => e.type === 'errand' && e.step === 'leaves' && e.capo === 'dutch').length, 1);
   assert.ok(Math.max(...opens) === 1, 'one move a day');
   assert.ok(opens.filter(Boolean).length >= 2, 'and he goes on the days after');

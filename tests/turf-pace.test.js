@@ -40,7 +40,7 @@ test('a till fills a little every day, not all at once', () => {
   T.begin(f, [c]);
   let was = tills(c), grew = 0;
   for (let d = 0; d < 6; d++) {
-    const out = T.pass(f, [c], d).reduce((n, r) => n + r.amount, 0), now = tills(c);
+    const out = T.pass(f, [c], d).reduce((n, r) => n + (r.amount || 0), 0), now = tills(c);
     if (now + out > was + 1e-9) grew++;
     was = now;
   }

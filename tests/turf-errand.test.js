@@ -21,14 +21,14 @@ const play = (c, f, stop, most) => {
 };
 const him = (c, f) => T.view(c, f).capos.filter((k) => k.id === 'dutch')[0];
 
-test('he sets out with the money; the place is there the day he arrives, not before', () => {
+test('he sets out with the money; the place is there the day his work there is done, not before', () => {
   const { c, f, club } = dutch(5000);
   const all = play(c, f, (ev) => ev.some((e) => e.type === 'opened'));
   const out = all.filter((e) => e.type === 'errand')[0], done = all.filter((e) => e.type === 'opened')[0];
   assert.ok(out && done, 'he leaves, and he opens');
   const far = T.tripDays(club, out);
   assert.deepEqual([out.step, out.capo, out.city, out.from, out.move, out.kind, out.amount, out.days], ['leaves', 'dutch', c.id, { x: club.x, y: club.y }, 'open', done.kind, done.cost, far]);
-  assert.deepEqual([done.x, done.y, done.d], [out.x, out.y, out.d + far]);
+  assert.deepEqual([done.x, done.y, done.d], [out.x, out.y, out.d + far + T.RULES.work.open]);
   assert.ok(T.at(c, done.x, done.y), 'it stands now');
 });
 

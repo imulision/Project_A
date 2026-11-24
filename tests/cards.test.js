@@ -55,8 +55,8 @@ test('a man at the door: his price, a street to choose here, and each road he co
   const html = C.requests(v, E.hud(g));
   assert.match(html, new RegExp(d.name.split(' ')[0]));
   assert.match(html, new RegExp('\\' + C.money(d.cost)));
-  assert.equal(acts(html, 'seat').length, 1, 'one button to seat him in the city where he knocked');
-  assert.equal(acts(html, 'road').length, d.roads.length, 'one button per road');
+  assert.equal(acts(html, 'seat').filter((b) => b.includes('data-capo="' + d.capo + '"')).length, 1, 'one button to seat him in the city where he knocked');
+  assert.equal(acts(html, 'road').filter((b) => b.includes('data-capo="' + d.capo + '"')).length, d.roads.length, 'one button per road');
   assert.match(html, new RegExp('data-act="road" data-from="' + city.id + '" data-city="' + d.roads[0].city + '" data-capo="' + d.capo + '"'));
 });
 
@@ -64,7 +64,7 @@ test('what the boss cannot pay cannot be pressed, and the sheet says what is mis
   const { g, v } = play(some('doors'));
   const hud = Object.assign({}, E.hud(g), { dirty: 0, clean: 0 });
   const html = C.requests(v, hud);
-  assert.equal(acts(html, 'seat').filter((b) => /disabled/.test(b)).length, 1);
+  assert.equal(acts(html, 'seat').filter((b) => /disabled/.test(b)).length, v.cities.reduce((n, c) => n + c.doors.length, 0), 'each man at the door, when nothing can pay him');
   assert.match(html, /short/i);
 });
 
@@ -346,7 +346,7 @@ test('a touched street answers with a few words beside the finger, not a sheet',
   const mine = C.blockTip(v, 'ashport', ours.x, ours.y);
   assert.match(mine, new RegExp(ours.name)); assert.match(mine, /Sal runs it/);
   assert.doesNotMatch(mine, /<button|<h2/, 'no button, no title: it is a word, not a page');
-  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 90, 'short');
+  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 160, 'short: a line for each figure, no more');
   assert.match(C.blockTip(v, 'ashport', key.x, key.y), new RegExp(key.name));
   const p = { ...ours, till: 90 }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) };
   assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 \/ \$150 in the till/);
@@ -1385,4 +1385,17 @@ test('every place of the family has a gauge for the map: how full is what it fil
   assert.equal(of({ till: 400, load: 150 }), 1);
   const rival = city.places.find((p) => p.owner !== 'family');
   assert.equal(C.fills(v)[city.id + ':' + rival.x + ',' + rival.y], undefined);
+});
+
+// A touched building is tied by blue lines to the vehicles that work for it: the cars and trucks on the road from it or to
+// it, the trucks that stand at its door, and its capo while he is there.
+test('a place knows the vehicles tied to it', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'), club = city.places.find((p) => p.kind === 'club');
+  const at = { x: ours.x, y: ours.y }, far = { x: club.x, y: club.y };
+  const c = { ...city, rides: [{ kind: 'takings', capo: 'sal', vehicle: 'sal:car:1', from: at, to: far, amount: 40, days: 3, gone: 1 }, { kind: 'haul', capo: 'sal', vehicle: 'sal:truck:2', from: far, to: at, amount: 20, days: 9, gone: 2 }, { kind: 'wash', capo: 'sal', vehicle: 'sal:car:3', from: far, to: { x: 99, y: 99 }, amount: 9, days: 3, gone: 1 }, { kind: 'haul', vehicle: 'sal:truck:4', from: far, to: at, amount: 20, days: 9, gone: 9 }],
+    capos: city.capos.map((k) => (k.id === 'sal' ? { ...k, rigs: [{ vehicle: 'sal:truck:1', x: at.x, y: at.y, busy: false }, { vehicle: 'sal:truck:2', x: far.x, y: far.y, busy: true }], errand: { step: 'works', x: at.x, y: at.y } } : k)) };
+  const w = { ...v, cities: [c] };
+  assert.deepEqual(C.linked(w, c.id, at.x, at.y).sort(), [c.id + ':sal:car:1', c.id + ':sal:truck:1', c.id + ':sal:truck:2', 'capo:' + c.id + ':sal'].sort());
+  assert.deepEqual(C.linked(w, c.id, 99, 98), [], 'a street with nothing on it has no line');
 });

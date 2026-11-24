@@ -255,7 +255,7 @@
         return { follows: led ? led.follows : null, followsWhy: led ? led.why : null, id: id, name: who(id).name, specialty: who(id).specialty, rank: man.rank, rankName: RANKS[man.rank], x: club.x, y: club.y,
                  share: Math.round(man.share || 0), shareLoad: loadOf(f), // the boss's share waiting at his club, and the load a car takes to the headquarters
                  rigs: (man.rigs || []).map(function (t, n) { return { vehicle: id + ':truck:' + (n + 1), x: t.x, y: t.y, busy: t.free > B.today(c) }; }), // where each of his trucks stands, or is going
-                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, at: whereabouts(c, f, id), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), counts: (man.puts || []).length, book: bookOf(man), partings: partings(c, f, id) };
+                 places: run(c, id).length, reach: RULES.reach[man.rank] + (led && led.follows && P.lineOf(c) === 'grow' ? RULES.line.stretch : 0), next: man.rank < RANKS.length - 1 ? { rank: man.rank + 1, name: RANKS[man.rank + 1], xp: man.xp || 0, of: RULES.xp[man.rank + 1] } : null, sulks: Math.max(0, ((c.sulk || {})[id] || 0) - c.month), sent: (flow.sent || {})[id] || 0, errand: errandOf(c, f, id), drive: driveOf(c, f, id), at: seen(c, f, id, whereabouts(c, f, id)), under: underOf(c) === id, mood: mood(f, id), gift: gifts(c, f, id), abilities: abilities(f, id), cars: man.cars || 1, trucks: cellars(c).some(function (s) { return s.p.capo === id; }) ? man.trucks || 1 : 0, waiting: Math.round(man.waiting || 0), income: man.income, cash: man.cash, way: wayOf(id), plan: gained(c, dated(plan(c, f, id), paceOf(man))), pace: paceOf(man), counts: (man.puts || []).length, book: bookOf(man), partings: partings(c, f, id) };
       })
     };
     out.next = nextOf(out.capos); // the next streets to fall, or null
@@ -337,7 +337,8 @@
       var p = chokes(c, capo);
       if (p) m.help = { x: p.x, y: p.y, why: 'boost', kind: p.kind };
     });
-    Object.keys(f.men).forEach(function (capo) { var h = clubOf(c, capo) && f.men[capo].help; if (h) c.push[h.y * c.w + h.x] = true; });
+    // (played day by day a place makes more only while he stands there: see `drive`)
+    Object.keys(f.men).forEach(function (capo) { var h = clubOf(c, capo) && f.men[capo].help; if (h && (!daily || standsAt(c, f.men[capo], h))) c.push[h.y * c.w + h.x] = true; });
     var trap = ambush(c), drink = distil(c, f, trap, daily);
     if (drink.seized) {
       events.push({ type: 'seizure', capo: drink.seized.capo, city: c.id, x: drink.seized.from.x, y: drink.seized.from.y, cargo: drink.seized.cargo, amount: drink.seized.amount,
@@ -457,8 +458,14 @@
       if (each > 0) mine.forEach(function (q) { events.push({ type: 'pay', what: 'wages', city: c.id, capo: capo, x: q.x, y: q.y, amount: each }); });
       if (garage > 0) events.push({ type: 'pay', what: 'upkeep', city: c.id, capo: capo, x: club.x, y: club.y, amount: garage });
     }
+    drive(c, f, capo, events);
     arrived(c, f, capo, events);
-    if (m.errand) return; // he is out with the money of his last move
+    move(c, f, capo, events);
+    depart(c, f, capo, events);
+  }
+  function move(c, f, capo, events) {
+    var m = f.men[capo], h = c.hauls[capo];
+    if (m.errand || m.drive) return; // he is out with the money of his last move, or on the road
     // he looks at his next move again only when his purse reaches what it lacked; his count day starts him afresh
     if (h.need !== undefined && m.cash < h.need) return;
     var p = plan(c, f, capo);
@@ -469,25 +476,103 @@
     setOut(c, f, capo, p, events);
   }
   // In a city played day by day a place is opened, made bigger or turned by the capo in person: he drives there from
-  // his club with the money, a block a day, and the move is made the day he arrives (m.errand meanwhile).
+  // his club with the money, works there the days the move takes (RULES.work), and the move is made the day the
+  // work is done. He then drives back to his club, and makes no other move before he is home (m.errand meanwhile:
+  // step 'goes', 'works' or 'returns', `until` the day that step ends).
+  // A capo is somewhere. Played day by day, whatever he does away from his club he drives there first, a block in
+  // RULES.car.speed days, and it counts only once he is there (a place taken, a place he stands over); then he drives
+  // on to what is next, or home. m.pos: where he stands (his club when there is none), m.drive while on the road.
+  function posOf(c, m, capo) {
+    if (m.pos && m.pos.city === c.id) return m.pos;
+    var club = clubOf(c, capo);
+    return { city: c.id, x: club.x, y: club.y };
+  }
+  function standsAt(c, m, p) { return !m.drive && m.pos && m.pos.city === c.id && m.pos.x === p.x && m.pos.y === p.y; }
+  function drive(c, f, capo, events) {
+    var m = f.men[capo], d = m.drive;
+    if (m.errand || !clubOf(c, capo)) return; // an errand takes him there and back (see `setOut`)
+    if (d && d.city === c.id) {
+      if (d.until > B.today(c)) return;
+      delete m.drive;
+      m.pos = { city: c.id, x: d.x, y: d.y };
+      events.push({ type: 'capo', step: 'arrives', capo: capo, city: c.id, x: d.x, y: d.y, why: d.why });
+    }
+  }
+  // ... and sets out for what is next, once he has seen whether he has a move of his own to make (see `ready`).
+  function depart(c, f, capo, events) {
+    var m = f.men[capo], now = B.today(c);
+    if (m.errand || m.drive || !clubOf(c, capo)) return;
+    var here = posOf(c, m, capo), w = whereabouts(c, f, capo, true);
+    m.pos = { city: c.id, x: here.x, y: here.y };
+    if (w.x === here.x && w.y === here.y) {
+      if (w.why === 'boost' && c.push) c.push[w.y * c.w + w.x] = true;
+      return;
+    }
+    var days = B.tripDays(here, w);
+    m.drive = { city: c.id, from: { x: here.x, y: here.y }, x: w.x, y: w.y, why: w.why, left: now, days: days, until: now + days };
+    events.push({ type: 'capo', step: 'drives', capo: capo, city: c.id, from: { x: here.x, y: here.y }, x: w.x, y: w.y, why: w.why, days: days, label: w.label });
+  }
+  // Where he is, for the screen: on the road, where he is going and what for.
+  function seen(c, f, capo, w) {
+    var d = driveOf(c, f, capo);
+    if (!d || (f.men[capo].errand && f.men[capo].errand.city === c.id)) return w;
+    var club = clubOf(c, capo), home = d.x === club.x && d.y === club.y;
+    return { x: d.x, y: d.y, why: d.why, from: d.from, until: d.until, road: true,
+             label: home ? 'Driving back to his club' : 'On his way to ' + zoneOf(c, d.x, d.y).name + ': ' + w.label.charAt(0).toLowerCase() + w.label.slice(1) };
+  }
+  // Where he drives, for the screen: null when he is not on the road in this city.
+  function driveOf(c, f, capo) {
+    var d = f.men[capo] && f.men[capo].drive;
+    return d && d.city === c.id ? { from: d.from, x: d.x, y: d.y, why: d.why, left: d.left, until: d.until } : null;
+  }
   var ERRANDS = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' };
   function setOut(c, f, capo, p, events) {
     if (!(c.turn && c.turn.daily) || !ERRANDS[p.move]) { enact(c, f, capo, p, events); return; }
-    var m = f.men[capo], club = clubOf(c, capo), days = B.tripDays(club, p);
-    m.errand = { city: c.id, p: p, left: B.today(c), days: days, arrives: B.today(c) + days };
+    var m = f.men[capo], club = posOf(c, m, capo), days = B.tripDays(club, p);
+    m.errand = { city: c.id, p: p, step: 'goes', left: B.today(c), days: days, arrives: B.today(c) + days, until: B.today(c) + days };
     events.push({ type: 'errand', step: 'leaves', capo: capo, city: c.id, from: { x: club.x, y: club.y }, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost, days: days });
   }
-  // The day he gets there: the move is made, unless the street is no longer what he set out for; he then comes
-  // home with his money.
+  // Is the street still what he set out for?
+  function stillThere(c, capo, p) {
+    var b = at(c, p.x, p.y);
+    return p.move === 'open' ? !b : !!(b && b.owner === 'family' && b.capo === capo && (p.move !== 'convert' || b.kind === p.from));
+  }
+  // Each day: the step of his errand that ends today. Arriving he sets to work, unless the street is no longer
+  // what he set out for (he then turns back with his money); the work done, the move is made; then he drives home.
   function arrived(c, f, capo, events) {
-    var m = f.men[capo], e = m.errand;
-    if (!e || e.city !== c.id || e.arrives > B.today(c)) return;
-    delete m.errand;
-    var p = e.p, b = at(c, p.x, p.y), still = p.move === 'open' ? !b : b && b.owner === 'family' && b.capo === capo && (p.move !== 'convert' || b.kind === p.from);
-    if (still) { enact(c, f, capo, p, events); return; }
-    m.cash += p.cost;
-    if (m.paid && m.paid[p.move]) m.paid[p.move] = Math.max(0, m.paid[p.move] - p.cost);
-    events.push({ type: 'errand', step: 'back', capo: capo, city: c.id, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost });
+    var m = f.men[capo], e = m.errand, now = B.today(c);
+    if (!e || e.city !== c.id) return;
+    var p = e.p;
+    while (m.errand && e.until <= now) {
+      if (e.step === 'returns') { delete m.errand; delete m.pos; events.push({ type: 'errand', step: 'home', capo: capo, city: c.id, x: e.to.x, y: e.to.y, move: p.move, kind: p.kind }); return; }
+      if (!stillThere(c, capo, p)) {
+        m.cash += p.cost;
+        if (m.paid && m.paid[p.move]) m.paid[p.move] = Math.max(0, m.paid[p.move] - p.cost);
+        events.push({ type: 'errand', step: 'back', capo: capo, city: c.id, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost });
+        homeward(c, capo, m, e, events);
+      } else if (e.step === 'goes') {
+        var work = RULES.work[p.move] || 0;
+        e.step = 'works'; e.until += work;
+        events.push({ type: 'errand', step: 'works', capo: capo, city: c.id, x: p.x, y: p.y, move: p.move, kind: p.kind, days: work, until: e.until });
+      } else {
+        enact(c, f, capo, p, events);
+        homeward(c, capo, m, e, events);
+      }
+    }
+  }
+  function homeward(c, capo, m, e, events) {
+    var club = clubOf(c, capo);
+    if (!club) { delete m.errand; return; }
+    var days = B.tripDays(e.p, club);
+    e.step = 'returns'; e.to = { x: club.x, y: club.y }; e.until += days;
+    events.push({ type: 'errand', step: 'returns', capo: capo, city: c.id, from: { x: e.p.x, y: e.p.y }, x: club.x, y: club.y, move: e.p.move, kind: e.p.kind, days: days });
+  }
+  // Where his errand stands, for the screen: null when he has none in this city.
+  function errandOf(c, f, capo) {
+    var e = f.men[capo] && f.men[capo].errand;
+    if (!e || e.city !== c.id) return null;
+    var step = e.step || 'goes';
+    return { step: step === 'goes' ? 'leaves' : step, move: e.p.move, kind: e.p.kind, x: e.p.x, y: e.p.y, until: e.until || e.arrives };
   }
   // A move paid for is made: a place turned, men sent for a rival's place, a place opened or made bigger.
   function enact(c, f, capo, p, events) {
@@ -616,6 +701,8 @@
     f.crowns = cities.reduce(function (n, c) { return n + keys(c).filter(function (k) { return k.owner === 'family'; }).length; }, 0);
     cities.forEach(function (c) {
       var shown = c.flow;
+      // played day by day every capo stands somewhere: his club, unless he is away
+      if (!whole) Object.keys(f.men).forEach(function (capo) { var m = f.men[capo]; if (clubOf(c, capo) && !m.pos && !m.errand) m.pos = posOf(c, m, capo); });
       opening(c, f, events, !whole); homed(c, f, events);
       c.turn.flow = c.flow; c.turn.shown = shown; c.flow = shown;
     });

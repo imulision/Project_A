@@ -13,3 +13,13 @@ export function roadWay(ROADS, a, b) {
   for (const pts of legs) for (const p of pts) { const q = out[out.length - 1]; if (!q || q[0] !== p[0] || q[1] !== p[1]) out.push(p); }
   return out;
 }
+// goOn(pts, len, p, at, next): the points of a new way for a car that is at `at`, `p` along its old way `pts` (`len` the
+// distance to each point after the first): what is left of the old way, then the new one, joined round a corner.
+export function goOn(pts, len, p, at, next) {
+  const out = [[at[0], at[1]]], add = (q) => { const r = out[out.length - 1]; if (r[0] !== q[0] || r[1] !== q[1]) out.push([q[0], q[1]]); };
+  for (let k = 0; k < len.length; k++) if (len[k] > p) add(pts[k + 1]);
+  const end = out[out.length - 1], s = next[0];
+  if (end[0] !== s[0] && end[1] !== s[1]) add([end[0], s[1]]);
+  next.forEach(add);
+  return out;
+}
