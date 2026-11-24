@@ -1349,3 +1349,40 @@ test('a till and a store say how much they hold out of how much', () => {
   const tip = C.blockTip(v, v.cities[0].id, p.x, p.y);
   assert.ok(tip.includes('$' + Math.round(p.till) + ' / $' + p.load + ' in the till'), 'the till against the load a car comes for: ' + tip.replace(/<svg[^]*?<\/svg>/g, ''));
 });
+
+// What a building is doing must be seen, not read: its bubble draws each figure as a gauge, and names each figure so the
+// screen can show what moved while the bubble stays open.
+test('the bubble of a place draws its figures as gauges that can be followed', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq');
+  const see = (more, rides) => { const p = { ...ours, room: 0, weedRoom: 0, till: 0, ...more }, c = { ...city, rides: rides || [], places: city.places.map((q) => (q === ours ? p : q)) }; return C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y); };
+  const t = see({ till: 90, load: 150, stock: 60, room: 80, holds: 'liquor' });
+  assert.match(t, /data-k="till" data-v="90"[^>]*>.*\$90 \/ \$150 in the till.*width:60%/);
+  assert.match(t, /data-k="stock" data-v="60"[^>]*>.*60 \/ 80 cases of liquor in store.*width:75%/);
+  const w = see({ wash: { waiting: 184, ready: 40, most: 92 } });
+  assert.match(w, /data-k="wash" data-v="184"/); assert.match(w, /data-k="ready" data-v="40"/);
+  // what is on the road to it or from it is part of what it is doing
+  const club = city.places.find((p) => p.kind === 'club');
+  const out = see({}, [{ kind: 'takings', capo: 'sal', vehicle: 'sal:car:1', from: { x: ours.x, y: ours.y }, to: { x: club.x, y: club.y }, amount: 46.8, days: 3, gone: 1 }]);
+  assert.match(out, /\$47 on the road to the Social Club/);
+  const inn = see({}, [{ kind: 'haul', cargo: 'liquor', capo: 'sal', vehicle: 'sal:truck:1', from: { x: club.x, y: club.y }, to: { x: ours.x, y: ours.y }, amount: 20, days: 9, gone: 3 }]);
+  assert.match(inn, /20 cases of liquor coming · 6 days/);
+  assert.doesNotMatch(see({}, [{ kind: 'haul', cargo: 'liquor', from: { x: club.x, y: club.y }, to: { x: ours.x, y: ours.y }, amount: 20, days: 9, gone: 9 }]), /coming/, 'what has arrived is no longer on the road');
+});
+
+test('what moved between two looks at a bubble is told figure by figure', () => {
+  assert.deepEqual(C.moved({ till: 90, stock: 60, wash: 10 }, { till: 102, stock: 57, wash: 10, ready: 5 }), { till: 12, stock: -3 });
+  assert.equal(C.delta('till', 12), '+$12'); assert.equal(C.delta('stock', -3), '−3'); assert.equal(C.delta('ready', -40), '−$40');
+});
+
+test('every place of the family has a gauge for the map: how full is what it fills', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq');
+  const of = (more) => { const p = { ...ours, room: 0, till: 0, wash: undefined, ...more }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) }; return C.fills({ ...v, cities: [c] })[c.id + ':' + p.x + ',' + p.y]; };
+  assert.equal(of({ till: 75, load: 150 }), 0.5);
+  assert.equal(of({ kind: 'still', stock: 20, room: 80, holds: 'liquor' }), 0.25, 'a place that only makes fills its cellar');
+  assert.equal(of({ wash: { waiting: 46, ready: 0, most: 92 } }), 0.5);
+  assert.equal(of({ till: 400, load: 150 }), 1);
+  const rival = city.places.find((p) => p.owner !== 'family');
+  assert.equal(C.fills(v)[city.id + ':' + rival.x + ',' + rival.y], undefined);
+});

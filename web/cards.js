@@ -423,7 +423,37 @@
       (w.ready >= 1 ? '<div class="move till">' + icon('clean') + '<span><b>' + money(Math.round(w.ready)) + '</b> washed, waiting for the car to the headquarters</span></div>' : '');
   }
   function washTip(p) { var w = p.owner === 'family' && p.wash; if (!w) return '';
-    return (w.waiting >= 1 ? '<br>' + icon('dirty') + ' ' + money(Math.round(w.waiting)) + ' to wash' : '') + (w.ready >= 1 ? '<br>' + icon('clean') + ' ' + money(Math.round(w.ready)) + ' clean, waiting for the car' : ''); }
+    return (w.waiting >= 1 ? live('wash', w.waiting, 'dirty', money(Math.round(w.waiting)) + ' to wash', w.most > 0 ? w.waiting / w.most : null) : '') + (w.ready >= 1 ? live('ready', w.ready, 'clean', money(Math.round(w.ready)) + ' clean, waiting for the car', w.ready / CARLOAD) : ''); }
+  // One figure of a bubble, drawn as a gauge. Its key and its value are written on it: while the bubble stays open the
+  // screen compares them from one day to the next and shows what came in or went out.
+  function live(k, v, ic, text, part) {
+    return (k ? '<div class="g" data-k="' + k + '" data-v="' + Math.round(v || 0) + '">' : '<div class="g">') + icon(ic) + ' ' + text +
+      (part == null ? '' : '<i class="nxb"><u style="width:' + Math.round(Math.max(0, Math.min(1, part)) * 100) + '%"></u></i>') + '</div>';
+  }
+  function moved(was, now) { var out = {}; Object.keys(now || {}).forEach(function (k) { if (was && was[k] !== undefined && now[k] !== was[k]) out[k] = now[k] - was[k]; }); return out; }
+  var COUNTED = { stock: 1, weed: 1 };
+  function delta(k, d) { return (d > 0 ? '+' : '\u2212') + (COUNTED[k] ? '' : '$') + Math.abs(Math.round(d)); }
+  // What is on the road from this place or to it, while it drives: part of what the place is doing.
+  function roadLines(c, p) {
+    return (c.rides || []).filter(function (r) { return r.gone < r.days && r.from && r.to; }).map(function (r) {
+      var what = r.kind === 'haul' ? Math.round(r.amount) + ' ' + (STORE[r.cargo] || STORE.goods) : money(Math.round(r.amount)), left = Math.max(1, Math.ceil(r.days - r.gone));
+      if (r.to.x === p.x && r.to.y === p.y) return live(null, 0, r.kind === 'haul' ? 'truck' : 'cars', what + ' coming \u00b7 ' + left + (left > 1 ? ' days' : ' day'));
+      if (r.from.x !== p.x || r.from.y !== p.y) return '';
+      var to = c.places.filter(function (q) { return q.x === r.to.x && q.y === r.to.y; })[0];
+      return live(null, 0, r.kind === 'haul' ? 'truck' : 'cars', what + ' on the road' + (to ? ' to the ' + esc(to.name) : ''));
+    }).join('');
+  }
+  // How full each place of the family is, for the small gauge the map draws beside it: the cellar of a place that only
+  // makes, the dirty money a laundry has to wash, the till of all the others.
+  function fills(view) {
+    var out = {};
+    view.cities.forEach(function (c) { c.places.forEach(function (p) {
+      if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'hq') return;
+      var part = p.wash ? (p.wash.most > 0 ? p.wash.waiting / p.wash.most : 0) : p.room > 0 && p.holds && p.kind !== 'speakeasy' && p.kind !== 'fence' ? (p.stock || 0) / p.room : p.load > 0 ? (p.till || 0) / p.load : 0;
+      out[c.id + ':' + p.x + ',' + p.y] = Math.max(0, Math.min(1, part));
+    }); });
+    return out;
+  }
   // What sleeps in the coffer of a headquarters away from the boss's own city, until there is a full load for the road.
   function cofferOf(c, p) { var k = p.owner === 'family' && c.coffer; return k && (k.dirty || 0) + (k.clean || 0) >= 1 ? k : null; }
   function cofferBar(c, p) {
@@ -478,8 +508,8 @@
   var STORE = { liquor: 'cases of liquor', goods: 'crates', cars: 'stolen cars', weed: 'bags of weed' };
   function store(p) {
     var out = [];
-    if (p.stock >= 1 || p.room > 0) out.push([p.holds === 'liquor' || !p.holds ? 'liquor' : (GOODS[p.holds] || GOODS.goods)[0], Math.floor(p.stock || 0) + (p.room > 0 ? ' / ' + Math.floor(p.room) : '') + ' ' + (STORE[p.holds] || STORE.liquor) + ' in store']);
-    if (p.weed >= 1) out.push(['loft', Math.floor(p.weed || 0) + (p.weedRoom > 0 ? ' / ' + Math.floor(p.weedRoom) : '') + ' bags of weed to sell']);
+    if (p.stock >= 1 || p.room > 0) out.push([p.holds === 'liquor' || !p.holds ? 'liquor' : (GOODS[p.holds] || GOODS.goods)[0], Math.floor(p.stock || 0) + (p.room > 0 ? ' / ' + Math.floor(p.room) : '') + ' ' + (STORE[p.holds] || STORE.liquor) + ' in store', 'stock', Math.floor(p.stock || 0), p.room || 0]);
+    if (p.weed >= 1) out.push(['loft', Math.floor(p.weed || 0) + (p.weedRoom > 0 ? ' / ' + Math.floor(p.weedRoom) : '') + ' bags of weed to sell', 'weed', Math.floor(p.weed || 0), p.weedRoom || 0]);
     return out;
   }
   function storeLines(p, sep) { return store(p).map(function (s) { return sep ? '<br>' + icon(s[0]) + ' ' + s[1] : '<div class="move">' + icon(s[0]) + '<span>' + s[1] + '</span></div>'; }).join(''); }
@@ -500,7 +530,9 @@
     if (p.kind === 'hq') return '<b>' + icon('ambition') + ' ' + esc(hqTitle(p)) + '</b><br>' + esc(hqWhat(view, p)) + '<br>' + esc(hqWho(hqOf(c, p))) + (cofferOf(c, p) ? '<br>' + icon('dirty') + ' ' + money(Math.round((c.coffer.dirty || 0) + (c.coffer.clean || 0))) + ' / ' + money(c.coffer.load || 0) + ' in the coffer' : '');
     var sh = shareOf(c, p);
     return '<b>' + icon(iconName(p.key || p.kind)) + ' ' + esc(p.name) + (p.level > 1 ? ' · level ' + p.level : '') + '</b><br>' +
-      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? '<br>' + icon('dirty') + ' ' + money(Math.round(p.till)) + (ours && p.load > 0 ? ' / ' + money(p.load) : '') + ' in the till' : '') + (sh ? '<br>' + icon('ambition') + ' ' + money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share' : '') + washTip(p) + storeLines(p, true) + strainLines(p, true);
+      esc(ours ? (p.capo ? first(nameOf(p.capo)) + ' runs it' : 'Yours') : 'The ' + p.owner + ' family') + (p.till > 0 ? (ours ? '' : '<br>') + live(ours && 'till', p.till, 'dirty', money(Math.round(p.till)) + (ours && p.load > 0 ? ' / ' + money(p.load) : '') + ' in the till', ours && p.load > 0 ? p.till / p.load : null) : '') +
+      (sh ? live('share', sh.share, 'ambition', money(Math.round(sh.share)) + ' / ' + money(sh.shareLoad > 0 ? sh.shareLoad : CARLOAD) + ' of your share', sh.share / (sh.shareLoad > 0 ? sh.shareLoad : CARLOAD)) : '') +
+      washTip(p) + store(p).map(function (q) { return live(q[2], q[3], q[0], q[1], q[4] > 0 ? q[3] / q[4] : null); }).join('') + (ours ? roadLines(c, p) : '') + strainLines(p, true);
   }
   function shares(s) {
     var part = function (k, color) { return s[k] > 0 ? '<i style="flex:' + s[k].toFixed(1) + ';background:' + color + '" data-tip="' + { family: 'Yours', rival: 'The rivals', contested: 'Fought over', free: 'Held by nobody' }[k] + ': ' + Math.round(s[k]) + '%"></i>' : ''; };
@@ -929,7 +961,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, store: store, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });
