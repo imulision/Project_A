@@ -319,8 +319,10 @@
   var drawnAt = -1;
   /* A touched building is tied by blue lines to the vehicles that work for it, curving up from its roof to each car. */
   function drawLinks() {
-    var svg = $('links'); if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'links'; document.body.appendChild(svg); }
-    var p = tip.place, from = p && map && map.spot(p.city, p.bx, p.by), cars = from ? map.where(C.linked(view, p.city, p.bx, p.by)) : [];
+    var p = tip.place, svg = $('links'); if (!p && !svg) return;      /* nothing touched: no layer over the map at all, nothing written to the page */
+    var from = p && map && map.spot(p.city, p.bx, p.by), cars = from ? map.where(C.linked(view, p.city, p.bx, p.by)) : [];
+    if (!cars.length) { if (svg) svg.remove(); return; }
+    if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'links'; document.body.appendChild(svg); }
     svg.innerHTML = cars.map(function (q) { var d = Math.hypot(q.x - from.x, q.y - from.y), mx = (from.x + q.x) / 2, my = Math.min(from.y, q.y) - Math.max(24, d * 0.35);
       return '<path d="M' + from.x.toFixed(1) + ' ' + from.y.toFixed(1) + 'Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + '"/><circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="4"/>'; }).join('');
     svg.dataset.n = cars.length;

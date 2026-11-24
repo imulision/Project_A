@@ -3,6 +3,9 @@
 import { midX, midY } from './look.mjs';
 export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS, claimList = [] }) {
   // what the page writes over the map: city names from afar, district names up close, and what is happening
+  // the lots of a city, indexed once each time the city is built again (the list is then a new one): no scan of every lot at each image
+  const index = new WeakMap();
+  const lotsOf = (c) => { let x = index.get(c.lots); if (!x || x.n !== c.lots.length) { x = { n: c.lots.length, sites: c.lots.filter(l => l.site), at: new Map(c.lots.map(l => [l.i + ',' + l.j, l])) }; index.set(c.lots, x); } return x; };
   const labels = () => {
     const out = [], near = cam.zoom >= NEAR_ZOOM;
     CITIES.forEach(c => {
@@ -14,13 +17,13 @@ export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxL
       // the capo is seen where he sits: over the hideout of his district
       if (near && c.near && c.near.visible && c.p.turf) for (const k of c.p.capos) {      // each capo where he is this month, with what he is doing; while he drives there, his face rides his car
         let ride = null; for (const a of agents.values()) if (a.kind === 'capo' && a.tag.capo === k.id && a.C === c) ride = a;
-        const at = k.at || k, l = ride ? null : c.lots.find(l => l.i === at.i && l.j === at.j) || c.lots.find(l => l.i === k.i && l.j === k.j); if (!ride && !l) continue;
+        const at = k.at || k, ix = lotsOf(c), l = ride ? null : ix.at.get(at.i + ',' + at.j) || ix.at.get(k.i + ',' + k.j); if (!ride && !l) continue;
         const [x, y] = ride ? scr(ride.x === undefined ? ride.pts[0][0] : ride.x, ride.z === undefined ? ride.pts[0][1] : ride.z, 2.2) : scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + c.id + k.id, capo: k.id, city: c.id, move: k.move, kind: k.kind, way: k.way, progress: k.progress, waiting: k.waiting, riding: !!ride, where: at.why || 'home', x, y }); }
       else if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;
         const [x, y] = scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + d.id, capo: d.capo, city: c.id, district: d.id, x, y }); });
     });
     // a mark over each place of the family, so that its trade is read at a glance
-    if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of c.lots) if (l.site) {
+    if (near) CITIES.forEach(c => { if (!c.near || !c.near.visible) return; for (const l of lotsOf(c).sites) {
       if (c.p.turf && l.site.owner !== 'family' && !l.site.key) continue;      // a rival's ordinary place is read by its sign alone; key places always carry a mark
       const [x, y] = scr(l.x, l.z, l.h + 0.5); if (c.p.turf && (x < -40 || y < -40 || x > innerWidth + 40 || y > innerHeight + 40)) continue;
       out.push({ id: 's' + (c.p.turf ? c.id : '') + l.site.id, site: l.site.type, role: l.site.role, name: l.site.name, level: l.site.level, owner: l.site.owner, key: l.site.key, capo: l.site.capo, city: c.id, bx: l.bx, by: l.by, x, y }); } });
