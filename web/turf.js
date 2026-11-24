@@ -264,6 +264,41 @@
 
   // --- the books ---
   // What each trade put in the tills last month, in whole dollars.
+  // The tree of the family, with what each trade brought over the last cycle in the cities given: in all, in how many
+  // places, and what one place brings (null when the family runs none). The cars are not a trade.
+  function treeOf(f, cities) {
+    var out = tree(f);
+    if (!cities) return out;
+    return out.map(function (t) {
+      if (t.kind === 'cars') return t;
+      var made = 0, places = 0;
+      cities.forEach(function (c) {
+        made += trades(c)[t.kind] || 0;
+        places += everyPlace(c).filter(function (p) { return p.owner === 'family' && p.kind === t.kind; }).length;
+      });
+      t.made = made; t.places = places; t.each = places ? Math.round(made / places) : null;
+      return t;
+    });
+  }
+  // What the boss would do well to have the family learn next, with its reason in a sentence; null while it is
+  // learning something. Dirty money piling up first (a trade that washes it), then what most of his capos ask for
+  // (learned twice as fast, and they will run it), then the trade the family runs that brings the most a place.
+  function advice(f, cities) {
+    if (f.study) return null;
+    var open = treeOf(f, cities).filter(function (t) { return t.next; });
+    var name = function (id) { return who(id).name.split(' ')[0]; };
+    var say = function (t, why) { return { kind: t.kind, name: t.name, why: why, cost: t.next.cost, tier: t.next.tier }; };
+    var most = cities.reduce(function (n, c) { return n + washing(c).most; }, 0);
+    if (f.dirty - most > RULES.stash + (f.vault || 0)) {
+      var soap = open.filter(function (t) { return D.SITES[t.kind] && D.SITES[t.kind].wash; }).sort(function (a, b) { return b.places - a.places || a.next.cost - b.next.cost; })[0];
+      if (soap) return say(soap, 'Dirty money piles up faster than your laundries wash it: a better ' + soap.name.toLowerCase() + ' washes more');
+    }
+    var asked = open.filter(function (t) { return t.wanted.length; }).sort(function (a, b) { return b.wanted.length - a.wanted.length; })[0];
+    if (asked) return say(asked, 'Asked for by ' + asked.wanted.map(name).join(', ') + ': learned twice as fast, and they will run it');
+    var best = open.filter(function (t) { return t.each; }).sort(function (a, b) { return b.each - a.each; })[0];
+    if (best) return say(best, 'Your best trade: $' + best.each.toLocaleString('en-US') + ' a place every ' + RULES.days + ' days');
+    return null;
+  }
   function trades(c) {
     var made = (c.flow && c.flow.made) || {}, out = {};
     Object.keys(made).forEach(function (k) { if (Math.round(made[k]) > 0) out[k] = Math.round(made[k]); });
@@ -804,7 +839,7 @@
     f.study = null;
   }
 
-  var api = { purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: tree, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: treeOf, advice: advice, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
