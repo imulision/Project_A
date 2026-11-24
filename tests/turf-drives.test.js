@@ -119,3 +119,17 @@ test('a game opened again can draw him where he was: his drive says its days and
   const d = him(c, f).drive;
   assert.deepEqual([d.from, d.days, d.gone], [{ x: club.x, y: club.y }, T.tripDays(club, { x: 8, y: 3 }), 3]);
 });
+
+test('a block is inside its city unless it is off the grid or one of its voids, whatever voids the city is given', () => {
+  const c = town();
+  const R = require('../web/turf-rules.js');
+  assert.equal(R.inside(c, -1, 0), false);
+  assert.equal(R.inside(c, c.w, 0), false);
+  assert.equal(R.inside(c, 1, 1), true);
+  c.voids = { '1,1': 'water' };
+  assert.equal(R.inside(c, 1, 1), false, 'a void is outside');
+  assert.equal(R.inside(c, 2, 1), true);
+  c.voids = { '2,1': 'yard' };
+  assert.equal(R.inside(c, 1, 1), true, 'new voids are read anew');
+  assert.equal(R.inside(c, 2, 1), false);
+});

@@ -292,11 +292,16 @@
   }
 
   // The city in hundredths: what the family holds, what its rivals hold, what is fought over, what is nobody's.
+  // (worked out once and kept with the other figures of the memo, until a place changes)
   function share(c) {
-    var n = { family: 0, rival: 0, contested: 0, free: 0 };
-    for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (inside(c, x, y)) n[grip(c, x, y) || 'free'] += 1;
-    Object.keys(n).forEach(function (k) { n[k] = n[k] * 100 / size(c); });
-    return n;
+    var m = memo(c), n = m.share;
+    if (!n) {
+      n = { family: 0, rival: 0, contested: 0, free: 0 };
+      for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) if (inside(c, x, y)) n[grip(c, x, y) || 'free'] += 1;
+      Object.keys(n).forEach(function (k) { n[k] = n[k] * 100 / size(c); });
+      m.share = n;
+    }
+    return { family: n.family, rival: n.rival, contested: n.contested, free: n.free };
   }
 
   // The free blocks a capo can open on: streets the family holds, close to a place he runs.
