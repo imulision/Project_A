@@ -99,3 +99,14 @@ test('in the game a capo on the road is told to the screen, not written in the j
   assert.ok(seen > 0, 'he drove');
   assert.ok(!g.journal.some((l) => l.type === 'capo'));
 });
+
+test('a key place the boss paid for is taken by the capo who asked for it, once he is there', () => {
+  const { c, f, club } = dutch();
+  T.open(c, 8, 4, { owner: c.rival || 'rival', kind: 'key', key: 'port' });
+  c.ops.push({ capo: 'dutch', x: 8, y: 4, way: 'buy', key: 'port', kind: 'key', cost: 100, month: c.month, months: 0, day: 0 });
+  const all = play(c, f, (ev) => ev.some((e) => e.type === 'taken'));
+  const there = drives(all).filter((e) => e.step === 'arrives' && e.x === 8 && e.y === 4)[0], taken = all.filter((e) => e.type === 'taken')[0];
+  assert.ok(there, 'he drove there');
+  assert.equal(there.d, T.tripDays(club, { x: 8, y: 4 }) + drives(all).filter((e) => e.step === 'drives' && e.x === 8 && e.y === 4)[0].d);
+  assert.ok(taken && taken.key === 'port' && taken.d >= there.d, 'taken once he is there');
+});

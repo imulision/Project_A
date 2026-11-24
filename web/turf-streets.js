@@ -66,8 +66,8 @@
       // men who left on a day of a cycle get there on that day, so many cycles later
       var gone = c.month - o.month, today = c.turn ? c.turn.day || 0 : 0;
       if (gone < o.months || (gone === o.months && o.day !== undefined && today < o.day)) return true;
-      // played day by day the capo must be there himself (a key place is the boss's affair)
-      var m = !o.key && f && f.men && f.men[o.capo];
+      // played day by day the capo must be there himself, a key place too
+      var m = f && f.men && f.men[o.capo];
       if (m && m.pos && (m.drive || m.pos.x !== o.x || m.pos.y !== o.y)) return true;
       var was = at(c, o.x, o.y);
       if (!was || was.owner === 'family') return false; // nothing left to take
