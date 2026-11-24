@@ -346,7 +346,7 @@ test('a touched street answers with a few words beside the finger, not a sheet',
   const mine = C.blockTip(v, 'ashport', ours.x, ours.y);
   assert.match(mine, new RegExp(ours.name)); assert.match(mine, /Sal runs it/);
   assert.doesNotMatch(mine, /<button|<h2/, 'no button, no title: it is a word, not a page');
-  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 90, 'short');
+  assert.ok(mine.replace(/<svg.*?<\/svg>/g, '').replace(/<[^>]+>/g, '').length < 160, 'short: a line for each figure, no more');
   assert.match(C.blockTip(v, 'ashport', key.x, key.y), new RegExp(key.name));
   const p = { ...ours, till: 90 }, c = { ...city, places: city.places.map((q) => (q === ours ? p : q)) };
   assert.match(C.blockTip({ ...v, cities: [c] }, c.id, p.x, p.y), /\$90 \/ \$150 in the till/);

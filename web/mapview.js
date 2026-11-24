@@ -393,14 +393,16 @@
   }
   // errandsTurf(events, plan): a capo who goes to open, enlarge or convert a place drives there himself with the money, in the days the
   // rules give him. The place only changes when he is there.
-  function errandsTurf(events, plan) {
+  function errandsTurf(events, plan, before) {
     var out = [];
     (events || []).forEach(function (e) {
-      if (e.type !== 'errand' || e.step !== 'leaves' || !e.from || typeof e.x !== 'number') return;
+      /* he leaves from where he stands, which is not always his club */
+      var bc = before && e.step === 'leaves' && before.cities.filter(function (x) { return x.id === e.city; })[0], bk = bc && bc.capos.filter(function (m) { return m.id === e.capo; })[0], stood = bk && bk.at && typeof bk.at.i === 'number' ? bk.at : null;
+      if (e.type !== 'errand' || (e.step !== 'leaves' && e.step !== 'returns') || !e.from || typeof e.x !== 'number') return;      /* out to the place, and home again once the work is done */
       var c = plan.cities.filter(function (x) { return x.id === e.city; })[0], a = c && lotOfBlock(c, e.from.x, e.from.y), b = c && lotOfBlock(c, e.x, e.y); if (!a || !b) return;
-      var path = a === b ? [[a.i, a.j], [b.i, b.j]] : route([a.i, a.j], [b.i, b.j], c);
+      var start = stood ? [stood.i, stood.j] : [a.i, a.j], path = start[0] === b.i && start[1] === b.j ? [start, [b.i, b.j]] : route(start, [b.i, b.j], c);
       out.push({ id: c.id + ':capo:' + e.capo, kind: 'capo', city: c.id, loop: false, color: COLORS.family, vehicle: 'car', violent: false, path: path, days: Math.max(0.25, e.days || 1), wait: 0,
-                 cargo: e.move, amount: Math.round(e.amount || 0), load: {}, capo: e.capo, from: 'club', to: b.site ? b.site.type : 'street', by: null, way: e.move, target: null, n: 0 });
+                 cargo: e.step === 'returns' ? 'return' : e.move, amount: e.step === 'returns' ? 0 : Math.round(e.amount || 0), load: {}, capo: e.capo, from: e.step === 'returns' ? (a.site ? a.site.type : 'street') : 'club', to: e.step === 'returns' ? 'club' : b.site ? b.site.type : 'street', by: null, way: e.move, target: null, n: 0, stay: true });
     });
     return out;
   }
@@ -425,7 +427,7 @@
     return out;
   }
   // movesTurf(before, after): a capo who is not where he was last month drives there once, in his own car.
-  var ERRAND = { open: 1, enlarge: 1, convert: 1 };
+  var ERRAND = { open: 1, enlarge: 1, convert: 1, 'return': 1 };
   function movesTurf(before, after) {
     var out = [];
     if (!before) return out;
@@ -452,7 +454,9 @@
       if (e.type === 'run' || e.type === 'pay' || e.type === 'haul' || (e.type === 'arrived' && e.kind === 'haul')) return;      // goods on a truck are not money
       if (e.type === 'errand') {      // the money a capo takes with him is seen leaving his club; if he turns back it is his again
         var ec = plan.cities.filter(function (x) { return x.id === e.city; })[0], ek = ec && ec.capos.filter(function (m) { return m.id === e.capo && typeof m.i === 'number'; })[0], el = ek && ec.lots.filter(function (l) { return l.i === ek.i && l.j === ek.j; })[0];
-        if (el && e.amount > 0) out.push({ kind: 'pay', type: 'errand', city: ec.id, capo: e.capo, i: el.i, j: el.j, bx: el.bx, by: el.by, say: null, spent: e.step === 'leaves' ? Math.round(e.amount) : 0, gain: e.step === 'leaves' ? 0 : Math.round(e.amount) });
+        if (el && e.amount > 0 && (e.step === 'leaves' || e.step === 'back')) out.push({ kind: 'pay', type: 'errand', city: ec.id, capo: e.capo, i: el.i, j: el.j, bx: el.bx, by: el.by, say: null, spent: e.step === 'leaves' ? Math.round(e.amount) : 0, gain: e.step === 'leaves' ? 0 : Math.round(e.amount) });
+        var wl = e.step === 'works' && ec && typeof e.x === 'number' ? lotOfBlock(ec, e.x, e.y) : null;      /* while he works there, the works are up */
+        if (wl) out.push({ kind: 'build', type: 'works', city: ec.id, i: wl.i, j: wl.j, bx: wl.bx, by: wl.by, say: null, spent: 0 });
         return;
       }      // a car that leaves and a pay packet are seen as money moving, never as a mark
       if (e.type === 'payment') {      // what the boss pays: seen leaving his headquarters load by load, and arriving where it is owed

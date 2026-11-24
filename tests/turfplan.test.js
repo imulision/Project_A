@@ -742,6 +742,10 @@ test('a capo drives to the place he opens with the money, and it is only there w
   assert.ok(spent.some((m) => m.spent === Math.round(left.amount) && m.capo === 'sal'), 'the money is seen leaving his club the day he leaves');
   assert.ok(!opened.marks.some((m) => m.spent > 0 && m.type === 'opened'), 'and is not counted a second time when the place opens');
   assert.equal(M.movesTurf(plan, plan).length, 0);
+  // standing elsewhere when he sets out, he leaves from there: no jump to his club first
+  const away = JSON.parse(JSON.stringify(plan)), ak = away.cities[0].capos[0], lot = away.cities[0].lots.find((l) => l.i !== club.i && l.site);
+  ak.at = { i: lot.i, j: lot.j, why: 'boost' };
+  assert.deepEqual(M.errandsTurf([left], plan, away)[0].path[0], [lot.i, lot.j]);
 });
 
 test('a truck drives from where it stands to the cellar, then to the seller, in the days the rules give', () => {
@@ -771,3 +775,26 @@ test('a truck drives from where it stands to the cellar, then to the seller, in 
   assert.ok(!M.tripsTurf(plan, E.view(g), true).some((q) => q.round && !q.parked), 'no round left: every vehicle is out on a timed trip or parked');
 });
 
+
+// He stays at the place while the work is done, his car by the door, the works up; then he drives home in the days the rules give.
+test('a capo stays at the place he works on, then drives back to his club', () => {
+  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9;
+  let left = null, works = null, back = null, plan = null, during = null;
+  days(g, 500, (ev) => {
+    const p = M.planEmpire(E.view(g), global.AshportWorld.CITIES);
+    ev.forEach((e) => { if (e.type !== 'errand') return; if (e.step === 'leaves' && !left) left = e; if (e.step === 'works' && left && !works) { works = e; during = { ev, p }; } if (e.step === 'returns' && works && !back) { back = e; plan = p; } });
+    return !back;
+  });
+  assert.ok(left && works && back, 'he left, worked, drove back');
+  assert.equal(M.errandsTurf([left], plan)[0].stay, true, 'his car stays where he went');
+  assert.equal(M.errandsTurf([works], plan).length, 0, 'while he works no car leaves');
+  const fx = M.effectsTurf(during.ev, during.p);
+  assert.ok(fx.some((m) => m.kind === 'build' && m.bx === works.x && m.by === works.y), 'the works are up at the place');
+  assert.ok(!fx.some((m) => m.type === 'errand' && m.gain > 0), 'no money comes back while he works');
+  const home = M.errandsTurf([back], plan); assert.equal(home.length, 1); const t = home[0];
+  const club = plan.cities[0].capos[0], site = plan.cities[0].lots.find((l) => l.bx === back.from.x && l.by === back.from.y);
+  const near = (q, l) => q[0] === l.i && Math.abs(q[1] - l.j) <= 1;      /* (a way starts and ends on the street at the door) */
+  assert.ok(near(t.path[0], site), 'from the place'); assert.ok(near(t.path[t.path.length - 1], club), 'to his club');
+  assert.equal(t.days, back.days); assert.equal(t.capo, 'sal'); assert.equal(t.kind, 'capo');
+  assert.equal(M.movesTurf(during.p, plan).length, 0, 'the drive home is the one the rules time, not a second car');
+});
