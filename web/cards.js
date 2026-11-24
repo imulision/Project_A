@@ -621,6 +621,12 @@
   // wheel(view, picked): what the family knows, drawn as a wheel. Each trade is a spoke from the family at the centre; its three
   // rings are its tiers, lit from the centre outwards; its mark stands on the rim, with the face of a capo who asks for it.
   var RINGS = [17, 26, 35], RIM = 45;
+  var kilo = function (n) { return n >= 1000 ? '$' + (Math.round(n / 100) / 10) + 'k' : money(n); };
+  // advice(view): what the rules advise the family to learn next, and why, above the wheel; a touch opens its branch. Nothing while it learns.
+  function advice(view) {
+    var a = view.advice; if (!a) return '';
+    return '<button class="advice" data-know="' + esc(a.kind) + '">' + icon(I.has(a.kind) ? a.kind : 'yes') + '<span><small>ADVICE</small><b>' + esc(a.name) + (a.tier > 1 ? ' · tier ' + a.tier : '') + ' · ' + money(a.cost) + ' clean</b>' + esc(a.why) + '</span></button>';
+  }
   function wheel(view, picked) {
     var n = view.tree.length, at = function (k, r) { var a = (k / n) * 2 * Math.PI - Math.PI / 2; return [50 + r * Math.cos(a), 50 + r * Math.sin(a)]; }, pc = function (x) { return Math.round(x * 10) / 10; };
     var lines = '', rings = '', marks = '';
@@ -629,16 +635,20 @@
       lines += '<line x1="50" y1="50" x2="' + pc(e[0]) + '" y2="' + pc(e[1]) + '"' + (t.tier ? ' class="on"' : '') + '/>';
       RINGS.forEach(function (r, i) { var q = at(k, r); rings += '<i class="ring' + (i < t.tier ? ' on' : coming && i === t.tier ? ' next' : '') + '" style="left:' + pc(q[0]) + '%;top:' + pc(q[1]) + '%"></i>'; });
       var m = at(k, RIM);
-      marks += '<button class="know' + (t.tier ? '' : ' shut') + (t.kind === picked ? ' sel' : '') + '" data-know="' + esc(t.kind) + '" style="left:' + pc(m[0]) + '%;top:' + pc(m[1]) + '%">' +
+      marks += '<button class="know' + (t.tier ? '' : ' shut') + (t.kind === picked ? ' sel' : '') + (view.advice && view.advice.kind === t.kind ? ' adv' : '') + '" data-know="' + esc(t.kind) + '" style="left:' + pc(m[0]) + '%;top:' + pc(m[1]) + '%">' +
         (t.studying ? '<span class="gauge">' + I.ring(t.next ? 1 - t.studying / t.next.months : 1, I.has(t.kind) ? t.kind : 'unknown') + '</span>' : icon(t.kind)) +
-        (t.wanted && t.wanted.length ? '<span class="want">' + I.portrait(t.wanted[0]) + '</span>' : '') + '</button>';
+        (t.wanted && t.wanted.length ? '<span class="want">' + I.portrait(t.wanted[0]) + '<em>ASKS</em></span>' : '') +
+        (t.made > 0 ? '<span class="made">' + kilo(t.made) + '</span>' : '') + '</button>';      /* what the branch brought the family, every cycle */
     });
     return '<div class="wheel"><svg viewBox="0 0 100 100" aria-hidden="true">' + RINGS.map(function (r) { return '<circle cx="50" cy="50" r="' + r + '"/>'; }).join('') + lines + '</svg>' + rings + '<span class="hub">' + icon('ambition') + '</span>' + marks + '</div>';
   }
   function know(view, kind, hud) {
     var t = view.tree.filter(function (q) { return q.kind === kind; })[0]; if (!t) return '';
     var busy = view.tree.filter(function (q) { return q.studying || q.paying; })[0], wanted = (t.wanted || []).map(function (id) { return first(nameOf(id)); });
+    var liked = (t.liked || []).map(function (id) { return first(nameOf(id)); });
+    var brought = t.kind === 'cars' || t.made === undefined ? '' : '<div class="move">' + I.icon('dirty') + '<span>' + (t.places ? money(t.made) + ' in ' + t.places + (t.places === 1 ? ' place' : ' places') + ' · ' + money(t.each) + ' a place, every ' + CYCLE + ' days' : 'Your family runs none yet') + '</span></div>';
     var html = '<b>' + esc(t.name) + (t.tier ? ' · tier ' + t.tier : ' · not known yet') + '</b>' + (wanted.length ? '<small>Asked for by ' + esc(wanted.join(', ')) + '</small>' : '') +
+      (liked.length ? '<small>Liked by ' + esc(liked.join(', ')) + ': learned twice as fast</small>' : '') + brought +
       (t.gives ? '<p class="gives">' + esc(t.gives) + '</p>' : '') +
       (t.next && t.next.gives ? '<div class="move next">' + I.icon('yes') + '<span><b>' + (t.tier ? 'Tier ' + t.next.tier + ' brings' : 'Learning it brings') + '</b> ' + esc(t.next.gives) + '</span></div>' : '');
     if (t.paying) return html + '<div class="move">' + I.icon('clean') + '<span>The money is on its way from your headquarters: the learning starts when the last load is there</span></div>';
@@ -919,9 +929,9 @@
     var men = '';
     view.cities.forEach(function (c) { if (c.capos.length) men += '<div class="tier"><small>' + esc(c.name) + ' · ' + c.seats.taken + ' / ' + c.seats.total + ' seats</small><div>' +
       c.capos.map(function (m) { return '<button class="slot" data-act="capo"' + data({ city: c.id, capo: m.id }) + ' data-tip="' + esc(m.name + ', ' + m.rankName) + '">' + I.portrait(m.id) + '</button>'; }).join('') + '</div></div>'; });
-    var pick = view.tree.filter(function (t) { return t.studying || t.paying; })[0] || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
+    var pick = view.tree.filter(function (t) { return t.studying || t.paying; })[0] || (view.advice && view.tree.filter(function (t) { return t.kind === view.advice.kind; })[0]) || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
     return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p>' + curves(view) + (rows ? ranking(view, rows) : '') + '<div class="pyr">' + men + '</div>' + table(view) + holdings(view, hud) +
-      '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. A face marks what a capo is asking for.</p>' + wheel(view, pick && pick.kind) +
+      '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. Under each branch, what it brought every ' + CYCLE + ' days.</p>' + advice(view) + wheel(view, pick && pick.kind) +
       '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';
   }
   // ---- starting again: asked before anything is erased
@@ -973,7 +983,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

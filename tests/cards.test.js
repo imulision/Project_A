@@ -153,7 +153,8 @@ test('the family sheet: every capo, the trades the family knows, and what each n
   const { g, v } = play((v) => v.month >= 12);
   const html = C.family(v, E.hud(g));
   assert.match(html, /data-act="capo" data-city="ashport" data-capo="sal"/);
-  assert.equal((html.match(/data-know="/g) || []).length, v.tree.length);
+  assert.equal((html.match(/class="know[^"]*" data-know="/g) || []).length, v.tree.length, 'one mark a branch on the wheel');
+  assert.equal((html.match(/data-know="/g) || []).length, v.tree.length + (v.advice ? 1 : 0), 'and the advice above it');
   const shut = v.tree.find((t) => t.tier === 0 && t.next);
   const one = C.know(v, shut.kind, { dirty: 0, clean: 99999 });
   assert.match(one, new RegExp(shut.name));
@@ -1398,4 +1399,29 @@ test('a place knows the vehicles tied to it', () => {
   const w = { ...v, cities: [c] };
   assert.deepEqual(C.linked(w, c.id, at.x, at.y).sort(), [c.id + ':sal:car:1', c.id + ':sal:truck:1', c.id + ':sal:truck:2', 'capo:' + c.id + ':sal'].sort());
   assert.deepEqual(C.linked(w, c.id, 99, 98), [], 'a street with nothing on it has no line');
+});
+
+test('the tree guides the boss: the advice stands above the wheel, its branch is marked, each branch says what it brought, an ask is written out', () => {
+  const tree = [
+    { kind: 'still', name: 'Still', tier: 1, wanted: ['sal'], liked: ['sal', 'mae'], made: 1240, places: 2, each: 620, gives: 'x', studying: 0, next: { tier: 2, cost: 3000, months: 4, gives: 'y' } },
+    { kind: 'speakeasy', name: 'Speakeasy', tier: 1, wanted: [], liked: [], made: 0, places: 0, each: null, gives: 'x', studying: 0, next: { tier: 2, cost: 3000, months: 4, gives: 'y' } },
+    { kind: 'cars', name: 'Cars', tier: 1, wanted: [], gives: 'x', studying: 0, next: { tier: 2, cost: 2000, months: 4, gives: 'y' } },
+  ];
+  const view = { tree, advice: { kind: 'still', name: 'Still', why: 'Asked for by Sal: learned twice as fast, and they will run it', cost: 3000, tier: 2 } };
+  const adv = C.advice(view);
+  assert.match(adv, /class="advice"/); assert.match(adv, /Still/); assert.match(adv, /Asked for by Sal/); assert.match(adv, /data-know="still"/, 'a touch on it opens the branch');
+  assert.equal(C.advice({ tree, advice: null }), '', 'no advice while the family is learning');
+  const wheel = C.wheel(view, 'speakeasy');
+  assert.match(wheel, /class="know[^"]* adv"[^>]*data-know="still"/, 'the advised branch stands out on the wheel');
+  assert.match(wheel, /data-know="still"[^]*?<span class="made">\$1\.2k<\/span>/, 'what the branch brought, on the wheel');
+  assert.doesNotMatch(wheel, /data-know="speakeasy"[^]*?class="made"[^]*?data-know="cars"/, 'nothing written under a branch that brought nothing');
+  assert.match(wheel, /data-know="still"[^]*?<span class="want"[^>]*>[^]*?<em>ASKS<\/em>/, 'the face of a capo who asks says it in a word');
+  const know = C.know(view, 'still', { clean: 5000 });
+  assert.match(know, /\$1,240 in 2 places · \$620 a place, every 24 days/, 'what it brought, and what one place brings');
+  assert.match(know, /Asked for by Sal/); assert.match(know, /Liked by Sal, Mae: learned twice as fast/);
+  assert.match(C.know(view, 'speakeasy', { clean: 5000 }), /Your family runs none yet/);
+  const fam = C.family({ ...view, cities: [], tree }, { men: 1 });
+  assert.ok(fam.indexOf('class="advice"') > -1 && fam.indexOf('class="advice"') < fam.indexOf('class="wheel"'), 'the advice comes first');
+  assert.match(fam, /class="know[^"]* sel[^"]*"[^>]*data-know="still"/, 'the advised branch is the one open');
+  assert.doesNotMatch(fam, /A face marks what a capo is asking for/);
 });

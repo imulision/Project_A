@@ -222,7 +222,7 @@
     if (face) { [].forEach.call($('sheet').querySelectorAll('.facebtn'), function (x) { x.classList.toggle('on', x === face); });
       $('who').innerHTML = C.man(E.candidates().filter(function (c) { return c.id === face.dataset.face; })[0], 'start', 'Start with'); return; }
     var know = e.target.closest('[data-know]');
-    if (know) { [].forEach.call($('sheet').querySelectorAll('.know'), function (x) { x.classList.toggle('sel', x === know); }); $('know').innerHTML = C.know(view, know.dataset.know, E.hud(g)); return; }
+    if (know) { [].forEach.call($('sheet').querySelectorAll('.know'), function (x) { x.classList.toggle('sel', x.dataset.know === know.dataset.know); });      /* the advice opens its branch on the wheel */ $('know').innerHTML = C.know(view, know.dataset.know, E.hud(g)); return; }
     var b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
     var act = b.dataset.act, d = b.dataset;
     if (act === 'close') close();
