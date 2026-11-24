@@ -341,6 +341,8 @@ await shot('c5b-streets');
 const near = await page.evaluate(() => ({ stats: window.__ashport.map().stats(), labels: document.querySelectorAll('.lab').length }));
 assert.ok(near.stats.calls <= 240, 'draw calls up close: ' + near.stats.calls);
 assert.ok(near.labels <= 90, 'labels up close: ' + near.labels);
+// a building that changes, seen up close, builds its own square of the town again, not the whole town (render/scene.js nearChunk)
+assert.ok(near.stats.rebuilt === 0 || near.stats.chunks > 0, 'squares built again: ' + near.stats.chunks + ' for ' + near.stats.rebuilt + ' changes');
 await page.click('#map'); await still();
 const far = await page.evaluate(() => window.__ashport.map().stats());
 assert.ok(far.waves > 0, 'a street that changes hands lights up in a wave (' + far.waves + ')');
