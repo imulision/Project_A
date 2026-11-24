@@ -306,7 +306,8 @@ function plan(C) {
     const x = C.ox + l.i * T, z = C.oz + l.j * T, rot = (l.j % 3 === 2) ? 0 : (l.i % 4 === 3 ? Math.PI / 2 : 0), sy = 0.96 + hsh(l.i, l.j) * 0.1;
     C.lots.push({ i: l.i, j: l.j, x, z, name: l.model, rot, sy, tint: l.tint, h: l.open ? 0.1 : ERA.models[l.model].h * sy, open: l.open || null, lit: l.lit, tower: l.tower && !l.site && !l.open, tx: (l.turn - .5) * .5, tr: l.turn * 6, shop: l.shop && !l.open, ours: l.ours, infill: !!l.infill, boom: !!l.boom, low: !!l.low, burnt: !!l.burnt, works: !!l.works, men: l.men || 0, site: l.site, hideout: l.hideout && l.ours, di: l.district, bx: l.bx, by: l.by });
   }
-  nBuildings += C.lots.length;
+  nBuildings += C.lots.length; C.chunks = chunks(C);
+  C.baseKey = (C.p.blocks || []).map(b => b.void ? b.void[0] : '-').join('') + '|' + [...C.shut].join(' ');      // what the base of the near version is made of
 }
 function borders(C) {       // district frontiers, drawn on the streets like on a strategy map
   for (const d of C.d) {
@@ -420,12 +421,27 @@ const COAT = new THREE.Color(0x1c1a1e), SKIN = new THREE.Color(0xd9a98a), SCAFFO
 function smoke(x, y, z, s, op) { const m = new THREE.Mesh(UNIT, SMOKEMATS[op > 0.4 ? 0 : op > 0.3 ? 1 : 2]); m.quaternion.copy(cam.quaternion); m.position.set(x, y, z); m.scale.set(s, s, 1); m.renderOrder = 5; cur.add(m); }
 const SMOKEMATS = [0.5, 0.37, 0.24].map((o) => { const m = SMOKE.clone(); m.opacity = o; return m; });
 const SHOPSIGNS = ['#ffb347', '#ff6b5e', '#7fe0a8', '#ffd9a0', '#7fc8ff', '#ff8fc0'], PARKED = ['car_sedan', 'car_hatchback', 'car_sedan', 'car_stationwagon'], KERB = 1.25;      // a parked car, this far from the middle of its building
-function buildNear(C) {
-  const G = new THREE.Group(), inst = new Map(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
+// The near version is a base that never changes in a game (streets, lamps, water, the cars of the town) and the buildings,
+// cut in squares of CHUNK units. When the game changes a building, only its square is built again (nearChunk), not the town.
+const CHUNK = 48, chunkOf = (C, x, z, n = CHUNK) => Math.floor((x - C.ox) / n) + ':' + Math.floor((z - C.oz) / n);      // a square is 6 by 8 blocks: few of them in view, so few more draw calls
+// one instanced draw call per model, material and square: add() gathers, instances() makes the meshes
+function gatherer(C) {
+  const inst = new Map(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
   const add = (name, mat, x, y, z, rot, sy, color, shadow = true, size = null) => {
-    const key = name + ':' + mat.uuid + ':' + Math.floor((x - C.ox) / 24) + ':' + Math.floor((z - C.oz) / 24); if (!inst.has(key)) inst.set(key, { name, mat, shadow, list: [] });
+    const key = name + ':' + mat.uuid + ':' + chunkOf(C, x, z, 24); if (!inst.has(key)) inst.set(key, { name, mat, shadow, list: [] });
     e.set(0, rot, 0); inst.get(key).list.push([new THREE.Matrix4().compose(p.set(x, y, z), q.setFromEuler(e), size ? s.set(size[0], size[1], size[2]) : s.set(1, sy, 1)), color]);
   };
+  const instances = (G) => {
+    for (const { name, mat, shadow, list } of inst.values()) {
+      const im = new THREE.InstancedMesh(GEO[name], mat, list.length); im.userData.model = name;
+      list.forEach(([m, c], k) => { im.setMatrixAt(k, m); im.setColorAt(k, c); });
+      im.castShadow = shadow; im.receiveShadow = true; im.computeBoundingSphere(); G.add(im);
+    }
+  };
+  return { add, instances };
+}
+function nearBase(C) {
+  const G = new THREE.Group(), { add, instances } = gatherer(C);
   for (let i = 0; i < C.W; i++) for (let j = 0; j < C.H; j++) {
     const x = C.ox + i * T, z = C.oz + j * T, ri = i % 4 === 0, rj = j % 3 === 0;
     if ((ri || rj) && !streetAt(C, i, j)) continue;
@@ -435,7 +451,28 @@ function buildNear(C) {
   }
   voidGround(C, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), false, [w, h, d]));
   cur = new THREE.Group();
-  for (const l of C.lots) {
+  for (const [x, z, r] of C.lamps) {
+    add('streetlight', LAMPMAT, x, 0, z, r, 1, WHITE, false);
+    const hx = x - Math.cos(r) * 0.22, hz = z + Math.sin(r) * 0.22;
+    glow(hx, 1.02, hz, 0.55, GLOW_WARM, 0xffffff, 0.85); pool(hx, hz, 2.4, 0xffb868, 0.38);
+  }
+  bake(cur); G.add(cur); instances(G);
+  // traffic: only the city being looked at has moving cars
+  C.cars = []; seed = 500 + C.W;
+  const n = Math.round(C.lots.length / 14 * (0.6 + 0.25 * C.held));
+  for (let k = 0; k < n; k++) {
+    const alongX = rnd() < 0.5, dir = rnd() < 0.5 ? 1 : -1;
+    const geo = GEO[pick(['car_sedan', 'car_stationwagon', 'car_sedan', 'car_hatchback'])], mat = pick(CARMATS);
+    const line = alongX ? C.oz + 3 * Math.floor(rnd() * (C.by + 1)) * T : C.ox + 4 * Math.floor(rnd() * (C.bx + 1)) * T;
+    const min = alongX ? C.ox : C.oz, max = alongX ? C.x1 : C.z1;
+    C.cars.push({ geo, mat, y: 0.17, s: 1, hl: fxMat(GLOW_SOFT, 0xfff0c8, 0.7), hs: 1.7, alongX, dir, min, max, p: min + rnd() * (max - min), lane: line + (alongX ? -dir : dir) * 0.42, speed: 1.2 + rnd() });
+  }
+  return G;
+}
+function nearChunk(C, lots) {
+  const G = new THREE.Group(), { add, instances } = gatherer(C);
+  cur = new THREE.Group();
+  for (const l of lots) {
     if (l.open) { openGround(l, (x, y, z, w, h, d, c) => add(h > 0.1 ? 'fir' : 'slab', ROOFMAT, x, y, z, 0, 1, new THREE.Color(c), h > 0.1, [w, h, d])); continue; }
     const k = lotLook(l);
     add(l.name, ERAMATS[k.burnt ? 0 : l.lit], l.x, 0, l.z, l.rot, l.sy, TINTS[l.tint].clone().multiplyScalar(k.shade));
@@ -464,34 +501,26 @@ function buildNear(C) {
     }
     if (life.parked && !l.infill) add(PARKED[(l.i + l.j) % PARKED.length], CARMATS[(l.i * 3 + l.j) % CARMATS.length], l.x + fx * KERB, 0.17, l.z + fz * KERB, l.rot ? 0 : Math.PI / 2, 1, WHITE, false);
   }
-  for (const [x, z, r] of C.lamps) {
-    add('streetlight', LAMPMAT, x, 0, z, r, 1, WHITE, false);
-    const hx = x - Math.cos(r) * 0.22, hz = z + Math.sin(r) * 0.22;
-    glow(hx, 1.02, hz, 0.55, GLOW_WARM, 0xffffff, 0.85); pool(hx, hz, 2.4, 0xffb868, 0.38);
-  }
-  for (const l of C.lots) if (l.site || l.hideout) {     // the family's places carry a sign, and so does the capo's hideout
+  for (const l of lots) if (l.site || l.hideout) {     // the family's places carry a sign, and so does the capo's hideout
     if (!l.site) l.site0 = { sign: 'SOCIAL CLUB', color: '#ffc74a' };
     const fx = l.rot ? 1 : 0, fz = l.rot ? 0 : 1, look = l.site || l.site0, sg = sign(look.sign, look.color);
     sg.position.set(l.x + fx * 0.84, 0.95, l.z + fz * 0.84); if (l.rot) sg.rotation.y = Math.PI / 2; cur.add(sg);
     glow(l.x + fx, 0.9, l.z + fz, 2.2, GLOW_SOFT, new THREE.Color(look.color), 0.7); pool(l.x + fx * 1.3, l.z + fz * 1.3, 3, new THREE.Color(look.color), 0.5);
   }
-  bake(cur); G.add(cur);
-  for (const { name, mat, shadow, list } of inst.values()) {
-    const im = new THREE.InstancedMesh(GEO[name], mat, list.length); im.userData.model = name;
-    list.forEach(([m, c], k) => { im.setMatrixAt(k, m); im.setColorAt(k, c); });
-    im.castShadow = shadow; im.receiveShadow = true; im.computeBoundingSphere(); G.add(im);
-  }
-  // traffic: only the city being looked at has moving cars
-  C.cars = []; seed = 500 + C.W;
-  const n = Math.round(C.lots.length / 14 * (0.6 + 0.25 * C.held));
-  for (let k = 0; k < n; k++) {
-    const alongX = rnd() < 0.5, dir = rnd() < 0.5 ? 1 : -1;
-    const geo = GEO[pick(['car_sedan', 'car_stationwagon', 'car_sedan', 'car_hatchback'])], mat = pick(CARMATS);
-    const line = alongX ? C.oz + 3 * Math.floor(rnd() * (C.by + 1)) * T : C.ox + 4 * Math.floor(rnd() * (C.bx + 1)) * T;
-    const min = alongX ? C.ox : C.oz, max = alongX ? C.x1 : C.z1;
-    C.cars.push({ geo, mat, y: 0.17, s: 1, hl: fxMat(GLOW_SOFT, 0xfff0c8, 0.7), hs: 1.7, alongX, dir, min, max, p: min + rnd() * (max - min), lane: line + (alongX ? -dir : dir) * 0.42, speed: 1.2 + rnd() });
-  }
+  bake(cur); G.add(cur); instances(G);
+  return G;
+}
+function buildNear(C) {
+  const G = new THREE.Group(); G.add(nearBase(C)); C.nearChunks = new Map();
+  for (const [key, ch] of C.chunks) { const g = nearChunk(C, ch.lots); C.nearChunks.set(key, g); G.add(g); }
   details.add(G); C.near = G; C.nearAt = performance.now();
+}
+// the buildings of a town, square by square, with what makes each square look as it does: a square whose look is unchanged is not built again
+function chunks(C) {
+  const out = new Map();
+  for (const l of C.lots) { const k = chunkOf(C, l.x, l.z); let ch = out.get(k); if (!ch) out.set(k, ch = { lots: [], sig: '' }); ch.lots.push(l); }
+  for (const ch of out.values()) ch.sig = JSON.stringify(ch.lots);
+  return out;
 }
 // Everything that moves is drawn in lots: one draw call per kind of car and one for all headlights,
 // however many are on the road. Each frame empties the lots and fills them again.
@@ -557,6 +586,7 @@ function levelOfDetail(now) {
     if (want && !C.near && !built) { const t0 = performance.now(); buildNear(C); built = true; shadowDirty = true; nearMs = performance.now() - t0; nNear++; }
     const near = want && !!C.near;
     if (C.near) { if (C.near.visible !== near) shadowDirty = true; C.near.visible = near; if (near) C.nearAt = now; }
+    if (!near && C.farStale) { const vis = C.farBody.visible; dispose(C.far); buildFar(C); C.farStale = false; C.farBody.visible = vis; }      // left behind while the town was seen up close
     if (C.farBody.visible === near) shadowDirty = true;
     C.farBody.visible = !near;
   }
@@ -633,14 +663,20 @@ const focus = (id, districtId, at) => {     // glide to the whole map, to a city
 const _v = new THREE.Vector3();
 const scr = (x, z, y = 0) => { _v.set(x, y, z).project(cam); return [(_v.x + 1) / 2 * innerWidth, (1 - _v.y) / 2 * innerHeight]; };
 // the state of the game changed: rebuild only the cities that look different
-let nWaves = 0, nRebuilt = 0, rebuildMs = 0;      // how often a city is built again, and what the last one cost (the fps meter shows it)
+let nWaves = 0, nRebuilt = 0, rebuildMs = 0, nChunks = 0;      // how often a city is built again, and what the last one cost (the fps meter shows it)
 function update(P2) {
   P2.cities.forEach((pc, ci) => {
     const C = CITIES[ci], changed = pc.key !== C.p.key, flips = pc.turf && C.p.turf ? turned(C.p.blocks, pc.blocks).slice(0, 8) : []; C.p = pc; C.d = pc.districts; C.held = pc.held;
     nWaves += flips.length; for (const b of flips) spawnFx(b.won ? 'won' : 'lost', C.ox + (b.x * 4 + 2) * T, C.oz + (b.y * 3 + 1.5) * T);      // a street changes hands: it is seen
     if (!changed) { if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); return; }
-    if (C.far) dispose(C.far); if (C.near) dispose(C.near); C.far = C.near = null;
-    const t0 = performance.now(); nBuildings -= C.lots.length; plan(C); buildFar(C); shadowDirty = true; nRebuilt++; rebuildMs = performance.now() - t0;
+    const t0 = performance.now(), was = C.chunks, base = C.baseKey; nBuildings -= C.lots.length; plan(C);
+    if (C.near && C.baseKey === base) {      // the town is seen up close: only the squares whose buildings look different are built again
+      for (const [key, ch] of C.chunks) { const old = was.get(key); if (old && old.sig === ch.sig) continue; const g0 = C.nearChunks.get(key); if (g0) dispose(g0); const g = nearChunk(C, ch.lots); C.nearChunks.set(key, g); C.near.add(g); nChunks++; }
+      for (const key of was.keys()) if (!C.chunks.has(key) && C.nearChunks.has(key)) { dispose(C.nearChunks.get(key)); C.nearChunks.delete(key); }
+    } else if (C.near) { dispose(C.near); C.near = null; }
+    // the plain far version is hidden while the town is seen up close: it is built again only when it is needed (levelOfDetail)
+    if (C.near && C.near.visible) { C.farStale = true; if (pc.turf && gripKey(pc) !== C.gripKey) turfGround(C); } else { dispose(C.far); buildFar(C); C.farStale = false; }
+    shadowDirty = true; nRebuilt++; rebuildMs = performance.now() - t0;
   });
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
@@ -753,6 +789,6 @@ addEventListener('resize', () => {
     return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
   return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, where, spot, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
-           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, rebuilt: nRebuilt, rebuildMs: Math.round(rebuildMs), near: nNear, nearMs: Math.round(nearMs), fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
+           stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, rebuilt: nRebuilt, rebuildMs: Math.round(rebuildMs), chunks: nChunks, near: nNear, nearMs: Math.round(nearMs), fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
            cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
 }
