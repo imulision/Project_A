@@ -88,3 +88,16 @@ test('a street taken while he drove there: he does not work, and drives home wit
   assert.deepEqual([back.x, back.y], [club.x, club.y]);
   assert.equal(T.at(c, out.x, out.y).owner, c.rival);
 });
+
+test('a game opened again can draw his errand: where from, its days and how many are gone, there and back', () => {
+  const { c, f, club } = dutch(5000);
+  let n = 0, out = null, back = null;
+  play(c, f, (ev) => {
+    if (f.men.dutch.errand) n++;
+    if (n === 2 && !out) out = him(c, f).errand;
+    if (ev.some((e) => e.type === 'errand' && e.step === 'returns')) back = him(c, f).errand;
+    return back;
+  });
+  assert.deepEqual([out.step, out.from, out.days, out.gone], ['leaves', { x: club.x, y: club.y }, T.tripDays(club, out), 1]);
+  assert.deepEqual([back.step, back.from, back.to, back.days, back.gone], ['returns', { x: out.x, y: out.y }, { x: club.x, y: club.y }, T.tripDays(out, club), 0]);
+});

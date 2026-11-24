@@ -149,7 +149,21 @@
   function key(x, y) { return x + ',' + y; }
 
   // A city is a rectangle of blocks with some missing (water, rail yards, waste ground): c.voids names them, and they are outside the city.
-  function inside(c, x, y) { return x >= 0 && y >= 0 && x < c.w && y < c.h && !(c.voids && c.voids[key(x, y)]); }
+  // (asked for every block many times a day: the voids of a city are read once into a grid, kept as long as they are the same object)
+  var holes = typeof WeakMap === 'function' ? new WeakMap() : null;
+  function inside(c, x, y) {
+    if (!(x >= 0 && y >= 0 && x < c.w && y < c.h)) return false;
+    var v = c.voids;
+    if (!v) return true;
+    if (!holes) return !v[key(x, y)];
+    var g = holes.get(v);
+    if (!g || g.w !== c.w || g.h !== c.h) {
+      g = { w: c.w, h: c.h, at: new Uint8Array(c.w * c.h) };
+      Object.keys(v).forEach(function (k) { var p = k.split(','), i = +p[1] * c.w + +p[0]; if (v[k] && i >= 0 && i < g.at.length) g.at[i] = 1; });
+      holes.set(v, g);
+    }
+    return !g.at[y * c.w + x];
+  }
   // The size of one of the family's lasting purchases (0 when it has none).
   function owns(f, id) { return (f && f.holdings && f.holdings[id]) || 0; }
   // How many real blocks a city has.
