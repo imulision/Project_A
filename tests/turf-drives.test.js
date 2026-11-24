@@ -110,3 +110,12 @@ test('a key place the boss paid for is taken by the capo who asked for it, once 
   assert.equal(there.d, T.tripDays(club, { x: 8, y: 4 }) + drives(all).filter((e) => e.step === 'drives' && e.x === 8 && e.y === 4)[0].d);
   assert.ok(taken && taken.key === 'port' && taken.d >= there.d, 'taken once he is there');
 });
+
+test('a game opened again can draw him where he was: his drive says its days and how many are gone', () => {
+  const { c, f, club } = dutch();
+  take(c);
+  let n = 0;
+  play(c, f, (ev) => { if (f.men.dutch.drive) n++; return n === 4; });
+  const d = him(c, f).drive;
+  assert.deepEqual([d.from, d.days, d.gone], [{ x: club.x, y: club.y }, T.tripDays(club, { x: 8, y: 3 }), 3]);
+});
