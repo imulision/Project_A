@@ -368,3 +368,97 @@ test('in the game the tree of the family counts every city it is in', () => {
   v.cities.forEach((c) => Object.keys(c.trades).forEach((k) => { sum[k] = (sum[k] || 0) + c.trades[k]; }));
   v.tree.filter((t) => t.kind !== 'cars').forEach((t) => assert.equal(t.made, sum[t.kind] || 0, t.kind));
 });
+
+// --- what to learn next: the tree gives the boss one advice, with its reason in a sentence ---
+const adviceOf = (f, cities) => T.advice(f, cities);
+
+test('when dirty money piles up the advice is a trade that washes it', () => {
+  const { c, f } = sixBars();
+  T.stepMonth(c, f);
+  f.dirty = 1e6;
+  const a = adviceOf(f, [c]);
+  assert.ok(['rented', 'front'].includes(a.kind), a.kind);
+  assert.match(a.why, /dirty money/i);
+});
+
+test('otherwise the trade most of his capos ask for', () => {
+  const { c, f } = sixBars();
+  T.stepMonth(c, f);
+  f.dirty = 0;
+  const asked = T.tree(f, [c]).filter((t) => t.next && t.wanted.length).sort((a, b) => b.wanted.length - a.wanted.length)[0];
+  const a = adviceOf(f, [c]);
+  if (asked) { assert.equal(a.kind, asked.kind); assert.match(a.why, /^Asked for by /); }
+  else assert.match(a.why, /a place/);
+});
+
+test('with nobody asking, the trade the family runs that brings the most a place', () => {
+  const { c, f } = sixBars();
+  T.stepMonth(c, f);
+  f.dirty = 0;
+  Object.keys(f.men).forEach((id) => { f.men[id].stuck = false; });
+  const tree = T.tree(f, [c]);
+  if (tree.some((t) => t.next && t.wanted.length)) return; // (covered above)
+  const best = tree.filter((t) => t.next && t.each).sort((a, b) => b.each - a.each)[0];
+  const a = adviceOf(f, [c]);
+  assert.equal(a.kind, best.kind);
+  assert.match(a.why, new RegExp('\\$' + best.each.toLocaleString('en-US') + ' a place'));
+});
+
+test('nothing is advised while the family is already learning something', () => {
+  const { c, f } = sixBars();
+  f.clean = 99999; f.study = null;
+  T.research(f, 'cars');
+  assert.equal(adviceOf(f, [c]), null);
+});
+
+test('the game shows the advice', () => {
+  const E = require('../web/empire.js');
+  const g = E.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 2 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  const v = E.view(g);
+  assert.deepEqual(v.advice, T.advice(g.family, g.cities));
+  assert.ok(v.advice && v.advice.kind && v.advice.name && v.advice.why);
+});
+
+// --- a capo asks for one branch at a time: the one he needs most now ---
+const crew = (ids, tech) => {
+  const f = T.createFamily();
+  ids.forEach((id) => T.join(f, id));
+  Object.assign(f.tech, tech || {});
+  return f;
+};
+
+test('a capo asks for one branch at a time, even when he likes several', () => {
+  const f = crew(['dutch', 'mae', 'sal', 'tommy', 'danny', 'vince']);
+  const asks = {};
+  T.tree(f).forEach((t) => t.wanted.forEach((id) => { asks[id] = (asks[id] || 0) + 1; }));
+  assert.ok(Object.values(asks).every((n) => n === 1), JSON.stringify(asks));
+  assert.ok(T.tree(f).filter((t) => t.wanted.length).length <= 6);
+});
+
+test('first a trade he likes and the family does not know; once he knows them all, the one he likes that is the least learned', () => {
+  const liked = T.person('mae').likes.filter((k) => T.TERRAIN[k] && !T.person('mae').refuses.includes(k));
+  const f = crew(['mae']);
+  const unknown = liked.find((k) => !(f.tech[k] >= 1));
+  if (unknown) assert.deepEqual(T.tree(f).filter((t) => t.wanted.includes('mae')).map((t) => t.kind), [unknown]);
+  const all = {}; liked.forEach((k, i) => { all[k] = i === 1 ? 1 : 2; });
+  const g = crew(['mae'], all);
+  assert.deepEqual(T.tree(g).filter((t) => t.wanted.includes('mae')).map((t) => t.kind), [liked[1]]);
+});
+
+test('he asks for nothing once all he likes is learned to the last tier', () => {
+  const liked = T.person('mae').likes.filter((k) => T.TERRAIN[k]), all = {};
+  liked.forEach((k) => { all[k] = 3; });
+  const f = crew(['mae'], all);
+  assert.equal(T.tree(f).filter((t) => t.wanted.includes('mae')).length, 0);
+});
+
+test('the tree still says who likes each trade: they teach it twice as fast', () => {
+  const f = crew(['mae']);
+  const liked = T.person('mae').likes.filter((k) => T.TERRAIN[k]);
+  liked.forEach((k) => {
+    const t = T.tree(f).find((q) => q.kind === k);
+    assert.ok(t.liked.includes('mae'), k);
+    if (t.next) assert.equal(t.next.months, T.RULES.learn.months[t.tier] * T.RULES.learn.taught);
+  });
+});

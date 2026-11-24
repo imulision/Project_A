@@ -41,19 +41,30 @@
   function likedBy(f, kind) {
     return Object.keys(f.men).filter(function (id) { return who(id).likes.indexOf(kind) >= 0; });
   }
+  // The one branch a capo asks for now: bigger cars when his tills are left full; else a trade he likes that the
+  // family does not know yet; else, of those he likes, the least learned; nothing once all he likes is learned in full.
+  function askOf(f, id) {
+    if (f.men[id] && f.men[id].stuck && (f.tech.cars || 1) < 3) return 'cars';
+    var top = RULES.learn.cost.length;
+    var liked = who(id).likes.filter(function (k) { return TERRAIN[k] && who(id).refuses.indexOf(k) < 0 && (f.tech[k] || 0) < top; });
+    var unknown = liked.filter(function (k) { return !(f.tech[k] >= 1); })[0];
+    if (unknown) return unknown;
+    return liked.sort(function (a, b) { return (f.tech[a] || 0) - (f.tech[b] || 0); })[0] || null;
+  }
+  function askedBy(f, kind) { return Object.keys(f.men).filter(function (id) { return askOf(f, id) === kind; }); }
 
   // Every trade: the tier the family knows, what the next one costs, and who in the family likes it.
   function tree(f) {
     var out = KINDS.map(function (kind) {
-      var tier = f.tech[kind] || 0, wanted = likedBy(f, kind);
-      return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted, gives: D.SITES[kind].does,
+      var tier = f.tech[kind] || 0, liked = likedBy(f, kind), wanted = askedBy(f, kind);
+      return { kind: kind, name: D.SITES[kind].name, street: TERRAIN[kind], tier: tier, wanted: wanted, liked: liked, gives: D.SITES[kind].does,
                studying: f.study && f.study.kind === kind ? Math.max(1, f.study.monthsLeft) : 0,
                next: tier >= RULES.learn.cost.length ? null
-                 : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (wanted.length ? RULES.learn.taught : 1), gives: brings(kind, tier + 1) } };
+                 : { tier: tier + 1, cost: RULES.learn.cost[tier], months: RULES.learn.months[tier] * (liked.length ? RULES.learn.taught : 1), gives: brings(kind, tier + 1) } };
     });
     // the cars: not a place, but learned the same way; asked for by the men whose tills were left full
     var cars = Math.max(1, f.tech.cars || 1), stuck = Object.keys(f.men).filter(function (id) { return f.men[id].stuck; });
-    out.push({ kind: 'cars', name: 'Cars', street: null, tier: cars, wanted: cars < 3 ? stuck : [], gives: carries(cars),
+    out.push({ kind: 'cars', name: 'Cars', street: null, tier: cars, wanted: cars < 3 ? stuck : [], liked: stuck, gives: carries(cars),
                studying: f.study && f.study.kind === 'cars' ? Math.max(1, f.study.monthsLeft) : 0,
                next: cars >= 3 ? null : { tier: cars + 1, cost: RULES.learn.cost[cars], months: RULES.learn.months[cars] * (stuck.length ? RULES.learn.taught : 1), gives: carries(cars + 1) } });
     return out;
