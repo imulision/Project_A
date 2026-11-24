@@ -1386,3 +1386,16 @@ test('every place of the family has a gauge for the map: how full is what it fil
   const rival = city.places.find((p) => p.owner !== 'family');
   assert.equal(C.fills(v)[city.id + ':' + rival.x + ',' + rival.y], undefined);
 });
+
+// A touched building is tied by blue lines to the vehicles that work for it: the cars and trucks on the road from it or to
+// it, the trucks that stand at its door, and its capo while he is there.
+test('a place knows the vehicles tied to it', () => {
+  const { v } = play((v) => v.month >= 12);
+  const city = v.cities[0], ours = city.places.find((p) => p.owner === 'family' && p.kind !== 'club' && p.kind !== 'hq'), club = city.places.find((p) => p.kind === 'club');
+  const at = { x: ours.x, y: ours.y }, far = { x: club.x, y: club.y };
+  const c = { ...city, rides: [{ kind: 'takings', capo: 'sal', vehicle: 'sal:car:1', from: at, to: far, amount: 40, days: 3, gone: 1 }, { kind: 'haul', capo: 'sal', vehicle: 'sal:truck:2', from: far, to: at, amount: 20, days: 9, gone: 2 }, { kind: 'wash', capo: 'sal', vehicle: 'sal:car:3', from: far, to: { x: 99, y: 99 }, amount: 9, days: 3, gone: 1 }, { kind: 'haul', vehicle: 'sal:truck:4', from: far, to: at, amount: 20, days: 9, gone: 9 }],
+    capos: city.capos.map((k) => (k.id === 'sal' ? { ...k, rigs: [{ vehicle: 'sal:truck:1', x: at.x, y: at.y, busy: false }, { vehicle: 'sal:truck:2', x: far.x, y: far.y, busy: true }], errand: { step: 'works', x: at.x, y: at.y } } : k)) };
+  const w = { ...v, cities: [c] };
+  assert.deepEqual(C.linked(w, c.id, at.x, at.y).sort(), [c.id + ':sal:car:1', c.id + ':sal:truck:1', c.id + ':sal:truck:2', 'capo:' + c.id + ':sal'].sort());
+  assert.deepEqual(C.linked(w, c.id, 99, 98), [], 'a street with nothing on it has no line');
+});

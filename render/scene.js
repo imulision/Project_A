@@ -646,6 +646,17 @@ const { fxList, pops, spawnFx, spawnPop, effects, animateFx } = makeFx({ THREE, 
 const { agents, traffic, moveAgents, MAXTAGS, setPace } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
 // what the page writes over the map (render/labels.js)
 const claimList = [];
+// where(ids): the place on the screen of each vehicle named ('city:capo:car:1', or 'capo:city:capo' for a capo's own car), and
+// spot(city, bx, by) the top of a block: the ends of the blue lines drawn from a touched building to its vehicles.
+const where = (ids) => (ids || []).map((id) => {
+  let best = null;
+  if (id.startsWith('capo:')) { const [, city, capo] = id.split(':'); for (const a of agents.values()) if (a.kind === 'capo' && a.tag.capo === capo && a.C && a.C.id === city) best = a; }
+  else for (const [k, a] of agents) if ((a.veh === id || k === id) && (!best || best.parked)) best = a;
+  if (!best) return null;
+  const x = best.x === undefined ? best.pts[0][0] : best.x, z = best.z === undefined ? best.pts[0][1] : best.z, [sx, sy] = scr(x, z, 1);
+  return { id, x: sx, y: sy };
+}).filter(Boolean);
+const spot = (city, bx, by) => { const c = CITIES.find((q) => q.id === city), l = c && c.lots.find((q) => q.bx === bx && q.by === by); if (!l) return null; const [x, y] = scr(l.x, l.z, l.h + 0.5); return { x, y }; };
 const labels = makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxList, pops, MAXTAGS, claimList });
 // The blocks where something can be placed, lit on the ground while the boss chooses: spots('ashport', [{x, y}]), and spots() to put them out.
 let spotG = null, nSpots = 0;
@@ -740,7 +751,7 @@ addEventListener('resize', () => {
   const fleet = () => { const away = new Map(); for (const a of agents.values()) if (a.veh) away.set(a.veh, a);
     return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
   const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, where, spot, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
            cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
 }

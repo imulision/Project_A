@@ -50,7 +50,7 @@
     C.moments(lastStep, step).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
-    strainAt = C.strains(view); fillAt = C.fills(view); retip();
+    strainAt = C.strains(view); fillAt = C.fills(view); retip(); drawLinks();
     if (!map) return;
     var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.errandsTurf(events || [], p, lastPlan), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
@@ -181,7 +181,7 @@
     var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = (html || C.esc(el.dataset.tip)) + (more ? '<i class="more">\u203a</i>' : ''); t.classList.add('on'); t.classList.toggle('more', !!more); tip.more = more || null;
     var w = t.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - t.offsetHeight - 8;
     t.style.left = x + 'px'; t.style.top = (y < 8 ? r.bottom + 8 : y) + 'px';
-    tip.at = Date.now(); clearTimeout(tip.t); tip.live = null; tip.t = setTimeout(untip, more ? 6000 : 3200);
+    tip.at = Date.now(); clearTimeout(tip.t); tip.live = null; tip.place = null; tip.t = setTimeout(untip, more ? 6000 : 3200);
   }
   /* The bubble of a place stays open until something else is touched, and follows the place: each day its figures are
      read again, and the ones that moved say by how much. */
@@ -193,7 +193,7 @@
     var d = C.moved(was, figures(t));
     Object.keys(d).forEach(function (k) { var n = t.querySelector('[data-k="' + k + '"]'), chip = document.createElement('em'); n.classList.add(d[k] > 0 ? 'up' : 'down'); chip.textContent = C.delta(k, d[k]); n.appendChild(chip); });
   }
-  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; tip.live = null; }
+  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; tip.live = null; tip.place = null; drawLinks(); }
   function at(x, y) { return { getBoundingClientRect: function () { return { left: x, top: y - 16, width: 0, height: 32, bottom: y + 16 }; } }; }
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
@@ -301,6 +301,7 @@
     var h = C.blockTip(view, city, bx, by); if (!h) return;
     tip(el, h, function () { show(C.block(view, city, bx, by)); });
     clearTimeout(tip.t); tip.live = function () { return C.blockTip(view, city, bx, by); };
+    tip.place = { city: city, bx: bx, by: by }; drawLinks();
   }
 
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
@@ -316,11 +317,19 @@
   var MOVE = 'translate' in document.documentElement.style;
   var hiddenLabs = {};      // the labels that had stepped aside at the last image: none blinks at the edge of another
   var drawnAt = -1;
+  /* A touched building is tied by blue lines to the vehicles that work for it, curving up from its roof to each car. */
+  function drawLinks() {
+    var svg = $('links'); if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'links'; document.body.appendChild(svg); }
+    var p = tip.place, from = p && map && map.spot(p.city, p.bx, p.by), cars = from ? map.where(C.linked(view, p.city, p.bx, p.by)) : [];
+    svg.innerHTML = cars.map(function (q) { var d = Math.hypot(q.x - from.x, q.y - from.y), mx = (from.x + q.x) / 2, my = Math.min(from.y, q.y) - Math.max(24, d * 0.35);
+      return '<path d="M' + from.x.toFixed(1) + ' ' + from.y.toFixed(1) + 'Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + q.x.toFixed(1) + ' ' + q.y.toFixed(1) + '"/><circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="4"/>'; }).join('');
+    svg.dataset.n = cars.length;
+  }
   function drawLabels() { try { drawLabelsNow(); } catch (e) { console.error(e); } requestAnimationFrame(drawLabels); }      // one bad label never stops the others from following the map
   function drawLabelsNow() {
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
-    if (map && drawn !== drawnAt) { drawnAt = drawn;
+    if (map && drawn !== drawnAt) { drawnAt = drawn; drawLinks();
       var seen = {}, boxes = [], badges = [], all = map.labels(), empty = C.emptyClubs(all);
       all.forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];

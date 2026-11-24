@@ -443,6 +443,18 @@
       return live(null, 0, r.kind === 'haul' ? 'truck' : 'cars', what + ' on the road' + (to ? ' to the ' + esc(to.name) : ''));
     }).join('');
   }
+  // linked(view, city, x, y): the vehicles tied to a place, for the blue lines drawn from it when it is touched: what is on the
+  // road from it or to it, the trucks standing at its door, and its capo while he works there or stands before it.
+  function linked(view, cityId, x, y) {
+    var c = cityOf(view, cityId), out = []; if (!c) return out;
+    var here = function (q) { return q && q.x === x && q.y === y; }, add = function (id) { if (out.indexOf(id) < 0) out.push(id); };
+    (c.rides || []).forEach(function (r) { if (r.vehicle && r.gone < r.days && (here(r.from) || here(r.to))) add(c.id + ':' + r.vehicle); });
+    (c.capos || []).forEach(function (k) {
+      (k.rigs || []).forEach(function (r) { if (r.vehicle && here(r)) add(c.id + ':' + r.vehicle); });
+      if (here(k.errand) || (k.at && here(k.at) && k.at.why !== 'home')) add('capo:' + c.id + ':' + k.id);
+    });
+    return out;
+  }
   // How full each place of the family is, for the small gauge the map draws beside it: the cellar of a place that only
   // makes, the dirty money a laundry has to wash, the till of all the others.
   function fills(view) {
@@ -961,7 +973,7 @@
     };
   }
   var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });
