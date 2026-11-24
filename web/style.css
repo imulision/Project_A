@@ -334,3 +334,9 @@ body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-t
 #call .tally span{white-space:nowrap;font:600 9px var(--text);letter-spacing:.3px;color:var(--dim);text-transform:uppercase}
 #call .go{display:block;width:100%;border:1px solid var(--accent);color:var(--accent);background:none}
 .wheel .know.shut>.ic{opacity:.8}
+
+#tip .g{position:relative;padding-right:3.2em}#tip .g .nxb{display:block;height:4px;margin:1px 0 3px}#tip .g .nxb u{transition:width .5s}
+#tip .g em{position:absolute;right:0;top:0;font-style:normal;font-weight:700;animation:gdelta 2.4s ease-out forwards}#tip .g.up em{color:var(--good,#7fd08a)}#tip .g.down em{color:var(--bad)}
+#tip .g.up,#tip .g.down{animation:gflash .9s ease-out}
+@keyframes gdelta{0%{opacity:0;transform:translateY(4px)}15%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}@keyframes gflash{0%{background:#ffffff26}100%{background:transparent}}
+.lab.pin .fill{position:absolute;right:calc(100% + 2px);bottom:0;width:4px;height:100%;background:#0b0b10d9;border-radius:2px;overflow:hidden;box-shadow:0 0 0 1px #0b0b10}.lab.pin .fill i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);transition:height .5s}.lab.pin.wash .fill i{background:#6ad0e0}.lab.pin .fill.full i{background:var(--bad)}

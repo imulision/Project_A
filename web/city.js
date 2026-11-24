@@ -30,6 +30,7 @@
   var lastPlan = null, POWER = 'ashport-power';
   var claims = [], nextI = 0, nextSeen = '';      // the claims in progress, and the one the line at the top shows
   function showNext() { var h = g.started ? C.nextLine(claims, nextI) : ''; if ($('next').html !== h) { $('next').html = h; $('next').innerHTML = h; } }
+  var fillAt = {};      /* how full each place of the family is, by city and block: the small gauge beside its mark */
   var strainAt = {};      // the family's places that choke, by city and block: the map marks them
   function refresh(events, turned) {
     view = E.view(g);
@@ -49,7 +50,7 @@
     C.moments(lastStep, step).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
-    strainAt = C.strains(view);
+    strainAt = C.strains(view); fillAt = C.fills(view); retip();
     if (!map) return;
     var p = M.planEmpire(view, W.CITIES); map.update(p); map.traffic(M.tripsTurf(p, view, true).concat(M.movesTurf(lastPlan, p), M.errandsTurf(events || [], p), M.arrivalsTurf(events || [], p), M.departuresTurf(events || [], p), M.paymentsTurf(events || [], p), M.leavingTurf(events || [], p, g.month * E.TICKS_PER_MONTH + g.ticks)));      // (what takes the road to the next city is seen the day it leaves)
     claims = M.claimsTurf(view); map.claims(claims); showNext();      // the streets about to be won: lit on the map, and told in one line at the top
@@ -180,9 +181,19 @@
     var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = (html || C.esc(el.dataset.tip)) + (more ? '<i class="more">\u203a</i>' : ''); t.classList.add('on'); t.classList.toggle('more', !!more); tip.more = more || null;
     var w = t.offsetWidth, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)), y = r.top - t.offsetHeight - 8;
     t.style.left = x + 'px'; t.style.top = (y < 8 ? r.bottom + 8 : y) + 'px';
-    tip.at = Date.now(); clearTimeout(tip.t); tip.t = setTimeout(untip, more ? 6000 : 3200);
+    tip.at = Date.now(); clearTimeout(tip.t); tip.live = null; tip.t = setTimeout(untip, more ? 6000 : 3200);
   }
-  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; }
+  /* The bubble of a place stays open until something else is touched, and follows the place: each day its figures are
+     read again, and the ones that moved say by how much. */
+  function figures(t) { var out = {}; [].forEach.call(t.querySelectorAll('[data-k]'), function (n) { out[n.dataset.k] = +n.dataset.v; }); return out; }
+  function retip() {
+    var t = $('tip'); if (!tip.live || !t.classList.contains('on')) return;
+    var html = tip.live(); if (!html) return untip();
+    var was = figures(t); t.innerHTML = html + '<i class="more">\u203a</i>';
+    var d = C.moved(was, figures(t));
+    Object.keys(d).forEach(function (k) { var n = t.querySelector('[data-k="' + k + '"]'), chip = document.createElement('em'); n.classList.add(d[k] > 0 ? 'up' : 'down'); chip.textContent = C.delta(k, d[k]); n.appendChild(chip); });
+  }
+  function untip() { $('tip').classList.remove('on', 'more'); tip.more = null; tip.live = null; }
   function at(x, y) { return { getBoundingClientRect: function () { return { left: x, top: y - 16, width: 0, height: 32, bottom: y + 16 }; } }; }
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
@@ -286,7 +297,11 @@
     said(hit.city, hit.bx, hit.by, at(x == null ? innerWidth / 2 : x, y == null ? innerHeight / 2 : y));
   }
   // a touched street or place answers with a bubble; the bubble leads to its page
-  function said(city, bx, by, el) { var h = C.blockTip(view, city, bx, by); if (h) tip(el, h, function () { show(C.block(view, city, bx, by)); }); }
+  function said(city, bx, by, el) {
+    var h = C.blockTip(view, city, bx, by); if (!h) return;
+    tip(el, h, function () { show(C.block(view, city, bx, by)); });
+    clearTimeout(tip.t); tip.live = function () { return C.blockTip(view, city, bx, by); };
+  }
 
   // ---- labels over the map: names, the capos over their clubs, a mark on the places that count, what each car carries
   var FX = C.FX;
@@ -326,8 +341,10 @@
         if (l.pop) { var up = Math.round((l.part || 0) * 10); if (e.up !== up) { e.up = up; e.style.setProperty('--up', up / 10); } }
         else if (l.claim) { var cs = l.streets + ':' + Math.round(l.advance * 40) + l.stuck; if (e.cs !== cs) { e.cs = cs; e.innerHTML = C.claim(l); e.classList.toggle('stuck', !!l.stuck); e.w = 0; } if (!e.w) e.w = e.offsetWidth; }
         else if (l.fx) { var left = (94.25 * (1 - (l.part || 0))).toFixed(0); if (e.left !== left) { e.left = left; e.arc.setAttribute('stroke-dasharray', left + ' 94.25'); } }
-        else if (l.site) { if (e.lv !== l.level) { e.lv = l.level; e.innerHTML = C.pin(l); e.warn = null; e.st = ''; }      // enlarged: its level shows under the mark
-          var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); } }
+        else if (l.site) { if (e.lv !== l.level) { e.lv = l.level; e.innerHTML = C.pin(l); e.warn = null; e.st = ''; e.fill = null; e.fl = ''; }      // enlarged: its level shows under the mark
+          var st = strainAt[l.city + ':' + l.bx + ',' + l.by], ss = st ? st.join() : ''; if ((e.st || '') !== ss) { e.st = ss; e.classList.toggle('strain', !!ss); if (!e.warn) { e.warn = document.createElement('span'); e.warn.className = 'warn'; e.appendChild(e.warn); } e.warn.innerHTML = C.strainBadge(st); }
+          var fl = fillAt[l.city + ':' + l.bx + ',' + l.by], fs = fl === undefined ? '' : String(Math.round(fl * 20) * 5);
+          if ((e.fl || '') !== fs) { e.fl = fs; if (!e.fill) { e.fill = document.createElement('span'); e.fill.className = 'fill'; e.fill.appendChild(document.createElement('i')); e.appendChild(e.fill); } e.fill.style.display = fs ? '' : 'none'; e.fill.firstChild.style.height = (fs || 0) + '%'; e.fill.classList.toggle('full', fs === '100'); } }
         else if (l.capo && !l.site) { var ask = !!waits[l.city + l.capo], mood = moods[l.city + l.capo] || '', hp = healths[l.city + l.capo], dg = doings[l.city + l.capo], sig = [l.move, l.kind, l.way, Math.round((l.progress || 0) * 20), ask, mood, hp ? hp.money + hp.men + hp.threat : '', dg ? dg.word + dg.tone + (dg.power ? dg.power.now + dg.power.tone : '') : ''].join();
           if (e.sig !== sig) { e.sig = sig; e.innerHTML = C.mark(l, hp, dg); e.classList.toggle('ask', ask); e.classList.toggle('restless', mood === 'restless'); e.classList.toggle('bitter', mood === 'bitter'); } }
         else if (l.car) { var h = C.haul(l.car); if (e.what !== h[0]) { e.what = h[0]; e.style.setProperty('--c', h[1]); e.pic.innerHTML = I.icon(h[0]); }      // a truck may haul liquor on one leg and crates on the next
