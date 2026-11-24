@@ -419,6 +419,15 @@
         else add(departuresTurf([{ type: r.kind, city: c.id, capo: r.capo, from: r.from, x: r.to.x, y: r.to.y, amount: r.amount, days: r.days, wait: 0, vehicle: r.vehicle }], plan), r.gone);
       });
     });
+    /* each capo on the road, or at work with his car at the door */
+    (view.cities || []).forEach(function (c) {
+      (c.capos || []).forEach(function (k) {
+        var d = k.drive, e = k.errand, club = { x: k.x, y: k.y };
+        if (d && d.from && d.days > 0) add(errandsTurf([{ type: 'capo', step: 'drives', capo: k.id, city: c.id, from: d.from, x: d.x, y: d.y, why: d.why, days: d.days }], plan), d.gone);
+        else if (e && (e.step === 'leaves' || e.step === 'returns') && e.days > 0) add(errandsTurf([{ type: 'errand', step: e.step, capo: k.id, city: c.id, from: e.from || club, x: e.step === 'returns' ? (e.to || club).x : e.x, y: e.step === 'returns' ? (e.to || club).y : e.y, move: e.move, kind: e.kind, amount: 0, days: e.days }], plan), e.gone);
+        else if (e && e.step === 'works') add(errandsTurf([{ type: 'errand', step: 'leaves', capo: k.id, city: c.id, from: club, x: e.x, y: e.y, move: e.move, kind: e.kind, amount: 0, days: 1 }], plan), 1);
+      });
+    });
     var home = (view.cities || []).filter(function (c) { return c.hq && c.hq.family && c.hq.family.home; })[0], hq = home && home.hq.family;
     (view.paying || []).forEach(function (p) {
       (p.rides || []).forEach(function (r, k) {

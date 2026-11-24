@@ -710,7 +710,7 @@ test('a game opened again shows the cars that were already on their way, as far 
     if (i === 200) { g.family.clean = 5000; E.command(g, { type: 'gift', city: 'ashport', capo: 'sal' }); }
     const v = E.view(g), rides = v.cities.reduce((n, c) => n + (c.rides || []).length, 0) + (v.paying || []).reduce((n, p) => n + p.rides.length, 0) + (v.onRoad || []).length;
     if (!rides) continue;
-    const p = M.planEmpire(v, global.AshportWorld.CITIES), trips = M.ridesTurf(v, p);
+    const p = M.planEmpire(v, global.AshportWorld.CITIES), trips = M.ridesTurf(v, p).filter((t) => t.kind !== 'capo');      /* (a capo's own car: see below) */
     assert.equal(trips.length, rides, 'day ' + i + ': every ride in progress is a car');
     trips.forEach((t) => { assert.ok(t.gone >= 0 && t.gone <= t.days, 'how far along it is'); assert.equal(t.loop, false); kinds[t.kind] = 1; if (t.gone > 0) far++; });
     assert.equal(new Set(trips.map((t) => t.id)).size, trips.length, 'each its own car');
@@ -811,4 +811,21 @@ test('a capo drives to what he does, in the days the rules give, and only once',
   const near = (q, l) => q[0] === l.i && Math.abs(q[1] - l.j) <= 1;
   assert.ok(near(t.path[0], a) && near(t.path[t.path.length - 1], b), 'from where he stood to where he goes');
   assert.equal(M.movesTurf(before, after).filter((m) => m.capo === drove.capo).length, 0, 'no second car of his own making');
+});
+
+// A game opened again: a capo on the road is on the road again, as far along as he was; one at work has his car at the door.
+test('a capo on his way when the game was left is on his way again', () => {
+  const g = play(1), v = E.view(g), c = v.cities[0], k = c.capos[0], club = { x: k.x, y: k.y };
+  const far = c.places.find((p) => p.owner === 'family' && (p.x !== k.x || p.y !== k.y)) || { x: k.x + 2, y: k.y };
+  const with_ = (more) => { const w = JSON.parse(JSON.stringify(v)); Object.assign(w.cities[0].capos[0], { drive: null, errand: null }, more); return w; };
+  const mine = (w) => M.ridesTurf(w, M.planEmpire(w, global.AshportWorld.CITIES)).filter((t) => t.kind === 'capo' && t.capo === k.id);
+  let t = mine(with_({ drive: { from: club, x: far.x, y: far.y, why: 'boost', days: 6, gone: 2 } }));
+  assert.equal(t.length, 1); assert.equal(t[0].days, 6); assert.equal(t[0].gone, 2); assert.equal(t[0].stay, true);
+  t = mine(with_({ errand: { step: 'leaves', move: 'open', from: club, x: far.x, y: far.y, days: 9, gone: 4 } }));
+  assert.equal(t.length, 1); assert.equal(t[0].gone, 4); assert.equal(t[0].cargo, 'open');
+  t = mine(with_({ errand: { step: 'returns', move: 'open', from: { x: far.x, y: far.y }, to: club, x: club.x, y: club.y, days: 9, gone: 1 } }));
+  assert.equal(t.length, 1); assert.equal(t[0].gone, 1); assert.equal(t[0].to, 'club');
+  t = mine(with_({ errand: { step: 'works', move: 'open', x: far.x, y: far.y } }));
+  assert.equal(t.length, 1, 'at work, his car stands at the door'); assert.equal(t[0].gone, t[0].days);
+  assert.equal(mine(with_({})).length, 0, 'at home, nothing');
 });
