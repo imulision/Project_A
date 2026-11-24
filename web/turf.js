@@ -523,13 +523,13 @@
   // Where he drives, for the screen: null when he is not on the road in this city.
   function driveOf(c, f, capo) {
     var d = f.men[capo] && f.men[capo].drive;
-    return d && d.city === c.id ? { from: d.from, x: d.x, y: d.y, why: d.why, left: d.left, until: d.until } : null;
+    return d && d.city === c.id ? { from: d.from, x: d.x, y: d.y, why: d.why, left: d.left, until: d.until, days: d.days, gone: Math.max(0, Math.min(d.days, B.today(c) - d.left)) } : null;
   }
   var ERRANDS = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' };
   function setOut(c, f, capo, p, events) {
     if (!(c.turn && c.turn.daily) || !ERRANDS[p.move]) { enact(c, f, capo, p, events); return; }
     var m = f.men[capo], club = posOf(c, m, capo), days = B.tripDays(club, p);
-    m.errand = { city: c.id, p: p, step: 'goes', left: B.today(c), days: days, arrives: B.today(c) + days, until: B.today(c) + days };
+    m.errand = { city: c.id, p: p, step: 'goes', from: { x: club.x, y: club.y }, left: B.today(c), days: days, arrives: B.today(c) + days, until: B.today(c) + days };
     events.push({ type: 'errand', step: 'leaves', capo: capo, city: c.id, from: { x: club.x, y: club.y }, x: p.x, y: p.y, move: p.move, kind: p.kind, amount: p.cost, days: days });
   }
   // Is the street still what he set out for?
@@ -564,7 +564,7 @@
     var club = clubOf(c, capo);
     if (!club) { delete m.errand; return; }
     var days = B.tripDays(e.p, club);
-    e.step = 'returns'; e.to = { x: club.x, y: club.y }; e.until += days;
+    e.step = 'returns'; e.to = { x: club.x, y: club.y }; e.back = { left: e.until, days: days }; e.until += days;
     events.push({ type: 'errand', step: 'returns', capo: capo, city: c.id, from: { x: e.p.x, y: e.p.y }, x: club.x, y: club.y, move: e.p.move, kind: e.p.kind, days: days });
   }
   // Where his errand stands, for the screen: null when he has none in this city.
@@ -572,7 +572,11 @@
     var e = f.men[capo] && f.men[capo].errand;
     if (!e || e.city !== c.id) return null;
     var step = e.step || 'goes';
-    return { step: step === 'goes' ? 'leaves' : step, move: e.p.move, kind: e.p.kind, x: e.p.x, y: e.p.y, until: e.until || e.arrives };
+    var out = { step: step === 'goes' ? 'leaves' : step, move: e.p.move, kind: e.p.kind, x: e.p.x, y: e.p.y, until: e.until || e.arrives };
+    // on the road, there or back: where from, its days and how many are gone (a game opened again draws him there)
+    var leg = step === 'goes' ? { from: e.from, left: e.left, days: e.days } : step === 'returns' && e.back ? { from: { x: e.p.x, y: e.p.y }, to: e.to, left: e.back.left, days: e.back.days } : null;
+    if (leg) { out.from = leg.from; if (leg.to) out.to = leg.to; out.days = leg.days; out.gone = Math.max(0, Math.min(leg.days, B.today(c) - leg.left)); }
+    return out;
   }
   // A move paid for is made: a place turned, men sent for a rival's place, a place opened or made bigger.
   function enact(c, f, capo, p, events) {
