@@ -347,3 +347,24 @@ test('every trade says in a line what it does, and every tier on offer says what
   assert.match(of('warehouse').gives, /fence/i);
   assert.match(of('still').gives, /liquor/i);
 });
+
+test('the tree says what each trade brought the family over the last cycle, in how many places, and what one place brings', () => {
+  const { c, f } = sixBars();
+  T.stepMonth(c, f);
+  const made = T.view(c, f).trades, places = T.places(c).filter((p) => p.owner === 'family' && p.kind === 'gambling').length;
+  const dens = T.tree(f, [c]).find((t) => t.kind === 'gambling');
+  assert.ok(made.gambling > 0);
+  assert.deepEqual([dens.made, dens.places, dens.each], [made.gambling, places, Math.round(made.gambling / places)]);
+  const none = T.tree(f, [c]).find((t) => t.kind === 'brothel');
+  assert.deepEqual([none.made, none.places, none.each], [0, 0, null], 'a trade the family does not run');
+  assert.equal(T.tree(f, [c]).find((t) => t.kind === 'cars').made, undefined, 'the cars are not a trade');
+});
+
+test('in the game the tree of the family counts every city it is in', () => {
+  const E = require('../web/empire.js');
+  const g = E.createGame({ capo: 'dutch' });
+  for (let i = 0; i < 3 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+  const v = E.view(g), sum = {};
+  v.cities.forEach((c) => Object.keys(c.trades).forEach((k) => { sum[k] = (sum[k] || 0) + c.trades[k]; }));
+  v.tree.filter((t) => t.kind !== 'cars').forEach((t) => assert.equal(t.made, sum[t.kind] || 0, t.kind));
+});
