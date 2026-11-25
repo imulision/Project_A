@@ -551,3 +551,27 @@ test('a game of today is loaded as it was saved', () => {
   for (let i = 0; i < 3 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   assert.deepEqual(E.load(E.save(g)), JSON.parse(E.save(g)));
 });
+
+test('no road is offered to a city with no street left for a club, and the order says so in words', () => {
+  const g = knocking(), calder = g.cities.find((c) => c.id === 'calder');
+  T.spots(calder).forEach((s) => T.open(calder, s.x, s.y, { owner: calder.rival || 'Northside', kind: 'speakeasy' }));
+  const d = E.view(g).cities[0].doors.find((q) => q.capo === 'danny');
+  assert.deepEqual(d.roads.map((r) => r.city).sort(), ['dunmore', 'marrow']);
+  assert.throws(() => E.command(g, { type: 'welcome', city: 'calder', from: 'ashport', capo: 'danny' }), /no street left in Calder Falls for his club/);
+});
+
+test('a seat the boss is already paying for is not offered to the next man at the door', () => {
+  const g = knocking(), keep = T.RULES.seats;
+  g.cities[0].burnt = 99; g.cities[0].repelled = 99; g.family.dirty = 90000;
+  const doors = () => E.view(g).cities[0].doors.filter((q) => q.door !== 'poach');
+  assert.ok(doors().length >= 2, 'two men at the door');
+  T.RULES.seats = 1;
+  try {
+    const [a, b] = doors();
+    E.command(g, { type: 'welcome', city: 'calder', from: 'ashport', capo: a.capo });
+    assert.ok(E.view(g).paying.length, 'the money is on its way');
+    const still = doors().find((q) => q.capo === b.capo);
+    assert.ok(!still.roads.some((r) => r.city === 'calder'), 'Calder Falls has one seat, and it is spoken for');
+    assert.throws(() => E.command(g, { type: 'welcome', city: 'calder', from: 'ashport', capo: b.capo }), /no seat left in Calder Falls/);
+  } finally { T.RULES.seats = keep; }
+});
