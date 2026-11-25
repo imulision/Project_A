@@ -30,3 +30,16 @@ export const quality = {
     return { ...q, slow, easy };
   },
 };
+
+// streetClock(): the days of the game as the streets drive them. They run with the frames at the pace the boss chose, never more
+// than one beat ahead of the rules (a sheet open stops the rules, so the cars wait too), and a beat that finds them behind (frames
+// slower than a twentieth of a second, a page left in the background) brings them to its day at once: a car is where the rules say.
+// beat(day, span): the rules are at `day`, and the next beat is `span` days on. frame(dt, pace, free): free runs past the beat.
+export function streetClock() {
+  let day = 0, until = 1, last = -Infinity;
+  return {
+    now: () => day,
+    beat(d, span) { if (day < d || d < last) day = d; last = d; until = Math.max(day, d + (span || 1)); },      /* (a day before the last beat: a new game) */
+    frame(dt, pace, free) { day += dt * pace; if (!free && day > until) day = until; if (free) until = Math.max(until, day); return day; },
+  };
+}

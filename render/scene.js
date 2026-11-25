@@ -688,7 +688,7 @@ function update(P2) {
 }
 // what just happened, lit on the map (render/fx.js), and the vehicles in the streets (render/traffic.js)
 const { fxList, pops, spawnFx, spawnPop, effects, animateFx } = makeFx({ THREE, scene, cam, CITIES, T, UNIT, GLOW_WARM, clamp });
-const { agents, traffic, moveAgents, MAXTAGS, setPace } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
+const { agents, traffic, moveAgents, MAXTAGS, setPace, setDay } = makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat: (rough, lit, paint) => carMat(paint), putCar: (...a) => putCar(...a), hsh, clamp, spawnFx, spawnPop });
 // what the page writes over the map (render/labels.js)
 const claimList = [];
 // where(ids): the place on the screen of each vehicle named ('city:capo:car:1', or 'capo:city:capo' for a capo's own car), and
@@ -795,8 +795,8 @@ addEventListener('resize', () => {
   // the vehicles that live by a club: where each is, parked or out, loaded or not (one that is out on a trip of its own is told by that trip)
   const fleet = () => { const away = new Map(); for (const a of agents.values()) if (a.veh) away.set(a.veh, a);
     return [...agents].filter(([, a]) => a.round).map(([id, a]) => { const o = away.get(id); return { id, parked: o ? false : !!a.parked, loaded: o ? !!o.loaded : a.loaded, x: (o || a).x, z: (o || a).z }; }); };
-  const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05); });
-  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, where, spot, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, setLook: waking(window.setLook), setFx: waking(window.setFx),
+  const run = waking((sec) => { for (let t = 0; t < sec; t += 0.05) moveAgents(0.05, true); });      /* a test drives the streets by hand: they run free of the beats */
+  return { update: waking(update), effects: waking(effects), traffic: waking(traffic), send: waking((trips) => traffic(trips, true)), labels, where, spot, census, run, focus: waking(focus), pickAt, spots: waking(spots), claims: waking(claims), hold: waking((v) => { held = !!v; }), pace: setPace, day: setDay, setLook: waking(window.setLook), setFx: waking(window.setFx),
            stats: () => ({ ...window.__stats, cars: agents.size, buildings: nBuildings, moving: !!goal, spots: nSpots, waves: nWaves, held, drawn: frames, rebuilt: nRebuilt, rebuildMs: Math.round(rebuildMs), chunks: nChunks, near: nNear, nearMs: Math.round(nearMs), fleet: fleet(), timed: [...agents.values()].filter(a => a.days && !a.done).length, moving: !!goal }),
-           cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
+           cars: () => [...agents].map(([id, a]) => ({ id, kind: a.kind, vehicle: a.vehicle, x: a.x, z: a.z, capo: a.tag.capo, there: !!a.plan && a.p >= a.L, timed: !!a.days, round: !!a.round, loop: !!a.loop, parked: !!a.parked }))  };     // counted now, not at the last frame drawn; moving while the camera glides
 }

@@ -697,7 +697,7 @@
   // ---- the family: every capo, and the trades it knows
   // wheel(view, picked): what the family knows, drawn as a wheel. Each trade is a spoke from the family at the centre; its three
   // rings are its tiers, lit from the centre outwards; its mark stands on the rim, with the face of a capo who asks for it.
-  var RINGS = [17, 26, 35], RIM = 45;
+  var RINGS = [13, 20, 27], RIM = 42;
   var kilo = function (n) { return n >= 1000 ? '$' + (Math.round(n / 100) / 10) + 'k' : money(n); };
   // advice(view): what the rules advise the family to learn next, and why, above the wheel; a touch opens its branch. Nothing while it learns.
   function advice(view) {
@@ -713,12 +713,12 @@
     view.tree.forEach(function (t, k) {
       var e = at(k, RIM - 6), coming = t.paying || t.studying;
       lines += '<line x1="50" y1="50" x2="' + pc(e[0]) + '" y2="' + pc(e[1]) + '"' + (t.tier ? ' class="on"' : '') + '/>';
-      RINGS.forEach(function (r, i) { var q = at(k, r); rings += '<i class="ring' + (i < t.tier ? ' on' : coming && i === t.tier ? ' next' : '') + '" style="left:' + pc(q[0]) + '%;top:' + pc(q[1]) + '%"></i>'; });
+      RINGS.forEach(function (r, i) { var q = at(k, r); rings += '<i class="dot' + (i < t.tier ? ' on' : coming && i === t.tier ? ' next' : '') + '" style="left:' + pc(q[0]) + '%;top:' + pc(q[1]) + '%"></i>'; });
       var m = at(k, RIM);
-      marks += '<button class="know' + (t.tier ? '' : ' shut') + (t.kind === picked ? ' sel' : '') + (view.advice && view.advice.kind === t.kind ? ' adv' : '') + '" data-know="' + esc(t.kind) + '" style="left:' + pc(m[0]) + '%;top:' + pc(m[1]) + '%">' +
+      var side = (m[0] > 70 ? ' r' : m[0] < 30 ? ' l' : '') + (m[1] > 20 ? ' lo' : '');      /* its name above the top marks, below the others; its figure on the other side of its rim; kept inside the wheel */
+      marks += '<button class="know' + side + (t.tier ? '' : ' shut') + (t.kind === picked ? ' sel' : '') + (view.advice && view.advice.kind === t.kind ? ' adv' : '') + '" data-know="' + esc(t.kind) + '" style="left:' + pc(m[0]) + '%;top:' + pc(m[1]) + '%">' +
         (t.studying ? '<span class="gauge">' + I.ring(t.next ? 1 - t.studying / t.next.months : 1, I.has(t.kind) ? t.kind : 'unknown') + '</span>' : icon(t.kind)) +
-        (t.wanted && t.wanted.length ? '<span class="want">' + I.portrait(t.wanted[0]) + '<em>ASKS</em></span>' : '') +
-        '<em class="nm">' + esc(brief(t.name)) + '</em>' + (t.made > 0 ? '<span class="made">' + kilo(t.made) + '</span>' : '') + '</button>';      /* what the branch brought the family, every cycle */
+        '<em class="nm' + (t.wanted && t.wanted.length ? ' asked' : '') + '">' + esc(brief(t.name)) + '</em>' + (t.made > 0 ? '<span class="made">' + kilo(t.made) + '</span>' : '') + '</button>';      /* what the branch brought the family, every cycle */
     });
     return '<div class="wheel"><svg viewBox="0 0 100 100" aria-hidden="true">' + RINGS.map(function (r) { return '<circle cx="50" cy="50" r="' + r + '"/>'; }).join('') + lines + '</svg>' + rings + '<span class="hub">' + icon('ambition') + '</span>' + marks + '</div>';
   }
@@ -750,15 +750,15 @@
     var now = h[h.length - 1], was = h[Math.max(0, h.length - 13)], months = Math.min(12, h.length - 1), over = 'in ' + CYCLE * months + ' days';
     var o = { months: months, streets: { now: round1(mapShare(now)), diff: round1(mapShare(now) - mapShare(was)) }, sent: { now: Math.round(sentUp(now)), diff: Math.round(sentUp(now) - sentUp(was)) } };
     var big = Math.max(20, 0.1 * sentUp(was));
-    if (o.streets.diff >= 0.2) { o.tone = 'good'; o.word = 'GROWING'; o.say = signed(o.streets.diff, String) + '% of the streets ' + over; }
-    else if (o.streets.diff <= -0.2) { o.tone = 'bad'; o.word = 'LOSING GROUND'; o.say = signed(o.streets.diff, String) + '% of the streets ' + over; }
-    else if (o.sent.diff >= big) { o.tone = 'good'; o.word = 'EARNING MORE'; o.say = signed(o.sent.diff, money) + ' sent up ' + TURN + ', ' + over; }
-    else if (o.sent.diff <= -big) { o.tone = 'bad'; o.word = 'EARNING LESS'; o.say = signed(o.sent.diff, money) + ' sent up ' + TURN + ', ' + over; }
-    else { o.tone = 'warn'; o.word = 'STANDING STILL'; o.say = 'No street won ' + over; }
+    if (o.streets.diff >= 0.2) { o.tone = 'good'; o.word = 'GROWING'; o.short = signed(o.streets.diff, String) + '% of the streets'; o.say = o.short + ' ' + over; }
+    else if (o.streets.diff <= -0.2) { o.tone = 'bad'; o.word = 'LOSING GROUND'; o.short = signed(o.streets.diff, String) + '% of the streets'; o.say = o.short + ' ' + over; }
+    else if (o.sent.diff >= big) { o.tone = 'good'; o.word = 'EARNING MORE'; o.short = signed(o.sent.diff, money) + ' ' + TURN; o.say = signed(o.sent.diff, money) + ' sent up ' + TURN + ', ' + over; }
+    else if (o.sent.diff <= -big) { o.tone = 'bad'; o.word = 'EARNING LESS'; o.short = signed(o.sent.diff, money) + ' ' + TURN; o.say = signed(o.sent.diff, money) + ' sent up ' + TURN + ', ' + over; }
+    else { o.tone = 'warn'; o.word = 'STANDING STILL'; o.short = 'no street won'; o.say = 'No street won ' + over; }
     return o;
   }
   var ARROW = { good: '▲', bad: '▼', warn: '■' };
-  function trendLine(t) { return t ? '<span class="trend ' + t.tone + '">' + ARROW[t.tone] + ' ' + t.word + '</span> ' + esc(t.say) : 'Your capos are at work'; }
+  function trendLine(t) { return t ? '<span data-tip="' + esc(t.say) + '"><span class="trend ' + t.tone + '">' + ARROW[t.tone] + ' ' + t.word + '</span> ' + esc(t.short) + '</span>' : 'Your capos are at work'; }      /* short on the top line; the whole sentence under a touch */
   // beside the streets: how many points of the map were won or lost
   function trendMark(t) { return t && t.streets.diff ? '<span class="' + (t.streets.diff > 0 ? 'good' : 'bad') + '">' + ARROW[t.streets.diff > 0 ? 'good' : 'bad'] + ' ' + signed(t.streets.diff, String) + '</span>' : ''; }
   // The rank of the family: what it holds of the whole map. rank(view) -> { n, name, next, from, to, at, part: how far towards the next
@@ -1057,7 +1057,7 @@
       c.capos.map(function (m) { return '<button class="slot" data-act="capo"' + data({ city: c.id, capo: m.id }) + ' data-tip="' + esc(m.name + ', ' + m.rankName) + '">' + I.portrait(m.id) + '</button>'; }).join('') + '</div></div>'; });
     var pick = view.tree.filter(function (t) { return t.studying || t.paying; })[0] || (view.advice && view.tree.filter(function (t) { return t.kind === view.advice.kind; })[0]) || view.tree.filter(function (t) { return t.wanted && t.wanted.length && t.next; })[0] || view.tree[0];
     return '<h2>The family</h2><p>' + (hud.men || 0) + (hud.men === 1 ? ' capo' : ' capos') + ' · ' + (hud.cities ? hud.cities.held + ' of ' + hud.cities.total + ' cities' : '') + '</p>' + curves(view) + (rows ? ranking(view, rows) : '') + '<div class="pyr">' + men + '</div>' + table(view) + holdings(view, hud) +
-      '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. Under each branch, what it brought every ' + CYCLE + ' days.</p>' + advice(view) + wheel(view, pick && pick.kind) +
+      '<h3 class="sub2">What the family knows</h3><p>Paid in clean money. On each branch, what it brought every ' + CYCLE + ' days. A red name: a capo asks for it.</p>' + advice(view) + wheel(view, pick && pick.kind) +
       '<div id="know">' + (pick ? know(view, pick.kind, hud) : '') + '</div><div class="acts">' + button('restart', {}, 'New game') + button('close', {}, 'Close') + '</div>';
   }
   // ---- starting again: asked before anything is erased

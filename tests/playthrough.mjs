@@ -84,6 +84,14 @@ await page.click('#hint [data-hint=goal]');
 assert.equal(await page.locator('#hint .hint').count(), 0, 'read once, never said again');
 assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ashport-hints')).capo), 1);
 await shot('c2-first-club');
+// a phone that could not draw for days (slow frames, the app in the background) still shows the capo where the rules have him: Dutch
+// drove to his first place and works there, his car at its door, whatever the frames missed
+const works = await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40; i++) { const k = A.view().cities.flatMap((c) => c.capos).find((m) => m.errand && m.errand.step === 'works'); if (k) return k.id; A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } return null; });
+assert.ok(works, 'a capo goes to work on a place of his');
+await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+const atWork = await page.evaluate((id) => window.__ashport.map().cars().filter((c) => c.kind === 'capo' && c.capo === id), works);
+assert.ok(atWork.length === 1 && atWork[0].there, 'his one car stands at the place he works on ' + JSON.stringify(atWork));
+await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40 && A.view().cities.some((c) => c.capos.some((m) => m.errand)); i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } });      // then he drives home
 
 const parked = () => page.waitForFunction(() => !window.__ashport.map().labels().some((l) => l.capo && l.riding), null, { timeout: 30000 });      // his face rides his car while he drives
 await parked(); await page.waitForTimeout(200);
@@ -325,9 +333,29 @@ await page.click('#sheet [data-act=cut][data-cut=normal]');
 await shot('c4-city-sheet');
 await page.click('#sheet [data-act=close]');
 
+// the top line is never cut short on a phone
+assert.ok(await page.evaluate(() => { const e = document.getElementById('sub'); return e.scrollWidth <= e.clientWidth; }), 'the verdict fits: ' + await page.textContent('#sub'));
 // the family sheet: the trades, and the detail of the one touched
 await page.click('#family');
 assert.equal(await page.textContent('#sheet h2'), 'The family');
+// the wheel at its fullest, on a phone: every branch asked for by a capo and paying a big figure, one being learned. Each icon
+// stands in the middle of its circle, and no name, figure or face lies over another, over a mark, or over a dot of the rings.
+const crowd = await page.evaluate(() => {
+  const v = window.__ashport.view(), capo = v.cities.flatMap((c) => c.capos)[0].id, w = document.querySelector('#sheet .wheel');
+  const tree = v.tree.map((t, i) => Object.assign({}, t, { wanted: [capo], made: i % 2 ? 12345 : 0, tier: i % 3 ? 1 : 0, studying: i === 1 ? 3 : 0, next: t.next || { months: 6 } }));
+  w.outerHTML = AshportCards.wheel(Object.assign({}, v, { tree, advice: { kind: tree[2].kind } }), tree[3].kind);
+  const box = (e) => e.getBoundingClientRect(), mid = (b) => [b.x + b.width / 2, b.y + b.height / 2], bad = [];
+  const wheel = document.querySelector('#sheet .wheel'), sheet = box(document.getElementById('sheet'));
+  wheel.querySelectorAll('.know, .hub').forEach((k) => { const ic = k.querySelector(':scope>.ic, :scope>.gauge'), a = mid(box(k)), b = mid(box(ic));
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 1) bad.push((k.dataset.know || 'hub') + ' icon off by ' + Math.round(b[0] - a[0]) + ',' + Math.round(b[1] - a[1])); });
+  const parts = [...wheel.querySelectorAll('.know, .hub, .nm, .made, i.dot')], over = (p, q) => { const a = box(p), b = box(q); return Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1; };
+  const name = (e) => (e.closest('.know') ? e.closest('.know').dataset.know + ' ' : '') + e.getAttribute('class');
+  parts.forEach((p, i) => { const b = box(p); if (b.left < sheet.left || b.right > sheet.right) bad.push(name(p) + ' leaves the sheet');
+    parts.slice(i + 1).forEach((q) => { if (p.contains(q) && q.classList.contains('made')) return;      /* (a figure is pinned on the rim of its own mark) */ if ((p.classList.contains('dot') && q.classList.contains('dot')) || !over(p, q)) return; bad.push(name(p) + ' over ' + name(q)); }); });
+  return bad;
+});
+assert.deepEqual(crowd, [], 'the wheel reads cleanly');
+await page.click('#sheet [data-act=close]'); await page.click('#family');
 await page.click('.know.shut');
 assert.match(await page.textContent('#know'), /not known yet/);
 // what clean money buys for good: too dear for now, then bought once the money is there

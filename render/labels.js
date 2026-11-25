@@ -16,7 +16,7 @@ export function makeLabels({ cam, scr, CITIES, COLORS, T, NEAR_ZOOM, agents, fxL
           : { id: 'd' + d.id, small: true, city: c.id, district: d.id, name: d.name, sub: d.owner === 'family' ? Math.round(d.share) + '% of the streets' : d.ownerName, color: COLORS[d.owner], x, y }); }
       // the capo is seen where he sits: over the hideout of his district
       if (near && c.near && c.near.visible && c.p.turf) for (const k of c.p.capos) {      // each capo where he is this month, with what he is doing; while he drives there, his face rides his car
-        let ride = null; for (const a of agents.values()) if (a.kind === 'capo' && a.tag.capo === k.id && a.C === c) ride = a;
+        let ride = null; for (const a of agents.values()) if (a.kind === 'capo' && a.tag.capo === k.id && a.C === c && !a.done) ride = a;      /* (a car parked where he is: his face stands over that place) */
         const at = k.at || k, ix = lotsOf(c), l = ride ? null : ix.at.get(at.i + ',' + at.j) || ix.at.get(k.i + ',' + k.j); if (!ride && !l) continue;
         const [x, y] = ride ? scr(ride.x === undefined ? ride.pts[0][0] : ride.x, ride.z === undefined ? ride.pts[0][1] : ride.z, 2.2) : scr(l.x, l.z, l.h + 1.2); out.push({ id: 'k' + c.id + k.id, capo: k.id, city: c.id, move: k.move, kind: k.kind, way: k.way, progress: k.progress, waiting: k.waiting, riding: !!ride, where: at.why || 'home', x, y }); }
       else if (near && c.near && c.near.visible) c.d.forEach((d, di) => { if (!d.capo) return; const l = c.lots.find(l => l.hideout && l.di === di); if (!l) return;

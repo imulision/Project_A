@@ -132,9 +132,9 @@ body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.
 .bot button{padding:0 7px;font-size:.93em}body.money .lab.tag:not(.m){display:none}
 .sub2{font-size:17px!important;margin:6px 0 8px!important;color:var(--dim)}
 .wheel{position:relative;width:min(100%,360px);aspect-ratio:1;margin:4px auto 12px}
-.wheel svg{position:absolute;inset:0;width:100%;height:100%}.wheel circle{fill:none;stroke:#ffffff14;stroke-width:.4}.wheel line{stroke:#ffffff1f;stroke-width:.5}.wheel line.on{stroke:var(--accent);opacity:.55}
-.wheel .ring{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#15131a;border:1.5px solid #ffffff3d}
-.wheel .ring.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 6px #e8c46388}.wheel .ring.next{border-color:var(--accent);animation:pulse .8s infinite alternate}
+.wheel>svg{position:absolute;inset:0;width:100%;height:100%}.wheel>svg circle{fill:none;stroke:#ffffff14;stroke-width:.4}.wheel>svg line{stroke:#ffffff1f;stroke-width:.5}.wheel>svg line.on{stroke:var(--accent);opacity:.55}
+.wheel i.dot{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#15131a;border:1.5px solid #ffffff3d}
+.wheel i.dot.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 6px #e8c46388}.wheel i.dot.next{border-color:var(--accent);animation:pulse .8s infinite alternate}
 .wheel .hub{position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;display:grid;place-items:center;background:#15131a;border:2px solid var(--accent);color:var(--accent)}.wheel .hub .ic{width:22px;height:22px}
 .wheel .know{position:absolute;width:38px;height:38px;margin:-19px 0 0 -19px;padding:0;min-height:0;border:1.5px solid var(--accent);border-radius:50%;display:grid;place-items:center;background:#1b1820}
 .wheel .know>.ic{margin:0;width:20px;height:20px}.wheel .know .gauge{margin:0;width:34px;height:34px}
@@ -144,7 +144,6 @@ body.money .lab.tag{transform:translate(-50%,-100%) scale(1.25)}body.money .lab.
 .know .lv i{width:12px;height:4px;background:#ffffff26}.know .lv i.on{background:var(--accent)}
 .know.shut{border-top-color:#ffffff30;border-style:dashed}.know.shut>.ic{color:var(--dim);opacity:.55}
 .know.wash{border-top-color:#6ad0e0}.know.wash>.ic{color:#6ad0e0}.know.sel{outline:2px solid var(--ink)}
-.know .want{position:absolute;right:-3px;top:-6px;width:22px;height:22px;border-radius:50%;overflow:hidden;border:1.5px solid var(--bad)}
 #know{min-height:58px;border-left:3px solid var(--accent);background:#ffffff0d;padding:7px 10px;margin:0 0 12px}#know>b{font:500 15px var(--title);letter-spacing:.4px;display:block}
 #know .go{width:100%;margin-top:8px}#know .move{margin:8px 0 0}#know .gauge{width:30px;height:30px}
 .slot.sm{width:28px;height:28px;border-width:1.5px;flex:none}.intent.wish{border-left-color:var(--bad)}.intent.wish .gauge{color:var(--bad)}
@@ -348,8 +347,6 @@ body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-t
 .advice small{display:block;font:600 10px var(--title);letter-spacing:1.5px;color:var(--accent);text-transform:uppercase}.advice b{display:block;font:500 15px var(--title);letter-spacing:.4px;margin:1px 0 2px}
 .wheel .know.adv{box-shadow:0 0 0 3px #15131a,0 0 0 5px var(--accent),0 0 14px #e8c463aa;animation:pulse .9s infinite alternate}
 .wheel .know .made{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:3px;font:600 10px var(--text);color:var(--good);white-space:nowrap;pointer-events:none;background:#15131a;padding:0 4px;border-radius:6px}
-.know .want{overflow:visible}.know .want .face{border-radius:50%}
-.know .want em{position:absolute;left:50%;top:-11px;transform:translateX(-50%);font:700 7.5px var(--title);letter-spacing:.8px;font-style:normal;color:#fff;background:var(--bad);padding:1px 3px;border-radius:3px;line-height:1.1}
 #know>small{display:block}
 /* the goal at the top of the screen, and the road of the reign */
 .rk.goal{cursor:pointer}.rk.goal small em{font-style:normal;font-weight:600;letter-spacing:1px;color:var(--accent);margin-right:2px}.rk.goal .more{font-style:normal;color:var(--dim);font-size:1.3em;line-height:.6}.rk.goal.won b{color:var(--good)}
@@ -385,3 +382,6 @@ p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
 .card.matter small.spent { display: block; margin-top: 8px; opacity: .7; font-size: 11px; letter-spacing: .02em; }
 /* on a page, what a touched thing means is written under it, never over the rest */
 #sheet .why{margin:2px 0 8px;padding:6px 10px;border-left:3px solid var(--accent);background:#e8c46314;color:var(--ink);font:400 13px/1.35 var(--text);grid-column:1/-1;flex-basis:100%}
+.wheel .know .nm.asked{background:var(--bad);color:#fff}
+.wheel .know .made{top:auto;bottom:-7px;margin:0;line-height:12px;border:1px solid #6fcf8f55}.wheel .know.lo .nm{bottom:auto;top:100%;margin:3px 0 0}.wheel .know.lo .made{bottom:auto;top:-7px}
+.wheel .know.l .nm{left:0;transform:none}.wheel .know.r .nm{left:auto;right:0;transform:none}.wheel .know.shut .nm.asked{color:#fff}

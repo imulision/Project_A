@@ -120,6 +120,6 @@ test('the heat is written out of 100, with what happens at 100', () => {
 test('every trade on the wheel has its name written under its mark', () => {
   const g = E.createGame({ capo: 'sal' }); days(g, 24);
   const v = E.view(g), html = C.wheel(v, null);
-  v.tree.forEach((t) => assert.match(html, new RegExp('<em class="nm">' + C.brief(t.name) + '</em>'), t.name));
+  v.tree.forEach((t) => assert.match(html, new RegExp('<em class="nm( asked)?">' + C.brief(t.name) + '</em>'), t.name));
   assert.ok(v.tree.every((t) => C.brief(t.name).length <= 11), 'short enough to stand side by side');
 });

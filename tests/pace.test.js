@@ -79,3 +79,26 @@ test('down to the floor, the resolution climbs back step by step', async () => {
   for (; s < 400; s++) q = quality.tick(q, 60, s * 1000);
   assert.equal(q.pr, 2);
 });
+
+// The days the cars drive by. Frames slower than a twentieth of a second, or a page left in the background, used to leave the cars
+// behind the rules: a place opened before its capo was seen there, and his next trip was driven twice as fast to make up.
+test('the streets keep the days of the rules: behind after slow frames, they are back on the day at the next beat', async () => {
+  const { streetClock } = await import('../render/pace.mjs');
+  const c = streetClock(); c.beat(10, 1);
+  for (let i = 0; i < 20; i++) c.frame(0.05, 1);      // one second of time at 1x, but drawn in slow frames that only count 0.05 s each
+  assert.equal(c.now(), 11, 'a day in a second');
+  c.beat(11, 1); for (let i = 0; i < 4; i++) c.frame(0.05, 1);      // a second of time that the frames counted as a fifth of it
+  assert.ok(Math.abs(c.now() - 11.2) < 1e-9);
+  c.beat(12, 1); assert.equal(c.now(), 12, 'the next beat brings the cars to the day of the rules');
+  c.beat(40, 1); assert.equal(c.now(), 40, 'back from the background: where the rules are');
+});
+test('the streets never run ahead of the rules: while the clock waits (a sheet open), the cars wait at the end of the beat', async () => {
+  const { streetClock } = await import('../render/pace.mjs');
+  const c = streetClock(); c.beat(5, 4);      // a beat of four days at 4x
+  for (let i = 0; i < 200; i++) c.frame(0.05, 4);
+  assert.equal(c.now(), 9, 'no further than the four days of the beat');
+  for (let i = 0; i < 200; i++) c.frame(0.05, 4, true);
+  assert.ok(Math.abs(c.now() - 49) < 1e-6, 'unless asked to run free (a test that drives the streets by hand)');
+  c.beat(9, 4); assert.ok(c.now() > 48.9, 'a clock run free is not sent back');
+  c.beat(0, 1); assert.equal(c.now(), 0, 'a new game starts its streets on its first day'); c.frame(0.5, 1); assert.equal(c.now(), 0.5);
+});
