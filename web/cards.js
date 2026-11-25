@@ -305,7 +305,8 @@
       '<div class="sides n' + m.choices.length + '">' + m.choices.map(function (ch, i) { var poor = ch.cost > 0 && ch.cost > has(ch);
         return '<div class="side' + (i === 0 && m.choices.length === 2 ? ' yes' : '') + '">' + (ch.cost > 0 ? '<b class="out">\u2212' + money(ch.cost) + ' ' + (ch.money === 'clean' ? 'clean' : 'dirty') + '</b>' : '') +
           (ch.gives ? '<span>' + esc(ch.gives) + '</span>' : '') + (ch.costs ? '<span class="bad">' + esc(ch.costs) + '</span>' : '') + (poor ? '<small class="short">Short by ' + money(ch.cost - has(ch)) + '</small>' : '') +
-          button('decide', { id: m.id, choice: ch.id }, esc(ch.label), { cls: i === 0 ? 'go' : '', off: poor }) + '</div>'; }).join('') + '</div></div>');
+          button('decide', { id: m.id, choice: ch.id }, esc(ch.label), { cls: i === 0 ? 'go' : '', off: poor }) + '</div>'; }).join('') + '</div>' +
+      (m.spent > 0 ? '<small class="spent">The street has cost you ' + money(m.spent) + ' in the last 288 days</small>' : '') + '</div>');
   }
   function requests(view, hud) {
     var purse = funds(hud), cards = (view.matters || []).map(function (m) { return matterCard(m, hud); });

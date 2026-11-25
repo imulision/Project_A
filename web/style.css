@@ -382,3 +382,4 @@ p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
   .nx{margin-top:4px;padding:3px 8px 4px}.nx p{margin:1px 0 3px;font-size:13px}
   #feed{margin-top:4px}#feed .news:nth-last-child(n+3){display:none}
 }
+.card.matter small.spent { display: block; margin-top: 8px; opacity: .7; font-size: 11px; letter-spacing: .02em; }
