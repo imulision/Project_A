@@ -104,7 +104,7 @@
     result.title = { won: 'The ' + name + ' is ours', held: 'The ' + name + ' burns', pulled: him + ' pulled out of the ' + name.toLowerCase(), routed: him + '\'s men ran' }[outcome];
     var men = h.lost === 0 ? 'no man' : h.lost === 1 ? 'one man' : R.NUMBER[Math.min(10, h.lost)] + ' men';
     result.say = (watched ? { won: him + ' went in on your word.', held: him + ' held the street on your word.', pulled: 'You called him back.', routed: 'He went in on your word.' }[outcome] : 'You were not watching.')
-      + ' He lost ' + men + (outcome === 'won' ? ' and took $' + till + ' from the till.' : outcome === 'held' ? ' and their place is gone.' : outcome === 'pulled' ? ' and kept the rest.' : ' and has nothing to show for it.');
+      + ' He lost ' + men + (outcome === 'won' ? ' and took ' + R.dollars(till) + ' from the till.' : outcome === 'held' ? ' and their place is gone.' : outcome === 'pulled' ? ' and kept the rest.' : ' and has nothing to show for it.');
     c.hitLast = { id: h.id, capo: h.capo, x: h.x, y: h.y, kind: h.kind, name: name, rival: h.rival, month: c.month, result: result };
     events.push(tell(c, h, 'end', { call: call, watched: watched, result: result, label: result.title + ': ' + him + ' lost ' + men }));
   }

@@ -494,7 +494,7 @@ test('a man at the door of a city that has an underboss is his to take in: no de
   const { v } = play((v) => v.month >= 2);
   const door = { capo: 'mae', name: 'Mae Rourke', specialty: 'Madam', door: 'name', by: null, why: 'A city with nightlife', cost: 2500, roads: [], open: true, chairs: ['routes'], handled: 'sal' };
   const html = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [door] }] }, { dirty: 9000, clean: 0 });
-  assert.match(html, /Sal will take (her|him) in himself|Sal takes him in himself/); assert.doesNotMatch(html, /data-act="seat"/);
+  assert.match(html, /Sal, your underboss in Ashport, sees to it/); assert.doesNotMatch(html, /data-act="seat"/);
   assert.match(html, /data-act="chairs"/, 'the boss may still give him a chair at his table');
   const poach = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [{ ...door, door: 'poach' }] }] }, { dirty: 9000, clean: 0 });
   assert.match(poach, /data-act="welcome"/, 'a man taken from a rival stays the boss\'s call');
@@ -933,10 +933,11 @@ test('a step won or lost is a moment: the rank of the family, a street name held
   const st = (n, zones) => ({ rank: { n, name: ['Street gang', 'Crew', 'Family'][n] }, zones });
   const z = (share, name) => ({ name: name || 'The Docks', share });
   assert.deepEqual(C.moments(null, st(1, {})), [], 'nothing to tell when the game is opened');
-  assert.deepEqual(C.moments(st(0, {}), st(1, {})), [{ kind: 'rank-up', tone: 'good', title: 'YOUR FAMILY IS NOW A CREW', sub: 'It holds enough of the map to be counted.' }]);
+  assert.deepEqual(C.moments(st(0, {}), st(1, {})), [{ kind: 'rank-up', tone: 'good', title: 'YOUR STREET GANG IS NOW A CREW', sub: 'It holds enough of the map to be counted.' }]);
   const down = C.moments(st(2, {}), st(1, {})); assert.equal(down[0].kind, 'rank-down'); assert.equal(down[0].tone, 'bad'); assert.match(down[0].title, /FALLS BACK TO A CREW/);
   assert.deepEqual(C.moments(st(1, { a: z(80) }), st(1, { a: z(100) })).map((m) => [m.kind, m.title]), [['zone-won', 'THE DOCKS IS YOURS']]);
-  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(90) })).map((m) => [m.kind, m.tone]), [['zone-broken', 'bad']]);
+  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(80) })).map((m) => [m.kind, m.tone]), [['zone-broken', 'bad']]);
+  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(95) })), [], 'a street lost by a hair is not a moment');
   assert.deepEqual(C.moments(st(1, { a: z(10) }), st(1, { a: z(0) })).map((m) => [m.kind, m.title]), [['zone-lost', 'DRIVEN OUT OF THE DOCKS']]);
   assert.deepEqual(C.moments(st(1, { a: z(50) }), st(1, { a: z(60) })), [], 'a street more is not a moment');
   assert.match(C.moment(down[0]), /class="moment bad"/); assert.match(C.moment(down[0]), /FALLS BACK/);
@@ -955,7 +956,7 @@ test('what holds the family back is said in plain words: what, since when, why, 
   assert.match(C.stallLine(view), /\$5,536 of clean money sleeps/); assert.match(C.stallLine(view), /data-stalls="1"/); assert.match(C.stallLine(view), /\+1/, 'and how many more');
   assert.equal(C.stallLine({ stalls: [] }), ''); assert.equal(C.stallLine({}), '', 'an old game says nothing');
   const one = C.stall(idle);
-  assert.match(one, /for 1032 days/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.doesNotMatch(one, /data-act/);
+  assert.match(one, /for 1032 days/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.match(one, /data-act="family"/, 'sleeping money leads to where it is spent');
   const two = C.stall(boxed);
   assert.match(two, /for 168 days/); assert.match(two, /Nothing you can do about it yet/); assert.match(two, /data-act="show" data-city="ashport" data-x="4" data-y="9"/);
   assert.match(C.stall({ ...boxed, x: undefined, y: undefined }), /data-act="capo" data-city="ashport" data-capo="sal"/);

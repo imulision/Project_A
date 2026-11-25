@@ -30,7 +30,7 @@ test('the view of a city gives the map everything it draws', () => {
   assert.ok((till || 0) < T.RULES.car.load, 'and what waits in its till for the next car'); // (a car came this month: it left the men their pay and took the rest)
   assert.equal(v.places.find((p) => p.kind === 'club').name, 'Social Club');
   const port = v.places.find((p) => p.kind === 'key');
-  assert.equal(port.key, 'port'); assert.equal(port.name, 'The Port'); assert.equal(port.owner, 'Callahan');
+  assert.equal(port.key, 'port'); assert.equal(port.name, 'Port'); assert.equal(port.owner, 'Callahan');
   assert.deepEqual(v.keys, T.keys(c));
   assert.deepEqual(v.share, T.share(c));
   const dutch = v.capos[0];

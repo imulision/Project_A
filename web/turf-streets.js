@@ -24,6 +24,8 @@
   }
 
   function first(capo) { return who(capo).name.split(' ')[0]; }
+  // Whose place it was: the Callahans', or the family's own.
+  function whose(owner) { return owner === 'family' ? 'one of the family\'s own' : 'the ' + owner + 's\''; }
 
   // What he is after and how far his money is from it, for the screen.
   function plan(c, f, capo) {
@@ -31,7 +33,7 @@
     if (busy) return { move: 'take', way: busy.way, kind: busy.kind, name: (D.SITES[busy.kind] || {}).name, months: busy.months, x: busy.x, y: busy.y, cost: busy.cost, saved: busy.cost, progress: 1, waiting: 'time', left: Math.max(0, busy.months - (c.month - busy.month)), why: 'his men are on their way' };
     var led = P.follows(c, f, capo);
     var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash + (f.vault || 0), line: led && led.follows ? P.lineOf(c) : null, shun: m.shuns });
-    if (!w) return { move: 'hold', waiting: 'rank', cost: 0, saved: 0, progress: 1, why: 'he runs all he can at his rank' };
+    if (!w) { var top = m.rank >= R.RANKS.length - 1; return { move: 'hold', waiting: 'rank', top: top, cost: 0, saved: 0, progress: 1, why: top ? 'he runs all a ' + R.RANKS[m.rank] + ' can' : 'he runs all he can at his rank' }; }
     var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
     return { move: w.move, way: w.way, months: w.months, kind: w.kind, from: w.from, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
              waiting: saved >= w.cost ? null : 'money', why: w.why };
@@ -57,7 +59,7 @@
     c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
     changed(c);
     events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
-                  label: first(o.capo) + '\'s men take the ' + was.owner + 's\' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand' });
+                  label: first(o.capo) + '\'s men take ' + whose(was.owner) + ' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand' });
     swear(c, events, o);
   }
   H.setLand(land);
@@ -85,7 +87,7 @@
       changed(c);
       if (o.way === 'force') hit(o);
       events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
-                    label: o.way === 'force' ? first(o.capo) + '\'s men take the ' + was.owner + 's\' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand'
+                    label: o.way === 'force' ? first(o.capo) + '\'s men take ' + whose(was.owner) + ' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand'
                          : o.way === 'bribe' ? 'The ' + was.owner + 's\' man in ' + zoneOf(c, o.x, o.y).name + ' takes ' + first(o.capo) + '\'s envelope'
                          : first(o.capo) + ' buys out the ' + was.owner + 's\' place in ' + zoneOf(c, o.x, o.y).name });
       return false;
@@ -105,7 +107,7 @@
     }
     if (!best) return;
     open(c, best.x, best.y, { owner: c.rival, kind: bestKind(c, best.x, best.y) });
-    c.rivalLast = { type: 'opened', month: c.month, x: best.x, y: best.y, label: 'Opened a ' + D.SITES[at(c, best.x, best.y).kind].name.toLowerCase() + ' in ' + zoneOf(c, best.x, best.y).name };
+    c.rivalLast = { type: 'opened', month: c.month, x: best.x, y: best.y, label: 'Opened ' + R.a(D.SITES[at(c, best.x, best.y).kind].name.toLowerCase()) + ' in ' + zoneOf(c, best.x, best.y).name };
     // it answers to the lieutenant next door
     var near = theirs.filter(function (p) { return p.man; }).sort(function (a, b) { return far(best.x, best.y, a.x, a.y) - far(best.x, best.y, b.x, b.y); })[0];
     if (near) { at(c, best.x, best.y).man = near.man; changed(c); }
@@ -171,7 +173,7 @@
       var words = { open: 'open a ', enlarge: 'enlarge his ', convert: 'turn his ' }[e.p.move], what = site(e.p.move === 'convert' ? e.p.from : e.p.kind);
       if (e.step === 'returns') return { x: e.to.x, y: e.to.y, why: 'return', from: { x: e.p.x, y: e.p.y }, label: 'Driving back to his club from ' + zoneOf(c, e.p.x, e.p.y).name };
       var doing = { open: 'Opening a ', enlarge: 'Enlarging his ', convert: 'Turning his ' }[e.p.move];
-      if (e.step === 'works') return { x: e.p.x, y: e.p.y, why: e.p.move, label: doing + what + (e.p.move === 'convert' ? ' into a ' + site(e.p.kind) : '') + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
+      if (e.step === 'works') return { x: e.p.x, y: e.p.y, why: e.p.move, label: doing + what + (e.p.move === 'convert' ? ' into ' + R.a(site(e.p.kind)) : '') + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
       return { x: e.p.x, y: e.p.y, why: e.p.move, label: 'On his way to ' + words + what + ' in ' + zoneOf(c, e.p.x, e.p.y).name };
     }
     if (op) {
