@@ -822,6 +822,9 @@ test('the boss reads whether his family grows, stands still or loses ground over
   // on the screen: an arrow, the word in its colour, the figure
   const line = C.trendLine(up); assert.match(line, /class="trend good"/); assert.match(line, /GROWING/); assert.match(line, /▲/);
   assert.match(C.trendLine(down), /▼/); assert.equal(C.trendLine(null), 'Your capos are at work');
+  // the top line is one short line on a phone: the figure only; the whole sentence waits under a touch
+  [up, down, still, richer, poorer].forEach((t) => { const l = C.trendLine(t), seen = l.replace(/<[^>]*>/g, ''); assert.ok(seen.length <= 34, 'fits one line: ' + seen); assert.match(l, new RegExp('data-tip="' + t.say.replace(/[$+]/g, '\\$&'))); });
+  assert.match(C.trendLine(richer).replace(/<[^>]*>/g, ''), /EARNING MORE \+\$300 every 24 days$/);
   assert.match(C.trendMark(up), /class="good"/); assert.match(C.trendMark(up), /\+2/); assert.equal(C.trendMark(still), ''); assert.equal(C.trendMark(null), '');
 });
 
@@ -1327,17 +1330,17 @@ test('what the family knows is drawn as a wheel: one spoke a trade, three rings 
   const spokes = html.match(/<button class="know[^"]*" data-know="[^"]+" style="left:[\d.]+%;top:[\d.]+%"/g) || [];
   assert.equal(spokes.length, v.tree.length, 'every trade has its place on the rim');
   assert.equal(new Set(spokes.map((s) => /style="([^"]+)"/.exec(s)[1])).size, v.tree.length, 'each its own place');
-  const lit = (html.match(/<i class="ring on"/g) || []).length, all = (html.match(/<i class="ring/g) || []).length;
+  const lit = (html.match(/<i class="dot on"/g) || []).length, all = (html.match(/<i class="dot/g) || []).length;
   assert.equal(all, v.tree.length * 3, 'three rings a spoke');
   assert.equal(lit, v.tree.reduce((n, t) => n + t.tier, 0), 'a ring is lit for every tier the family knows');
   assert.match(html, /class="hub"/);
   assert.equal((html.match(/class="know[^"]* sel"/g) || []).length, 1, 'the trade looked at stands out');
-  assert.match(html, /know shut/, 'a trade not known yet is dimmed');
+  assert.match(html, /class="know[^"]* shut/, 'a trade not known yet is dimmed');
   assert.match(C.family(v, E.hud(g)), /class="wheel"/, 'it is the tree of the family sheet');
   // a trade being paid for or learned shows its next ring coming
   g.family.clean = 99999; const shut = v.tree.find((t) => t.tier === 0 && t.next);
   E.command(g, { type: 'research', building: shut.kind });
-  assert.equal((C.wheel(E.view(g), shut.kind).match(/<i class="ring next"/g) || []).length, 1);
+  assert.equal((C.wheel(E.view(g), shut.kind).match(/<i class="dot next"/g) || []).length, 1);
 });
 
 test('a till and a store say how much they hold out of how much', () => {
@@ -1416,7 +1419,7 @@ test('the tree guides the boss: the advice stands above the wheel, its branch is
   assert.match(wheel, /class="know[^"]* adv"[^>]*data-know="still"/, 'the advised branch stands out on the wheel');
   assert.match(wheel, /data-know="still"[^]*?<span class="made">\$1\.2k<\/span>/, 'what the branch brought, on the wheel');
   assert.doesNotMatch(wheel, /data-know="speakeasy"[^]*?class="made"[^]*?data-know="cars"/, 'nothing written under a branch that brought nothing');
-  assert.match(wheel, /data-know="still"[^]*?<span class="want"[^>]*>[^]*?<em>ASKS<\/em>/, 'the face of a capo who asks says it in a word');
+  assert.match(wheel, /data-know="still"[^>]*>[^]*?<em class="nm asked">Still<\/em>/, 'a branch a capo asks for has its name in red');
   const know = C.know(view, 'still', { clean: 5000 });
   assert.match(know, /\$1,240 in 2 places · \$620 a place, every 24 days/, 'what it brought, and what one place brings');
   assert.match(know, /Asked for by Sal/); assert.match(know, /Liked by Sal, Mae: learned twice as fast/);

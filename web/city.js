@@ -394,9 +394,12 @@
   // ---- time
   var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1, payment: 1, errand: 1 };
   var standing = {};      // where each truck was left after its last delivery: it leaves from there the next time
+  var MANUAL = /[?&]manual\b/.test(location.search);      /* tests beat time by hand: between their beats the streets may run on */
+  function clockMap() { if (map) map.day(g.month * E.TICKS_PER_MONTH + g.ticks, MANUAL ? Infinity : g.speed || 1); }
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
+    clockMap();      /* the cars drive by the day of the rules: those left behind by slow frames catch up now */
     showHud();      // the money comes up car by car: the figures at the top follow every day
     if (map && lastPlan) { var pays = M.paysTurf(events, lastPlan); if (pays.length) map.effects(pays); }      // a pay packet rises over its place the day it is paid
     // a car sent for takings leaves the day the rules send it, and its money is counted at the club the day it is home: both are seen
@@ -424,7 +427,7 @@
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();
-    if (g.started) { refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
+    if (g.started) { clockMap(); refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
     if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
     // the game is saved the moment the boss leaves, not only on the days something happens (unless the save is no longer
     // the one this page wrote: a new game was asked for, or another page plays)

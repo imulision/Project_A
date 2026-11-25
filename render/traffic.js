@@ -1,6 +1,7 @@
 // The streets at work: every trip of the plan is a vehicle. Loops come and go, rounds leave the club and come home, convoys take the road between two cities.
 // makeTraffic(ctx) returns { agents, traffic, moveAgents, MAXTAGS }; ctx gives the scene, the cities, the car models and what draws a car.
 import { roadWay, goOn } from './roads.mjs';
+import { streetClock } from './pace.mjs';
 export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS, GLOW_WARM, kitMat, putCar, hsh, clamp, spawnFx, spawnPop }) {
   const DAY = 2 * T;      /* every car keeps the same pace on the street: two lots in a day of the game (three days a block, as the rules count), eighteen days for a road */
   // legsOf(stages, len, L, wait): a trip the rules timed, leg by leg. On each leg the car waits by the door (hold), then drives at the pace of
@@ -16,6 +17,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     a.p = a.L; a.still = false;
   }
   let n0 = 0, pace = 1;      // pace: days of the game in a second (the speed the boss chose)
+  const clock = streetClock();      /* the day the timed cars drive by: kept on the day of the rules at every beat (render/pace.mjs) */
   // the empire at work: every trip of the plan is a car on the streets, with a coloured light that shows from afar.
   // Loops run as long as the plan lists them; one-way trips (a crew sent out, rivals, the police) end where they arrive.
   const agents = new Map(), out = new Set(), MAXDOTS = 400, MAXTAGS = 28;
@@ -39,6 +41,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
              geo: GEO[t.vehicle === 'truck' ? 'car_stationwagon' : 'car_sedan'], mat: t.vehicle === 'police' ? POLICEMAT : t.violent ? MUSCLEMAT : t.vehicle === 'truck' ? CARMATS[3] : CARMATS[0],
              tag: { way: t.way, cargo: t.cargo, amount: t.amount || 0, capo: t.capo || null, load: t.load, from: t.from, to: t.to, vehicle: t.vehicle, kind: t.kind, district: t.district, by: t.by }, kind: t.kind, vehicle: t.vehicle, violent: t.violent, color: new THREE.Color(t.color), speed: road ? L / 18 : DAY, days: t.days || 0, el: 0, still: !!t.days, veh: t.veh || null, stay: !!t.stay, lost: t.lost || null,
              plan: t.days ? legsOf(t.stages || [{ days: t.days }], len, L, t.wait || 0) : null,      // legs that each take their own days (out empty, home loaded)
+             t0: clock.now(), el: 0,      /* the day it left, on the clock of the streets */
              o: null,
              // a round: the stops along the way (where it loads and unloads), counted in distance, and whether it carries something now
              round: !!t.round, stops: (t.stops || []).map(s => ({ d: s.k ? len[s.k - 1] : 0, load: s.load, lost: s.lost, amount: s.amount, kind: s.kind, cargo: s.cargo })), si: 0, loaded: false, next: null, rot: t.round ? Math.PI / 2 : undefined };
@@ -46,7 +49,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
   // a trip that was already on its way (a game opened again) starts as far along as it was: no wait by the door, the days gone behind it
   function agentFor(t) {
     const a = agentNew(t); if (!a || !(t.gone > 0) || !a.plan) return a;
-    a.wait = 0; a.el = t.gone; along(a);
+    a.wait = 0; a.t0 = clock.now() - t.gone; a.el = t.gone; along(a);
     return a;
   }
   // One car per capo: a new trip of his takes over the car he is in, from where it is, by what is left of its way.
@@ -80,7 +83,8 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there
     if (!add) for (const [id, a] of agents) if (a.loop && !a.leaving && !seen.has(id)) { a.leaving = true; agents.delete(id); agents.set('old' + (n0++), a); }
   }
-  function moveAgents(dt) {
+  function moveAgents(dt, free) {
+    clock.frame(dt, pace, free);
     const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
     out.clear(); for (const a of agents.values()) if (a.veh) out.add(a.veh);      // the cars that are out on a trip of their own are not also parked by their club
     for (const [id, a] of agents) {
@@ -101,7 +105,7 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
       } else {
         // a trip the rules gave a length in days keeps to it at any speed of the game: it waits its days by the door, then drives
         if (a.done) { /* waiting where it unloaded */ }
-        else if (a.days) { a.el += dt * pace; along(a); }
+        else if (a.days) { a.el = clock.now() - a.t0; along(a); }
         else a.p += a.dir * a.speed * dt * pace;
         if (a.p >= a.L) {
           if (!a.loop) { const e = a.pts[a.pts.length - 1];
@@ -125,5 +129,5 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     dots.geometry.setDrawRange(0, n); pos.needsUpdate = col.needsUpdate = true;
     dots.material.size = clamp(6 * Math.sqrt(cam.zoom), 7, 20) * (innerHeight / 844);
   }
-  return { agents, traffic, moveAgents, MAXTAGS, setPace: (v) => { pace = Math.max(0, +v || 0); } };
+  return { agents, traffic, moveAgents, MAXTAGS, setPace: (v) => { pace = Math.max(0, +v || 0); }, setDay: (d, span) => clock.beat(d, span) };
 }
