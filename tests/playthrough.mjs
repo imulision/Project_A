@@ -75,6 +75,10 @@ assert.equal(await page.locator('.lab.capo .hp i').count(), 3, 'three lights und
 // the first minutes: a strip says what to look at, and a touch puts it away for good
 assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
 await page.click('#hint [data-hint=capo]');
+// then the goal of the game, once
+await page.waitForSelector('#hint [data-hint=goal]');
+assert.match(await page.textContent('#hint .hint'), /Your goal: half the streets of the six cities/);
+await page.click('#hint [data-hint=goal]');
 assert.equal(await page.locator('#hint .hint').count(), 0, 'read once, never said again');
 assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ashport-hints')).capo), 1);
 await shot('c2-first-club');
