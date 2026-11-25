@@ -46,7 +46,7 @@
   var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
-  var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'time', decided: 'yes', opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
+  var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'ask', decided: 'yes', opened: 'yes', enlarged: 'yes', converted: 'yes', gaveup: 'no', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'ask', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
                 won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
   var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
@@ -68,7 +68,7 @@
   function planIcon(p) { return !p ? 'time' : p.move === 'take' ? (WAY[p.way] || WAY.force).icon : p.kind && I.has(p.kind) ? p.kind : 'time'; }
   // what stands over a capo on the map: his face, a gauge of what he is after, and what it is
   function mark(l, h, d) {
-    return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(planIcon(l)) + '</span>' +
+    return I.ring(l.progress == null ? 0 : l.progress) + '<span class="pf">' + I.portrait(l.capo) + '</span><span class="do">' + icon(d && d.icon || planIcon(l)) + '</span>' +
       (h ? '<span class="hp" data-tip="' + esc(h.say) + '"><i class="' + h.money + '"></i><i class="' + h.men + '"></i><i class="' + h.threat + '"></i></span>' : '') +
       (d ? '<span class="say ' + d.tone + '">' + esc(d.word) + (d.power ? '<b class="pw ' + d.power.tone + '">' + (ARROW[d.power.tone] || '') + ' ' + d.power.now + '</b>' : '<b>' + esc(d.earns) + '</b>') + '</span>' : '');
   }
@@ -108,9 +108,23 @@
     return o;
   }
   // Time that stands still: the word for it and the reason, or null while it runs.
-  function clock(hud) {
+  function clock(hud, view) {
     if (!hud.paused) return null;
-    return { word: 'TIME STOPPED', why: hud.pending ? hud.pending + (hud.pending > 1 ? ' wait' : ' waits') + ' for your word' : 'Tap Play to go on' };
+    if (!hud.pending) return { word: 'TIME STOPPED', why: 'Tap Play to go on' };
+    var w = waitsFor(view), more = hud.pending - 1;
+    return { word: 'TIME STOPPED', why: (w || hud.pending + (hud.pending > 1 ? ' wait' : ' waits') + ' for your word') + (w && more > 0 ? ', and ' + more + ' more' : '') + ' · tap to answer' };
+  }
+  // The first thing that waits for the boss's word, in a few words: who asks, and for what.
+  function waitsFor(view) {
+    if (!view) return '';
+    var m = (view.matters || [])[0]; if (m && m.title) return m.title;
+    var out = '';
+    (view.cities || []).some(function (c) {
+      var f = (c.feuds || [])[0], a = (c.asks || [])[0], d = (c.doors || [])[0];
+      out = f ? first(nameOf(f.a)) + ' and ' + first(nameOf(f.b)) + ' want you to settle a quarrel' : a ? first(nameOf(a.capo)) + ' asks for ' + T.a(String(a.name || 'a place').toLowerCase()) : d ? 'A man knocks at your door in ' + c.name : '';
+      return !!out;
+    });
+    return out;
   }
   // What last month did to a total, written beside it: "+$52", or nothing when it did not move.
   function change(n) { n = Math.round(n || 0); return n > 0 ? '+' + money(n) : n < 0 ? '\u2212' + money(-n) : ''; }
@@ -185,6 +199,11 @@
   function intent(p) {
     var bits = [p.why, p.top ? '' : WAIT[p.waiting], p.cost ? money(p.saved || 0) + ' of ' + money(p.cost) : ''].filter(Boolean);
     return '<div class="intent"><span class="gauge">' + I.ring(p.progress == null ? 1 : p.progress, planIcon(p)) + '</span><div><b>' + esc(planWord(p)) + '</b><small>' + esc(bits.join(' · ')) + '</small></div></div>';
+  }
+  // A capo on an errand: the money went with him, so the line says where he is with it, not what he saves.
+  function errandLine(k) {
+    var e = k.errand, ic = e.step === 'works' ? 'works' : 'car', part = e.step === 'works' ? 0.66 : e.step === 'returns' ? 1 : 0.33;
+    return '<div class="intent"><span class="gauge">' + I.ring(part, ic) + '</span><div><b>' + esc(planWord({ move: e.move === 'convert' ? 'open' : e.move, name: k.plan && k.plan.kind === e.kind ? k.plan.name : (I.has(e.kind) ? e.kind : 'a place') })) + '</b><small>' + esc((k.at && k.at.label) || '') + '</small></div></div>';
   }
   function tile(ic, label, value, tip) { return '<div class="tile" data-tip="' + esc(tip) + '"><small>' + icon(ic) + label + '</small><b>' + value + '</b></div>'; }
 
@@ -379,14 +398,14 @@
     var boss = c.under === k.id || k.under === true;
     var shut = (view.reign || {}).closed || {};      // what the act of the family has not opened yet, with the words for it
     return voice(k.id, head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + putIn(c, k, hud) + skills(k) +
+      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + (k.errand ? errandLine(k) : intent(k.plan) + putIn(c, k, hud)) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'TAKINGS', money(k.income), 'What reached his club over ' + LAST) +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you over ' + LAST + ': your share of what his places made') +
-      tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
+      tile('dirty', 'IN HIS POCKET', money(k.cash), 'What he keeps at his club for his next move: not the money still in the tills of his places') +
       tile('car', 'CARS', (k.cars || 1) + '', 'His cars fetch the takings of his places, one full load of cash at a time') + '</div>' +
       '<div class="acts col">' + button('books', { city: c.id, capo: k.id }, 'His books: what he makes, spends and wants') + '</div>' +
-      (k.waiting > 0 ? '<div class="move">' + icon('time') + '<span>' + money(k.waiting) + ' waits in his tills for a car</span></div>' : '') +
-      (k.at && k.at.label ? '<div class="move" data-tip="Where he is now. He has a car of his own and goes where he is needed.">' + icon('car') + '<span>' + esc(k.at.label) + '</span></div>' : '') +
+      (k.waiting > 0 ? '<div class="move">' + icon('takings') + '<span>' + money(k.waiting) + ' in the tills of his places, waiting for a car to bring it to his club</span></div>' : '') +
+      (k.at && k.at.label && !k.errand ? '<div class="move" data-tip="Where he is now. He has a car of his own and goes where he is needed.">' + icon(k.at.why === 'boost' ? 'yes' : 'car') + '<span>' + esc(k.at.label) + (k.at.why === 'boost' ? ' · it makes ' + BOOST + '% more while he is there' : '') + '</span></div>' : '') +
       '<div class="move" style="--c:' + w.color + '" data-tip="' + esc(w.tip) + '">' + icon(w.icon) + '<span>His way of taking a place: ' + w.word.toLowerCase() + '</span></div>' +
       (!boss && c.capos.length > 1 ? '<div class="acts col">' + button('underboss', { city: c.id, capo: k.id }, 'Make him underboss of ' + esc(c.name) + '<small style="color:var(--dim)">' + esc(shut.underboss || 'He takes in the men at the door himself') + '</small>', { off: !!shut.underboss }) + '</div>' : '') +
       gift(c, k, hud) +
@@ -787,6 +806,7 @@
       '<div class="acts">' + button('close', {}, 'Keep playing', { cls: 'go' }) + button('restart', {}, 'New game') + '</div>';
   }
   // What a capo is doing and whether it works, in one word: doing(city, capo) -> { word, tone: 'good' | 'idle' | 'warn' | 'bad', earns }.
+  var BOOST = Math.round(((T && T.RULES && T.RULES.own && T.RULES.own.boost) || 0.15) * 100);      // what a capo standing over one of his places adds to it
   function doing(c, k, pw) {
     var h = health(c, k), p = k.plan || {}, o = { word: 'HOLDING', tone: 'idle', earns: money(Math.round(k.income || 0)) };
     if (pw) o.power = pw;
@@ -795,6 +815,13 @@
     if (h.threat === 'bad') return set('VENDETTA', 'bad');
     if (h.money === 'bad') return set('EARNS NOTHING', 'bad');
     if (k.at && k.at.why === 'raid') return set('UNDER ATTACK', 'warn');
+    // where he is now comes before what he saves for: the money of an errand went with him
+    var e = k.errand;
+    if (e && e.step === 'works') { o.icon = 'works'; return set({ open: 'OPENING', enlarge: 'ENLARGING', convert: 'TURNING' }[e.move] || 'AT WORK', 'good'); }
+    if (e && e.step === 'returns') { o.icon = 'car'; return set('DRIVING BACK', 'idle'); }
+    if (e) { o.icon = 'car'; return set('ON HIS WAY', 'good'); }
+    if (k.at && k.at.road && k.at.why !== 'home') { o.icon = 'car'; return set('ON HIS WAY', 'good'); }      // driving somewhere: what he goes for starts when he is there
+    if (k.at && k.at.why === 'boost') { var bp = (c.places || []).filter(function (q) { return q.x === k.at.x && q.y === k.at.y; })[0]; o.icon = bp && I.has(bp.kind) ? bp.kind : 'yes'; return set('BOOSTING +' + BOOST + '%', 'good'); }
     if (p.waiting === 'money') return set('SAVING ' + Math.round((p.cost ? (p.saved || 0) / p.cost : p.progress || 0) * 100) + '%', (k.income || 0) > 0 ? 'good' : 'bad');
     if (p.move === 'take') return set('TAKING', 'good');
     if (p.move === 'open') return set('OPENING', 'good');
@@ -947,7 +974,7 @@
   }
   // What a money tile says under its figure: a bar of what came in against what went out, and the two amounts.
   // The next streets, at the top of the screen: one claim at a time (the list comes from the map's plan, the furthest along first), its bar, and where it is.
-  var NEXT = { money: 'Saving for it', men: 'His men are on their way', ready: 'Any day now', stuck: 'Stalled: he saves nothing' };
+  var NEXT = { money: 'Saving for it', men: 'His men are on their way', ready: 'Any day now', stuck: 'Stalled: he saves nothing', driving: 'On his way with the money', works: 'At work on it' };
   function streetsWon(n) { return '+' + n + ' street' + (n === 1 ? '' : 's'); }
   function nextLineOf(list, i) {
     if (!list || !list.length) return '';
@@ -1082,7 +1109,7 @@
     };
   }
   var api = { brief: brief, goalLine: goalLine, reign: reign, won: won, newsworthy: newsworthy, voice: voice, day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, waitsFor: waitsFor, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal', 'reign', 'won'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

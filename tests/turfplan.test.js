@@ -7,6 +7,7 @@ global.AshportWorld = require('../web/world.js');
 global.AshportTurf = require('../web/turf.js');
 const E = require('../web/empire.js');
 const M = require('../web/mapview.js');
+const C = require('../web/cards.js');
 
 const play = (months, capo = 'sal') => {
   const g = E.createGame({ capo }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
@@ -157,7 +158,7 @@ test('what happens in a city lands on the block it names: fire where a place bur
   const p = M.planEmpire(E.view(play(30)), global.AshportWorld.CITIES);
   const fx = M.effectsTurf([{ type: 'burnt', city: 'ashport', x: 4, y: 10 }, { type: 'repelled', city: 'ashport', x: 3, y: 10 }, { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'force' },
     { type: 'taken', city: 'ashport', x: 5, y: 9, way: 'bribe' }, { type: 'opened', city: 'ashport', x: 5, y: 10 }, { type: 'bust', city: 'ashport' }, { type: 'rank', city: 'ashport', capo: 'sal' }], p);
-  assert.deepEqual(fx.map((f) => f.kind), ['fire', 'gunfire', 'gunfire', 'promotion', 'build', 'police', 'promotion']);
+  assert.deepEqual(fx.map((f) => f.kind), ['fire', 'gunfire', 'gunfire', 'promotion', 'news', 'police', 'promotion'], 'a place opened is news: its works were seen while the capo stood there');
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].city, 'ashport');
   fx.forEach((f) => assert.ok(typeof f.i === 'number' && typeof f.j === 'number', 'each effect has a lot to stand on'));
 });
@@ -292,7 +293,7 @@ test('every event that has a place is marked on the map where it happens, and sa
   const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES), k = v.cities[0].capos[0];
   const fx = M.effectsTurf([{ type: 'asks', city: 'ashport', x: 4, y: 10, label: 'Sal asks' }, { type: 'welcomed', city: 'ashport', x: 5, y: 10, label: 'in' }, { type: 'car', city: 'ashport', capo: k.id, x: k.x, y: k.y, label: 'a car' },
     { type: 'knocks', city: 'ashport', capo: 'nobody yet', label: 'a man' }, { type: 'studying', city: 'ashport', label: 'learning' }, { type: 'opened', city: 'ashport', x: 5, y: 10, label: 'opened' }], p);
-  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'build:opened'], 'what has no place of its own is not put on the map');
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:asks', 'news:welcomed', 'news:car', 'news:opened'], 'what has no place of its own is not put on the map');
   assert.deepEqual([fx[0].bx, fx[0].by], [4, 10]); assert.equal(fx[0].say, 'Sal asks');
 });
 
@@ -475,7 +476,7 @@ test('what the family builds, wins or learns from a decision has a sight of its 
   const fx = M.effectsTurf([{ type: 'opened', city: 'ashport', x: 5, y: 10 }, { type: 'enlarged', city: 'ashport', x: 5, y: 10 }, { type: 'converted', city: 'ashport', x: 5, y: 10 },
     { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'bribe' }, { type: 'taken', city: 'ashport', x: 5, y: 9, kind: 'key', key: 'hotel', way: 'force' },
     { type: 'outcome', city: 'ashport', good: true, label: 'It paid' }, { type: 'outcome', city: 'ashport', good: false, label: 'It cost you' }, { type: 'outcome', city: 'ashport', label: 'Too early to say' }], p);
-  assert.deepEqual(fx.map((f) => f.kind), ['build', 'build', 'build', 'key', 'key', 'good', 'bad'], 'a key place taken is a sight whatever the way; a result with nothing to say is not shown');
+  assert.deepEqual(fx.map((f) => f.kind), ['news', 'news', 'news', 'key', 'key', 'good', 'bad'], 'a place opened is news (its works were seen while the capo stood there); a key place taken is a sight whatever the way; a result with nothing to say is not shown');
   assert.deepEqual([fx[5].i, fx[5].j], [p.cities[0].capos[0].i, p.cities[0].capos[0].j], 'a result with no place of its own is seen at the club');
   // a take under way is seen on the place being taken, month after month, until it is settled
   const taking = JSON.parse(JSON.stringify(p)), lot = taking.cities[0].lots.find((l) => l && l.site && l.site.owner !== 'family');
@@ -828,4 +829,21 @@ test('a capo on his way when the game was left is on his way again', () => {
   t = mine(with_({ errand: { step: 'works', move: 'open', x: far.x, y: far.y } }));
   assert.equal(t.length, 1, 'at work, his car stands at the door'); assert.equal(t[0].gone, t[0].days);
   assert.equal(mine(with_({})).length, 0, 'at home, nothing');
+});
+
+// Nicolas (2026-11-25): a clock stood where Sal was going, saying "Standing over his cellar still", while his face was elsewhere;
+// and "A place goes up" stayed after he had left the works. A capo on the move is told by his face and his car, never by a mark.
+test('a capo who drives somewhere leaves no mark on the map, and a place opened is not a place still going up', () => {
+  const v = E.view(play(30)), p = M.planEmpire(v, global.AshportWorld.CITIES);
+  const fx = M.effectsTurf([{ type: 'capo', step: 'drives', city: 'ashport', capo: 'sal', x: 4, y: 10, label: 'Standing over his cellar still in The Docks' },
+    { type: 'capo', step: 'arrives', city: 'ashport', capo: 'sal', x: 4, y: 10 }, { type: 'opened', city: 'ashport', x: 5, y: 10, label: 'Sal opens a cellar still' }], p);
+  assert.deepEqual(fx.map((f) => f.kind + ':' + f.type), ['news:opened']);
+});
+test('a capo already on his way with the money is said on his way, then at work: not saving for it (Nicolas, 2026-11-25)', () => {
+  const plan = { move: 'open', kind: 'still', name: 'Cellar still', x: 7, y: 9, advance: 0.05, due: 4, waiting: 'money', gains: [{ x: 8, y: 8 }] };
+  const on = M.claimsTurf({ cities: [planned([{ id: 'sal', name: 'Sal Moretti', plan, errand: { step: 'leaves', move: 'open', kind: 'still', x: 7, y: 9 } }]).cities[0]] })[0];
+  assert.equal(on.state, 'driving'); assert.equal(on.stuck, false); assert.equal(on.advance, 1, 'the money is found: the bar is full');
+  const at = M.claimsTurf({ cities: [planned([{ id: 'sal', name: 'Sal Moretti', plan, errand: { step: 'works', move: 'open', kind: 'still', x: 7, y: 9 } }]).cities[0]] })[0];
+  assert.equal(at.state, 'works');
+  assert.match(C.nextLine([on], 0), /On his way with the money/); assert.match(C.nextLine([at], 0), /At work on it/);
 });

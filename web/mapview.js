@@ -453,7 +453,7 @@
     });
     return out;
   }
-  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', opened: 'build', enlarged: 'build', converted: 'build', learned: 'promotion' };
+  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', learned: 'promotion' };      // (a place opened is news: its works were seen while the capo stood there)
   var PAID = { moving: 1, car: 1, truck: 1 };      // what a capo paid out of his own purse when it happened (one who only asks has spent nothing yet; what the boss pays leaves his headquarters, not the place)
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {
@@ -463,6 +463,7 @@
       // a place that goes up has its scaffold, a key place taken its beam of light, a decision that paid or cost its own colour
       if (e.type === 'outcome' && typeof e.good !== 'boolean') return;
       if (e.type === 'run' || e.type === 'pay' || e.type === 'haul' || (e.type === 'arrived' && e.kind === 'haul')) return;      // goods on a truck are not money
+      if (e.type === 'capo') return;      // a capo on the move is seen by his face and his car, never by a mark where he goes
       if (e.type === 'errand') {      // the money a capo takes with him is seen leaving his club; if he turns back it is his again
         var ec = plan.cities.filter(function (x) { return x.id === e.city; })[0], ek = ec && ec.capos.filter(function (m) { return m.id === e.capo && typeof m.i === 'number'; })[0], el = ek && ec.lots.filter(function (l) { return l.i === ek.i && l.j === ek.j; })[0];
         if (el && e.amount > 0 && (e.step === 'leaves' || e.step === 'back')) out.push({ kind: 'pay', type: 'errand', city: ec.id, capo: e.capo, i: el.i, j: el.j, bx: el.bx, by: el.by, say: null, spent: e.step === 'leaves' ? Math.round(e.amount) : 0, gain: e.step === 'leaves' ? 0 : Math.round(e.amount) });
@@ -548,8 +549,10 @@
       (c.capos || []).forEach(function (k) {
         var p = k.plan; if (!p || !p.gains || !p.gains.length) return;
         var adv = Math.max(0, Math.min(1, +p.advance || 0)), stuck = adv < 1 && (p.due === null || p.due === undefined) && !(k.counts < 2);      // (before his second day of accounts his pace is not known yet)
+        var go = k.errand && k.errand.step !== 'returns' && k.errand.x === p.x && k.errand.y === p.y ? (k.errand.step === 'works' ? 'works' : 'driving') : null;      // the money found, he is on his way with it, or at work there
+        if (go) { adv = 1; stuck = false; }
         list.push({ id: c.id + ':' + k.id, city: c.id, capo: k.id, who: String(k.name || k.id).split(' ')[0], does: (DOES[p.move] || p.move + ' a ') + String(p.name || p.kind).toLowerCase(), x: p.x, y: p.y, streets: p.gains.length, advance: adv, due: typeof p.due === 'number' ? p.due : null,
-                    state: stuck ? 'stuck' : adv >= 1 ? 'ready' : p.waiting === 'money' ? 'money' : 'men', stuck: stuck, gains: p.gains.map(function (b) { return { x: b.x, y: b.y }; }) });
+                    state: go || (stuck ? 'stuck' : adv >= 1 ? 'ready' : p.waiting === 'money' ? 'money' : 'men'), stuck: stuck, gains: p.gains.map(function (b) { return { x: b.x, y: b.y }; }) });
       });
     });
     return list.sort(function (a, b) { return (a.stuck - b.stuck) || (b.advance - a.advance); });
