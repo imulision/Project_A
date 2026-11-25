@@ -8,7 +8,7 @@ require('./turf-helpers.js').plain(); // a block a day, one load a vehicle
 // what the boss pays travels: play on until his van has delivered it and the order is carried out
 const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++) { g.paused = false; E.tick(g); } };
 
-const start = (capo = 'sal') => { const g = E.createGame({ capo }); g.reign.left = 1e9; return g; };
+const start = (capo = 'sal') => { const g = E.createGame({ capo, quiet: true }); g.reign.left = 1e9; return g; };
 const play = (g, days) => { const all = []; for (let i = 0; i < days; i++) { g.paused = false; all.push(...E.tick(g)); } return all; };
 
 test('a headquarters is raised on a free block, next to the family\'s first club', () => {

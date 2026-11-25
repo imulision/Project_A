@@ -48,8 +48,10 @@
     });
     // a rival's lieutenant listens once the family weighs enough in the city
     var his = function (id) { return everyPlace(c).filter(function (p) { return p.man === id; }); };
-    if (c.rival && share(c).family >= RULES.turn) lieutenantsOf(c).forEach(function (id) {
-      if (free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
+    // (a man the boss is already paying for has given his word: he waits for the money whatever the city does meanwhile)
+    var heavy = share(c).family >= RULES.turn, promised = f.promised || {};
+    if (c.rival) lieutenantsOf(c).forEach(function (id) {
+      if ((heavy || promised[id]) && free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
     });
     return out;
   }
@@ -135,11 +137,20 @@
     jail: { name: 'Give him to the police', gives: 'The heat falls and his places are padlocked. One day he is out.' }
   };
 
+  // The killings the family still remembers: one is forgotten every RULES.out.forgets months.
+  function bloodOf(c, f) { return Math.max(0, (f.blood || 0) - Math.floor((c.month - (f.bloodAt || 0)) / RULES.out.forgets)); }
+
   // The ways the boss can part with a man, and what each costs him today.
   function partings(c, f, capo) {
     if (!f.men[capo] || !clubOf(c, capo) || !others(c, f, capo).length) return [];
     return Object.keys(PARTINGS).map(function (way) {
-      return { way: way, name: PARTINGS[way].name, gives: PARTINGS[way].gives, cost: way === 'retire' ? RULES.out.retire[f.men[capo].rank] : 0 };
+      var p = { way: way, name: PARTINGS[way].name, gives: PARTINGS[way].gives, cost: way === 'retire' ? RULES.out.retire[f.men[capo].rank] : 0 };
+      if (way === 'kill') { // what it would cost today, in figures
+        var n = bloodOf(c, f) + 1;
+        p.price = { heat: RULES.out.blood, loyal: RULES.loyal.blood * n, months: RULES.out.shaken * n, blood: n,
+                    shaken: others(c, f, capo).filter(function (id) { return loyalty(f, id) < RULES.out.steady; }).sort() };
+      }
+      return p;
     });
   }
 
@@ -188,12 +199,19 @@
     changed(c);
     forget(c, f, capo, way);
     if (way === 'kill') {
+      // blood calls blood: each killing the family still remembers makes the next one cost as much again
+      var n = bloodOf(c, f) + 1, here = {};
+      f.blood = n; f.bloodAt = c.month;
+      out.blood = n; out.loyal = RULES.loyal.blood * n; out.months = RULES.out.shaken * n; out.shaken = [];
       c.heat = Math.min(100, (c.heat || 0) + RULES.out.blood);
       c.sulk = c.sulk || {};
       left.forEach(function (id) {
-        if (loyalty(f, id) < RULES.out.steady) c.sulk[id] = Math.max(c.sulk[id] || 0, c.month + RULES.out.shaken);
-        sway(f, id, -RULES.loyal.blood);
+        here[id] = true;
+        if (loyalty(f, id) < RULES.out.steady) { c.sulk[id] = Math.max(c.sulk[id] || 0, c.month + out.months); out.shaken.push(id); }
+        sway(f, id, -out.loyal);
       });
+      // the men of the other cities hear of it, half as hard
+      Object.keys(f.men).forEach(function (id) { if (!here[id]) sway(f, id, -Math.round(out.loyal / 2)); });
     }
     if (way === 'jail') {
       c.heat = Math.max(0, (c.heat || 0) - RULES.out.tip);
