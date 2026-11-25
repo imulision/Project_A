@@ -6,7 +6,7 @@ const C = require('../web/cards.js');
 
 // A game played with a boss who says yes to all he can afford, stopped at the first moment `until` is true.
 function play(until, months) {
-  const g = E.createGame({ capo: 'sal' }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
+  const g = E.createGame({ capo: 'sal', quiet: true }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let i = 0; i < (months || 240) * E.TICKS_PER_MONTH; i++) {
     E.tick(g);
     const v = E.view(g);
@@ -42,7 +42,7 @@ test('money is written the same way everywhere', () => {
 });
 
 test('nothing waiting: the sheet of requests says so and offers nothing to press', () => {
-  const g = E.createGame({ capo: 'sal' });
+  const g = E.createGame({ capo: 'sal', quiet: true });
   const html = C.requests(E.view(g), E.hud(g));
   assert.match(html, /Nobody waits/);
   assert.equal(acts(html, 'welcome').length + acts(html, 'answer').length + acts(html, 'rule').length, 0);
@@ -90,7 +90,7 @@ test('two capos at odds: both faces, one button each', () => {
 
 test('a capo asks for a key place: what it gives, what it costs, yes or no', () => {
   const ask = { id: 'sal:brewery', capo: 'sal', key: 'brewery', name: 'Brewery', x: 12, y: 8, gives: 'Pours for eight speakeasies', way: 'force', cost: 1800, months: 4, why: 'It pours for his bars' };
-  const v = E.view(E.createGame({ capo: 'sal' }));
+  const v = E.view(E.createGame({ capo: 'sal', quiet: true }));
   v.cities[0].asks = [ask];
   const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
   assert.match(html, /Brewery/);
@@ -110,7 +110,7 @@ test('the sheet of a capo: what he is after, what he runs, and the ways to part 
   assert.match(html, new RegExp(k.places + ' / ' + k.reach), 'places he runs out of what his rank allows');
   assert.match(html, new RegExp('\\' + C.money(k.income)));
   assert.equal(acts(html, 'parting').length, 3);
-  const alone = E.view(E.createGame({ capo: 'sal' }));
+  const alone = E.view(E.createGame({ capo: 'sal', quiet: true }));
   assert.match(C.capo(alone, 'ashport', 'sal'), /only capo/, 'a boss cannot part with his last man');
   assert.equal(C.capo(v, 'ashport', 'nobody'), null, 'an unknown man has no sheet');
 });
@@ -260,7 +260,7 @@ test('money that can be followed: the month\'s change beside a total, the amount
   assert.equal(C.carLoad({ kind: 'liquor', amount: 30 }), '', 'only cash is counted in dollars');
   assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /\$142 on board/);
   assert.match(C.carTip({ kind: 'takings', cargo: 'cash', capo: 'sal', amount: 142 }), /Sal/);
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal', quiet: true }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), k = v.cities[0].capos[0];
   assert.ok(k.sent > 0, 'he sent something up');
   const sheet = C.capo(v, v.cities[0].id, k.id);
@@ -311,7 +311,7 @@ test('the button that takes a man in says the street he picked for his club: the
 });
 
 test('a capo\'s sheet says where he is this month', () => {
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal', quiet: true }); for (let i = 0; i < E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), c = v.cities[0], k = c.capos[0];
   k.at = { x: 1, y: 1, why: 'take', label: 'Taking the speakeasy in Little Calabria' };
   assert.match(C.capo(v, c.id, k.id), /Taking the speakeasy in Little Calabria/);
@@ -494,7 +494,7 @@ test('a man at the door of a city that has an underboss is his to take in: no de
   const { v } = play((v) => v.month >= 2);
   const door = { capo: 'mae', name: 'Mae Rourke', specialty: 'Madam', door: 'name', by: null, why: 'A city with nightlife', cost: 2500, roads: [], open: true, chairs: ['routes'], handled: 'sal' };
   const html = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [door] }] }, { dirty: 9000, clean: 0 });
-  assert.match(html, /Sal will take (her|him) in himself|Sal takes him in himself/); assert.doesNotMatch(html, /data-act="seat"/);
+  assert.match(html, /Sal, your underboss in Ashport, sees to it/); assert.doesNotMatch(html, /data-act="seat"/);
   assert.match(html, /data-act="chairs"/, 'the boss may still give him a chair at his table');
   const poach = C.requests({ ...v, cities: [{ ...v.cities[0], doors: [{ ...door, door: 'poach' }] }] }, { dirty: 9000, clean: 0 });
   assert.match(poach, /data-act="welcome"/, 'a man taken from a rival stays the boss\'s call');
@@ -510,7 +510,7 @@ test('a sheet that cannot be drawn says so and lets time go on, instead of throw
 test('whoever starts and whatever happens in fifteen years, every sheet of every month can be drawn', () => {
   const broken = /could not be drawn/;
   E.NAMES.forEach((name) => {
-    const g = E.createGame({ capo: name });
+    const g = E.createGame({ capo: name, quiet: true });
     for (let m = 0; m < 180; m++) {
       for (let i = 0; i < E.TICKS_PER_MONTH; i++) { E.tick(g); if (g.paused && !E.hud(g).pending) E.command(g, { type: 'resume' }); }
       const v = E.view(g), h = E.hud(g), at = name + ', month ' + m + ': ';
@@ -554,7 +554,7 @@ test('the sheet of requests opens whoever stands behind the man at the door', ()
 
 // ---- loyalty: the screen gets a mood, never a number
 test('a capo sheet shows his mood, and a gift the boss can make when he has the clean money', () => {
-  const g = E.createGame(); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
+  const g = E.createGame({ quiet: true }); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
   const v = E.view(g), city = v.cities[0], k0 = city.capos[0];
   const with_ = (more) => ({ ...v, cities: [{ ...city, capos: [{ ...k0, ...more }] }] });
   const steady = C.capo(with_({ mood: 'steady', gift: { cost: 1500, wait: 0 } }), city.id, k0.id, { clean: 2000 });
@@ -574,7 +574,7 @@ test('a capo sheet shows his mood, and a gift the boss can make when he has the 
 });
 
 test('a restless or bitter man is marked on his portrait in the city sheet', () => {
-  const g = E.createGame(); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
+  const g = E.createGame({ quiet: true }); E.command(g, { type: 'start', capo: 'sal' }); E.tick(g, E.TICKS_PER_MONTH);
   const v = E.view(g), city = v.cities[0], k0 = city.capos[0];
   const of = (mood) => C.city({ ...v, cities: [{ ...city, capos: [{ ...k0, mood }] }] }, city.id);
   assert.match(of('bitter'), /class="slot[^"]* bitter"[^>]*data-tip="[^"]*bitter/);
@@ -738,7 +738,7 @@ test('the health of a capo\'s streets is read in three lights, money, men and th
 
 test('a capo\'s ask is laid out as a choice: what a yes costs and what he promises, what a no leaves behind', () => {
   const ask = { id: 'sal:brewery', capo: 'sal', key: 'brewery', name: 'Brewery', x: 12, y: 8, gives: 'Pours for eight speakeasies', way: 'force', cost: 1800, months: 4, why: 'It pours for his bars', expects: { gain: 340, months: 10 } };
-  const v = E.view(E.createGame({ capo: 'sal' })); v.cities[0].asks = [ask];
+  const v = E.view(E.createGame({ capo: 'sal', quiet: true })); v.cities[0].asks = [ask];
   const html = C.requests(v, { dirty: 5000, clean: 0, pending: 1 });
   const sides = html.match(/<div class="sides">([\s\S]*?)<\/div><\/div><\/div>/)[0];
   assert.match(sides, /class="side yes"[\s\S]*IF YOU SAY YES[\s\S]*−\$1,800[\s\S]*\+\$340 every 24 days[\s\S]*promised[\s\S]*240 days[\s\S]*data-yes="1"/);
@@ -933,10 +933,11 @@ test('a step won or lost is a moment: the rank of the family, a street name held
   const st = (n, zones) => ({ rank: { n, name: ['Street gang', 'Crew', 'Family'][n] }, zones });
   const z = (share, name) => ({ name: name || 'The Docks', share });
   assert.deepEqual(C.moments(null, st(1, {})), [], 'nothing to tell when the game is opened');
-  assert.deepEqual(C.moments(st(0, {}), st(1, {})), [{ kind: 'rank-up', tone: 'good', title: 'YOUR FAMILY IS NOW A CREW', sub: 'It holds enough of the map to be counted.' }]);
+  assert.deepEqual(C.moments(st(0, {}), st(1, {})), [{ kind: 'rank-up', tone: 'good', title: 'YOUR STREET GANG IS NOW A CREW', sub: 'It holds enough of the map to be counted.' }]);
   const down = C.moments(st(2, {}), st(1, {})); assert.equal(down[0].kind, 'rank-down'); assert.equal(down[0].tone, 'bad'); assert.match(down[0].title, /FALLS BACK TO A CREW/);
   assert.deepEqual(C.moments(st(1, { a: z(80) }), st(1, { a: z(100) })).map((m) => [m.kind, m.title]), [['zone-won', 'THE DOCKS IS YOURS']]);
-  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(90) })).map((m) => [m.kind, m.tone]), [['zone-broken', 'bad']]);
+  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(80) })).map((m) => [m.kind, m.tone]), [['zone-broken', 'bad']]);
+  assert.deepEqual(C.moments(st(1, { a: z(100) }), st(1, { a: z(95) })), [], 'a street lost by a hair is not a moment');
   assert.deepEqual(C.moments(st(1, { a: z(10) }), st(1, { a: z(0) })).map((m) => [m.kind, m.title]), [['zone-lost', 'DRIVEN OUT OF THE DOCKS']]);
   assert.deepEqual(C.moments(st(1, { a: z(50) }), st(1, { a: z(60) })), [], 'a street more is not a moment');
   assert.match(C.moment(down[0]), /class="moment bad"/); assert.match(C.moment(down[0]), /FALLS BACK/);
@@ -955,7 +956,7 @@ test('what holds the family back is said in plain words: what, since when, why, 
   assert.match(C.stallLine(view), /\$5,536 of clean money sleeps/); assert.match(C.stallLine(view), /data-stalls="1"/); assert.match(C.stallLine(view), /\+1/, 'and how many more');
   assert.equal(C.stallLine({ stalls: [] }), ''); assert.equal(C.stallLine({}), '', 'an old game says nothing');
   const one = C.stall(idle);
-  assert.match(one, /for 1032 days/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.doesNotMatch(one, /data-act/);
+  assert.match(one, /for 1032 days/); assert.match(one, /Nothing was bought/); assert.match(one, /class="lever"/); assert.match(one, /A better gambling room costs \$1,000/); assert.match(one, /data-act="family"/, 'sleeping money leads to where it is spent');
   const two = C.stall(boxed);
   assert.match(two, /for 168 days/); assert.match(two, /Nothing you can do about it yet/); assert.match(two, /data-act="show" data-city="ashport" data-x="4" data-y="9"/);
   assert.match(C.stall({ ...boxed, x: undefined, y: undefined }), /data-act="capo" data-city="ashport" data-capo="sal"/);
@@ -996,7 +997,7 @@ test('the rival\'s strength has its arrow too, and a place wears its level', () 
 });
 
 test('a new game is asked for from the family page or the journal, and erases nothing before the boss says so', () => {
-  const g = E.createGame({ capo: 'sal' }); for (let i = 0; i < 5 * E.TICKS_PER_MONTH; i++) E.tick(g);
+  const g = E.createGame({ capo: 'sal', quiet: true }); for (let i = 0; i < 5 * E.TICKS_PER_MONTH; i++) E.tick(g);
   const v = E.view(g), h = E.hud(g);
   assert.match(C.family(v, h), /data-act="restart"/);
   assert.match(C.journal(g.journal), /data-act="restart"/);
@@ -1232,7 +1233,7 @@ test('the end of a hit says what was won and what it cost', () => {
 
 // ---- the headquarters
 test('a headquarters has a bubble and a sheet of its own: whose it is, what it is at this act, who sits there', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family, rv = c.hq.rival;
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family, rv = c.hq.rival;
   rv.stage = 4; c.places.forEach((q) => { if (q.kind === 'hq' && q.owner !== 'family') q.stage = 4; });
   const mine = C.blockTip(v, c.id, hq.x, hq.y), theirs = C.blockTip(v, c.id, rv.x, rv.y);
   assert.match(mine, /Your headquarters/); assert.match(mine, /Back room/); assert.match(mine, /You sit here/);
@@ -1248,7 +1249,7 @@ test('a headquarters has a bubble and a sheet of its own: whose it is, what it i
 });
 
 test('the share of the boss that waits at a club is seen there, with the load it leaves by', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
   k.share = 60; k.shareLoad = 150;
   assert.match(C.blockTip(v, c.id, k.x, k.y), /\$60 \/ \$150.*your share/);
   assert.match(C.block(v, c.id, k.x, k.y), /\$60 \/ \$150<\/b> of your share/);
@@ -1256,7 +1257,7 @@ test('the share of the boss that waits at a club is seen there, with the load it
 });
 
 test('what an act has not opened yet says so: the underboss button is greyed with the reason, the police threshold is the one of the vault', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), city = v.cities[0], k = city.capos[0], other = { ...k, id: 'mae', name: 'Mae Rourke' };
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), city = v.cities[0], k = city.capos[0], other = { ...k, id: 'mae', name: 'Mae Rourke' };
   const two = { ...v, cities: [{ ...city, under: null, capos: [k, other] }] };
   assert.ok(v.reign.closed.underboss);
   assert.match(C.capo(two, city.id, k.id), /data-act="underboss"[^>]*disabled[^]*An underboss comes with Act III/);
@@ -1267,7 +1268,7 @@ test('what an act has not opened yet says so: the underboss button is greyed wit
 });
 
 test('a laundry says what waits there: dirty money to be washed, clean money that waits for the car', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0];
   const p = { x: k.x + 1, y: k.y, owner: 'family', kind: 'rented', name: 'Rented laundry', level: 1, capo: k.id, wash: { waiting: 63, ready: 49, most: 210 } };
   c.places = c.places.filter((q) => q.x !== p.x || q.y !== p.y).concat([p]);
   assert.match(C.blockTip(v, c.id, p.x, p.y), /\$63 to wash[^]*\$49 clean, waiting for the car/);
@@ -1279,7 +1280,7 @@ test('a laundry says what waits there: dirty money to be washed, clean money tha
 });
 
 test('the headquarters of another city says what sleeps in its coffer, and the load that takes the road', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family;
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], hq = c.hq.family;
   hq.home = false; c.coffer = { dirty: 250, clean: 50, load: 600 };
   assert.match(C.blockTip(v, c.id, hq.x, hq.y), /\$300 \/ \$600 in the coffer/);
   assert.match(C.block(v, c.id, hq.x, hq.y), /<b>\$300 \/ \$600<\/b> in the coffer[^]*width:50%[^]*\$250 dirty[^]*\$50 clean/);
@@ -1299,7 +1300,7 @@ test('a car that carries money says whose and where to: the share of the boss, w
 });
 
 test('what the boss pays is on its way: the words for it, the gift button that waits, the list at the headquarters', () => {
-  const g = E.createGame({ capo: 'sal' }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0], hq = c.hq.family;
+  const g = E.createGame({ capo: 'sal', quiet: true }), v = JSON.parse(JSON.stringify(E.view(g))), c = v.cities[0], k = c.capos[0], hq = c.hq.family;
   const p = { id: 1, order: 'gift', city: c.id, capo: k.id, x: k.x, y: k.y, amount: 1500, sent: 600, arrived: 300, rides: [{ amount: 300, days: 2, gone: 1 }] };
   assert.equal(C.payingLine(p), '$1,500 for a gift to Sal'); assert.equal(C.payingLine({ ...p, order: 'welcome' }), '$1,500 for the club of Sal'); assert.equal(C.payingLine({ ...p, order: 'answer' }), '$1,500 for what Sal asked');
   assert.equal(C.onItsWay({ ...v, paying: [p] }, 'gift', c.id, k.id), 'The money leaves your headquarters by loads: $1,500 for a gift to Sal.');

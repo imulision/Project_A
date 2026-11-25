@@ -36,7 +36,9 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
     for (let guard = 0; guard < 12 && document.querySelector('#veil.on'); guard++) {
       const yes = q('[data-act=answer][data-yes="1"]:not([disabled])'), no = q('[data-act=answer][data-yes="0"]'), rule = q('[data-act=rule]'), seat = q('[data-act=seat]:not([disabled])');
-      if (yes || no) { seen.answer++; (yes || no).click(); }
+      const matter = q('[data-act=decide]:not([disabled])');      // a matter a capo brings: he takes the first choice he can pay
+      if (matter) { seen.decide = (seen.decide || 0) + 1; matter.click(); }
+      else if (yes || no) { seen.answer++; (yes || no).click(); }
       else if (rule) { seen.rule++; rule.click(); }
       else if (seat) {
         const men = () => A.view().cities.reduce((n, c) => n + c.capos.length, 0), had = men();
@@ -75,6 +77,10 @@ assert.equal(await page.locator('.lab.capo .hp i').count(), 3, 'three lights und
 // the first minutes: a strip says what to look at, and a touch puts it away for good
 assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
 await page.click('#hint [data-hint=capo]');
+// then the goal of the game, once
+await page.waitForSelector('#hint [data-hint=goal]');
+assert.match(await page.textContent('#hint .hint'), /Your goal: half the streets of the six cities/);
+await page.click('#hint [data-hint=goal]');
 assert.equal(await page.locator('#hint .hint').count(), 0, 'read once, never said again');
 assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ashport-hints')).capo), 1);
 await shot('c2-first-club');
@@ -217,7 +223,13 @@ await shot('c2b-money-in');
 // is he getting anywhere? Both moneys say what came in and what went out, the family has a rank, each capo a word and a power
 assert.doesNotMatch(await page.textContent('.res'), /month|\/ mo|OUT/i, 'no rate at the top of the screen');
 assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
-assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
+assert.match(await page.textContent('#rank'), /GOAL \d+% of the streets/, 'and its goal: the share that gives the next rank');
+// a touch on the goal opens the whole road, from the first street to the Commission
+await page.evaluate(() => document.querySelector('#rank [data-goal]').click());
+assert.match(await page.textContent('#veil.on'), /Your reign[\s\S]*half the streets of the six cities[\s\S]*Crew[\s\S]*Family[\s\S]*Syndicate[\s\S]*Commission/);
+assert.equal(await page.locator('#veil.on .road .step.now').count(), 1, 'the step the family stands on is marked');
+await shot('c2b-goal');
+await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
 assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
 assert.ok((await page.evaluate(() => window.__ashport.map().labels().filter((l) => l.ground).map((l) => l.id))).length > 0);
 assert.match(await page.evaluate(() => [...document.querySelectorAll('.lab.sm')].map((e) => e.textContent).join(' | ')), /\d+%/, 'a street name says what the family holds of it');
@@ -296,7 +308,10 @@ await page.click('#sheet [data-act=line].on');
 assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').line), null, 'a touch on the line in force lifts it');
 // the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
 assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
-assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');
+// (a capo may have asked him for his share already: whichever is in force, he starts again from the usual one)
+const inForce = await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').cut);
+assert.ok(await page.locator('#sheet [data-act=cut][data-cut=' + inForce + ']').isDisabled(), 'the share in force is marked');
+if (inForce !== 'normal') await page.click('#sheet [data-act=cut][data-cut=normal]');
 await page.click('#sheet [data-act=cut][data-cut=light]');
 assert.ok(await page.locator('#sheet [data-act=cut][data-cut=light].on').count() === 1, 'the light share is in force');
 assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').cut), 'light');
@@ -368,7 +383,10 @@ for (let n = 0; n < 120 && !(await riding()); n++) await page.evaluate(() => { c
 assert.ok(await riding() > 0, 'a car is on its way with money');
 /* one vehicle is one car on the map, whatever it carries: the cars are counted, not their loads */
 const out = await page.evaluate(() => { const seen = new Set(); window.__ashport.view().cities.forEach((c) => (c.rides || []).forEach((r) => { if (r.gone > 0 && r.days - r.gone >= 4) seen.add(r.vehicle || r.capo + ':' + r.kind); })); return seen.size; });
+// (the test gave and took clean money behind the page's back, further up: the figures are written again before they are read)
+await page.evaluate(() => { document.getElementById('pause').click(); document.getElementById('pause').click(); });
 const before = await hud();
+const decided = await page.evaluate(() => (window.__seen && window.__seen.decide) || 0);      // (counted before the page is loaded again)
 await page.reload();
 await page.waitForFunction(() => window.__ashport && window.__ashport.map());
 assert.equal(await hud(), before, 'the saved game comes back after a reload');
@@ -396,4 +414,5 @@ assert.equal(await page.textContent('#toast'), '', 'and he is told only once');
 
 await browser.close();
 assert.deepEqual(errors, [], 'no script errors');
+assert.ok(decided > 0, 'a capo came to the boss with a matter, and the boss answered on the card (' + decided + ')');
 console.log('ok: new screen played to', before, '·', JSON.stringify(seen), '· near', near.stats.calls, 'draws', near.labels, 'labels · far', far.calls, 'draws');

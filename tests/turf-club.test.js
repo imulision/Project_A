@@ -38,7 +38,7 @@ test('with no free block there is nowhere to go', () => {
 });
 
 const knocked = () => {
-  const g = E.createGame({ capo: 'dutch' }); g.reign.left = 1e9;
+  const g = E.createGame({ capo: 'dutch', quiet: true }); g.reign.left = 1e9;
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) knock = E.tick(g).find((e) => e.type === 'knocks');
   g.family.dirty = 50000;

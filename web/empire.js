@@ -12,6 +12,7 @@
   var W = node ? require('./world.js') : root.AshportWorld;
   var D = node ? require('./district.js') : root.AshportDistrict;
   var R = node ? require('./reign.js') : root.AshportReign;
+  var A = node ? require('./audience.js') : root.AshportAudience;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
   R.setDays(T.RULES.days);
@@ -24,7 +25,7 @@
   var START_CASH = 2500;      // dirty $ the boss starts with: what it takes to set up the first man who knocks
   var RIVAL_PLACES = 30;      // places the family in place holds on top of the key places
   var NAMES = ['sal', 'mae', 'dutch', 'tommy', 'vince', 'danny']; // the six a boss can start with
-  var STOPS = { asks: true, knocks: true, feud: true }; // what waits for the boss's word stops the clock
+  var STOPS = { asks: true, knocks: true, feud: true, matter: true }; // what waits for the boss's word stops the clock
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   function dateOf(month) { return MONTHS[month % 12] + ' ' + (FIRST_YEAR + Math.floor(month / 12)); }
@@ -61,7 +62,7 @@
         }
       });
     }
-    return T.createCity({ id: spec.id, w: w, h: h, voids: voidsOf(spec, w, h), streets: streets, zones: spec.districts.map(function (d, i) {
+    return T.createCity({ id: spec.id, name: spec.name, w: w, h: h, voids: voidsOf(spec, w, h), streets: streets, zones: spec.districts.map(function (d, i) {
       var col = i % cols, row = Math.floor(i / cols), last = i === n - 1;
       return { name: d.name, x0: col * BLOCK.w, y0: row * BLOCK.h, x1: last ? cols * BLOCK.w - 1 : (col + 1) * BLOCK.w - 1, y1: (row + 1) * BLOCK.h - 1, traits: d.traits };
     }) });
@@ -73,7 +74,7 @@
   function cheapest(g) {
     var f = g.family, has = f.clean || 0, best = null;
     T.holdings(f).forEach(function (h) { if (h.next && h.next.cost <= has && (!best || h.next.cost < best.cost)) best = { name: h.name, cost: h.next.cost }; });
-    if (!f.study) T.tree(f).forEach(function (t) { if (t.next && t.next.cost <= has && (!best || t.next.cost < best.cost)) best = { name: 'A better ' + t.name.toLowerCase(), cost: t.next.cost }; });
+    if (!f.study) T.tree(f).forEach(function (t) { if (t.next && t.next.cost <= has && (!best || t.next.cost < best.cost)) best = { name: (t.tier ? 'Tier ' + t.next.tier + ' of the ' : 'Learning the ') + t.name.toLowerCase(), cost: t.next.cost, kind: t.kind }; });
     return best;
   }
   function stalls(g) {
@@ -88,8 +89,8 @@
     });
     var buy = cheapest(g), since = g.idle !== undefined && g.idle !== null ? g.month - g.idle : 0;
     if (buy && since >= IDLE) {
-      out.push({ id: 'idle', since: since, what: dollars(f.clean) + ' of clean money sleeps',
-                 why: 'Nothing was bought or learned with it in ' + T.days(12 * Math.max(1, Math.floor(since / 12))), lever: buy.name + ' costs ' + dollars(buy.cost) });
+      out.push({ id: 'idle', since: since, what: dollars(f.clean) + ' of clean money sleeps', kind: buy.kind || null,
+                 why: 'It could have been spent for ' + T.days(since) + ': clean money buys what the family learns and what it owns for good', lever: buy.name + ' costs ' + dollars(buy.cost) });
     }
     var grave = function (s) { return GRAVE[s.id.split(':')[0]]; };
     return out.map(function (s, i) { return { s: s, i: i }; }).sort(function (a, b) { return grave(a.s) - grave(b.s) || b.s.since - a.s.since || a.i - b.i; })
@@ -121,6 +122,7 @@
     welcomed: function (g, c, d) {
       if (!g.family.men[d.capo] || !T.clubOf(c, d.capo)) return { label: firstName(d.capo) + ' is gone from ' + specOf(c.id).name, good: false };
       var n = T.run(c, d.capo).length;
+      if (!n) return { label: firstName(d.capo) + ' still runs no place in ' + specOf(c.id).name + ': his club alone makes ' + dollars(g.family.men[d.capo].income) + ' ' + T.EVERY, good: false };
       return { label: firstName(d.capo) + ' runs ' + plural(n, 'place') + ' in ' + specOf(c.id).name + ' and makes ' + dollars(g.family.men[d.capo].income) + ' ' + T.EVERY, good: n >= 2 };
     },
     granted: function (g, c, d) {
@@ -165,7 +167,7 @@
       var o = OUTCOMES[d.type](g, cityOf(g, d.city), d), label = T.days(12) + ' on' + (o.under || '') + ': ' + o.label;
       close(g, d, label, o.good);
       var e = { type: 'outcome', decision: d.id, city: d.city, good: o.good, label: label };
-      if (d.capo) e.capo = d.capo;
+      if (d.capo) { e.capo = d.capo; label = T.voice(d.capo, label); d.result.label = label; }
       record(g, e, g.month); events.push(e);
     });
   }
@@ -182,6 +184,8 @@
 
   function createGame(options) {
     var g = { version: VERSION, started: false, paused: false, speed: 1, ticks: 0, month: 0, family: null, cities: [], journal: [] };
+    if (options && options.quiet) g.audience = { last: 0, seen: {}, open: null, off: true }; // no capo comes to the boss with a matter (for the tests of everything else)
+    if (options && options.seed) g.seed = Math.floor(options.seed);
     if (options && options.capo) start(g, options.capo);
     return g;
   }
@@ -191,7 +195,7 @@
     // every city of the map, each held by the family that was there first and laid out by its own dice
     g.cities = W.CITIES.map(function (spec, i) {
       var c = layout(spec);
-      c.dice = i + 1;
+      c.dice = i + 1 + (g.seed || 0) * 7919; // (a game with another seed is laid out another way)
       T.crown(c, spec.rival);
       T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
       T.raiseHq(c, spec.rival);
@@ -205,12 +209,15 @@
     home.home = true; // the boss lives here
     g.cities.forEach(function (c) { c.away = c !== home; }); // anywhere else his money sleeps in the city's coffer until a car brings it
     T.raiseHq(home, 'family');
-    g.reign = R.create(NAMES.indexOf(capo) + 1);
+    g.reign = R.create(NAMES.indexOf(capo) + 1 + (g.seed || 0) * 31);
     g.started = true;
     seats(g); // every headquarters has its true size from the first day
   }
 
+  // What is said of a woman says she and her.
+  function voiced(e) { if (e && e.capo && e.label) e.label = T.voice(e.capo, e.label); return e; }
   function record(g, e, month) {
+    voiced(e);
     var line = { month: month, date: dateOf(month) };
     Object.keys(e).forEach(function (k) { line[k] = e[k]; });
     g.journal.push(line);
@@ -272,8 +279,13 @@
   }
   // The family's share of the map has just been counted: the acts it wins or loses go into the journal.
   function settle(g) {
-    var told = R.place(reignOf(g), shareNow(g));
+    var r = reignOf(g), told = R.place(r, shareNow(g));
     seats(g);
+    // the day it holds half the map the game is won: said once, and the game goes on
+    if (!g.won && R.atTop(r)) {
+      g.won = { month: g.month, men: Object.keys(g.family.men).length, cities: g.cities.filter(function (c) { return held(g, c); }).length };
+      told.push({ type: 'won', label: 'Your family holds half the streets of the six cities: you sit on the Commission', gives: 'The game is won' });
+    }
     told.forEach(function (e) { record(g, e, g.month); });
     return told;
   }
@@ -319,11 +331,13 @@
   // What has just happened goes into the journal; what waits for the boss's word stops the clock.
   function tell(g, happened, month, events) {
     happened.forEach(function (e) {
-      events.push(e);
+      events.push(voiced(e));
       if (passing(e)) return; // for the screen only
       record(g, e, month);
       // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
       if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
+      // nor does an ask he cannot pay: it waits on the sheet, and he is told the day he can
+      if (e.type === 'asks' && e.cost > T.funds(g.family)) return;
       if (STOPS[e.type]) g.paused = true;
     });
   }
@@ -442,6 +456,7 @@
     if (!to) return false; // nowhere on the map to drive it to: paid on the spot
     f.dirty -= dirty; f.clean = (f.clean || 0) - clean;
     f.paid = (f.paid || 0) + 1;
+    if (order.type === 'welcome') { f.promised = f.promised || {}; f.promised[order.capo] = true; } // he waits for the money, whatever happens meanwhile
     (f.paying = f.paying || []).push({ id: f.paid, key: key, order: order, city: to.city, x: to.x, y: to.y, capo: to.capo, dirty: dirty, clean: clean, amount: dirty + clean, sent: 0, arrived: 0 });
     return true;
   }
@@ -459,8 +474,8 @@
       if (p.arrived < p.amount) return false;
       f.paying = f.paying.filter(function (q) { return q !== p; });
       f.dirty += p.dirty; f.clean = (f.clean || 0) + p.clean; // it is there: the order spends it
-      try { ORDERS[p.order.type](g, p.order); }
-      catch (e) { events.push({ type: 'payment', step: 'back', id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, why: e.message, van: home }); } // nobody to take it any more: it comes home
+      try { ORDERS[p.order.type](g, p.order); if (p.order.type === 'welcome' && f.promised) delete f.promised[p.order.capo]; }
+      catch (e) { events.push({ type: 'payment', step: 'back', id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, why: e.message, van: home }); if (f.promised) delete f.promised[p.order.capo]; } // nobody to take it any more: it comes home
       return false;
     });
     // every vehicle of the headquarters that is back takes the next load
@@ -487,11 +502,14 @@
     payDay(g, events);
     carryHome(g, events);
     var passed = T.pass(f, g.cities, d);
-    passed.forEach(function (e) { if (passing(e)) events.push(e); });
+    passed.forEach(function (e) { if (passing(e)) events.push(voiced(e)); });
     T.rideDay(f, g.cities, W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind, days: roadDays(r.from, r.to) }; }), d).forEach(function (e) { events.push(e); }); // the trucks between cities, for the screen to drive
     tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     direct(g, events.slice(heard), month, events);
+    // nobody has needed the boss for a while: a capo comes to him with a matter
+    var matter = A.raise(g, nowOf(g), g.paused);
+    if (matter) { record(g, matter, month); events.push(matter); g.paused = true; }
     g.ticks = last ? 0 : d + 1;
     if (!last) return;
     tell(g, T.end(f, g.cities, W.ROUTES), month, events);
@@ -507,6 +525,18 @@
         if (!g.waiting[k]) return;
         delete g.waiting[k];
         var e = { type: 'knocks', ready: true, capo: q.capo, city: c.id, door: q.door, by: q.by, cost: q.cost, label: q.name + ' can now be taken in' };
+        record(g, e, month); events.push(e); g.paused = true;
+      });
+    });
+    // an ask he could not pay is told again the day he can
+    g.cities.forEach(function (c) {
+      T.asks(c).forEach(function (q) {
+        var k = c.id + ':ask:' + q.id;
+        if (owed(g, 'answer', c.id, q.id)) return;
+        if (q.cost > T.funds(g.family)) { g.waiting[k] = true; return; }
+        if (!g.waiting[k]) return;
+        delete g.waiting[k];
+        var e = { type: 'asks', ready: true, capo: q.capo, city: c.id, x: q.x, y: q.y, cost: q.cost, label: 'You can now pay the ' + dollars(q.cost) + ' ' + T.person(q.capo).name.split(' ')[0] + ' asked you for' };
         record(g, e, month); events.push(e); g.paused = true;
       });
     });
@@ -539,19 +569,27 @@
   function tableOf(g) { return T.table(g.family).filter(function (s) { return chairOpen(g, s.post); }); }
 
   // Where a man at the door could be sent instead: the cities next door that still have a seat.
+  // The men the boss is already paying to set up in a city: their seats are spoken for.
+  function coming(g, city) { return (g.family.paying || []).filter(function (p) { return p.order.type === 'welcome' && p.order.city === city; }).length; }
   function roadsOf(g, c, d) {
     if (d.door === 'poach' || !isOpen(g, 'roads')) return [];
     return g.cities.filter(function (q) {
       var s = T.seats(q);
-      return linked(c.id, q.id) && s.taken < s.total;
+      return linked(c.id, q.id) && s.taken + coming(g, q.id) < s.total && T.clubSpot(q, d.capo);
     }).map(function (q) { return { city: q.id, name: specOf(q.id).name, cost: d.cost + T.RULES.doors.road }; });
   }
   // Can the boss say yes to this man today: a seat here or down a road, and the money for it.
   function answerable(g, c, d) {
     if (owed(g, 'welcome', c.id, d.capo)) return false; // already answered: the money is on its way
     var s = T.seats(c), has = T.funds(g.family);
-    return (s.taken < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
+    return (s.taken + coming(g, c.id) < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
   }
+  // Who waits for the boss's word in a city: the asks he can pay, the men he can take in, the quarrels.
+  function waitingIn(g, c) {
+    var has = T.funds(g.family);
+    return T.asks(c).filter(function (q) { return !owed(g, 'answer', c.id, q.id) && q.cost <= has; }).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
+  }
+  function waiting(g) { return g.cities.reduce(function (n, c) { return n + waitingIn(g, c); }, 0); }
   // True while the boss's money for this man at the door ('welcome') or for this ask ('answer') is on its way.
   function owed(g, type, city, what) {
     return (g.family.paying || []).some(function (p) {
@@ -569,7 +607,7 @@
     return c;
   }
   var ORDERS = {
-    start: function (g, o) { start(g, o.capo); },
+    start: function (g, o) { if (o.seed !== undefined) g.seed = Math.floor(o.seed) || 0; start(g, o.capo); },
     pause: function (g) { g.paused = true; },
     resume: function (g) { g.paused = false; },
     speed: function (g, o) {
@@ -627,6 +665,7 @@
     // the boss buys something that lasts, in clean money
     buy: function (g, o) {
       var b = T.buy(g.family, o.holding);
+      g.idle = null; // the clean money has just been put to work
       record(g, { type: 'bought', holding: b.id, level: b.level, cost: b.cost, label: 'You buy ' + (b.level > 1 ? 'more of ' : '') + 'the ' + b.name }, g.month);
     },
     // the boss sets how much he takes in a city: light, normal or heavy
@@ -649,6 +688,8 @@
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c) need(g, 'roads');
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
+      var s = T.seats(c);
+      if (s.taken + coming(g, c.id) >= s.total && !owed(g, 'welcome', from.id, o.capo)) throw new Error('no seat left in ' + specOf(c.id).name + ': the last one is spoken for');
       T.send(from, c, g.family, o.capo, o.x, o.y);
       T.raiseHq(c, 'family'); // the first man in a city opens the family's back room there
       decide(g, { type: 'welcomed', city: c.id, capo: o.capo, label: (from !== c ? 'You sent ' + T.person(o.capo).name + ' to ' : 'You took in ' + T.person(o.capo).name + ' in ') + specOf(c.id).name });
@@ -671,14 +712,26 @@
       var said = { retire: 'You pay ' + name + ' off. He leaves the city', kill: name + ' is found in the river', jail: 'The police come for ' + name + ' at dawn' };
       record(g, { type: 'parted', capo: o.capo, city: c.id, way: o.way, kept: r.kept, closed: r.closed,
                   label: said[o.way] + (r.closed ? ': ' + r.closed + (r.closed > 1 ? ' places close' : ' place closes') : '') }, g.month);
+      // what the others do about it is news too
+      (r.shaken || []).forEach(function (id) {
+        record(g, { type: 'shaken', capo: id, city: c.id, label: T.person(id).name.split(' ')[0] + ' saw what became of ' + name.split(' ')[0] + ': he keeps his money for himself for ' + T.days(r.months) }, g.month);
+      });
     },
     // the boss's word in a live hit: press on, hold, or pull out
     call: function (g, o) {
       T.call(cityOf(g, o.city), g.family, o.hit, o.call).forEach(function (e) { if (!passing(e)) record(g, e, g.month); });
     },
+    // the boss puts in what a capo is short of for his next place
+    advance: function (g, o) {
+      var c = cityOf(g, o.city), r = T.advance(c, g.family, o.capo);
+      record(g, { type: 'advanced', capo: o.capo, city: c.id, x: r.x, y: r.y, kind: r.kind, cost: r.cost, label: 'You put ' + dollars(r.cost) + ' into ' + T.person(o.capo).name.split(' ')[0] + '\'s next place' }, g.month);
+    },
+    // the boss answers the matter a capo brought him
+    decide: function (g, o) { var e = A.decide(g, o.id, o.choice, nowOf(g), command); if (e) record(g, e, g.month); },
     research: function (g, o) {
       T.research(g.family, o.building);
       g.family.study.day = g.ticks; // learned on this day of a later cycle
+      g.idle = null;
       record(g, { type: 'studying', kind: o.building, label: 'The family starts learning: ' + (o.building === 'cars' ? 'bigger cars' : D.SITES[o.building].name) }, g.month);
     }
   };
@@ -694,18 +747,20 @@
   }
 
   // The six a boss can start with, for the first screen.
+  // `opens`: what the man opens first, read in the plan he makes the day he is picked (his own trade, when he can pay for it).
+  var FIRST = null;
   function candidates() {
-    return NAMES.map(function (id) {
-      var c = T.person(id);
+    return FIRST || (FIRST = NAMES.map(function (id) {
+      var c = T.person(id), g = createGame({ capo: id }), p = T.plan(g.cities[0], g.family, id) || {};
       return { id: id, name: c.name, specialty: c.specialty, muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma,
-               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name,
+               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name, opens: (D.SITES[p.kind] || D.SITES[T.tradeOf(id)]).name,
                likes: c.likes.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }),
                refuses: c.refuses.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }) };
-    });
+    }));
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
-    var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family, g.cities), advice: T.advice(g.family, g.cities), study: g.family.study, table: tableOf(g),
+    if (!g.started) return { date: dateOf(0), cities: [], matters: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
+    var out = { date: dateOf(g.month), month: g.month, matters: A.matters(g), day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family, g.cities), advice: T.advice(g.family, g.cities), study: g.family.study, table: tableOf(g),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -736,7 +791,7 @@
       if (o.type === 'buy') out.holdings.forEach(function (h) { if (h.id === o.holding) h.paying = true; });
     });
     var r = reignOf(g), share = shareNow(g);
-    out.reign = { share: Math.round(share * 10) / 10, rank: R.rank(share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
+    out.reign = { goal: g.won ? null : R.goal(r, share), road: R.road(r), won: g.won || null, share: Math.round(share * 10) / 10, rank: R.standing(r, share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
                   acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, hq: a.hq, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
     out.next = out.cities.reduce(function (best, c) { return c.next && (!best || c.next.advance > best.advance) ? Object.assign({ city: c.id }, c.next) : best; }, null);
     return out;
@@ -748,7 +803,7 @@
     g.cities.forEach(function (c) {
       var s = T.share(c), n = T.size(c), k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
-      pending += T.asks(c).filter(function (q) { return !owed(g, 'answer', c.id, q.id); }).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
+      pending += waitingIn(g, c);
       if (!held(g, c)) return;
       cities.held += 1; seats.taken += k.taken; seats.total += k.total;
     });
@@ -756,7 +811,7 @@
     out.change = g.change || { dirty: 0, clean: 0 }; // what last month did to the two kinds of money
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
-    out.seats = seats; out.pending = pending;
+    out.seats = seats; out.pending = pending + A.matters(g).length;
     out.act = R.act(reignOf(g)).numeral;
     out.vault = T.RULES.stash + T.RULES.hq.vault[reignOf(g).reached]; // dirty money above this draws the police
     return out;
@@ -778,6 +833,7 @@
     if (!g || typeof g !== 'object') throw new Error('this saved game cannot be read');
     if (g.version !== VERSION) throw new Error('this game was saved by an older version of Ashport and cannot be continued');
     (g.cities || []).forEach(outline);
+    (g.cities || []).forEach(function (c) { var spec = specOf(c.id); if (!c.name && spec) c.name = spec.name; });
     // a game saved before headquarters existed: they go up where they would have
     if (g.started && g.family) (g.cities || []).forEach(function (c, i) {
       if (i === 0) c.home = true;

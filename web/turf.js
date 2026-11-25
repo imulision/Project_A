@@ -138,7 +138,7 @@
       var id = f.table && f.table[post];
       if (!id || !clubOf(c, id)) return;
       out.push({ id: 'unpaid:' + id, capo: id, since: began('unpaid:' + id), what: first(id) + ' was not paid',
-                 why: 'The table costs $' + RULES.table.pay + ' a man ' + R.EVERY + ': the family had $' + Math.round(funds(f)) + ' in hand',
+                 why: 'The table costs ' + R.dollars(RULES.table.pay) + ' a man ' + R.EVERY + ': the family had ' + R.dollars(funds(f)) + ' in hand',
                  lever: 'Free his chair, or wait for money to come up' });
     });
     // ground lost over the last year
@@ -162,7 +162,7 @@
       var left = ((c.sulk || {})[id] || 0) - c.month;
       if (left <= 0) return;
       out.push({ id: 'sulk:' + id, capo: id, since: began('sulk:' + id), what: first(id) + ' sends nothing up',
-                 why: 'He sulks for ' + R.days(left) + ' more', lever: 'A gift of $' + RULES.loyal.gift + ' may bring him round' });
+                 why: 'He sulks for ' + R.days(left) + ' more', lever: 'A gift of ' + R.dollars(RULES.loyal.gift) + ' may bring him round' });
     });
     // nobody new for a long time, and nobody at the door
     var quiet = c.month - (c.joined || 0);
@@ -247,7 +247,7 @@
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       rides: (c.rides || []).map(function (r) { return { kind: r.kind, cargo: r.cargo, capo: r.capo, vehicle: r.vehicle || G.carId(r.capo, r.car), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
-      hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
+      hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), made: Math.round(Object.keys(f.men).reduce(function (n, id) { return n + (clubOf(c, id) ? f.men[id].income || 0 : 0); }, 0)), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
@@ -336,7 +336,7 @@
       if (!p.gains.length || p.waiting === 'rank') return;
       if (!best || p.advance > best.advance) best = { capo: k.id, move: p.move, kind: p.kind, name: p.name, x: p.x, y: p.y, months: p.due, streets: p.gains.length, waiting: p.waiting, advance: p.advance, stuck: p.waiting === 'money' && p.monthsLeft === null && k.counts >= 2 };
     });
-    if (best) best.label = who(best.capo).name.split(' ')[0] + ' ' + DOES[best.move] + ' a ' + (best.name || 'place').toLowerCase() + ': +' + best.streets + (best.streets === 1 ? ' street' : ' streets');
+    if (best) best.label = who(best.capo).name.split(' ')[0] + ' ' + DOES[best.move] + ' ' + R.a((best.name || 'place').toLowerCase()) + ': +' + best.streets + (best.streets === 1 ? ' street' : ' streets');
     return best;
   }
 
@@ -621,7 +621,7 @@
         turned.kind = p.kind; turned.level = Math.max(1, Math.min(turned.level, f.tech[p.kind] || 1)); turned.turned = c.month;
         changed(c);
         events.push({ type: 'converted', capo: capo, city: c.id, x: p.x, y: p.y, from: p.from, kind: p.kind, cost: p.cost, why: p.why,
-                      label: first(capo) + ' turns his ' + D.SITES[p.from].name.toLowerCase() + ' into a ' + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+                      label: first(capo) + ' turns his ' + D.SITES[p.from].name.toLowerCase() + ' into ' + R.a(p.name.toLowerCase()) + ' in ' + zoneOf(c, p.x, p.y).name });
         return;
       }
       if (p.move !== 'enlarge') rub(c, capo, p.x, p.y);
@@ -634,7 +634,7 @@
       if (p.move === 'open') { open(c, p.x, p.y, { owner: 'family', kind: p.kind, capo: capo }); at(c, p.x, p.y).turned = c.month; } // (and he does not turn it into something else the year after)
       else { at(c, p.x, p.y).level += 1; changed(c); }
       events.push({ type: p.move === 'open' ? 'opened' : 'enlarged', capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, cost: p.cost, why: p.why,
-                    label: first(capo) + (p.move === 'open' ? ' opens a ' : ' enlarges his ') + p.name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+                    label: first(capo) + (p.move === 'open' ? ' opens ' + R.a(p.name.toLowerCase()) : ' enlarges his ' + p.name.toLowerCase()) + ' in ' + zoneOf(c, p.x, p.y).name });
     })();
   }
   // An event about one of the family's men that names no place happens at his club.
@@ -662,7 +662,7 @@
     c.lurk = c.month + RULES.road.every; // they lie low for a while
     events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
               label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
-                + (cash ? '$' + Math.round(held2.amount) : held2.amount + CARGOES[held2.cargo]) + ' gone' });
+                + (cash ? R.dollars(held2.amount) : held2.amount + CARGOES[held2.cargo]) + ' gone' });
   }
   function rivals(c, f, events) {
     rivalGrows(c);
@@ -834,12 +834,12 @@
   }
   function learn(f, events) {
     f.tech[f.study.kind] = f.study.tier;
-    events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry up to $' + RULES.car.loads[f.study.tier] * RULES.car.holds + ' a run'
-      : 'The family can now run a ' + D.SITES[f.study.kind].name.toLowerCase() + ' of tier ' + f.study.tier });
+    events.push({ type: 'learned', kind: f.study.kind, tier: f.study.tier, label: f.study.kind === 'cars' ? 'The family now drives cars that carry up to ' + R.dollars(RULES.car.loads[f.study.tier] * RULES.car.holds) + ' a run'
+      : 'The family can now run ' + R.a(D.SITES[f.study.kind].name.toLowerCase()) + ' of tier ' + f.study.tier });
     f.study = null;
   }
 
-  var api = { purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: treeOf, advice: advice, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { short: B.short, advance: function (c, f, capo) { return B.advance(c, f, capo, plan(c, f, capo)); }, lines: B.lines, cuts: B.cuts, voice: P.voice, dollars: R.dollars, a: R.a, town: C.town, purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: treeOf, advice: advice, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;

@@ -8,7 +8,7 @@
 <script>
 // The wait before the game: every file read and every stage of building the map moves the bar. If something breaks, it says so instead of waiting forever.
 window.AshportLoad = (function () {
-  var FILES = 19, STAGES = ['Street furniture', 'Land', 'City blocks', 'Lights', 'First picture'], total = FILES + STAGES.length, steps = [], files = 0, t0 = Date.now();
+  var FILES = 20, STAGES = ['Street furniture', 'Land', 'City blocks', 'Lights', 'First picture'], total = FILES + STAGES.length, steps = [], files = 0, t0 = Date.now();
   function show(label) { var part = Math.min(1, (steps.length + 1) / total); steps.push({ label: label, part: part, ms: Date.now() - t0 });
     var b = document.getElementById('load-bar'), w = document.getElementById('load-what'); if (b) b.style.width = Math.round(part * 100) + '%'; if (w) w.textContent = label + ' · ' + Math.round(part * 100) + '%'; }
   function fail(why) { var l = document.getElementById('load'); if (!l) return; l.classList.add('bad');
@@ -60,6 +60,7 @@ window.AshportLoad = (function () {
 <script src="./turf-family.js"></script><script>AshportLoad.file()</script>
 <script src="./turf.js"></script><script>AshportLoad.file()</script>
 <script src="./reign.js"></script><script>AshportLoad.file()</script>
+<script src="./audience.js"></script><script>AshportLoad.file()</script>
 <script src="./empire.js"></script><script>AshportLoad.file()</script>
 <script src="./mapview.js"></script><script>AshportLoad.file()</script>
 <script src="./render.js"></script><script>AshportLoad.file()</script>

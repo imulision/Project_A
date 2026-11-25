@@ -373,7 +373,7 @@ test('a key place is one of a short list, and the city knows who holds each', ()
   assert.throws(() => T.open(c, 2, 2, { owner: 'Callahan', kind: 'key', key: 'casino' }), /unknown key place/);
   T.open(c, 2, 2, { owner: 'Callahan', kind: 'key', key: 'hotel' });
   assert.throws(() => T.open(c, 4, 4, { owner: 'Callahan', kind: 'key', key: 'hotel' }), /already has/);
-  assert.deepEqual(T.keys(c), [{ key: 'hotel', name: 'Grand Hotel', x: 2, y: 2, owner: 'Callahan', capo: null, gives: T.KEYS.hotel.gives }]);
+  assert.deepEqual(T.keys(c), [{ key: 'hotel', name: 'Grand Hotel', x: 2, y: 2, owner: 'Callahan', capo: null, gives: T.KEYS.hotel.gives, around: 0, need: T.RULES.siege }]);
   assert.ok(T.hold(c, 5, 2).rival > 0, 'it presses on the streets like a big place');
 });
 

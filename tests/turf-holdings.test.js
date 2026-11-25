@@ -38,7 +38,7 @@ test('it is paid in clean money, it stays, and after the third size there is not
   assert.equal(f.clean, 5);
   assert.equal(T.holdings(f)[1].next, null);
   assert.throws(() => T.buy(f, 'judge'), /nothing more to buy/);
-  assert.throws(() => T.buy(f, 'lawyer'), new RegExp('it takes \\$' + K.lawyer.cost[0] + ' of clean money'));
+  assert.throws(() => T.buy(f, 'lawyer'), new RegExp('it takes \\' + T.dollars(K.lawyer.cost[0]) + ' of clean money'));
   assert.equal(f.dirty, 1e6, 'dirty money buys none of it');
   assert.throws(() => T.buy(f, 'senator'), /nothing of that name to buy: senator/);
 });

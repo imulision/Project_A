@@ -351,3 +351,35 @@ body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-t
 .know .want{overflow:visible}.know .want .face{border-radius:50%}
 .know .want em{position:absolute;left:50%;top:-11px;transform:translateX(-50%);font:700 7.5px var(--title);letter-spacing:.8px;font-style:normal;color:#fff;background:var(--bad);padding:1px 3px;border-radius:3px;line-height:1.1}
 #know>small{display:block}
+/* the goal at the top of the screen, and the road of the reign */
+.rk.goal{cursor:pointer}.rk.goal small em{font-style:normal;font-weight:600;letter-spacing:1px;color:var(--accent);margin-right:2px}.rk.goal .more{font-style:normal;color:var(--dim);font-size:1.3em;line-height:.6}.rk.goal.won b{color:var(--good)}
+.rk.goal .bar{min-width:36px}
+.road{display:flex;flex-direction:column;gap:6px;margin:10px 0}.road .step{border:1px solid #ffffff1f;border-radius:10px;padding:8px 10px;opacity:.6;display:flex;flex-direction:column;gap:2px}
+.road .step b{display:flex;align-items:center;gap:6px;font:500 1em/1.2 var(--title);letter-spacing:1px;text-transform:uppercase}.road .step b i{margin-left:auto;font-style:normal;color:var(--dim);font-family:inherit}
+.road .step b .ic{width:14px;height:14px}.road .step small{color:var(--dim)}.road .step span{font-size:.92em}
+.road .step.done{opacity:.85;border-color:#8fbf9766}.road .step.done b{color:var(--good)}.road .step.now{opacity:1;border-color:var(--accent);background:#e8c4631a}.road .step.now b{color:var(--accent)}
+.rk.goal .bar{flex:0 1 84px}.rk.goal small{flex:1;text-align:right;font-size:1.12em;color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+/* names a boss reads without touching: the numbers of a man, the trades of the wheel, what a line costs */
+.stat small{width:4.9em;flex:none;font-size:.74em;letter-spacing:.3px;color:var(--dim)}
+.dial{margin-bottom:13px}.dial em{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:1px;font:500 9.5px var(--text);font-style:normal;color:var(--dim);white-space:nowrap}
+.nums{display:flex;flex-wrap:wrap;gap:3px 10px;margin:6px 0;font-size:.84em;color:var(--dim)}.nums .ic{width:1em;height:1em;vertical-align:-2px}.nums b{color:var(--ink)}
+.versus small.has{display:block;margin:0 0 6px;color:var(--dim);font-size:.82em;line-height:1.35}
+.acts.lines button small.down{display:block;color:var(--bad)}
+p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
+.wheel .know .nm{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:3px;font:600 8.5px var(--text);font-style:normal;letter-spacing:.2px;color:var(--ink);white-space:nowrap;pointer-events:none;background:#15131ad9;padding:0 3px;border-radius:5px}
+.wheel .know.shut .nm{color:var(--dim)}
+/* a matter a capo brings: its choices side by side, what each costs in red */
+.side span.bad{color:var(--bad);flex:none}.card.matter .side{border-top-color:var(--accent)}.card.matter .side.yes{border-top-color:var(--good)}
+/* a phone: the top band keeps to a quarter of the screen. Smaller date, the trend on one line, the four figures tighter,
+   the next streets on two short lines, and no more than two pieces of news at a time. */
+@media (max-width:520px){
+  .top{padding:6px 8px 14px}
+  h1{font-size:19px}h1::after{display:none}
+  .top .sub{margin:2px 0 4px;display:flex;align-items:baseline;gap:8px}.top .sub #sub{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #rank{margin:0 0 4px}#stall{margin:0 0 4px}.stallline{padding:2px 8px}
+  .res{gap:4px}.res .acct{padding:3px 8px 3px}.res .acct b{font-size:1.4em}.res .acct em{min-height:0}.res .acct em:empty{display:none}
+  .res .slim{padding:2px 8px}.res .slim b{font-size:1.05em}
+  .nx{margin-top:4px;padding:3px 8px 4px}.nx p{margin:1px 0 3px;font-size:13px}
+  #feed{margin-top:4px}#feed .news:nth-last-child(n+3){display:none}
+}
+.card.matter small.spent { display: block; margin-top: 8px; opacity: .7; font-size: 11px; letter-spacing: .02em; }

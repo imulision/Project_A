@@ -34,17 +34,17 @@
 
   // What each act opens, what the boss watches in it and what threatens him. `opens` are keys for the screen and for
   // the orders: nothing of an act is shown or allowed before the family has reached it once.
+  var NUMERAL = ['I', 'II', 'III', 'IV'];
   var ACTS = [
     { id: 'street', name: 'The Street', hq: 'Back room', opens: ['places', 'men', 'dirty', 'jobs'], watch: 'Every place, every man', threat: 'The gang next door',
-      gives: 'One street, your first men and dirty money' },
+      gives: 'One street, your first men and dirty money', short: 'your first street' },
     { id: 'city', name: 'The City', hq: 'Club', opens: ['clean', 'table', 'roads', 'vault', 'laws'], watch: 'Your capos more than their places', threat: 'The police, and the chief who holds the city',
-      gives: 'A table of trusted men, the roads to the cities next door, and a vault where more dirty money sleeps unseen' },
+      gives: 'A table of trusted men, the roads to the cities next door, and a vault where more dirty money sleeps unseen', short: 'the table and the roads' },
     { id: 'roads', name: 'The Roads', hq: 'Hotel floor', opens: ['underboss', 'convoys', 'nerve'], watch: 'Your underbosses and your roads', threat: 'War between families, and betrayal',
-      gives: 'An underboss to hold each city for you, and a deeper vault' },
+      gives: 'An underboss to hold each city for you, and a deeper vault', short: 'underbosses' },
     { id: 'commission', name: 'The Commission', hq: 'Mansion', opens: ['counsel', 'politics', 'press', 'heir'], watch: 'Your name, and who comes after you', threat: 'The federal case, and a knife from inside',
-      gives: 'A seat among the families that count, and a Counsel at your table' }
+      gives: 'A seat among the families that count, and a Counsel at your table', short: 'a Counsel at your table' }
   ];
-  var NUMERAL = ['I', 'II', 'III', 'IV'];
 
   function rankOf(share) { var n = 0; RULES.ranks.forEach(function (r, i) { if (share >= r[1]) n = i; }); return n; }
   // rank(share) -> { n, name, next, from, to, part: how far towards the next rank, from 0 to 1 }
@@ -52,6 +52,40 @@
     var n = rankOf(share), nx = RULES.ranks[n + 1], from = RULES.ranks[n][1], to = nx ? nx[1] : null;
     return { n: n, name: RULES.ranks[n][0], next: nx ? nx[0] : null, from: from, to: to, part: to === null ? 1 : Math.max(0, Math.min(1, (share - from) / (to - from))) };
   }
+
+  // The rank a family holds: won the day it reaches the share, lost only once it has fallen `slip` under it, so that a
+  // family on a threshold is not said to rise and fall every other day. r.rank is kept with the reign.
+  function hold(r, share) {
+    var n = r.rank === undefined ? rankOf(share) : r.rank, top = RULES.ranks.length - 1;
+    while (n < top && share >= RULES.ranks[n + 1][1]) n += 1;
+    while (n > 0 && share < RULES.ranks[n][1] - RULES.slip) n -= 1;
+    r.rank = n;
+    return n;
+  }
+  function standing(r, share) {
+    var n = hold(r, share), nx = RULES.ranks[n + 1], from = RULES.ranks[n][1], to = nx ? nx[1] : null;
+    return { n: n, name: RULES.ranks[n][0], next: nx ? nx[0] : null, from: from, to: to, part: to === null ? 1 : Math.max(0, Math.min(1, (share - from) / (to - from))) };
+  }
+
+  // What the family is after now: the share of the map that gives the next rank, and what that rank opens. The last
+  // rank wins the game. null once there is nothing left to reach.
+  var WON = 'The game is won: your family sits on the Commission';
+  function goal(r, share) {
+    var n = hold(r, share), top = RULES.ranks.length - 1;
+    if (n >= top) return null;
+    var nx = RULES.ranks[n + 1], from = RULES.ranks[n][1], a = ACTS[n + 1];
+    return { need: nx[1], rank: nx[0], at: Math.round(share * 10) / 10, part: Math.max(0, Math.min(1, (share - from) / (nx[1] - from))),
+             act: a ? 'Act ' + NUMERAL[n + 1] + ': ' + a.name : null, opens: a ? a.gives : WON, short: a ? a.short : 'the game is won',
+             final: RULES.ranks[top][1], wins: n + 1 === top };
+  }
+  // The road, rank by rank, for the screen: the share each starts at and what it opens.
+  function road(r) {
+    return RULES.ranks.map(function (k, i) {
+      var a = ACTS[i];
+      return { n: i, rank: k[0], from: k[1], act: a ? 'Act ' + NUMERAL[i] + ': ' + a.name : null, gives: a ? a.gives : WON, now: i === (r.rank || 0), done: i < (r.rank || 0), wins: i === RULES.ranks.length - 1 };
+    });
+  }
+  function atTop(r) { return (r.rank || 0) >= RULES.ranks.length - 1; }
 
   function hash(a, b, c) {
     var n = (a * 73856093) ^ (b * 19349663) ^ (c * 83492791);
@@ -81,6 +115,7 @@
   // The family holds this share of the map today: the acts it wins or loses, told one by one.
   function place(r, share) {
     var out = [], top = ACTS.length - 1;
+    hold(r, share);
     while (r.act < top && share >= RULES.ranks[r.act + 1][1]) {
       r.act += 1;
       var first = r.act > r.reached, a = ACTS[r.act];
@@ -108,19 +143,20 @@
       if (k[e.type]) r.tension = Math.min(100, r.tension + k[e.type]);
     });
   }
+  function dollars(n) { return '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function days(cycles) { return Math.round(cycles * DAYS) + ' days'; }
   // What he can make happen. `where`: the cities it can happen in; `from`: the first act it belongs to.
   var BEATS = {
     truce: { tone: 'good', from: 0, where: function (c) { return c.held && c.rival && !c.quiet; },
              tell: function (c) { return { label: 'The ' + c.rival + 's bury one of their own in ' + c.name, gives: 'They leave your places alone for ' + days(RULES.director.truce) }; } },
     cargo: { tone: 'good', from: 0, where: function (c) { return c.held; },
-             tell: function (c, size) { return { amount: Math.round(RULES.director.cargo * size), label: 'A truck with no owner is found in ' + c.name, gives: '$' + Math.round(RULES.director.cargo * size) + ' for the family' }; } },
+             tell: function (c, size) { return { amount: Math.round(RULES.director.cargo * size), label: 'A truck with no owner is found in ' + c.name, gives: dollars(RULES.director.cargo * size) + ' for the family' }; } },
     cool: { tone: 'good', from: 1, where: function (c) { return c.held && c.heat >= RULES.director.cool; },
             tell: function (c) { return { label: 'The police captain of ' + c.name + ' is sent to another town', gives: 'The heat falls by ' + RULES.director.cool }; } },
     godson: { tone: 'good', from: 0, where: function (c) { return c.held && c.sour; },
               tell: function (c) { return { capo: c.sour.id, label: c.sour.name.split(' ')[0] + ' asks you to stand godfather to his son', gives: 'He is more loyal (+' + RULES.director.godson + ')' }; } },
     thief: { tone: 'bad', from: 0, where: function (c, sight) { return c.held && (sight.dirty || 0) >= RULES.director.thief * 2; },
-             tell: function (c, size) { return { amount: Math.round(RULES.director.thief * size), label: 'A bookkeeper runs off with the count in ' + c.name, gives: '$' + Math.round(RULES.director.thief * size) + ' of dirty money is gone' }; } },
+             tell: function (c, size) { return { amount: Math.round(RULES.director.thief * size), label: 'A bookkeeper runs off with the count in ' + c.name, gives: dollars(RULES.director.thief * size) + ' of dirty money is gone' }; } },
     blood: { tone: 'bad', from: 0, where: function (c) { return c.held && c.rival && !c.quiet; },
              tell: function (c, size) { return { label: 'The ' + c.rival + 's bring in guns from out of town', gives: 'They come twice as hard in ' + c.name + ' for ' + days(RULES.director.blood * size) }; } },
     captain: { tone: 'bad', from: 1, where: function (c) { return c.held; },
@@ -159,7 +195,7 @@
     return out;
   }
 
-  var api = { RULES: RULES, ACTS: ACTS, rank: rank, create: create, act: act, open: open, opensAt: opensAt, place: place, hear: hear, direct: direct,
+  var api = { RULES: RULES, ACTS: ACTS, rank: rank, standing: standing, goal: goal, road: road, atTop: atTop, create: create, act: act, open: open, opensAt: opensAt, place: place, hear: hear, direct: direct,
               setDays: function (n) { DAYS = n; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportReign = api;

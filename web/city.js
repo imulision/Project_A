@@ -22,12 +22,13 @@
   // The first version of the game (by districts) saved under another key: that game is not continued. It is kept aside, and the player is told once.
   var OLD = 'ashport-save-1';
   function retire() { try { var t = localStorage.getItem(OLD); if (!t) return; localStorage.setItem(OLD + '-unreadable', t); localStorage.removeItem(OLD); setAside = true; } catch (e) { /* no storage */ } }
-  function store() { try { localStorage.setItem(SAVE, E.save(g)); } catch (e) { /* no storage: the game still plays */ } }
+  var kept = null;      // the text this page last saved
+  function store() { try { kept = E.save(g); localStorage.setItem(SAVE, kept); } catch (e) { /* no storage: the game still plays */ } }
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
-  var lastPlan = null, POWER = 'ashport-power';
+  var lastPlan = null, POWER = 'ashport-power', wonZones = {};      // (the street names already told as won: see C.moments)
   var claims = [], nextI = 0, nextSeen = '';      // the claims in progress, and the one the line at the top shows
   function showNext() { var h = g.started ? C.nextLine(claims, nextI) : ''; if ($('next').html !== h) { $('next').html = h; $('next').innerHTML = h; } }
   var fillAt = {};      /* how full each place of the family is, by city and block: the small gauge beside its mark */
@@ -46,8 +47,8 @@
     // every city and every street name: what the family holds of it and which way it went; a step won or lost is told in large, once
     zshares = C.zoneShares(view); ctrends = {}; view.cities.forEach(function (c) { ctrends[c.id] = C.cityMark(C.cityTrend(view, c.id)); });
     var step = { rank: C.rank(view), zones: zshares };
-    if (view.month < lastMonth) lastStep = null;      // another game: nothing to compare with
-    C.moments(lastStep, step).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
+    if (view.month < lastMonth) { lastStep = null; wonZones = {}; }      // another game: nothing to compare with
+    C.moments(lastStep, step, wonZones).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view); fillAt = C.fills(view); retip(); drawLinks();
@@ -84,7 +85,7 @@
     var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty', view), ct = C.moneyTile(acc, 'clean', view); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
-    $('rank').innerHTML = C.rankLine(C.rank(view));
+    var gl = C.goalLine(view); if ($('rank').dataset.was !== gl) { $('rank').dataset.was = gl; $('rank').innerHTML = gl; }      // the goal: a touch opens the whole road
     var sl = C.stallLine(view); if ($('stall').dataset.was !== sl) { $('stall').dataset.was = sl; $('stall').innerHTML = sl; }      // what holds him back, the worst first: a touch tells why
     $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
@@ -198,6 +199,7 @@
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    if (e.target.closest('[data-goal]') && g && g.started) { untip(); show(C.reign(view)); return; }
     if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
     var nx = e.target.closest('#next .nx');
     if (nx && map && claims.length) {      // a touch shows where it is; another one passes to the next claim
@@ -227,22 +229,24 @@
     var act = b.dataset.act, d = b.dataset;
     if (act === 'close') close();
     else if (act === 'later') { close(); stopped = false; if (g.paused) E.command(g, { type: 'resume' }); showHud(); }      // he leaves them waiting: time goes on
-    else if (act === 'start') { if (order({ type: 'start', capo: d.capo })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
+    else if (act === 'start') { if (order({ type: 'start', capo: d.capo, seed: /[?&]fixed\b/.test(location.search) ? 0 : 1 + Math.floor(Math.random() * 9999) })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
     else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) { var way = d.yes === '1' ? C.onItsWay(view, 'answer', d.city) : ''; if (way) toast(way); answered(); } }
+    else if (act === 'decide') { if (order({ type: 'decide', id: d.id, choice: d.choice })) { toast(((d.choice === 'learn' && C.onItsWay(view, 'research')) || g.journal[g.journal.length - 1].label + '.')); answered(); } }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.onItsWay(view, 'welcome', d.city, d.capo) || C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') settle(d.city, d.city, d.capo);
     else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
+    else if (act === 'advance') { if (order({ type: 'advance', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(C.onItsWay(view, 'gift', d.city, d.capo) || g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(C.onItsWay(view, 'buy') || g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
-    else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
+    else if (act === 'chairs') show(C.chairs(view, d.city, d.capo, E.hud(g)));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
     else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g), rows)); } }
     else if (act === 'requests') requests();
-    else if (act === 'family') show(C.family(view, E.hud(g), rows));
+    else if (act === 'family') { show(C.family(view, E.hud(g), rows)); if (d.know && $('know')) { $('know').innerHTML = C.know(view, d.know, E.hud(g)); [].forEach.call($('sheet').querySelectorAll('.know'), function (x) { x.classList.toggle('sel', x.dataset.know === d.know); }); $('know').scrollIntoView({ block: 'center' }); } }
     else if (act === 'decisions') show(C.decisions(view));
     else if (act === 'road') settle(d.from, d.city, d.capo);
     else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo]));
@@ -395,8 +399,9 @@
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
-    if (!live) C.untold(told0, told, g.month).forEach(tell);      // the same alert is not told again month after month
+    if (!live) C.untold(told0.filter(C.newsworthy), told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store(); hits(); showLive();      // what a man does is seen the day he does it; the money and the loads change when the month closes
+    if (events.some(function (e) { return e.type === 'won'; })) { unwatch(); show(C.won(view, E.hud(g))); return events; }      // the day the game is won is said in full
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;
   }
@@ -411,6 +416,10 @@
     map = m; $('load').remove(); drawLabels();
     if (g.started) { refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
     if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
+    // the game is saved the moment the boss leaves, not only on the days something happens (unless the save is no longer
+    // the one this page wrote: a new game was asked for, or another page plays)
+    var leaving = function () { var there = null; try { there = localStorage.getItem(SAVE); } catch (e) { /* no storage */ } if (g.started && kept !== null && there === kept) store(); };
+    addEventListener('pagehide', leaving); document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') leaving(); });
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });
 })();

@@ -13,6 +13,7 @@
   var changed = C.changed, income = G.income;
   var everyPlace = C.everyPlace, places = C.places, keys = C.keys, held = C.held, clubOf = C.clubOf;
   var laundries = G.laundries;
+  var dollars = R.dollars, a = R.a;
   var first = S.first, funds = S.funds, spend = S.spend, zoneOf = C.zoneOf, at = R.at;
 
   // --- key places: the capo asks, the boss decides ---
@@ -65,7 +66,7 @@
       var b = c.blocks[key(p.x, p.y)], ours = b && b.kind === 'key' && b.owner === 'family';
       var actual = ours ? Math.round(keyWorth(c, p.x, p.y)) : 0, kept = actual >= p.expected * RULES.promise.near;
       events.push({ type: 'promise', city: c.id, capo: p.capo, kind: 'key', key: p.key, x: p.x, y: p.y, expected: p.expected, actual: actual, kept: kept,
-                    label: 'The ' + KEYS[p.key].name + ' brings in $' + actual + ' ' + R.EVERY + ': ' + first(p.capo) + (kept ? ' kept his word' : ' had said $' + p.expected + ', and did not keep his word') });
+                    label: 'The ' + KEYS[p.key].name + ' brings in ' + dollars(actual) + ' ' + R.EVERY + ': ' + first(p.capo) + (kept ? ' kept his word' : ' had said ' + dollars(p.expected) + ', and did not keep his word') });
     });
   }
 
@@ -79,24 +80,25 @@
     if (p.waiting !== 'money') { m.aim = null; if (asked) drop(); return; }
     if (!m.aim) m.aim = { since: c.month };
     if (asked && (p.move !== 'take' || asked.x !== p.x || asked.y !== p.y)) drop();
-    var short = Math.round(p.cost - p.saved), why = 'he has saved $' + Math.round(p.saved) + ' of the $' + Math.round(p.cost) + ' it takes, and ' + R.days(RULES.patience.months) + ' have gone by';
+    var short = Math.round(p.cost - p.saved), why = 'he has saved ' + dollars(p.saved) + ' of the ' + dollars(p.cost) + ' it takes, and ' + R.days(RULES.patience.months) + ' have gone by';
     if (asked) { asked.cost = short; asked.full = p.cost; asked.why = why; return; } // what he is short of moves with his purse
     if (c.month - m.aim.since < RULES.patience.months) return;
     if (c.month < (m.aim.rest || 0)) return;
     var there = at(c, p.x, p.y), where = zoneOf(c, p.x, p.y).name;
     if (p.move === 'take') {
       if (c.asks.some(function (a) { return a.capo === capo; }) || c.month < (m.begged || 0)) return; // one thing at a time, and not every year
+      if (short < p.cost * RULES.patience.petty) return; // he is nearly there: he does not go to the boss for so little
       var name = there.owner + 's\' ' + D.SITES[there.kind].name.toLowerCase();
       c.asks.push({ id: c.id + ':fund:' + capo, fund: true, capo: capo, trade: p.kind, x: p.x, y: p.y, way: p.way, cost: short, full: p.cost, months: p.months, why: why,
                     name: name, gives: 'One more place for ' + first(capo) + ', on streets the ' + there.owner + 's hold' });
       events.push({ type: 'asks', fund: true, capo: capo, city: c.id, x: p.x, y: p.y, kind: p.kind, way: p.way, cost: short, months: p.months,
-                    label: first(capo) + ' asks you for $' + short + ' to take the ' + name + ' in ' + where });
+                    label: first(capo) + ' asks you for ' + dollars(short) + ' to take the ' + name + ' in ' + where });
       return;
     }
     m.shuns = m.shuns || {}; m.shuns[key(p.x, p.y)] = c.month + RULES.patience.sore; m.aim.rest = c.month + RULES.patience.months;
     var site = p.name.toLowerCase();
     events.push({ type: 'gaveup', capo: capo, city: c.id, move: p.move, x: p.x, y: p.y, kind: p.kind, cost: p.cost,
-                  label: first(capo) + ' gives up ' + (p.move === 'enlarge' ? 'making his ' + site + ' bigger' : p.move === 'convert' ? 'turning his ' + D.SITES[p.from].name.toLowerCase() + ' into a ' + site : 'opening a ' + site)
+                  label: first(capo) + ' gives up ' + (p.move === 'enlarge' ? 'making his ' + site + ' bigger' : p.move === 'convert' ? 'turning his ' + D.SITES[p.from].name.toLowerCase() + ' into ' + a(site) : 'opening ' + a(site))
                     + ' in ' + where + ': too dear for him' });
   }
 
@@ -111,7 +113,7 @@
   function fund(c, f, a, yes) {
     var m = f.men[a.capo];
     if (yes) {
-      if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' ' + first(a.capo) + ' is short of');
+      if (funds(f) < a.cost) throw new Error('the boss cannot pay the ' + dollars(a.cost) + ' ' + first(a.capo) + ' is short of');
       spend(f, a.cost);
       m.cash -= a.full - a.cost;
       m.paid = m.paid || {}; m.paid.take = (m.paid.take || 0) + a.full - a.cost; // for his books
@@ -122,16 +124,31 @@
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }
 
+  // The boss puts in what a capo is short of for the place he is saving for (a place of his own: a rival's is asked for).
+  // short(c, f, capo, plan): what it would take today, or 0 when there is nothing for the boss to put in.
+  function short(p) { return p && p.waiting === 'money' && p.move !== 'take' ? Math.max(0, Math.round(p.cost - p.saved)) : 0; }
+  function advance(c, f, capo, p) {
+    var cost = short(p);
+    if (!f.men[capo] || !cost) throw new Error(first(capo) + ' is not short of money for anything');
+    if (f.dirty < cost) throw new Error('it takes ' + dollars(cost) + ' of dirty cash');
+    f.dirty -= cost; f.men[capo].cash += cost;
+    return { cost: cost, kind: p.kind, name: p.name, move: p.move, x: p.x, y: p.y };
+  }
+
   function answer(c, f, id, yes) {
     var a = c.asks.filter(function (q) { return q.id === id; })[0];
-    if (!a) throw new Error('nobody is asking for ' + id);
+    if (!a) throw new Error('nobody is asking for that any more');
     if (a.fund) return fund(c, f, a, yes);
     if (yes) {
-      if (funds(f) < a.cost) throw new Error('the boss cannot pay the $' + a.cost + ' the ' + KEYS[a.key].name + ' takes');
+      if (funds(f) < a.cost) throw new Error('the boss cannot pay the ' + dollars(a.cost) + ' the ' + KEYS[a.key].name + ' takes');
       spend(f, a.cost);
       c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months, day: c.turn && c.turn.daily ? c.turn.day || 0 : undefined });
       if (a.expects) { c.promises = c.promises || []; c.promises.push({ capo: a.capo, key: a.key, x: a.x, y: a.y, expected: a.expects.gain, due: c.month + a.expects.months }); }
-    } else c.refused[a.key] = c.month + RULES.sulk;
+    } else { // a place refused rests, and twice as long each time the boss says no again
+      c.snubs = c.snubs || {};
+      c.refused[a.key] = c.month + RULES.sulk * Math.pow(2, c.snubs[a.key] || 0);
+      c.snubs[a.key] = (c.snubs[a.key] || 0) + 1;
+    }
     sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }
@@ -246,7 +263,7 @@
     var seized = Math.round(Math.max(0, f.dirty) * RULES.bust * (1 - H.lawyer.spares * owns(f, 'lawyer'))); // the lawyers get some of it back
     f.dirty -= seized; (c.flow || (c.flow = { up: 0, sent: {} })).seized = seized;
     c.heat = RULES.afterBust;
-    var seat = C.hqOf(c, 'family'), raid = { type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize $' + seized };
+    var seat = C.hqOf(c, 'family'), raid = { type: 'bust', city: c.id, seized: seized, label: 'The police raid the family\'s counting rooms and seize ' + dollars(seized) };
     if (seat) { raid.x = seat.x; raid.y = seat.y; } // the money sleeps at the headquarters: that is where they come for it
     events.push(raid);
   }
@@ -316,7 +333,7 @@
   }
 
   function feuds(c) {
-    return (c.feuds || []).map(function (q) { return { id: q.id, a: q.a, b: q.b, since: q.month, label: q.label }; });
+    return (c.feuds || []).map(function (q) { return { id: q.id, a: q.a, b: q.b, since: q.month, label: q.label, sulks: RULES.sulks, half: 0.5 }; });
   }
 
   function feuding(c, capo) { return (c.feuds || []).some(function (q) { return q.a === capo || q.b === capo; }); }
@@ -363,7 +380,14 @@
     if (!RULES.line[how] || !RULES.line[how].stat) throw new Error('no such line: ' + how);
     c.line = how;
   }
-  function lines() { return ['grow', 'earn', 'low'].map(function (id) { return { id: id, name: RULES.line[id].name, gives: RULES.line[id].gives }; }); }
+  // What each line brings, and what it costs: said with the figures of the rules.
+  function lineSays() {
+    var l = RULES.line;
+    return { grow: ['Each capo who follows runs ' + l.stretch + ' places more than his rank allows', 'His places stand a raid ' + Math.round(l.thin * 100) + '% worse meanwhile'],
+             earn: ['Each capo who follows makes his places bigger first: more money from every place', 'Fewer new streets while he does'],
+             low: ['The heat falls ' + l.cools + ' point more ' + R.EVERY + ' for each capo who follows', 'No place taken from the rivals meanwhile'] };
+  }
+  function lines() { var says = lineSays(); return ['grow', 'earn', 'low'].map(function (id) { return { id: id, name: RULES.line[id].name, gives: says[id][0], costs: says[id][1] }; }); }
   function followers(c, f) {
     var here = Object.keys(f.men).filter(function (id) { return clubOf(c, id); });
     return { of: here.length, follow: here.filter(function (id) { var l = P.follows(c, f, id); return l && l.follows; }).length };
@@ -395,14 +419,14 @@
     if (!h) throw new Error('nothing of that name to buy: ' + id);
     var level = owns(f, id);
     if (level >= h.cost.length) throw new Error('there is nothing more to buy of the ' + h.name);
-    if ((f.clean || 0) < h.cost[level]) throw new Error('it takes $' + h.cost[level] + ' of clean money');
+    if ((f.clean || 0) < h.cost[level]) throw new Error('it takes ' + dollars(h.cost[level]) + ' of clean money');
     f.clean -= h.cost[level];
     f.holdings = f.holdings || {};
     f.holdings[id] = level + 1;
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { launder: launder, wash: wash, carry: carry, keep: keep, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { short: short, advance: advance, launder: launder, wash: wash, carry: carry, keep: keep, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

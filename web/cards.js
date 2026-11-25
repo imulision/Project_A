@@ -23,6 +23,8 @@
   // T.person throws on a name it does not know, and a sheet must never fail to open: what is not a person here is a key place or a rival family.
   var known = function (id) { try { return T.person(id); } catch (e) { return null; } };
   var nameOf = function (id) { var p = known(id); return p ? p.name : 'Nobody'; };
+  // A sheet about one person is written for a man: said of a woman, its words become hers (T.voice).
+  var voice = function (id, html) { return html == null ? html : T.voice(id, html); };
   var icon = function (k) { return I.icon(I.has(k) ? k : KEYICON[k] || 'unknown'); };
   var iconName = function (k) { return I.has(k) ? k : KEYICON[k] || 'unknown'; };
   var data = function (o) { return Object.keys(o).map(function (k) { return ' data-' + k + '="' + esc(o[k]) + '"'; }).join(''); };
@@ -44,11 +46,11 @@
   var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
-  var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
-                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
-  var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
+  var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'time', decided: 'yes', opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
+                won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
+  var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
-  var good = function (e) { return (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
+  var good = function (e) { return e.type === 'won' || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
@@ -86,7 +88,7 @@
     else if ((c.heat || 0) >= HOT) { o.threat = 'warn'; why.threat = 'The police watch this city closely'; }
     var worst = 'good', say = 'His streets are doing well';
     ['money', 'men', 'threat'].forEach(function (key) { if (HEALTH[o[key]] > HEALTH[worst]) { worst = o[key]; say = why[key]; } });
-    o.worst = worst; o.say = say; return o;
+    o.worst = worst; o.say = voice(k.id, say); return o;
   }
   function healths(view) { var out = {}; view.cities.forEach(function (c) { (c.capos || []).forEach(function (k) { out[c.id + k.id] = health(c, k); }); }); return out; }
   function healthLine(h) {
@@ -163,6 +165,8 @@
   }
 
   // An event as a small tile on the edge of the screen: its picture and its words. A touch goes where it happened, when it has a place.
+  // What is worth a tile: something with words, and never a capo driving from one of his places to the next.
+  function newsworthy(e) { return !!(e && e.label) && e.type !== 'capo'; }
   function news(e) {
     var there = typeof e.x === 'number' && e.city;
     return '<button class="news' + (bad(e) ? ' bad' : good(e) ? ' good' : '') + '"' + (there ? data({ city: e.city, x: e.x, y: e.y }) : '') + '>' + icon(eventIcon(e)) + '<span>' + esc(e.label || e.type) + (e.gives ? '<small>' + esc(e.gives) + '</small>' : '') + '</span></button>';
@@ -179,7 +183,7 @@
     return '<div class="head"><div class="mini">' + I.portrait(capo) + '</div><div><h2>' + esc(title) + '</h2><p>' + sub + '</p></div></div>';
   }
   function intent(p) {
-    var bits = [p.why, WAIT[p.waiting], p.cost ? money(p.saved || 0) + ' of ' + money(p.cost) : ''].filter(Boolean);
+    var bits = [p.why, p.top ? '' : WAIT[p.waiting], p.cost ? money(p.saved || 0) + ' of ' + money(p.cost) : ''].filter(Boolean);
     return '<div class="intent"><span class="gauge">' + I.ring(p.progress == null ? 1 : p.progress, planIcon(p)) + '</span><div><b>' + esc(planWord(p)) + '</b><small>' + esc(bits.join(' · ')) + '</small></div></div>';
   }
   function tile(ic, label, value, tip) { return '<div class="tile" data-tip="' + esc(tip) + '"><small>' + icon(ic) + label + '</small><b>' + value + '</b></div>'; }
@@ -187,29 +191,37 @@
   // ---- choosing the first man: a row of faces, and the one being looked at in full
   function man(c, action, label) {
     var tone = (I.FACES[c.id] || {}).tone || '#e8c463';
-    var dial = function (name, v, tip) { return '<div class="dial" style="color:' + (name === 'loyalty' ? 'var(--good)' : 'var(--accent)') + '" data-tip="' + tip + '">' + I.ring(v / 100, name) + '<b>' + v + '</b></div>'; };
+    var dial = function (name, v, tip) { return '<div class="dial" style="color:' + (name === 'loyalty' ? 'var(--good)' : 'var(--accent)') + '" data-tip="' + tip + '">' + I.ring(v / 100, name) + '<b>' + v + '</b><em>' + tip.split(':')[0] + '</em></div>'; };
     var w = WAY[c.way] || WAY.force;
-    return '<div class="man" style="--tone:' + tone + '"><div class="big">' + I.portrait(c.id) + '</div><div class="about"><h3>' + esc(c.name) + '</h3><div class="chip">' + esc(c.specialty) + '</div>' +
-      STATS.map(function (x) { return '<div class="stat" data-tip="' + x[1] + '">' + I.icon(x[0]) + I.pips(c[x[0]], 10) + '<b>' + c[x[0]] + '</b></div>'; }).join('') + '</div></div>' +
+    return voice(c.id, '<div class="man" style="--tone:' + tone + '"><div class="big">' + I.portrait(c.id) + '</div><div class="about"><h3>' + esc(c.name) + '</h3><div class="chip">' + esc(c.specialty) + '</div>' +
+      STATS.map(function (x) { return '<div class="stat" data-tip="' + x[1] + '">' + I.icon(x[0]) + '<small>' + x[1].split(':')[0] + '</small>' + I.pips(c[x[0]], 10) + '<b>' + c[x[0]] + '</b></div>'; }).join('') + '</div></div>' +
       '<div class="traits">' + dial('loyalty', c.loyalty, 'Loyalty: how much of your share he really sends up') + dial('ambition', c.ambition, 'Ambition: how hard he pushes, and how much he wants your chair') +
       '<div class="words"><span data-tip="' + esc(w.tip) + '" style="color:' + w.color + '">' + I.icon(w.icon) + ' ' + w.word + '</span>' +
       (c.likes || []).map(function (k) { return '<span class="yes">' + esc(k) + '</span>'; }).join('') + (c.refuses || []).map(function (k) { return '<span class="no">' + esc(k) + '</span>'; }).join('') + '</div></div>' +
-      (c.trade ? '<div class="move">' + I.icon('time') + '<span>He will start with: ' + esc(c.trade.toLowerCase()) + '</span></div>' : '') +
-      button(action, { capo: c.id }, esc(label + ' ' + first(c.name)), { cls: 'go' });
+      (c.opens || c.trade ? '<div class="move">' + I.icon('time') + '<span>He will start with: ' + esc(T.a((c.opens || c.trade).toLowerCase())) +
+        (c.opens && c.trade && c.opens !== c.trade ? '<small style="display:block;color:var(--dim)">His own trade, the ' + esc(c.trade.toLowerCase()) + ', has to be learned first: it is the first thing he will ask you for</small>' : '') + '</span></div>' : '') +
+      button(action, { capo: c.id }, esc(label + ' ' + first(c.name)), { cls: 'go' }));
   }
   function start(list) {
-    return '<h2>Who runs your first streets?</h2><p>You are the boss. You pick the man, he opens his club in Ashport and runs his streets his own way.</p>' +
+    return '<h2>Who runs your first streets?</h2><p>You are the boss. You pick who runs the streets, and never run them yourself: your capo opens a club in Ashport and decides what to open next.</p>' +
       '<div class="faces">' + list.map(function (c, i) { return '<button class="facebtn' + (i ? '' : ' on') + '" data-face="' + esc(c.id) + '">' + I.portrait(c.id) + '<small>' + esc(first(c.name)) + '</small></button>'; }).join('') + '</div>' +
       '<div id="who">' + man(list[0], 'start', 'Start with') + '</div>';
   }
 
   // ---- what waits for the boss's word: quarrels, key places asked for, men at the door
   function price(cost, purse) { return cost > purse ? '<small class="short">Short by ' + money(cost - purse) + '</small>' : ''; }
+  // A quarrel: what each of the two runs and makes, his mood, and what the man ruled against does.
   function feudCard(c, f) {
-    var side = function (id) { return '<div><span class="slot">' + I.portrait(id) + '</span>' + button('rule', { city: c.id, id: f.id, winner: id }, 'Rule for ' + esc(first(nameOf(id)))) + '</div>'; };
-    return '<div class="card ask"><h3>' + icon('attack') + ' ' + esc(f.label) + '</h3><p>Rule for one of them. The other will not forget it.</p><div class="versus">' + side(f.a) + side(f.b) + '</div></div>';
+    var of = function (id) { return (c.capos || []).filter(function (k) { return k.id === id; })[0]; };
+    var side = function (id) { var k = of(id), m = k && MOOD[k.mood];
+      return '<div><span class="slot">' + I.portrait(id) + '</span>' +
+        (k ? '<small class="has">' + (k.places || 0) + (k.places === 1 ? ' place' : ' places') + ' · ' + money(k.income || 0) + ' ' + TURN + (m ? '<br>' + m[1] : '') + '</small>' : '') +
+        button('rule', { city: c.id, id: f.id, winner: id }, 'Rule for ' + esc(first(nameOf(id)))) + '</div>'; };
+    return '<div class="card ask"><h3>' + icon('attack') + ' ' + esc(f.label) + '</h3>' +
+      '<p>While they quarrel, both send up half of your share. Rule for one of them: the other sends you nothing for ' + months(f.sulks || T.RULES.sulks) + ', and his loyalty drops.</p><div class="versus">' + side(f.a) + side(f.b) + '</div></div>';
   }
-  function askCard(c, a, purse) {
+  function askCard(c, a, purse) { return voice(a.capo, askCardOf(c, a, purse)); }
+  function askCardOf(c, a, purse) {
     var w = WAY[a.way] || WAY.force, o = { city: c.id, id: a.id };
     if (a.kind === 'fund') {      // he has saved part of the price of a rival's place and asks the boss for the rest
       return '<div class="card ask">' + head(a.capo, first(nameOf(a.capo)) + ' asks for ' + money(a.cost), 'To take the ' + esc(a.name) + ' · ' + esc(zoneOf(c, a.x, a.y).name)) +
@@ -222,8 +234,9 @@
     }
     return '<div class="card ask">' + head(a.capo, first(nameOf(a.capo)) + ' wants the ' + a.name, esc(zoneOf(c, a.x, a.y).name) + ' · ' + esc(c.name)) +
       '<div class="move">' + icon(a.key) + '<span>' + esc(a.gives || '') + '</span></div>' +
+      '<div class="move yes">' + icon('men') + '<span>+1 capo seat in ' + esc(c.name) + '</span></div>' +
       '<div class="move" style="--c:' + w.color + '">' + icon(w.icon) + '<span>' + w.word + ' · ' + money(a.cost) + ' from you · ' + months(a.months) + (a.why ? ' · ' + esc(a.why) : '') + '</span></div>' + price(a.cost, purse) +
-      '<div class="sides"><div class="side yes"><small>IF YOU SAY YES</small><b class="out">\u2212' + money(a.cost) + '</b>' +
+      '<div class="sides"><div class="side yes"><small>IF YOU SAY YES</small><b class="out">\u2212' + money(a.cost) + '</b><span>Paid from your dirty cash first, clean money after</span>' +
         (a.expects ? '<b class="in">+' + money(a.expects.gain) + ' ' + TURN + ', promised</b><span>You will see in ' + months(a.expects.months) + ' whether he kept his word</span>' : a.expects === null ? '<span>No money promised: it serves the family another way</span>' : '') +
         button('answer', { city: c.id, id: a.id, yes: 1 }, 'Yes, take it', { cls: 'go', off: a.cost > purse }) + '</div>' +
       '<div class="side no"><small>IF YOU SAY NO</small><b>You keep your money</b><span>' + esc(first(nameOf(a.capo))) + ' will not forget a place refused: it weighs on him</span>' +
@@ -231,15 +244,28 @@
   }
   // an answer the boss cannot pay says how far he is from it
   function short(cost, purse) { return cost > purse ? '<small>Not enough money: ' + money(purse) + ' of ' + money(cost) + '</small>' : ''; }
-  function doorCard(c, d, purse) {
+  function doorCard(c, d, purse) { return voice(d.capo, doorCardOf(c, d, purse)); }
+  // The four numbers of a man at the door, by name, and the trade he would open.
+  function numbers(d) {
+    if (typeof d.muscle !== 'number') return '';
+    return '<div class="nums">' + STATS.map(function (x) { return '<span data-tip="' + x[1] + '">' + I.icon(x[0]) + ' ' + x[1].split(':')[0] + ' <b>' + d[x[0]] + '</b></span>'; }).join('') + '</div>' +
+      (d.trade && d.door !== 'poach' ? '<div class="move">' + icon('hideout') + '<span>' + (d.knows ? 'He would open ' + esc(T.a(d.trade.toLowerCase())) + ' first: it is his trade'
+        : 'His trade is the ' + esc(d.trade.toLowerCase()) + ': your family has not learned it, he opens what it knows') + '</span></div>' : '');
+  }
+  // The key place the family is nearest to asking for, said after "adds a seat".
+  function nearestKey(c) {
+    var k = (c.keys || []).filter(function (q) { return q.owner !== 'family' && typeof q.around === 'number'; }).sort(function (a, b) { return b.around - a.around; })[0];
+    return k ? ': the ' + esc(k.name) + ' is the nearest: ' + k.around + ' of the ' + k.need + ' places a capo needs around it before he asks you for it' : '';
+  }
+  function doorCardOf(c, d, purse) {
     var poach = d.door === 'poach', full = c.seats && c.seats.taken >= c.seats.total;
     if (d.handled && !poach)      // the city has an underboss: he takes the man in himself, the boss has nothing to decide
       return '<div class="card ask">' + head(d.capo, d.name, esc(d.specialty) + ' · ' + (DOOR[d.door] || DOOR.name)) +
-        '<div class="move yes">' + icon('men') + '<span>' + esc(first(nameOf(d.handled))) + ' takes him in himself: he is your underboss in ' + esc(c.name) + '</span></div>' +
+        '<div class="move yes">' + icon('men') + '<span>' + esc(first(nameOf(d.handled))) + ', your underboss in ' + esc(c.name) + ', sees to it: nothing for you to decide</span></div>' +
         ((d.chairs || []).length ? '<div class="acts col">' + button('chairs', { city: c.id, capo: d.capo }, 'A chair at the table') + '</div>' : '') + '</div>';
     return '<div class="card ask">' + head(d.capo, d.name, esc(d.specialty) + ' · ' + (DOOR[d.door] || DOOR.name) + (d.by && known(d.by) ? ' · spoken for by ' + esc(first(nameOf(d.by))) : '')) +
-      (d.why ? '<div class="move">' + icon('time') + '<span>' + esc(d.why) + '</span></div>' : '') + price(d.cost, purse) +
-      (full ? '<small class="short">No seat left in ' + esc(c.name) + ': ' + c.seats.total + ' capos is all the city carries until the family holds another key place</small>' : '') +
+      (d.why ? '<div class="move">' + icon('time') + '<span>' + esc(d.why) + '</span></div>' : '') + numbers(d) + price(d.cost, purse) +
+      (full ? '<small class="short">No seat left in ' + esc(c.name) + ': the city carries ' + c.seats.total + ' capos. Every key place you hold adds a seat' + nearestKey(c) + '</small>' : '') +
       '<div class="acts col">' + (poach ? button('welcome', { from: c.id, city: c.id, capo: d.capo }, 'Take him in · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })
         : button('seat', { city: c.id, capo: d.capo }, (d.spot && d.spot.street ? 'A club on ' + esc(d.spot.street) : 'A club in ' + esc(c.name)) + ' · ' + money(d.cost) + (full ? '' : short(d.cost, purse)), { cls: 'go', off: full || d.cost > purse })) +
       ((d.chairs || []).length ? button('chairs', { city: c.id, capo: d.capo }, 'A chair at the table') : '') +
@@ -253,25 +279,37 @@
       return t.capo ? '<button class="slot chair" data-act="chair"' + data({ post: t.post }) + ' data-tip="' + esc(t.name + ': ' + t.who + '. ' + (t.gives || '')) + '">' + I.portrait(t.capo) + '<i>' + icon(p[0]) + '</i></button>'
         : '<span class="slot chair empty" data-tip="' + esc(t.name + ': empty. ' + p[1] + ' A man at your door can take it.') + '">' + icon(p[0]) + '</span>'; }).join('') + '</div></div>';
   }
-  function chairs(view, cityId, id) {
+  function chairs(view, cityId, id, hud) {
     var c = cityOf(view, cityId), d = c && c.doors.filter(function (q) { return q.capo === id; })[0]; if (!d) return null;
-    var free = d.chairs || [];
-    return head(d.capo, 'A chair at the table', esc(d.name) + ' · ' + esc(d.specialty)) + '<p>He runs no street: he sits with you and works for the whole family.</p>' +
+    var free = d.chairs || [], purse = hud ? funds(hud) : Infinity, poor = d.cost > purse;
+    return voice(d.capo, head(d.capo, 'A chair at the table', esc(d.name) + ' · ' + esc(d.specialty)) + '<p>He runs no street: he sits with you and works for the whole family.</p>' +
+      '<div class="move">' + icon('dirty') + '<span>' + money(d.cost) + ' to take him in, as for a club</span></div>' + price(d.cost, purse) +
       (view.table || []).map(function (t) { var p = POST[t.post] || ['men', ''], open = free.indexOf(t.post) >= 0;
         return '<div class="move">' + icon(p[0]) + '<span><b>' + esc(t.name) + '</b>' + (t.capo ? ' · ' + esc(t.who) + ' sits there' : ' · ' + money(t.pay) + ' ' + TURN) + '<br><small>' + esc(p[1]) + '</small></span></div>' +
-          (open ? '<div class="acts col">' + button('sit', { city: c.id, capo: d.capo, post: t.post }, 'Seat him as ' + esc(t.name), { cls: 'go' }) + '</div>' : ''); }).join('') +
-      '<div class="acts">' + button('requests', {}, 'Back') + '</div>';
+          (open ? '<div class="acts col">' + button('sit', { city: c.id, capo: d.capo, post: t.post }, 'Seat him as ' + esc(t.name) + ' · ' + money(d.cost), { cls: 'go', off: poor }) + '</div>' : ''); }).join('') +
+      '<div class="acts">' + button('requests', {}, 'Back') + '</div>');
   }
   function chair(view, post) {
     var t = (view.table || []).filter(function (q) { return q.post === post; })[0]; if (!t || !t.capo) return null;
-    return head(t.capo, t.who, esc(t.name) + ' at the table · ' + esc(t.specialty || '')) +
+    return voice(t.capo, head(t.capo, t.who, esc(t.name) + ' at the table · ' + esc(t.specialty || '')) +
       (t.gives ? '<div class="move yes">' + icon((POST[t.post] || ['yes'])[0]) + '<span>' + esc(t.gives) + '</span></div>' : '') +
       '<div class="move' + (t.paid === false ? ' no' : '') + '">' + icon('clean') + '<span>' + money(t.pay) + ' ' + TURN + (t.paid === false ? ' · not paid last time: he gave nothing' : '') + '</span></div>' +
       '<h3 class="sub2">Part with him</h3><p>He leaves the table, and the family. This cannot be taken back.</p>' +
-      '<div class="acts">' + button('unseat', { post: t.post }, 'Send him away', { cls: 'go bad' }) + button('family', {}, 'Keep him') + '</div>';
+      '<div class="acts">' + button('unseat', { post: t.post }, 'Send him away', { cls: 'go bad' }) + button('family', {}, 'Keep him') + '</div>');
+  }
+  // A matter a capo brings to the boss: what it is about, and each choice with its price, what it brings and what it costs.
+  var MATTER = { line: 'loyalty', share: 'tribute', learn: 'yes', advance: 'dirty', captain: 'heat', truce: 'attack', bail: 'men', feast: 'gift', cargo: 'truck', favor: 'men' };
+  function matterCard(m, hud) {
+    var has = function (ch) { return ch.money === 'clean' ? hud.clean || 0 : hud.dirty || 0; };
+    return voice(m.capo, '<div class="card ask matter">' + head(m.capo, m.title, esc(m.says || '')) +
+      '<div class="sides n' + m.choices.length + '">' + m.choices.map(function (ch, i) { var poor = ch.cost > 0 && ch.cost > has(ch);
+        return '<div class="side' + (i === 0 && m.choices.length === 2 ? ' yes' : '') + '">' + (ch.cost > 0 ? '<b class="out">\u2212' + money(ch.cost) + ' ' + (ch.money === 'clean' ? 'clean' : 'dirty') + '</b>' : '') +
+          (ch.gives ? '<span>' + esc(ch.gives) + '</span>' : '') + (ch.costs ? '<span class="bad">' + esc(ch.costs) + '</span>' : '') + (poor ? '<small class="short">Short by ' + money(ch.cost - has(ch)) + '</small>' : '') +
+          button('decide', { id: m.id, choice: ch.id }, esc(ch.label), { cls: i === 0 ? 'go' : '', off: poor }) + '</div>'; }).join('') + '</div>' +
+      (m.spent > 0 ? '<small class="spent">The street has cost you ' + money(m.spent) + ' in the last 288 days</small>' : '') + '</div>');
   }
   function requests(view, hud) {
-    var purse = funds(hud), cards = [];
+    var purse = funds(hud), cards = (view.matters || []).map(function (m) { return matterCard(m, hud); });
     view.cities.forEach(function (c) {
       c.feuds.forEach(function (f) { cards.push(feudCard(c, f)); });
       c.asks.forEach(function (a) { cards.push(askCard(c, a, purse)); });
@@ -299,7 +337,9 @@
   // hint(view, hud, seen) gives the one to show now, or null; `seen` holds the ids the boss has put away.
   var HINTS = [
     { id: 'capo', icon: 'men', when: function (v, h, c) { return !!c.capos.length; },
-      text: function (v, h, c) { return first(c.capos[0].name) + ' runs these streets for you. He decides what to open; you watch, and answer when he asks.'; } },
+      text: function (v, h, c) { return voice(c.capos[0].id, first(c.capos[0].name) + ' runs these streets for you. He decides what to open; you watch, and answer when he asks.'); } },
+    { id: 'goal', icon: 'ambition', when: function (v) { return !!(v.reign && v.reign.goal); },
+      text: function (v) { return 'Your goal: half the streets of the six cities. First step: ' + v.reign.goal.need + '% makes you a ' + v.reign.goal.rank + ' and opens ' + v.reign.goal.short + '. Tap your rank to see the road.'; } },
     { id: 'asks', icon: 'time', when: function (v, h, c) { return h.pending > 0 && (c.asks.length || c.feuds.length); },
       text: function () { return 'A capo waits for your word, and time has stopped. Tap the banner to answer him.'; } },
     { id: 'money', icon: 'tribute', when: function (v, h, c) { return c.capos.some(function (k) { return k.sent > 0; }); },
@@ -327,13 +367,19 @@
     var short = !hud || (hud.clean || 0) < t.cost, why = t.paying ? 'The money is on its way' : t.wait > 0 ? 'He had one not long ago: again in ' + months(t.wait) : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
     return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.paying || t.wait > 0 || short }) + '</div>';
   }
+  // The boss can put in what a capo is short of for a place of his own, out of the dirty cash.
+  function putIn(c, k, hud) {
+    var cost = T.short(k.plan); if (!cost) return '';
+    var has = (hud && hud.dirty) || 0, alone = k.plan.monthsLeft > 0 ? 'Alone he gets there in about ' + months(k.plan.monthsLeft) : 'Alone he may never get there';
+    return '<div class="acts col">' + button('advance', { city: c.id, capo: k.id }, icon('dirty') + ' Put in the rest · ' + money(cost) + ' dirty<small style="color:var(--dim)">' + (cost > has ? 'You have ' + money(has) + ' of dirty cash' : alone) + '</small>', { off: cost > has }) + '</div>';
+  }
   function capo(view, cityId, id, hud, pw, rows) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
     var w = WAY[k.way] || WAY.force;
     var boss = c.under === k.id || k.under === true;
     var shut = (view.reign || {}).closed || {};      // what the act of the family has not opened yet, with the words for it
-    return head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + skills(k) +
+    return voice(k.id, head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
+      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + putIn(c, k, hud) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'TAKINGS', money(k.income), 'What reached his club over ' + LAST) +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you over ' + LAST + ': your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
@@ -346,7 +392,7 @@
       gift(c, k, hud) +
       '<h3 class="sub2">Part with him</h3>' + ((k.partings || []).length ? '<div class="acts col">' + k.partings.map(function (p) { return button('parting', { city: c.id, capo: k.id, way: p.way }, esc(p.name) + (p.cost ? ' · ' + money(p.cost) : '')); }).join('') + '</div>'
         : '<p>He is your only capo: the family cannot do without him.</p>') +
-      '<div class="acts">' + button('show', { city: c.id, x: k.x, y: k.y }, 'Show his club') + button('close', {}, 'Close') + '</div>';
+      '<div class="acts">' + button('show', { city: c.id, x: k.x, y: k.y }, 'Show his club') + button('close', {}, 'Close') + '</div>');
   }
   // ---- a capo's books. One unit of time for every figure: a month, averaged over the last `span` finished months (six unless told one).
   // What flows (made, wages, sent up, kept) is a mean; what he bought is the total of those same months; what he holds is today's.
@@ -389,16 +435,25 @@
     var ago = function (n) { return months(n + 1) + ' ago'; };
     var bought = b.wages === null ? '' : '<h4 class="mh"><span>What he bought</span><span>' + money(b.spent) + ' in ' + months(b.months) + '</span></h4>' +
       (b.bought.length ? b.bought.map(function (q) { return '<div class="sp2"><em>' + ago(q.ago) + '</em>' + icon(BOUGHTICON[q.what] || 'dirty') + '<span>' + (BOUGHT[q.what] || 'Spent') + '</span><b>−' + money(q.amount) + '</b></div>'; }).join('') : '<p>Nothing.</p>');
-    return head(k.id, first(k.name) + '\'s books', esc(k.rankName) + ' · ' + esc(k.specialty) + ' · ' + k.places + ' of ' + k.reach + ' places') +
+    return voice(k.id, head(k.id, first(k.name) + '\'s books', esc(k.rankName) + ' · ' + esc(k.specialty) + ' · ' + k.places + ' of ' + k.reach + ' places') +
       '<div class="tabs">' + tab(6, months(6).toUpperCase()) + tab(1, 'LAST ' + months(1).toUpperCase()) + '</div><p class="unit">' + unit + '</p>' + steps + table +
       '<h4 class="mh"><span>What he wants</span></h4>' + (p ? intent(p) : '') + (when ? '<p>' + when + '</p>' : '') + (p && p.cost ? '<div class="nxb' + (p.monthsLeft == null && missing ? ' stuck' : '') + '"><u style="width:' + Math.round(100 * Math.max(0, Math.min(1, p.advance === undefined ? p.progress || 0 : p.advance))) + '%"></u></div>' : '') +
       (fund ? '<div class="acts col">' + button('requests', {}, 'He asks you for ' + money(fund.cost) + ': answer him') + '</div>' : '') + bought +
-      '<div class="acts">' + button('capo', o, 'Back to ' + esc(first(k.name))) + button('close', {}, 'Close') + '</div>';
+      '<div class="acts">' + button('capo', o, 'Back to ' + esc(first(k.name))) + button('close', {}, 'Close') + '</div>');
+  }
+  // What a killing costs today, in figures: the heat, the loyalty of every other man, who stops sending money and for how long.
+  function bloodPrice(c, b) {
+    if (!b) return '';
+    var names = (b.shaken || []).map(function (id) { return first(nameOf(id)); });
+    return '<div class="move no">' + icon('heat') + '<span>Heat +' + b.heat + ' in ' + esc(c.name) + ', out of 100</span></div>' +
+      '<div class="move no">' + icon('loyalty') + '<span>Every other capo of the city loses ' + b.loyal + ' loyalty, those of the other cities half of it</span></div>' +
+      (names.length ? '<div class="move no">' + icon('dirty') + '<span>' + esc(names.join(', ')) + (names.length > 1 ? ' send' : ' sends') + ' you nothing for ' + months(b.months) + '</span></div>' : '') +
+      '<div class="move">' + icon('time') + '<span>Blood calls blood: the next killing costs twice as much, until ' + months(T.RULES.out.forgets) + ' have gone by</span></div>';
   }
   function parting(view, cityId, id, way) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0], p = k && (k.partings || []).filter(function (q) { return q.way === way; })[0]; if (!p) return null;
-    return head(k.id, p.name, esc(k.name)) + '<p>' + esc(p.gives) + '</p>' + (p.cost ? '<div class="move">' + icon('dirty') + '<span>It costs you ' + money(p.cost) + '</span></div>' : '') +
-      '<p>This cannot be taken back.</p><div class="acts">' + button('part', { city: c.id, capo: k.id, way: way }, esc(p.name), { cls: 'go bad' }) + button('capo', { city: c.id, capo: k.id }, 'No, keep him') + '</div>';
+    return voice(k.id, head(k.id, p.name, esc(k.name)) + '<p>' + esc(p.gives) + '</p>' + bloodPrice(c, p.price) + (p.cost ? '<div class="move">' + icon('dirty') + '<span>It costs you ' + money(p.cost) + '</span></div>' : '') +
+      '<p>This cannot be taken back.</p><div class="acts">' + button('part', { city: c.id, capo: k.id, way: way }, esc(p.name), { cls: 'go bad' }) + button('capo', { city: c.id, capo: k.id }, 'No, keep him') + '</div>');
   }
 
   // ---- a headquarters: whose it is, what it has become at this act, who sits there
@@ -413,7 +468,7 @@
   function shareBar(c, p) {
     var k = shareOf(c, p); if (!k) return '';
     var load = k.shareLoad > 0 ? k.shareLoad : CARLOAD, part = Math.min(1, k.share / load);
-    return '<div class="move till">' + icon('ambition') + '<span><b>' + money(Math.round(k.share)) + ' / ' + money(load) + '</b> of your share waits here' + (part >= 1 ? ': his car is leaving with it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>';
+    return voice(k.id, '<div class="move till">' + icon('ambition') + '<span><b>' + money(Math.round(k.share)) + ' / ' + money(load) + '</b> of your share waits here' + (part >= 1 ? ': his car is leaving with it' : '') + '<i class="nxb"><u style="width:' + Math.round(part * 100) + '%"></u></i></span></div>');
   }
   // What waits at a laundry of the family: dirty money to be washed, and washed money until a car takes it to the headquarters.
   function washBar(p) {
@@ -557,8 +612,11 @@
   // The share the boss takes of what a city makes: three sizes, the one in force marked. A light hand is loved, a heavy one is not.
   function cut(c) {
     if (!c || !c.held || !c.cuts || !c.cuts.length) return '';
+    var L = T.RULES.loyal;
     return '<h3 class="sub2">Your share</h3><div class="acts cuts">' + c.cuts.map(function (k) { var on = k.id === c.cut;
-      return button('cut', { city: c.id, cut: k.id }, esc(k.id) + ' · ' + Math.round(k.share * 100) + '%' + (k.loyal ? '<small class="' + (k.loyal > 0 ? 'up' : 'down') + '">loyalty ' + (k.loyal > 0 ? '+' : '\u2212') + Math.abs(k.loyal) + '</small>' : ''), { cls: on ? 'on' : '', off: on }); }).join('') + '</div>';
+      return button('cut', { city: c.id, cut: k.id }, esc(k.id) + ' · ' + Math.round(k.share * 100) + '%' + (c.made > 0 ? '<small>about ' + money(c.made * k.share) + '</small>' : '') +
+        (k.loyal ? '<small class="' + (k.loyal > 0 ? 'up' : 'down') + '">loyalty ' + (k.loyal > 0 ? '+' : '\u2212') + Math.abs(k.loyal) + '</small>' : ''), { cls: on ? 'on' : '', off: on }); }).join('') + '</div>' +
+      '<p class="fine">What your capos send up of what their places make, ' + TURN + '. Loyalty is out of 100: under ' + L.restless + ' a man is restless, under ' + L.bitter + ' he is bitter, sends nothing, and leaves with his places after ' + months(L.turns) + '.</p>';
   }
   // What clean money buys for good: each holding has three sizes; the button says the price, or why it cannot be paid.
   function holdings(view, hud) {
@@ -596,7 +654,7 @@
   function line(c) {
     if (!c || !c.held || !c.lines || !c.lines.length) return '';
     return '<h3 class="sub2">Your line for the city</h3><div class="acts col lines">' + c.lines.map(function (l) { var on = l.id === c.line;
-      return button('line', { city: c.id, line: on ? '' : l.id }, '<b>' + esc(l.name) + '</b><small style="color:var(--dim)">' + esc(l.gives) + '</small>', { cls: on ? 'on' : '' }); }).join('') + '</div>' +
+      return button('line', { city: c.id, line: on ? '' : l.id }, '<b>' + esc(l.name) + '</b><small style="color:var(--dim)">' + esc(l.gives) + '</small>' + (l.costs ? '<small class="down">' + esc(l.costs) + '</small>' : ''), { cls: on ? 'on' : '' }); }).join('') + '</div>' +
       (c.lineHeld ? '<div class="move">' + icon('loyalty') + '<span>' + esc(c.lineHeld.label) + '</span><span class="bar"><i style="width:' + Math.round((c.lineHeld.share || 0) * 100) + '%"></i></span></div>' : '');
   }
   function follows(k) {
@@ -608,7 +666,7 @@
     var s = c.share;
     return '<h2>' + esc(c.name) + '</h2><p>' + (c.held ? 'You hold ' + Math.round(s.family) + '% of its streets' : 'No man of yours here yet') + ' · the ' + esc(c.rival) + ' family holds ' + Math.round(s.rival) + '%</p>' + shares(s) +
       '<div class="tiles">' + tile('men', 'SEATS', c.seats.taken + ' / ' + c.seats.total, 'Capos you have here, out of those the city can carry. Each key place you hold adds a seat') +
-      tile('heat', 'HEAT', Math.round(c.heat || 0), 'How closely the police watch this city') + tile('clean', 'WASHED', money(c.money ? c.money.washed : 0), 'Dirty cash washed here over ' + LAST) + '</div>' +
+      tile('heat', 'HEAT', Math.round(c.heat || 0) + ' / 100', 'How closely the police watch this city. At 100 they raid: they seize half of your dirty cash') + tile('clean', 'WASHED', money(c.money ? c.money.washed : 0), 'Dirty cash washed here over ' + LAST) + '</div>' +
       curves(view, c.id) + stallsOf(c) + line(c) + cut(c) +
       (c.capos.length ? '<h3 class="sub2">Your capos</h3>' + faces(c, c.capos, true) : '') +
       '<h3 class="sub2">Key places</h3><ul class="list">' + c.keys.map(function (k) { var ours = k.owner === 'family';
@@ -627,6 +685,9 @@
     var a = view.advice; if (!a) return '';
     return '<button class="advice" data-know="' + esc(a.kind) + '">' + icon(I.has(a.kind) ? a.kind : 'yes') + '<span><small>ADVICE</small><b>' + esc(a.name) + (a.tier > 1 ? ' · tier ' + a.tier : '') + ' · ' + money(a.cost) + ' clean</b>' + esc(a.why) + '</span></button>';
   }
+  // A name short enough to stand under a mark of the wheel.
+  var BRIEF = { 'Cellar still': 'Still', 'Gambling room': 'Gambling', 'Cannabis loft': 'Weed loft', 'Rented laundry': 'Laundry', 'Owned front': 'Front', 'Chop shop': 'Chop shop', 'Loan office': 'Loans', 'Union local': 'Union' };
+  function brief(name) { return BRIEF[name] || String(name).split(' ')[0]; }
   function wheel(view, picked) {
     var n = view.tree.length, at = function (k, r) { var a = (k / n) * 2 * Math.PI - Math.PI / 2; return [50 + r * Math.cos(a), 50 + r * Math.sin(a)]; }, pc = function (x) { return Math.round(x * 10) / 10; };
     var lines = '', rings = '', marks = '';
@@ -638,7 +699,7 @@
       marks += '<button class="know' + (t.tier ? '' : ' shut') + (t.kind === picked ? ' sel' : '') + (view.advice && view.advice.kind === t.kind ? ' adv' : '') + '" data-know="' + esc(t.kind) + '" style="left:' + pc(m[0]) + '%;top:' + pc(m[1]) + '%">' +
         (t.studying ? '<span class="gauge">' + I.ring(t.next ? 1 - t.studying / t.next.months : 1, I.has(t.kind) ? t.kind : 'unknown') + '</span>' : icon(t.kind)) +
         (t.wanted && t.wanted.length ? '<span class="want">' + I.portrait(t.wanted[0]) + '<em>ASKS</em></span>' : '') +
-        (t.made > 0 ? '<span class="made">' + kilo(t.made) + '</span>' : '') + '</button>';      /* what the branch brought the family, every cycle */
+        '<em class="nm">' + esc(brief(t.name)) + '</em>' + (t.made > 0 ? '<span class="made">' + kilo(t.made) + '</span>' : '') + '</button>';      /* what the branch brought the family, every cycle */
     });
     return '<div class="wheel"><svg viewBox="0 0 100 100" aria-hidden="true">' + RINGS.map(function (r) { return '<circle cx="50" cy="50" r="' + r + '"/>'; }).join('') + lines + '</svg>' + rings + '<span class="hub">' + icon('ambition') + '</span>' + marks + '</div>';
   }
@@ -686,7 +747,8 @@
   var FAMILYRANKS = [['Street gang', 0], ['Crew', 3], ['Family', 10], ['Syndicate', 25], ['Commission', 50]];
   function rankOf(share) { var n = 0; FAMILYRANKS.forEach(function (r, i) { if (share >= r[1]) n = i; }); return n; }
   function rank(view) {
-    var h = view.history || [], at = h.length ? mapShare(h[h.length - 1]) : 0, old = h.length ? mapShare(h[Math.max(0, h.length - 13)]) : 0, n = rankOf(at), m = rankOf(old), nx = FAMILYRANKS[n + 1];
+    var h = view.history || [], at = h.length ? mapShare(h[h.length - 1]) : 0, old = h.length ? mapShare(h[Math.max(0, h.length - 13)]) : 0, held = ((view.reign || {}).rank || {}).n;
+    var n = typeof held === 'number' ? held : rankOf(at), m = rankOf(old), nx = FAMILYRANKS[n + 1];      // (the rules hold the rank: a family a hair under a threshold keeps it)
     var from = FAMILYRANKS[n][1], to = nx ? nx[1] : null, on = function (x) { return to == null ? 1 : Math.max(0, Math.min(1, (x - from) / (to - from))); };
     return { n: n, name: FAMILYRANKS[n][0], next: nx ? nx[0] : null, from: from, to: to, at: round1(at), part: on(at), was: on(old), moved: n > m ? 'up' : n < m ? 'down' : null };
   }
@@ -694,6 +756,35 @@
     var pc = function (x) { return Math.round(x * 100) + '%'; };
     return '<span class="rk' + (r.moved ? ' ' + r.moved : '') + '" data-tip="' + esc('The rank of your family: the share of the whole map it holds (' + r.at + '%). The mark on the bar is where you stood a year ago.') + '"><b>' + (r.moved === 'up' ? '▲ ' : r.moved === 'down' ? '▼ ' : '') + esc(r.name) + '</b>' +
       (r.next ? '<span class="bar"><i style="width:' + pc(r.part) + '"></i><u class="was" style="left:' + pc(r.was) + '"></u></span><small>' + esc(r.next) + ' at ' + r.to + '%</small>' : '') + '</span>';
+  }
+  // The goal, at the top of the screen: the rank held, the bar towards the next one, and in words what the family is after.
+  // A touch opens the whole road (reign). A view with no reign (an old game) shows its rank alone.
+  function goalLine(view) {
+    var rg = view.reign, r = rank(view); if (!rg || !rg.road) return rankLine(r);
+    var g = rg.goal, pc = function (x) { return Math.round(x * 100) + '%'; };
+    return '<span class="rk goal' + (r.moved ? ' ' + r.moved : '') + (rg.won ? ' won' : '') + '" data-goal="1"><b>' + (r.moved === 'up' ? '▲ ' : r.moved === 'down' ? '▼ ' : '') + esc(r.name) + '</b>' +
+      (g ? '<span class="bar"><i style="width:' + pc(g.part) + '"></i><u class="was" style="left:' + pc(r.was) + '"></u></span><small><em>GOAL</em> ' + g.need + '% of the streets · ' + esc(g.rank) + (g.wins ? ': you win' : '') + '</small>'
+         : '<small>' + (rg.won ? 'You sit on the Commission: the game is won' : '') + '</small>') + '<i class="more">\u203a</i></span>';
+  }
+  // The whole road: every rank, the share of the map it starts at, what it opens, and where the family stands.
+  function reign(view) {
+    var rg = view.reign || {}, road = rg.road || [], g = rg.goal;
+    return '<h2>Your reign</h2><p>The game is won the day your family holds half the streets of the six cities. You hold ' + (rg.share || 0) + '% today.</p>' +
+      (g ? '<div class="move next">' + icon('ambition') + '<span><b>Next: ' + g.need + '% of the streets makes you a ' + esc(g.rank) + '</b><br>' + esc(g.opens) + '<span class="bar"><i style="width:' + Math.round(g.part * 100) + '%"></i></span></span></div>' : '') +
+      '<div class="road">' + road.map(function (s) {
+        return '<div class="step' + (s.now ? ' now' : s.done ? ' done' : '') + '"><b>' + (s.done ? icon('yes') : s.now ? icon('ambition') : '') + esc(s.rank) + '<i>' + (s.from ? s.from + '%' : 'Start') + '</i></b>' +
+          (s.act ? '<small>' + esc(s.act) + '</small>' : '') + '<span>' + esc(s.gives) + '</span></div>'; }).join('') + '</div>' +
+      '<p>Streets are won by your capos: take in the men who knock, say yes to the places they ask for, and spend clean money on what the family knows.</p>' +
+      '<div class="acts">' + button('family', {}, 'The family') + button('close', {}, 'Close') + '</div>';
+  }
+  // The day the game is won.
+  function won(view, hud) {
+    var w = (view.reign || {}).won || {};
+    return '<h2>You sit on the Commission</h2><p>Your family holds half the streets of the six cities. The game is won.</p>' +
+      '<div class="tiles">' + tile('time', 'REACHED ON', typeof w.month === 'number' ? day(w.month) : day(view), 'The day your family reached half the map') +
+      tile('men', 'CAPOS', (w.men || (hud && hud.men) || 0) + '', 'The capos of the family that day') + tile('streets', 'CITIES', (w.cities || 0) + ' / ' + view.cities.length, 'The cities where the family had a man') + '</div>' +
+      '<p>You can go on and take the rest of the map, or start again with another first capo: each one plays his own way.</p>' +
+      '<div class="acts">' + button('close', {}, 'Keep playing', { cls: 'go' }) + button('restart', {}, 'New game') + '</div>';
   }
   // What a capo is doing and whether it works, in one word: doing(city, capo) -> { word, tone: 'good' | 'idle' | 'warn' | 'bad', earns }.
   function doing(c, k, pw) {
@@ -785,16 +876,21 @@
   }
   // A step won or lost is a moment. moments(before, after): each is { rank: rank(view), zones: zoneShares(view) }; nothing on the first look.
   var A = function (name) { return (/^[aeiou]/i.test(name) ? 'AN ' : 'A ') + name.toUpperCase(); };
-  function moments(before, after) {
+  // `mem` (kept by the page) holds the street names already told as won: one that slips by a hair and comes back is
+  // not told again. It is told as broken once it falls under BROKEN %, and can then be won anew.
+  var BROKEN = 85;
+  function moments(before, after, mem) {
     var out = [];
-    if (!before) return out;
-    if (after.rank.n > before.rank.n) out.push({ kind: 'rank-up', tone: 'good', title: 'YOUR FAMILY IS NOW ' + A(after.rank.name), sub: 'It holds enough of the map to be counted.' });
-    else if (after.rank.n < before.rank.n) out.push({ kind: 'rank-down', tone: 'bad', title: 'YOUR FAMILY FALLS BACK TO ' + A(after.rank.name), sub: 'It has lost too many streets.' });
+    mem = mem || {};
+    if (!before) { for (var z in after.zones) if (after.zones[z].share >= 100) mem[z] = 1; return out; }
+    if (after.rank.n > before.rank.n) out.push({ kind: 'rank-up', tone: 'good', title: 'YOUR ' + before.rank.name.toUpperCase() + ' IS NOW ' + A(after.rank.name), sub: 'It holds enough of the map to be counted.' });
+    else if (after.rank.n < before.rank.n) out.push({ kind: 'rank-down', tone: 'bad', title: 'YOUR ' + before.rank.name.toUpperCase() + ' FALLS BACK TO ' + A(after.rank.name), sub: 'It has lost too many streets.' });
     for (var id in after.zones) {
       var was = before.zones[id], now = after.zones[id]; if (!was) continue;
-      if (now.share >= 100 && was.share < 100) out.push({ kind: 'zone-won', tone: 'good', title: now.name.toUpperCase() + ' IS YOURS', sub: 'Every street of it answers to the family.' });
-      else if (was.share >= 100 && now.share < 100) out.push({ kind: 'zone-broken', tone: 'bad', title: now.name.toUpperCase() + ' IS NO LONGER ALL YOURS', sub: 'A street of it has slipped away.' });
-      else if (was.share > 0 && now.share <= 0) out.push({ kind: 'zone-lost', tone: 'bad', title: 'DRIVEN OUT OF ' + now.name.toUpperCase(), sub: 'The family holds nothing there any more.' });
+      if (was.share >= 100 && mem[id] === undefined) mem[id] = 1;
+      if (now.share >= 100 && !mem[id]) { mem[id] = 1; out.push({ kind: 'zone-won', tone: 'good', title: now.name.toUpperCase() + ' IS YOURS', sub: 'Every street of it answers to the family.' }); }
+      else if (mem[id] && now.share < BROKEN && now.share > 0) { mem[id] = 0; out.push({ kind: 'zone-broken', tone: 'bad', title: now.name.toUpperCase() + ' IS NO LONGER ALL YOURS', sub: 'Streets of it have slipped away.' }); }
+      else if (was.share > 0 && now.share <= 0) { mem[id] = 0; out.push({ kind: 'zone-lost', tone: 'bad', title: 'DRIVEN OUT OF ' + now.name.toUpperCase(), sub: 'The family holds nothing there any more.' }); }
     }
     return out;
   }
@@ -808,8 +904,10 @@
   var span = function (n) { return 'for ' + months(n); };
   function stall(q, cityId) {
     var city = q.city || cityId, go = city && typeof q.x === 'number' ? button('show', { city: city, x: q.x, y: q.y }, 'Show') : city && q.capo ? button('capo', { city: city, capo: q.capo }, 'See him') : '';
-    return '<div class="stall"><b>' + esc(q.what) + '</b><small>' + span(q.since || 0) + '</small><p>' + esc(q.why || '') + '</p>' +
+    if (q.id === 'idle') go = button('family', q.kind ? { know: q.kind } : {}, 'Spend it');      // the sleeping money leads straight to what it can buy
+    var html = '<div class="stall"><b>' + esc(q.what) + '</b><small>' + span(q.since || 0) + '</small><p>' + esc(q.why || '') + '</p>' +
       (q.lever ? '<p class="lever">' + icon('time') + esc(q.lever) + '</p>' : '<p class="nolever">Nothing you can do about it yet.</p>') + go + '</div>';
+    return q.capo ? voice(q.capo, html) : html;
   }
   function stallLine(view) {
     var l = view.stalls || []; if (!l.length) return '';
@@ -851,7 +949,7 @@
   // The next streets, at the top of the screen: one claim at a time (the list comes from the map's plan, the furthest along first), its bar, and where it is.
   var NEXT = { money: 'Saving for it', men: 'His men are on their way', ready: 'Any day now', stuck: 'Stalled: he saves nothing' };
   function streetsWon(n) { return '+' + n + ' street' + (n === 1 ? '' : 's'); }
-  function nextLine(list, i) {
+  function nextLineOf(list, i) {
     if (!list || !list.length) return '';
     var n = ((i % list.length) + list.length) % list.length, c = list[n];
     return '<div class="nx' + (c.stuck ? ' stuck' : '') + '" data-city="' + esc(c.city) + '" data-x="' + c.x + '" data-y="' + c.y + '" data-id="' + esc(c.id) + '">' +
@@ -859,6 +957,7 @@
       '<p><span>' + esc(c.who + ' ' + c.does) + '</span><em>' + streetsWon(c.streets) + '</em></p>' +
       '<div class="nxb"><u style="width:' + Math.round(c.advance * 100) + '%"></u></div></div>';
   }
+  function nextLine(list, i) { var h = nextLineOf(list, i), c = h && list[((i % list.length) + list.length) % list.length]; return c && c.capo ? voice(c.capo, h) : h; }
   // the same claim over the map: a ring that fills, and the streets it wins
   function claim(c) { return I.ring(c.advance, 'streets') + '<b><i>+' + c.streets + '</i> street' + (c.streets === 1 ? '' : 's') + '</b>'; }
   function moneyTile(a, which, view) {
@@ -982,8 +1081,8 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { brief: brief, goalLine: goalLine, reign: reign, won: won, newsworthy: newsworthy, voice: voice, day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
-  ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
+  ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal', 'reign', 'won'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });

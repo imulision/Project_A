@@ -19,7 +19,7 @@
     another: 0.3,       // each place of a kind he already runs makes one more that much less tempting
     enlarge: 1.5,       // times a place's price, per level reached, to make it bigger
     convert: { gain: 1.5, cost: 0.5, rest: 36 },
-    patience: { months: 12, sore: 30 }, // months a capo saves for the same thing before he asks the boss for the rest (a rival's place) or gives it up; months he then leaves it alone
+    patience: { months: 12, sore: 30, petty: 0.1 }, // petty: short of less than this share of the price, he waits rather than ask; // months a capo saves for the same thing before he asks the boss for the rest (a rival's place) or gives it up; months he then leaves it alone
     paidFor: 0.7,       // how far along a take is once the money is there: the rest is the time his men take to get in
     bastion: 1,         // around a key place the rivals hold the streets are theirs: no capo opens or takes a place within this many blocks of it
     vouch: 6,           // places a capo runs before he brings his man to the boss's door // a place is turned into another trade when that trade would be worth this much more there; at this part of the price of a new one; and then left alone this many months
@@ -32,9 +32,7 @@
     tribute: 0.15,      // share of everything a capo's cars bring in that goes up to the boss, before he pays his men
     // the boss's line for a city. A capo follows it when it is in his nature (ambition for growing, business for earning, cunning for lying low)
     // or when he is at least this loyal; a bitter man never does. `stretch`: places a capo told to grow runs beyond his rank, and `thin`: how much worse his places stand a raid meanwhile. `cools`: heat a city that lies low loses a month for each capo who follows
-    line: { loyal: 65, cools: 1, stretch: 2, thin: 0.3, grow: { stat: 'ambition', from: 60, name: 'Grow', gives: 'Your capos run more places than they can guard well' },
-            earn: { stat: 'business', from: 6, name: 'Earn', gives: 'Your capos make their places bigger before opening new ones' },
-            low: { stat: 'cunning', from: 6, name: 'Lie low', gives: 'Your capos leave the rivals alone, and the heat falls faster' } },
+    line: { loyal: 65, cools: 1, stretch: 2, thin: 0.3, grow: { stat: 'ambition', from: 60, name: 'Grow' }, earn: { stat: 'business', from: 6, name: 'Earn' }, low: { stat: 'cunning', from: 6, name: 'Lie low' } },
     // a chief struck gun in hand swears a vendetta: months it lasts, and how much harder his men come meanwhile
     vendetta: { months: 12, fury: 1 },
     // a capo's word on a key place: months after it is his before he is judged, the share of his figure that counts as kept,
@@ -85,7 +83,7 @@
     // parting with a capo: clean $ to pay him off by rank; heat a killing brings, months the less loyal keep their money
     // and the loyalty that keeps a man steady; heat the police forget for a man handed over, months before he is out,
     // and the places he burns then (one more for each rank he had)
-    out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2 },
+    out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2, forgets: 24 }, // forgets: months for the family to forget one killing; until then each new one costs as many times more as it remembers
     keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
     hq: { level: 2, stages: [0, 10, 25, 50], vault: [0, 3000, 8000, 20000] }, // a headquarters presses on the streets like a place of this level; the share of a city (in %) each of its four sizes starts at
     respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club
@@ -178,7 +176,11 @@
   // Time in words: the rules count in cycles of RULES.days days, the player reads days and never a month or a year.
   var EVERY = 'every ' + RULES.days + ' days';
   function days(cycles) { var n = Math.round(cycles * RULES.days); return n + (n === 1 ? ' day' : ' days'); }
-  var api = { EVERY: EVERY, days: days, NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
+  // An amount of money as the player reads it: whole dollars, the thousands apart.
+  function dollars(n) { return '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  // A name with its article: a speakeasy, an owned front.
+  function a(name) { return (/^[aeio]/i.test(name) ? 'an ' : 'a ') + name; }
+  var api = { dollars: dollars, a: a, EVERY: EVERY, days: days, NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);
