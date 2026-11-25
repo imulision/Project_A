@@ -230,6 +230,7 @@
     else if (act === 'later') { close(); stopped = false; if (g.paused) E.command(g, { type: 'resume' }); showHud(); }      // he leaves them waiting: time goes on
     else if (act === 'start') { if (order({ type: 'start', capo: d.capo })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
     else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) { var way = d.yes === '1' ? C.onItsWay(view, 'answer', d.city) : ''; if (way) toast(way); answered(); } }
+    else if (act === 'decide') { if (order({ type: 'decide', id: d.id, choice: d.choice })) { toast(((d.choice === 'learn' && C.onItsWay(view, 'research')) || g.journal[g.journal.length - 1].label + '.')); answered(); } }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.onItsWay(view, 'welcome', d.city, d.capo) || C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') settle(d.city, d.city, d.capo);

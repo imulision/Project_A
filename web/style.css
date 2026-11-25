@@ -368,3 +368,5 @@ body.live #call:not(:empty){display:block;bottom:0;background:#12121af7;border-t
 p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
 .wheel .know .nm{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:3px;font:600 8.5px var(--text);font-style:normal;letter-spacing:.2px;color:var(--ink);white-space:nowrap;pointer-events:none;background:#15131ad9;padding:0 3px;border-radius:5px}
 .wheel .know.shut .nm{color:var(--dim)}
+/* a matter a capo brings: its choices side by side, what each costs in red */
+.side span.bad{color:var(--bad);flex:none}.card.matter .side{border-top-color:var(--accent)}.card.matter .side.yes{border-top-color:var(--good)}

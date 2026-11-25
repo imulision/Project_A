@@ -87,6 +87,7 @@
     var there = at(c, p.x, p.y), where = zoneOf(c, p.x, p.y).name;
     if (p.move === 'take') {
       if (c.asks.some(function (a) { return a.capo === capo; }) || c.month < (m.begged || 0)) return; // one thing at a time, and not every year
+      if (short < p.cost * RULES.patience.petty) return; // he is nearly there: he does not go to the boss for so little
       var name = there.owner + 's\' ' + D.SITES[there.kind].name.toLowerCase();
       c.asks.push({ id: c.id + ':fund:' + capo, fund: true, capo: capo, trade: p.kind, x: p.x, y: p.y, way: p.way, cost: short, full: p.cost, months: p.months, why: why,
                     name: name, gives: 'One more place for ' + first(capo) + ', on streets the ' + there.owner + 's hold' });
@@ -132,7 +133,11 @@
       spend(f, a.cost);
       c.ops.push({ capo: a.capo, x: a.x, y: a.y, way: a.way, key: a.key, kind: 'key', cost: a.cost, month: c.month, months: a.months, day: c.turn && c.turn.daily ? c.turn.day || 0 : undefined });
       if (a.expects) { c.promises = c.promises || []; c.promises.push({ capo: a.capo, key: a.key, x: a.x, y: a.y, expected: a.expects.gain, due: c.month + a.expects.months }); }
-    } else c.refused[a.key] = c.month + RULES.sulk;
+    } else { // a place refused rests, and twice as long each time the boss says no again
+      c.snubs = c.snubs || {};
+      c.refused[a.key] = c.month + RULES.sulk * Math.pow(2, c.snubs[a.key] || 0);
+      c.snubs[a.key] = (c.snubs[a.key] || 0) + 1;
+    }
     sway(f, a.capo, yes ? RULES.loyal.granted : -RULES.loyal.refused);
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }

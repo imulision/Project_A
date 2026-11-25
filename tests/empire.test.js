@@ -10,7 +10,7 @@ const settle = (g) => { for (let i = 0; i < 400 && E.view(g).paying.length; i++)
 const months = (g, n) => { const out = []; for (let i = 0; i < n * E.TICKS_PER_MONTH; i++) { out.push(...E.tick(g)); if (g.paused) E.command(g, { type: 'resume' }); } return out; };
 
 test('before the boss picks his first capo there is no city to play, only six faces', () => {
-  const g = E.createGame();
+  const g = E.createGame({ quiet: true });
   assert.equal(g.started, false);
   assert.deepEqual(E.tick(g), []);
   const faces = E.candidates(g);
@@ -22,7 +22,7 @@ test('before the boss picks his first capo there is no city to play, only six fa
 });
 
 test('the game starts in Ashport: the Callahans hold the six key places, the first capo has his club', () => {
-  const g = E.createGame();
+  const g = E.createGame({ quiet: true });
   E.command(g, { type: 'start', capo: 'dutch' });
   assert.equal(g.started, true);
   const v = E.view(g);
@@ -38,7 +38,7 @@ test('the game starts in Ashport: the Callahans hold the six key places, the fir
 });
 
 test('twenty-four ticks make a month, the date moves, and what happens is written in the journal', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   assert.equal(E.hud(g).date, 'January 1926');
   const events = [];
   for (let i = 0; i < E.TICKS_PER_MONTH - 1; i++) { events.push(...E.tick(g)); assert.equal(E.hud(g).date, 'January 1926'); }
@@ -58,7 +58,7 @@ test('twenty-four ticks make a month, the date moves, and what happens is writte
 });
 
 test('the hud is the family at a glance', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   months(g, 6);
   const h = E.hud(g), a = E.view(g).cities[0];
   assert.deepEqual([h.dirty, h.clean], [Math.round(g.family.dirty), Math.round(g.family.clean)]);
@@ -70,7 +70,7 @@ test('the hud is the family at a glance', () => {
 });
 
 test('time stops when someone needs the boss\'s word, and his orders reach the rules', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) knock = E.tick(g).find((e) => e.type === 'knocks');
   assert.ok(knock, 'somebody knocks sooner or later');
@@ -92,7 +92,7 @@ test('time stops when someone needs the boss\'s word, and his orders reach the r
 });
 
 test('a saved game comes back the same and plays on the same way', () => {
-  const a = E.createGame({ capo: 'vince' });
+  const a = E.createGame({ capo: 'vince', quiet: true });
   months(a, 30);
   const b = E.load(E.save(a));
   assert.deepEqual(E.view(b), E.view(a));
@@ -103,18 +103,18 @@ test('a saved game comes back the same and plays on the same way', () => {
 test('a game saved by the old district rules is refused in plain words, never half loaded', () => {
   assert.throws(() => E.load(JSON.stringify({ version: 1, world: {} })), /older version/);
   assert.throws(() => E.load('not a game'), /cannot be read/);
-  assert.equal(JSON.parse(E.save(E.createGame({ capo: 'mae' }))).version, E.VERSION);
+  assert.equal(JSON.parse(E.save(E.createGame({ capo: 'mae', quiet: true }))).version, E.VERSION);
 });
 
 test('the journal keeps the last two hundred lines', () => {
-  const g = E.createGame({ capo: 'danny' });
+  const g = E.createGame({ capo: 'danny', quiet: true });
   months(g, 240);
   assert.ok(g.journal.length <= E.JOURNAL_SIZE);
   assert.ok(g.journal.length > 50);
 });
 
 test('a feud stops the clock, and the boss rules through an order', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   const c = g.cities[0];
   T.settle(c, 'danny', 0, 0); T.join(g.family, 'danny');
   c.grudge = { 'danny|dutch': T.RULES.feud };
@@ -132,7 +132,7 @@ test('a feud stops the clock, and the boss rules through an order', () => {
 });
 
 test('the boss parts with a capo through an order, and the journal says how', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   const c = g.cities[0];
   T.settle(c, 'danny', 0, 0); T.join(g.family, 'danny');
   const ways = E.view(g).cities[0].capos.find((m) => m.id === 'danny').partings;
@@ -149,7 +149,7 @@ test('the boss parts with a capo through an order, and the journal says how', ()
 // --- six cities ---
 
 test('the game holds the six cities of the map, each with the family that was there first; the boss starts in Ashport alone', () => {
-  const g = E.createGame({ capo: 'dutch' }), v = E.view(g);
+  const g = E.createGame({ capo: 'dutch', quiet: true }), v = E.view(g);
   assert.deepEqual(v.cities.map((c) => c.id), W.CITIES.map((c) => c.id));
   assert.deepEqual(v.cities.map((c) => c.rival), W.CITIES.map((c) => c.rival));
   for (const c of v.cities) {
@@ -166,7 +166,7 @@ test('the game holds the six cities of the map, each with the family that was th
 });
 
 test('the hud counts the whole map: the cities the family is in, its seats there, its share of every street', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   months(g, 6);
   const h = E.hud(g), v = E.view(g);
   assert.deepEqual(h.cities, { held: 1, total: 6 });
@@ -177,7 +177,7 @@ test('the hud counts the whole map: the cities the family is in, its seats there
 });
 
 const knocking = () => {
-  const g = E.createGame({ capo: 'dutch' }), c = g.cities[0], club = T.clubOf(c, 'dutch');
+  const g = E.createGame({ capo: 'dutch', quiet: true }), c = g.cities[0], club = T.clubOf(c, 'dutch');
   const near = T.spots(c).find((s) => Math.max(Math.abs(s.x - club.x), Math.abs(s.y - club.y)) === 1);
   T.open(c, near.x, near.y, { owner: 'family', kind: 'gambling', capo: 'dutch' });
   g.family.dirty = 20000;
@@ -219,7 +219,7 @@ test('twenty years of the six cities play in well under two seconds', () => {
 });
 
 test('every city has its own three lieutenants: no man answers for places in two cities', () => {
-  const g = E.createGame({ capo: 'dutch' }), v = E.view(g), seen = {};
+  const g = E.createGame({ capo: 'dutch', quiet: true }), v = E.view(g), seen = {};
   for (const c of v.cities) {
     assert.equal(c.lieutenants.length, 3, c.id);
     for (const l of c.lieutenants) {
@@ -236,7 +236,7 @@ test('every city has its own three lieutenants: no man answers for places in two
 
 // A boss who says yes to everything and sends every newcomer down the road when he can, through orders alone.
 const spreader = (start, years = 20) => {
-  const g = E.createGame({ capo: start }), f = g.family;
+  const g = E.createGame({ capo: start, quiet: true }), f = g.family;
   const order = (o) => { try { E.command(g, o); return true; } catch (e) { if (!/no seat|cannot pay|not at the door|clean money/.test(e.message)) throw e; return false; } };
   for (let m = 1; m <= years * 12; m++) {
     months(g, 1);
@@ -272,7 +272,7 @@ test('twenty years of sending men down the road: several cities, and money that 
 
 test('the boss starts with enough dirty money to take in the first man who knocks, within two years', () => {
   for (const start of E.NAMES) {
-    const g = E.createGame({ capo: start });
+    const g = E.createGame({ capo: start, quiet: true });
     assert.equal(E.hud(g).dirty, E.START_CASH);
     let taken = null;
     for (let m = 1; m <= 24 && !taken; m++) {
@@ -286,7 +286,7 @@ test('the boss starts with enough dirty money to take in the first man who knock
 });
 
 test('the hud says how much the two kinds of money moved last month', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   assert.deepEqual(E.hud(g).change, { dirty: 0, clean: 0 });
   months(g, 3);
   // (his share comes up one full load at a time: play on to a cycle when a load arrives)
@@ -299,7 +299,7 @@ test('the hud says how much the two kinds of money moved last month', () => {
 
 // --- the clock never stops for a word the boss cannot give ---
 const firstKnock = (prepare) => {
-  const g = E.createGame({ capo: 'dutch' }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
+  const g = E.createGame({ capo: 'dutch', quiet: true }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   let knock = null;
   for (let i = 0; i < 2000 && !knock; i++) { prepare(g); knock = E.tick(g).find((e) => e.type === 'knocks'); }
   g.reign.reached = 2; // the roads and the table are open (see hq-gives.test.js)
@@ -416,7 +416,7 @@ test('a man the underboss could not take in for want of money is not announced t
 });
 
 test('the last twenty-four months also say, city by city: the rival\'s strength, each capo\'s places and income, each street name\'s share', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   const v = E.view(g), a = v.cities[0], last = v.history[v.history.length - 1].cities.ashport, k = a.capos[0];
   assert.equal(last.rival, a.chief.strength);
@@ -435,7 +435,7 @@ test('the last twenty-four months also say, city by city: the rival\'s strength,
 });
 
 test('a capo shows how far he is from his next rank', () => {
-  const g = E.createGame({ capo: 'dutch' }), k = () => E.view(g).cities[0].capos[0];
+  const g = E.createGame({ capo: 'dutch', quiet: true }), k = () => E.view(g).cities[0].capos[0];
   assert.deepEqual(k().next, { rank: 1, name: T.RANKS[1], xp: 0, of: T.RULES.xp[1] });
   for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   assert.equal(k().next.xp, g.family.men.dutch.xp);
@@ -446,7 +446,7 @@ test('a capo shows how far he is from his next rank', () => {
 
 // --- loyalty, from the game ---
 test('the boss makes a capo a gift; the game shows each man\'s mood and what a gift costs', () => {
-  const g = E.createGame({ capo: 'vince' });
+  const g = E.createGame({ capo: 'vince', quiet: true });
   const k = () => E.view(g).cities[0].capos[0];
   assert.equal(k().mood, 'restless');
   assert.deepEqual(k().gift, { cost: T.RULES.loyal.gift, wait: 0 });
@@ -463,7 +463,7 @@ test('the boss makes a capo a gift; the game shows each man\'s mood and what a g
 });
 
 test('a betrayal is in the journal, and does not stop the clock for an answer nobody can give', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   const c = g.cities[0], spot = T.spots(c)[0];
   T.settle(c, 'vince', spot.x, spot.y); T.join(g.family, 'vince').loyal = 0;
   let seen = [];
@@ -478,7 +478,7 @@ test('a betrayal is in the journal, and does not stop the clock for an answer no
 // --- the last two years, month by month, for the curves of the screen ---
 
 test('the game keeps the last twenty-four months: the two kinds of money, and each city\'s streets and what it sent up', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   assert.deepEqual(E.view(g).history, []);
   const beat = (months) => { for (let i = 0; i < months * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); } };
   beat(3);
@@ -498,7 +498,7 @@ test('the game keeps the last twenty-four months: the two kinds of money, and ea
 });
 
 test('the months kept are saved with the game, and a game saved before starts with none', () => {
-  const g = E.createGame({ capo: 'sal' });
+  const g = E.createGame({ capo: 'sal', quiet: true });
   for (let i = 0; i < 5 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   const back = E.load(E.save(g));
   assert.deepEqual(E.view(back).history, E.view(g).history);
@@ -512,7 +512,7 @@ test('the months kept are saved with the game, and a game saved before starts wi
 test('a month lasts twenty-four beats at speed 1, twelve at speed 2 and six at speed 4', () => {
   assert.equal(E.TICKS_PER_MONTH, 24);
   for (const [speed, beats] of [[1, 24], [2, 12], [4, 6]]) {
-    const g = E.createGame({ capo: 'dutch' });
+    const g = E.createGame({ capo: 'dutch', quiet: true });
     E.command(g, { type: 'speed', speed });
     for (let i = 0; i < beats - 1; i++) { E.tick(g); assert.equal(g.month, 0); }
     E.tick(g);
@@ -523,7 +523,7 @@ test('a month lasts twenty-four beats at speed 1, twelve at speed 2 and six at s
 // --- a game begun before the cities had an outline ---
 
 test('a game begun on the old square cities gets the outline and the street shapes when it is loaded, and loses no place', () => {
-  const g = E.createGame({ capo: 'dutch' }), fresh = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true }), fresh = E.createGame({ capo: 'dutch', quiet: true });
   for (let i = 0; i < 6 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   // as it was saved then: no gap on the sides, every street name a plain rectangle
   const gone = Object.keys(fresh.cities[0].voids)[0].split(',').map(Number);
@@ -547,7 +547,7 @@ test('a game begun on the old square cities gets the outline and the street shap
 });
 
 test('a game of today is loaded as it was saved', () => {
-  const g = E.createGame({ capo: 'sal' });
+  const g = E.createGame({ capo: 'sal', quiet: true });
   for (let i = 0; i < 3 * E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
   assert.deepEqual(E.load(E.save(g)), JSON.parse(E.save(g)));
 });

@@ -48,8 +48,10 @@
     });
     // a rival's lieutenant listens once the family weighs enough in the city
     var his = function (id) { return everyPlace(c).filter(function (p) { return p.man === id; }); };
-    if (c.rival && share(c).family >= RULES.turn) lieutenantsOf(c).forEach(function (id) {
-      if (free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
+    // (a man the boss is already paying for has given his word: he waits for the money whatever the city does meanwhile)
+    var heavy = share(c).family >= RULES.turn, promised = f.promised || {};
+    if (c.rival) lieutenantsOf(c).forEach(function (id) {
+      if ((heavy || promised[id]) && free(id) && his(id).length) add(id, 'poach', c.rival, 'He sees which way the city is going, and crosses with all he runs').places = his(id).length;
     });
     return out;
   }

@@ -46,7 +46,7 @@
   var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
-  var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
+  var EVENT = { matter: 'time', decided: 'yes', opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
                 won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
   var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
@@ -297,8 +297,18 @@
       '<h3 class="sub2">Part with him</h3><p>He leaves the table, and the family. This cannot be taken back.</p>' +
       '<div class="acts">' + button('unseat', { post: t.post }, 'Send him away', { cls: 'go bad' }) + button('family', {}, 'Keep him') + '</div>');
   }
+  // A matter a capo brings to the boss: what it is about, and each choice with its price, what it brings and what it costs.
+  var MATTER = { line: 'loyalty', share: 'tribute', learn: 'yes', advance: 'dirty', captain: 'heat', truce: 'attack', bail: 'men', feast: 'gift', cargo: 'truck', favor: 'men' };
+  function matterCard(m, hud) {
+    var has = function (ch) { return ch.money === 'clean' ? hud.clean || 0 : hud.dirty || 0; };
+    return voice(m.capo, '<div class="card ask matter">' + head(m.capo, m.title, esc(m.says || '')) +
+      '<div class="sides n' + m.choices.length + '">' + m.choices.map(function (ch, i) { var poor = ch.cost > 0 && ch.cost > has(ch);
+        return '<div class="side' + (i === 0 && m.choices.length === 2 ? ' yes' : '') + '">' + (ch.cost > 0 ? '<b class="out">\u2212' + money(ch.cost) + ' ' + (ch.money === 'clean' ? 'clean' : 'dirty') + '</b>' : '') +
+          (ch.gives ? '<span>' + esc(ch.gives) + '</span>' : '') + (ch.costs ? '<span class="bad">' + esc(ch.costs) + '</span>' : '') + (poor ? '<small class="short">Short by ' + money(ch.cost - has(ch)) + '</small>' : '') +
+          button('decide', { id: m.id, choice: ch.id }, esc(ch.label), { cls: i === 0 ? 'go' : '', off: poor }) + '</div>'; }).join('') + '</div></div>');
+  }
   function requests(view, hud) {
-    var purse = funds(hud), cards = [];
+    var purse = funds(hud), cards = (view.matters || []).map(function (m) { return matterCard(m, hud); });
     view.cities.forEach(function (c) {
       c.feuds.forEach(function (f) { cards.push(feudCard(c, f)); });
       c.asks.forEach(function (a) { cards.push(askCard(c, a, purse)); });

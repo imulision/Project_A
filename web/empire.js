@@ -12,6 +12,7 @@
   var W = node ? require('./world.js') : root.AshportWorld;
   var D = node ? require('./district.js') : root.AshportDistrict;
   var R = node ? require('./reign.js') : root.AshportReign;
+  var A = node ? require('./audience.js') : root.AshportAudience;
 
   var VERSION = 3;            // 1 was the game by districts, since removed
   R.setDays(T.RULES.days);
@@ -24,7 +25,7 @@
   var START_CASH = 2500;      // dirty $ the boss starts with: what it takes to set up the first man who knocks
   var RIVAL_PLACES = 30;      // places the family in place holds on top of the key places
   var NAMES = ['sal', 'mae', 'dutch', 'tommy', 'vince', 'danny']; // the six a boss can start with
-  var STOPS = { asks: true, knocks: true, feud: true }; // what waits for the boss's word stops the clock
+  var STOPS = { asks: true, knocks: true, feud: true, matter: true }; // what waits for the boss's word stops the clock
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   function dateOf(month) { return MONTHS[month % 12] + ' ' + (FIRST_YEAR + Math.floor(month / 12)); }
@@ -183,6 +184,7 @@
 
   function createGame(options) {
     var g = { version: VERSION, started: false, paused: false, speed: 1, ticks: 0, month: 0, family: null, cities: [], journal: [] };
+    if (options && options.quiet) g.audience = { last: 0, seen: {}, open: null, off: true }; // no capo comes to the boss with a matter (for the tests of everything else)
     if (options && options.capo) start(g, options.capo);
     return g;
   }
@@ -334,6 +336,8 @@
       record(g, e, month);
       // a man the boss can neither seat nor send anywhere waits at the door without stopping the clock
       if (e.type === 'knocks' && !canAnswer(g, cityOf(g, e.city), e.capo)) return;
+      // nor does an ask he cannot pay: it waits on the sheet, and he is told the day he can
+      if (e.type === 'asks' && e.cost > T.funds(g.family)) return;
       if (STOPS[e.type]) g.paused = true;
     });
   }
@@ -452,6 +456,7 @@
     if (!to) return false; // nowhere on the map to drive it to: paid on the spot
     f.dirty -= dirty; f.clean = (f.clean || 0) - clean;
     f.paid = (f.paid || 0) + 1;
+    if (order.type === 'welcome') { f.promised = f.promised || {}; f.promised[order.capo] = true; } // he waits for the money, whatever happens meanwhile
     (f.paying = f.paying || []).push({ id: f.paid, key: key, order: order, city: to.city, x: to.x, y: to.y, capo: to.capo, dirty: dirty, clean: clean, amount: dirty + clean, sent: 0, arrived: 0 });
     return true;
   }
@@ -469,8 +474,8 @@
       if (p.arrived < p.amount) return false;
       f.paying = f.paying.filter(function (q) { return q !== p; });
       f.dirty += p.dirty; f.clean = (f.clean || 0) + p.clean; // it is there: the order spends it
-      try { ORDERS[p.order.type](g, p.order); }
-      catch (e) { events.push({ type: 'payment', step: 'back', id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, why: e.message, van: home }); } // nobody to take it any more: it comes home
+      try { ORDERS[p.order.type](g, p.order); if (p.order.type === 'welcome' && f.promised) delete f.promised[p.order.capo]; }
+      catch (e) { events.push({ type: 'payment', step: 'back', id: p.id, order: p.order.type, city: p.city, capo: p.capo, x: p.x, y: p.y, amount: p.amount, why: e.message, van: home }); if (f.promised) delete f.promised[p.order.capo]; } // nobody to take it any more: it comes home
       return false;
     });
     // every vehicle of the headquarters that is back takes the next load
@@ -502,6 +507,9 @@
     tell(g, passed.filter(function (e) { return !passing(e); }), month, events);
     Object.keys(f.men).forEach(function (capo) { if (dayOf(capo) === d) tell(g, T.act(f, g.cities, capo), month, events); });
     direct(g, events.slice(heard), month, events);
+    // nobody has needed the boss for a while: a capo comes to him with a matter
+    var matter = A.raise(g, nowOf(g), g.paused);
+    if (matter) { record(g, matter, month); events.push(matter); g.paused = true; }
     g.ticks = last ? 0 : d + 1;
     if (!last) return;
     tell(g, T.end(f, g.cities, W.ROUTES), month, events);
@@ -517,6 +525,18 @@
         if (!g.waiting[k]) return;
         delete g.waiting[k];
         var e = { type: 'knocks', ready: true, capo: q.capo, city: c.id, door: q.door, by: q.by, cost: q.cost, label: q.name + ' can now be taken in' };
+        record(g, e, month); events.push(e); g.paused = true;
+      });
+    });
+    // an ask he could not pay is told again the day he can
+    g.cities.forEach(function (c) {
+      T.asks(c).forEach(function (q) {
+        var k = c.id + ':ask:' + q.id;
+        if (owed(g, 'answer', c.id, q.id)) return;
+        if (q.cost > T.funds(g.family)) { g.waiting[k] = true; return; }
+        if (!g.waiting[k]) return;
+        delete g.waiting[k];
+        var e = { type: 'asks', ready: true, capo: q.capo, city: c.id, x: q.x, y: q.y, cost: q.cost, label: 'You can now pay the ' + dollars(q.cost) + ' ' + T.person(q.capo).name.split(' ')[0] + ' asked you for' };
         record(g, e, month); events.push(e); g.paused = true;
       });
     });
@@ -562,6 +582,12 @@
     var s = T.seats(c), has = T.funds(g.family);
     return (s.taken < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
   }
+  // Who waits for the boss's word in a city: the asks he can pay, the men he can take in, the quarrels.
+  function waitingIn(g, c) {
+    var has = T.funds(g.family);
+    return T.asks(c).filter(function (q) { return !owed(g, 'answer', c.id, q.id) && q.cost <= has; }).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
+  }
+  function waiting(g) { return g.cities.reduce(function (n, c) { return n + waitingIn(g, c); }, 0); }
   // True while the boss's money for this man at the door ('welcome') or for this ask ('answer') is on its way.
   function owed(g, type, city, what) {
     return (g.family.paying || []).some(function (p) {
@@ -687,6 +713,8 @@
     call: function (g, o) {
       T.call(cityOf(g, o.city), g.family, o.hit, o.call).forEach(function (e) { if (!passing(e)) record(g, e, g.month); });
     },
+    // the boss answers the matter a capo brought him
+    decide: function (g, o) { var e = A.decide(g, o.id, o.choice, nowOf(g), command); if (e) record(g, e, g.month); },
     research: function (g, o) {
       T.research(g.family, o.building);
       g.family.study.day = g.ticks; // learned on this day of a later cycle
@@ -718,8 +746,8 @@
     }));
   }
   function view(g) {
-    if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
-    var out = { date: dateOf(g.month), month: g.month, day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family, g.cities), advice: T.advice(g.family, g.cities), study: g.family.study, table: tableOf(g),
+    if (!g.started) return { date: dateOf(0), cities: [], matters: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
+    var out = { date: dateOf(g.month), month: g.month, matters: A.matters(g), day: g.ticks, days: TICKS_PER_MONTH, history: g.history || [], stalls: stalls(g), decisions: decisions(g), holdings: T.holdings(g.family), tree: T.tree(g.family, g.cities), advice: T.advice(g.family, g.cities), study: g.family.study, table: tableOf(g),
              routes: W.ROUTES.map(function (r) { return { from: r.from, to: r.to, kind: r.kind }; }),
              cities: g.cities.map(function (c) {
                var v = T.view(c, g.family);
@@ -762,7 +790,7 @@
     g.cities.forEach(function (c) {
       var s = T.share(c), n = T.size(c), k = T.seats(c);
       blocks += n; ours += s.family * n / 100; heat = Math.max(heat, c.heat || 0);
-      pending += T.asks(c).filter(function (q) { return !owed(g, 'answer', c.id, q.id); }).length + T.doors(c, g.family).filter(function (d) { return answerable(g, c, d); }).length + T.feuds(c).length;
+      pending += waitingIn(g, c);
       if (!held(g, c)) return;
       cities.held += 1; seats.taken += k.taken; seats.total += k.total;
     });
@@ -770,7 +798,7 @@
     out.change = g.change || { dirty: 0, clean: 0 }; // what last month did to the two kinds of money
     out.dirty = Math.round(g.family.dirty); out.clean = Math.round(g.family.clean);
     out.heat = heat; out.share = Math.round(ours * 100 / blocks); out.men = Object.keys(g.family.men).length;
-    out.seats = seats; out.pending = pending;
+    out.seats = seats; out.pending = pending + A.matters(g).length;
     out.act = R.act(reignOf(g)).numeral;
     out.vault = T.RULES.stash + T.RULES.hq.vault[reignOf(g).reached]; // dirty money above this draws the police
     return out;

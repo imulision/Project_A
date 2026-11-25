@@ -74,7 +74,7 @@ test('a month lasts twenty-four beats at speed 1, and every man has his own day 
   const days = E.NAMES.map((id) => E.dayOf(id));
   for (const d of days) assert.ok(d >= 2 && d <= 21 && d === Math.round(d), 'between the opening and the closing: ' + d);
   assert.ok(new Set(days).size >= 4, 'the six first capos do not all move the same day: ' + days);
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   assert.equal(E.view(g).day, 0);
   beats(g, 5);
   assert.equal(E.view(g).day, 5);
@@ -85,7 +85,7 @@ test('a month lasts twenty-four beats at speed 1, and every man has his own day 
 });
 
 test('what happens is spread over the days: a capo with money sets out the first day, opens when his work there is done, and again once he is home, never all at once', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   g.family.men.dutch.cash = 20000;
   const month = beats(g, 3 * E.TICKS_PER_MONTH), opens = month.map((events) => events.filter((e) => e.type === 'opened' && e.capo === 'dutch').length);
   assert.equal(month[0].filter((e) => e.type === 'errand' && e.step === 'leaves' && e.capo === 'dutch').length, 1);
@@ -95,14 +95,14 @@ test('what happens is spread over the days: a capo with money sets out the first
 });
 
 test('at speed 4 the same month takes six beats', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   E.command(g, { type: 'speed', speed: 4 });
   beats(g, 6);
   assert.equal(E.view(g).month, 1);
 });
 
 test('a game saved in the middle of a month goes on exactly as if it had not been', () => {
-  const a = E.createGame({ capo: 'sal' });
+  const a = E.createGame({ capo: 'sal', quiet: true });
   beats(a, 24 * 14 + 9);
   const b = E.load(E.save(a));
   beats(a, 24 * 6 + 5); beats(b, 24 * 6 + 5);
@@ -110,7 +110,7 @@ test('a game saved in the middle of a month goes on exactly as if it had not bee
 });
 
 test('a game saved when a month was one blow starts its month again from the first day', () => {
-  const g = E.createGame({ capo: 'sal' });
+  const g = E.createGame({ capo: 'sal', quiet: true });
   beats(g, 24 * 3);
   const old = JSON.parse(E.save(g));
   old.ticks = 5; for (const c of old.cities) delete c.turn;
@@ -121,7 +121,7 @@ test('a game saved when a month was one blow starts its month again from the fir
 });
 
 test('the clock stops the day a capo asks for the boss\'s word, and the rest of the month waits for the answer', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', quiet: true });
   let stopped = null;
   for (let i = 0; i < 24 * 60 && !stopped; i++) { const events = E.tick(g); if (g.paused) stopped = { events, day: g.ticks, month: g.month }; }
   assert.ok(stopped, 'something asked for his word');
