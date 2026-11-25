@@ -201,6 +201,7 @@
     var home = g.cities[0], spot = T.landing(home);
     g.family = T.createFamily();
     g.family.dirty = START_CASH;
+    // the family knows the trade of its first man from the first day: who the boss starts with is seen in the first street
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
     home.home = true; // the boss lives here
@@ -705,14 +706,16 @@
   }
 
   // The six a boss can start with, for the first screen.
+  // `opens`: what the man opens first, read in the plan he makes the day he is picked (his own trade, when he can pay for it).
+  var FIRST = null;
   function candidates() {
-    return NAMES.map(function (id) {
-      var c = T.person(id);
+    return FIRST || (FIRST = NAMES.map(function (id) {
+      var c = T.person(id), g = createGame({ capo: id }), p = T.plan(g.cities[0], g.family, id) || {};
       return { id: id, name: c.name, specialty: c.specialty, muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma,
-               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name,
+               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name, opens: (D.SITES[p.kind] || D.SITES[T.tradeOf(id)]).name,
                likes: c.likes.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }),
                refuses: c.refuses.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }) };
-    });
+    }));
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };

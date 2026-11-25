@@ -167,7 +167,9 @@
   // The key places of the city, and who holds each.
   function keys(c) {
     return everyPlace(c).filter(function (p) { return p.kind === 'key'; }).map(function (p) {
-      return { key: p.key, name: KEYS[p.key].name, x: p.x, y: p.y, owner: p.owner, capo: p.capo, gives: KEYS[p.key].gives };
+      // `around` of the `need` family places a capo wants near it before he asks the boss for it
+      var around = p.owner === 'family' ? 0 : everyPlace(c).filter(function (q) { return q.owner === 'family' && far(p.x, p.y, q.x, q.y) <= RULES.near; }).length;
+      return { key: p.key, name: KEYS[p.key].name, x: p.x, y: p.y, owner: p.owner, capo: p.capo, gives: KEYS[p.key].gives, around: around, need: RULES.siege };
     });
   }
 
