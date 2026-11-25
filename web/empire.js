@@ -201,6 +201,7 @@
     var home = g.cities[0], spot = T.landing(home);
     g.family = T.createFamily();
     g.family.dirty = START_CASH;
+    // the family knows the trade of its first man from the first day: who the boss starts with is seen in the first street
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
     home.home = true; // the boss lives here
@@ -276,8 +277,13 @@
   }
   // The family's share of the map has just been counted: the acts it wins or loses go into the journal.
   function settle(g) {
-    var told = R.place(reignOf(g), shareNow(g));
+    var r = reignOf(g), told = R.place(r, shareNow(g));
     seats(g);
+    // the day it holds half the map the game is won: said once, and the game goes on
+    if (!g.won && R.atTop(r)) {
+      g.won = { month: g.month, men: Object.keys(g.family.men).length, cities: g.cities.filter(function (c) { return held(g, c); }).length };
+      told.push({ type: 'won', label: 'Your family holds half the streets of the six cities: you sit on the Commission', gives: 'The game is won' });
+    }
     told.forEach(function (e) { record(g, e, g.month); });
     return told;
   }
@@ -700,14 +706,16 @@
   }
 
   // The six a boss can start with, for the first screen.
+  // `opens`: what the man opens first, read in the plan he makes the day he is picked (his own trade, when he can pay for it).
+  var FIRST = null;
   function candidates() {
-    return NAMES.map(function (id) {
-      var c = T.person(id);
+    return FIRST || (FIRST = NAMES.map(function (id) {
+      var c = T.person(id), g = createGame({ capo: id }), p = T.plan(g.cities[0], g.family, id) || {};
       return { id: id, name: c.name, specialty: c.specialty, muscle: c.muscle, business: c.business, cunning: c.cunning, charisma: c.charisma,
-               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name,
+               loyalty: c.loyalty, ambition: c.ambition, way: T.wayOf(id), trade: D.SITES[T.tradeOf(id)].name, opens: (D.SITES[p.kind] || D.SITES[T.tradeOf(id)]).name,
                likes: c.likes.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }),
                refuses: c.refuses.filter(function (k) { return D.SITES[k]; }).map(function (k) { return D.SITES[k].name; }) };
-    });
+    }));
   }
   function view(g) {
     if (!g.started) return { date: dateOf(0), cities: [], tree: [], history: [], stalls: [], decisions: [], next: null, reign: null };
@@ -742,7 +750,7 @@
       if (o.type === 'buy') out.holdings.forEach(function (h) { if (h.id === o.holding) h.paying = true; });
     });
     var r = reignOf(g), share = shareNow(g);
-    out.reign = { share: Math.round(share * 10) / 10, rank: R.standing(r, share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
+    out.reign = { goal: g.won ? null : R.goal(r, share), road: R.road(r), won: g.won || null, share: Math.round(share * 10) / 10, rank: R.standing(r, share), act: R.act(r), reached: r.reached, vault: T.RULES.stash + T.RULES.hq.vault[r.reached], closed: closed(g),
                   acts: R.ACTS.map(function (a, i) { return { id: a.id, name: a.name, hq: a.hq, numeral: ['I', 'II', 'III', 'IV'][i], opens: a.opens, watch: a.watch, threat: a.threat, gives: a.gives, open: i <= r.reached, now: i === r.act, from: R.RULES.ranks[i][1], rank: R.RULES.ranks[i][0] }; }) };
     out.next = out.cities.reduce(function (best, c) { return c.next && (!best || c.next.advance > best.advance) ? Object.assign({ city: c.id }, c.next) : best; }, null);
     return out;

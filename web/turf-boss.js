@@ -317,7 +317,7 @@
   }
 
   function feuds(c) {
-    return (c.feuds || []).map(function (q) { return { id: q.id, a: q.a, b: q.b, since: q.month, label: q.label }; });
+    return (c.feuds || []).map(function (q) { return { id: q.id, a: q.a, b: q.b, since: q.month, label: q.label, sulks: RULES.sulks, half: 0.5 }; });
   }
 
   function feuding(c, capo) { return (c.feuds || []).some(function (q) { return q.a === capo || q.b === capo; }); }
@@ -364,7 +364,14 @@
     if (!RULES.line[how] || !RULES.line[how].stat) throw new Error('no such line: ' + how);
     c.line = how;
   }
-  function lines() { return ['grow', 'earn', 'low'].map(function (id) { return { id: id, name: RULES.line[id].name, gives: RULES.line[id].gives }; }); }
+  // What each line brings, and what it costs: said with the figures of the rules.
+  function lineSays() {
+    var l = RULES.line;
+    return { grow: ['Each capo who follows runs ' + l.stretch + ' places more than his rank allows', 'His places stand a raid ' + Math.round(l.thin * 100) + '% worse meanwhile'],
+             earn: ['Each capo who follows makes his places bigger first: more money from every place', 'Fewer new streets while he does'],
+             low: ['The heat falls ' + l.cools + ' point more ' + R.EVERY + ' for each capo who follows', 'No place taken from the rivals meanwhile'] };
+  }
+  function lines() { var says = lineSays(); return ['grow', 'earn', 'low'].map(function (id) { return { id: id, name: RULES.line[id].name, gives: says[id][0], costs: says[id][1] }; }); }
   function followers(c, f) {
     var here = Object.keys(f.men).filter(function (id) { return clubOf(c, id); });
     return { of: here.length, follow: here.filter(function (id) { var l = P.follows(c, f, id); return l && l.follows; }).length };

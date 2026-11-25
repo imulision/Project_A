@@ -23,7 +23,9 @@
     var ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; }), out = [];
     var gone = f.gone || {}, free = function (id) { return !f.men[id] && !gone[id] && !clubOf(c, id) && !seated(f, id); };
     var add = function (id, door, by, why, price) {
-      out.push({ capo: id, name: who(id).name, specialty: who(id).specialty, door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
+      var p = who(id), trade = C.tradeOf(id);
+      out.push({ capo: id, name: p.name, specialty: p.specialty, muscle: p.muscle, business: p.business, cunning: p.cunning, charisma: p.charisma,
+                 trade: trade && D.SITES[trade] ? D.SITES[trade].name : null, knows: !!(trade && f.tech && f.tech[trade] >= 1), door: door, by: by, why: why, cost: swell(RULES.doors[price || door], RULES.crowd, Object.keys(f.men).length - 1) });
       return out[out.length - 1];
     };
     Object.keys(LURES).forEach(function (id) {

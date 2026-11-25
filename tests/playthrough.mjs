@@ -75,6 +75,10 @@ assert.equal(await page.locator('.lab.capo .hp i').count(), 3, 'three lights und
 // the first minutes: a strip says what to look at, and a touch puts it away for good
 assert.match(await page.textContent('#hint .hint'), /Dutch runs these streets for you/);
 await page.click('#hint [data-hint=capo]');
+// then the goal of the game, once
+await page.waitForSelector('#hint [data-hint=goal]');
+assert.match(await page.textContent('#hint .hint'), /Your goal: half the streets of the six cities/);
+await page.click('#hint [data-hint=goal]');
 assert.equal(await page.locator('#hint .hint').count(), 0, 'read once, never said again');
 assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('ashport-hints')).capo), 1);
 await shot('c2-first-club');
@@ -217,7 +221,13 @@ await shot('c2b-money-in');
 // is he getting anywhere? Both moneys say what came in and what went out, the family has a rank, each capo a word and a power
 assert.doesNotMatch(await page.textContent('.res'), /month|\/ mo|OUT/i, 'no rate at the top of the screen');
 assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
-assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
+assert.match(await page.textContent('#rank'), /GOAL \d+% of the streets/, 'and its goal: the share that gives the next rank');
+// a touch on the goal opens the whole road, from the first street to the Commission
+await page.evaluate(() => document.querySelector('#rank [data-goal]').click());
+assert.match(await page.textContent('#veil.on'), /Your reign[\s\S]*half the streets of the six cities[\s\S]*Crew[\s\S]*Family[\s\S]*Syndicate[\s\S]*Commission/);
+assert.equal(await page.locator('#veil.on .road .step.now').count(), 1, 'the step the family stands on is marked');
+await shot('c2b-goal');
+await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
 assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
 assert.ok((await page.evaluate(() => window.__ashport.map().labels().filter((l) => l.ground).map((l) => l.id))).length > 0);
 assert.match(await page.evaluate(() => [...document.querySelectorAll('.lab.sm')].map((e) => e.textContent).join(' | ')), /\d+%/, 'a street name says what the family holds of it');
