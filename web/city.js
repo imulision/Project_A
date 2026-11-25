@@ -84,7 +84,7 @@
     var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty', view), ct = C.moneyTile(acc, 'clean', view); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
     var tr = C.trend(view), best = view.cities.slice().sort(function (a, b) { return b.share.family - a.share.family; })[0];
-    $('rank').innerHTML = C.rankLine(C.rank(view));
+    var gl = C.goalLine(view); if ($('rank').dataset.was !== gl) { $('rank').dataset.was = gl; $('rank').innerHTML = gl; }      // the goal: a touch opens the whole road
     var sl = C.stallLine(view); if ($('stall').dataset.was !== sl) { $('stall').dataset.was = sl; $('stall').innerHTML = sl; }      // what holds him back, the worst first: a touch tells why
     $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
@@ -198,6 +198,7 @@
   function fresh() { return Date.now() - (tip.at || 0) <= 450; }      // the click a phone sends after a touch does not close what that touch opened
   document.addEventListener('click', function (e) {
     if (e.target.closest('#tip')) { var m = tip.more; untip(); if (m) m(); return; }
+    if (e.target.closest('[data-goal]') && g && g.started) { untip(); show(C.reign(view)); return; }
     if (e.target.closest('[data-stalls]') && g && g.started) { untip(); show(C.stallsCard(view)); return; }
     var nx = e.target.closest('#next .nx');
     if (nx && map && claims.length) {      // a touch shows where it is; another one passes to the next claim
@@ -397,6 +398,7 @@
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
     if (!live) C.untold(told0.filter(C.newsworthy), told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store(); hits(); showLive();      // what a man does is seen the day he does it; the money and the loads change when the month closes
+    if (events.some(function (e) { return e.type === 'won'; })) { unwatch(); show(C.won(view, E.hud(g))); return events; }      // the day the game is won is said in full
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;
   }

@@ -217,7 +217,13 @@ await shot('c2b-money-in');
 // is he getting anywhere? Both moneys say what came in and what went out, the family has a rank, each capo a word and a power
 assert.doesNotMatch(await page.textContent('.res'), /month|\/ mo|OUT/i, 'no rate at the top of the screen');
 assert.match(await page.textContent('#rank'), /Street gang|Crew/i);
-assert.match(await page.textContent('#rank'), /at \d+%/, 'and a bar towards the next rank');
+assert.match(await page.textContent('#rank'), /GOAL \d+% of the streets/, 'and its goal: the share that gives the next rank');
+// a touch on the goal opens the whole road, from the first street to the Commission
+await page.evaluate(() => document.querySelector('#rank [data-goal]').click());
+assert.match(await page.textContent('#veil.on'), /Your reign[\s\S]*half the streets of the six cities[\s\S]*Crew[\s\S]*Family[\s\S]*Syndicate[\s\S]*Commission/);
+assert.equal(await page.locator('#veil.on .road .step.now').count(), 1, 'the step the family stands on is marked');
+await shot('c2b-goal');
+await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
 assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
 assert.ok((await page.evaluate(() => window.__ashport.map().labels().filter((l) => l.ground).map((l) => l.id))).length > 0);
 assert.match(await page.evaluate(() => [...document.querySelectorAll('.lab.sm')].map((e) => e.textContent).join(' | ')), /\d+%/, 'a street name says what the family holds of it');

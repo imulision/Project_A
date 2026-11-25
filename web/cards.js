@@ -47,10 +47,10 @@
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
-                granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
+                won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
   var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
-  var good = function (e) { return (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
+  var good = function (e) { return e.type === 'won' || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
@@ -307,6 +307,8 @@
   var HINTS = [
     { id: 'capo', icon: 'men', when: function (v, h, c) { return !!c.capos.length; },
       text: function (v, h, c) { return voice(c.capos[0].id, first(c.capos[0].name) + ' runs these streets for you. He decides what to open; you watch, and answer when he asks.'); } },
+    { id: 'goal', icon: 'ambition', when: function (v) { return !!(v.reign && v.reign.goal); },
+      text: function (v) { return 'Your goal: half the streets of the six cities. First step: ' + v.reign.goal.need + '% makes you a ' + v.reign.goal.rank + ' and opens ' + v.reign.goal.short + '. Tap your rank to see the road.'; } },
     { id: 'asks', icon: 'time', when: function (v, h, c) { return h.pending > 0 && (c.asks.length || c.feuds.length); },
       text: function () { return 'A capo waits for your word, and time has stopped. Tap the banner to answer him.'; } },
     { id: 'money', icon: 'tribute', when: function (v, h, c) { return c.capos.some(function (k) { return k.sent > 0; }); },
@@ -703,6 +705,35 @@
     return '<span class="rk' + (r.moved ? ' ' + r.moved : '') + '" data-tip="' + esc('The rank of your family: the share of the whole map it holds (' + r.at + '%). The mark on the bar is where you stood a year ago.') + '"><b>' + (r.moved === 'up' ? '▲ ' : r.moved === 'down' ? '▼ ' : '') + esc(r.name) + '</b>' +
       (r.next ? '<span class="bar"><i style="width:' + pc(r.part) + '"></i><u class="was" style="left:' + pc(r.was) + '"></u></span><small>' + esc(r.next) + ' at ' + r.to + '%</small>' : '') + '</span>';
   }
+  // The goal, at the top of the screen: the rank held, the bar towards the next one, and in words what the family is after.
+  // A touch opens the whole road (reign). A view with no reign (an old game) shows its rank alone.
+  function goalLine(view) {
+    var rg = view.reign, r = rank(view); if (!rg || !rg.road) return rankLine(r);
+    var g = rg.goal, pc = function (x) { return Math.round(x * 100) + '%'; };
+    return '<span class="rk goal' + (r.moved ? ' ' + r.moved : '') + (rg.won ? ' won' : '') + '" data-goal="1"><b>' + (r.moved === 'up' ? '▲ ' : r.moved === 'down' ? '▼ ' : '') + esc(r.name) + '</b>' +
+      (g ? '<span class="bar"><i style="width:' + pc(g.part) + '"></i><u class="was" style="left:' + pc(r.was) + '"></u></span><small><em>GOAL</em> ' + g.need + '% of the streets · ' + esc(g.rank) + (g.wins ? ': you win' : '') + '</small>'
+         : '<small>' + (rg.won ? 'You sit on the Commission: the game is won' : '') + '</small>') + '<i class="more">\u203a</i></span>';
+  }
+  // The whole road: every rank, the share of the map it starts at, what it opens, and where the family stands.
+  function reign(view) {
+    var rg = view.reign || {}, road = rg.road || [], g = rg.goal;
+    return '<h2>Your reign</h2><p>The game is won the day your family holds half the streets of the six cities. You hold ' + (rg.share || 0) + '% today.</p>' +
+      (g ? '<div class="move next">' + icon('ambition') + '<span><b>Next: ' + g.need + '% of the streets makes you a ' + esc(g.rank) + '</b><br>' + esc(g.opens) + '<span class="bar"><i style="width:' + Math.round(g.part * 100) + '%"></i></span></span></div>' : '') +
+      '<div class="road">' + road.map(function (s) {
+        return '<div class="step' + (s.now ? ' now' : s.done ? ' done' : '') + '"><b>' + (s.done ? icon('yes') : s.now ? icon('ambition') : '') + esc(s.rank) + '<i>' + (s.from ? s.from + '%' : 'Start') + '</i></b>' +
+          (s.act ? '<small>' + esc(s.act) + '</small>' : '') + '<span>' + esc(s.gives) + '</span></div>'; }).join('') + '</div>' +
+      '<p>Streets are won by your capos: take in the men who knock, say yes to the places they ask for, and spend clean money on what the family knows.</p>' +
+      '<div class="acts">' + button('family', {}, 'The family') + button('close', {}, 'Close') + '</div>';
+  }
+  // The day the game is won.
+  function won(view, hud) {
+    var w = (view.reign || {}).won || {};
+    return '<h2>You sit on the Commission</h2><p>Your family holds half the streets of the six cities. The game is won.</p>' +
+      '<div class="tiles">' + tile('time', 'REACHED ON', typeof w.month === 'number' ? day(w.month) : day(view), 'The day your family reached half the map') +
+      tile('men', 'CAPOS', (w.men || (hud && hud.men) || 0) + '', 'The capos of the family that day') + tile('streets', 'CITIES', (w.cities || 0) + ' / ' + view.cities.length, 'The cities where the family had a man') + '</div>' +
+      '<p>You can go on and take the rest of the map, or start again with another first capo: each one plays his own way.</p>' +
+      '<div class="acts">' + button('close', {}, 'Keep playing', { cls: 'go' }) + button('restart', {}, 'New game') + '</div>';
+  }
   // What a capo is doing and whether it works, in one word: doing(city, capo) -> { word, tone: 'good' | 'idle' | 'warn' | 'bad', earns }.
   function doing(c, k, pw) {
     var h = health(c, k), p = k.plan || {}, o = { word: 'HOLDING', tone: 'idle', earns: money(Math.round(k.income || 0)) };
@@ -998,8 +1029,8 @@
         return '<h2>This page could not be drawn</h2><p>The game goes on. ' + esc(String(e && e.message || e).slice(0, 160)) + '</p><div class="acts">' + button('later', {}, 'Go on') + '</div>'; }
     };
   }
-  var api = { newsworthy: newsworthy, voice: voice, day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
+  var api = { goalLine: goalLine, reign: reign, won: won, newsworthy: newsworthy, voice: voice, day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
            eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, crowded: crowded, iconName: iconName, planWord: planWord };
-  ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal'].forEach(function (k) { api[k] = safe(api[k]); });
+  ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal', 'reign', 'won'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });
