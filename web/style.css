@@ -370,3 +370,15 @@ p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
 .wheel .know.shut .nm{color:var(--dim)}
 /* a matter a capo brings: its choices side by side, what each costs in red */
 .side span.bad{color:var(--bad);flex:none}.card.matter .side{border-top-color:var(--accent)}.card.matter .side.yes{border-top-color:var(--good)}
+/* a phone: the top band keeps to a quarter of the screen. Smaller date, the trend on one line, the four figures tighter,
+   the next streets on two short lines, and no more than two pieces of news at a time. */
+@media (max-width:520px){
+  .top{padding:6px 8px 14px}
+  h1{font-size:19px}h1::after{display:none}
+  .top .sub{margin:2px 0 4px;display:flex;align-items:baseline;gap:8px}.top .sub #sub{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #rank{margin:0 0 4px}#stall{margin:0 0 4px}.stallline{padding:2px 8px}
+  .res{gap:4px}.res .acct{padding:3px 8px 3px}.res .acct b{font-size:1.4em}.res .acct em{min-height:0}.res .acct em:empty{display:none}
+  .res .slim{padding:2px 8px}.res .slim b{font-size:1.05em}
+  .nx{margin-top:4px;padding:3px 8px 4px}.nx p{margin:1px 0 3px;font-size:13px}
+  #feed{margin-top:4px}#feed .news:nth-last-child(n+3){display:none}
+}

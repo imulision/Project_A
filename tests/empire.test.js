@@ -140,7 +140,7 @@ test('the boss parts with a capo through an order, and the journal says how', ()
   assert.throws(() => E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'retire' }), /clean money/);
   E.command(g, { type: 'part', city: 'ashport', capo: 'danny', way: 'kill' });
   assert.deepEqual(E.view(g).cities[0].capos.map((m) => m.id), ['dutch']);
-  const line = g.journal[g.journal.length - 1];
+  const line = g.journal.filter((e) => e.type === 'parted').pop();
   assert.deepEqual([line.type, line.capo, line.way], ['parted', 'danny', 'kill']);
   assert.match(line.label, /Danny/);
   assert.equal(E.hud(g).heat, T.RULES.out.blood);

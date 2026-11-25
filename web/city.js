@@ -22,7 +22,8 @@
   // The first version of the game (by districts) saved under another key: that game is not continued. It is kept aside, and the player is told once.
   var OLD = 'ashport-save-1';
   function retire() { try { var t = localStorage.getItem(OLD); if (!t) return; localStorage.setItem(OLD + '-unreadable', t); localStorage.removeItem(OLD); setAside = true; } catch (e) { /* no storage */ } }
-  function store() { try { localStorage.setItem(SAVE, E.save(g)); } catch (e) { /* no storage: the game still plays */ } }
+  var kept = null;      // the text this page last saved
+  function store() { try { kept = E.save(g); localStorage.setItem(SAVE, kept); } catch (e) { /* no storage: the game still plays */ } }
   function forget() { try { localStorage.removeItem(SAVE); } catch (e) { /* nothing to forget */ } }
 
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
@@ -228,13 +229,14 @@
     var act = b.dataset.act, d = b.dataset;
     if (act === 'close') close();
     else if (act === 'later') { close(); stopped = false; if (g.paused) E.command(g, { type: 'resume' }); showHud(); }      // he leaves them waiting: time goes on
-    else if (act === 'start') { if (order({ type: 'start', capo: d.capo })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
+    else if (act === 'start') { if (order({ type: 'start', capo: d.capo, seed: /[?&]fixed\b/.test(location.search) ? 0 : 1 + Math.floor(Math.random() * 9999) })) { close(); home(); toast(C.first(C.nameOf(d.capo)) + ' opens his club in Ashport. Tap a street to see it.'); } }
     else if (act === 'answer') { if (order({ type: 'answer', city: d.city, id: d.id, yes: d.yes === '1' })) { var way = d.yes === '1' ? C.onItsWay(view, 'answer', d.city) : ''; if (way) toast(way); answered(); } }
     else if (act === 'decide') { if (order({ type: 'decide', id: d.id, choice: d.choice })) { toast(((d.choice === 'learn' && C.onItsWay(view, 'research')) || g.journal[g.journal.length - 1].label + '.')); answered(); } }
     else if (act === 'rule') { if (order({ type: 'rule', city: d.city, id: d.id, winner: d.winner })) answered(); }
     else if (act === 'welcome') { if (order({ type: 'welcome', city: d.city, from: d.from, capo: d.capo })) { toast(C.onItsWay(view, 'welcome', d.city, d.capo) || C.first(C.nameOf(d.capo)) + ' is one of yours now.'); answered(); } }
     else if (act === 'seat') settle(d.city, d.city, d.capo);
     else if (act === 'underboss') { if (order({ type: 'underboss', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
+    else if (act === 'advance') { if (order({ type: 'advance', city: d.city, capo: d.capo })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'gift') { if (order({ type: 'gift', city: d.city, capo: d.capo })) { toast(C.onItsWay(view, 'gift', d.city, d.capo) || g.journal[g.journal.length - 1].label + '.'); show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo])); } }
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
@@ -414,6 +416,10 @@
     map = m; $('load').remove(); drawLabels();
     if (g.started) { refresh(); map.send(M.ridesTurf(view, lastPlan)); home(); /* the cars that were on their way when the game was left are on their way again */  if (E.hud(g).pending) { stopped = !!g.paused; requests(); } } else show(C.start(E.candidates()));
     if (setAside) toast('Your saved game came from an older version and could not be opened. A new game starts.', true);
+    // the game is saved the moment the boss leaves, not only on the days something happens (unless the save is no longer
+    // the one this page wrote: a new game was asked for, or another page plays)
+    var leaving = function () { var there = null; try { there = localStorage.getItem(SAVE); } catch (e) { /* no storage */ } if (g.started && kept !== null && there === kept) store(); };
+    addEventListener('pagehide', leaving); document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') leaving(); });
     if (!/[?&]manual\b/.test(location.search)) setInterval(beat, TICK_MS);       // tests beat time by hand
   });
 })();

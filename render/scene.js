@@ -661,9 +661,10 @@ function setPr(v) { pr = v; stale = 3; renderer.setPixelRatio(pr); composer.setP
 window.__setPr = setPr;
 renderer.info.autoReset = false;
 let goal = null, last = performance.now(), frames = 0, fpsT = last, fpsN = 0, sharp = quality.start(pr), due = pacer(), held = false, stale = 3, lastView = '';
+const WIDE = 0.62;      // the six cities fit across a screen at least this wide for its height; on a narrower one (a phone held upright) the whole map is seen from further away
 const focus = (id, districtId, at) => {     // glide to the whole map, to a city, to one of its districts, or to one block of it (at: { x, y })
   const c = CITIES.find(c => c.id === id), d = c && districtId && c.d.find(d => d.id === districtId);
-  goal = !c ? { p: CENTER.clone().add(OFF), z: 1 } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + midX(d) * 4 * T, 0, c.oz + midY(d) * 3 * T).add(OFF), z: 11 * K }
+  goal = !c ? { p: CENTER.clone().add(OFF), z: Math.min(1, innerWidth / innerHeight / WIDE) } : at ? { p: new THREE.Vector3(c.ox + (at.x * 4 + 2) * T, 0, c.oz + (at.y * 3 + 1.5) * T).add(OFF), z: 11 * K } : d ? { p: new THREE.Vector3(c.ox + midX(d) * 4 * T, 0, c.oz + midY(d) * 3 * T).add(OFF), z: 11 * K }
     : { p: new THREE.Vector3(c.cx, 0, c.cz).add(OFF), z: K > 1 ? 2.4 * K : c.home ? 5.4 : 6.2 };
 };
 const _v = new THREE.Vector3();
@@ -742,7 +743,8 @@ function pickAt(cx, cy) {
 function frame(now) {
   if (!due(now)) { requestAnimationFrame(frame); return; }      // never more than 60 images a second, on a 90 Hz screen too (render/pace.mjs)
   const real = Math.min(1, (now - last) / 1000), dt = Math.min(0.05, real); last = now;      // cars never jump more than a twentieth of a second; a fire burns its real time, however slow the machine
-  if (goal) { cam.position.lerp(goal.p, 0.12); cam.zoom += (goal.z - cam.zoom) * 0.12; cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
+  if (goal) { const k = 1 - Math.pow(0.88, real * 60); cam.position.lerp(goal.p, k); cam.zoom += (goal.z - cam.zoom) * k;      // the glide takes the same time on a slow machine: it is counted in seconds, not in images
+    cam.updateProjectionMatrix(); if (cam.position.distanceTo(goal.p) < 0.05 && Math.abs(goal.z - cam.zoom) < 0.01) goal = null; }
   // Nothing is drawn again while nothing changes: time stopped, camera still, no fire or gunfire, no street on offer.
   // Anything that changes the picture (the camera, an order to the map, the size of the window) asks for a few images more.
   const view = cam.position.x + ',' + cam.position.y + ',' + cam.position.z + ',' + cam.zoom;

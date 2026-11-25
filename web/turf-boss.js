@@ -124,6 +124,17 @@
     c.asks = c.asks.filter(function (q) { return q !== a; });
   }
 
+  // The boss puts in what a capo is short of for the place he is saving for (a place of his own: a rival's is asked for).
+  // short(c, f, capo, plan): what it would take today, or 0 when there is nothing for the boss to put in.
+  function short(p) { return p && p.waiting === 'money' && p.move !== 'take' ? Math.max(0, Math.round(p.cost - p.saved)) : 0; }
+  function advance(c, f, capo, p) {
+    var cost = short(p);
+    if (!f.men[capo] || !cost) throw new Error(first(capo) + ' is not short of money for anything');
+    if (f.dirty < cost) throw new Error('it takes ' + dollars(cost) + ' of dirty cash');
+    f.dirty -= cost; f.men[capo].cash += cost;
+    return { cost: cost, kind: p.kind, name: p.name, move: p.move, x: p.x, y: p.y };
+  }
+
   function answer(c, f, id, yes) {
     var a = c.asks.filter(function (q) { return q.id === id; })[0];
     if (!a) throw new Error('nobody is asking for that any more');
@@ -415,7 +426,7 @@
     return { id: id, name: h.name, level: level + 1, cost: h.cost[level] };
   }
 
-  var api = { launder: launder, wash: wash, carry: carry, keep: keep, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
+  var api = { short: short, advance: advance, launder: launder, wash: wash, carry: carry, keep: keep, waits: waits, arrive: arrive, tripDays: tripDays, today: today, bust: bust, patience: patience, line: line, lines: lines, lineHeld: lineHeld, keyWorth: keyWorth, expects: expects, promises: promises, judge: judge, holdings: holdings, buy: buy, cutOf: cutOf, cut: cut, cuts: cuts, eyes: eyes, asks: asks, answer: answer, money: money, rub: rub, grudges: grudges, feuds: feuds, willing: willing, tempers: tempers,
       rule: rule, swell: swell };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfBoss = api;

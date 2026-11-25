@@ -83,7 +83,7 @@
     // parting with a capo: clean $ to pay him off by rank; heat a killing brings, months the less loyal keep their money
     // and the loyalty that keeps a man steady; heat the police forget for a man handed over, months before he is out,
     // and the places he burns then (one more for each rank he had)
-    out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2 },
+    out: { retire: [1500, 4000, 9000, 20000], blood: 30, shaken: 6, steady: 70, tip: 40, term: 24, revenge: 2, forgets: 24 }, // forgets: months for the family to forget one killing; until then each new one costs as many times more as it remembers
     keeps: [0, 0.5, 0.75, 0.9], // share of the money he cannot use that a Soldier, a Capo, a Veteran and a Legend keeps for himself
     hq: { level: 2, stages: [0, 10, 25, 50], vault: [0, 3000, 8000, 20000] }, // a headquarters presses on the streets like a place of this level; the share of a city (in %) each of its four sizes starts at
     respite: 24,        // months the rivals leave the family alone in a city where it has just planted its first club

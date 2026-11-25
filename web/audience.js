@@ -73,8 +73,8 @@
     heldBy(g).forEach(function (c) {
       menOf(g, c).forEach(function (id) {
         var p = T.plan(c, f, id);
-        if (!p || p.waiting !== 'money' || p.move === 'take' || !rested('advance:' + id, RULES.again)) return;
-        var short = Math.round(p.cost - p.saved);
+        if (!p || !rested('advance:' + id, RULES.again)) return;
+        var short = T.short(p);
         if (short < RULES.petty || f.dirty < short || (best && best.short <= short)) return;
         best = { c: c, id: id, p: p, short: short };
       });
@@ -164,8 +164,8 @@
     learn: function (g, m, ch, command) { if (ch.id !== 'learn') return 'You tell ' + first(m.capo) + ' his trade will wait'; command(g, { type: 'research', building: m.trade }); return null; },
     advance: function (g, m, ch) {
       if (ch.id !== 'pay') return 'You let ' + first(m.capo) + ' save alone';
-      g.family.dirty -= ch.cost; g.family.men[m.capo].cash += ch.cost;
-      return 'You put ' + dollars(ch.cost) + ' into ' + first(m.capo) + '\'s next place';
+      var r = T.advance(cityOf(g, m.city), g.family, m.capo);
+      return 'You put ' + dollars(r.cost) + ' into ' + first(m.capo) + '\'s next place';
     },
     captain: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'pay') return 'You send the captain away'; g.family.dirty -= ch.cost; c.heat = Math.max(0, (c.heat || 0) - RULES.captain.cools); return 'You pay the captain ' + dollars(ch.cost) + ': the heat falls in ' + T.town(c); },
     truce: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'pay') return 'You refuse the ' + c.rival + 's\' peace'; g.family.dirty -= ch.cost; c.quiet = Math.max(c.quiet || 0, c.month + RULES.truce.cycles); return 'You buy peace from the ' + c.rival + 's in ' + T.town(c); },
@@ -194,7 +194,8 @@
     if (adv) { adv.deck = 'advance'; return adv; }
     // of the street: the one seen longest ago that can come up today
     var best = null;
-    ORDER.forEach(function (kind) {
+    ORDER.forEach(function (ignored, k) {
+      var kind = ORDER[(k + (g.seed || 0)) % ORDER.length]; // (another game starts the round at another matter)
       if (!rested(kind, RULES.rest)) return;
       var x = DECK[kind].when(g, a); if (!x) return;
       var seen = a.seen[kind] === undefined ? -1 : a.seen[kind];

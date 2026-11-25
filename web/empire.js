@@ -185,6 +185,7 @@
   function createGame(options) {
     var g = { version: VERSION, started: false, paused: false, speed: 1, ticks: 0, month: 0, family: null, cities: [], journal: [] };
     if (options && options.quiet) g.audience = { last: 0, seen: {}, open: null, off: true }; // no capo comes to the boss with a matter (for the tests of everything else)
+    if (options && options.seed) g.seed = Math.floor(options.seed);
     if (options && options.capo) start(g, options.capo);
     return g;
   }
@@ -194,7 +195,7 @@
     // every city of the map, each held by the family that was there first and laid out by its own dice
     g.cities = W.CITIES.map(function (spec, i) {
       var c = layout(spec);
-      c.dice = i + 1;
+      c.dice = i + 1 + (g.seed || 0) * 7919; // (a game with another seed is laid out another way)
       T.crown(c, spec.rival);
       T.seed(c, spec.rival, Math.round(RIVAL_PLACES * c.w * c.h / 240));
       T.raiseHq(c, spec.rival);
@@ -203,13 +204,12 @@
     var home = g.cities[0], spot = T.landing(home);
     g.family = T.createFamily();
     g.family.dirty = START_CASH;
-    // the family knows the trade of its first man from the first day: who the boss starts with is seen in the first street
     T.settle(home, capo, spot.x, spot.y);
     T.join(g.family, capo);
     home.home = true; // the boss lives here
     g.cities.forEach(function (c) { c.away = c !== home; }); // anywhere else his money sleeps in the city's coffer until a car brings it
     T.raiseHq(home, 'family');
-    g.reign = R.create(NAMES.indexOf(capo) + 1);
+    g.reign = R.create(NAMES.indexOf(capo) + 1 + (g.seed || 0) * 31);
     g.started = true;
     seats(g); // every headquarters has its true size from the first day
   }
@@ -605,7 +605,7 @@
     return c;
   }
   var ORDERS = {
-    start: function (g, o) { start(g, o.capo); },
+    start: function (g, o) { if (o.seed !== undefined) g.seed = Math.floor(o.seed) || 0; start(g, o.capo); },
     pause: function (g) { g.paused = true; },
     resume: function (g) { g.paused = false; },
     speed: function (g, o) {
@@ -708,10 +708,19 @@
       var said = { retire: 'You pay ' + name + ' off. He leaves the city', kill: name + ' is found in the river', jail: 'The police come for ' + name + ' at dawn' };
       record(g, { type: 'parted', capo: o.capo, city: c.id, way: o.way, kept: r.kept, closed: r.closed,
                   label: said[o.way] + (r.closed ? ': ' + r.closed + (r.closed > 1 ? ' places close' : ' place closes') : '') }, g.month);
+      // what the others do about it is news too
+      (r.shaken || []).forEach(function (id) {
+        record(g, { type: 'shaken', capo: id, city: c.id, label: T.person(id).name.split(' ')[0] + ' saw what became of ' + name.split(' ')[0] + ': he keeps his money for himself for ' + T.days(r.months) }, g.month);
+      });
     },
     // the boss's word in a live hit: press on, hold, or pull out
     call: function (g, o) {
       T.call(cityOf(g, o.city), g.family, o.hit, o.call).forEach(function (e) { if (!passing(e)) record(g, e, g.month); });
+    },
+    // the boss puts in what a capo is short of for his next place
+    advance: function (g, o) {
+      var c = cityOf(g, o.city), r = T.advance(c, g.family, o.capo);
+      record(g, { type: 'advanced', capo: o.capo, city: c.id, x: r.x, y: r.y, kind: r.kind, cost: r.cost, label: 'You put ' + dollars(r.cost) + ' into ' + T.person(o.capo).name.split(' ')[0] + '\'s next place' }, g.month);
     },
     // the boss answers the matter a capo brought him
     decide: function (g, o) { var e = A.decide(g, o.id, o.choice, nowOf(g), command); if (e) record(g, e, g.month); },

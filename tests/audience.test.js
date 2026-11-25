@@ -194,3 +194,25 @@ test('an ask the boss cannot pay does not stop the clock; the day he can, he is 
   assert.equal(g.paused, true);
   assert.equal(E.hud(g).pending, 1);
 });
+
+test('the boss can put in the rest himself, from the sheet of the capo, whenever he likes', () => {
+  const g = E.createGame({ capo: 'dutch', quiet: true }), f = g.family, c = g.cities[0];
+  for (let i = 0; i < 30; i++) day(g);
+  f.men.dutch.cash = 150; f.dirty = 5000;
+  const p = T.plan(c, f, 'dutch'), cost = Math.round(p.cost - p.saved);
+  assert.equal(p.waiting, 'money');
+  assert.equal(T.short(p), cost);
+  const html = C.capo(E.view(g), 'ashport', 'dutch', E.hud(g));
+  assert.match(html, /data-act="advance" data-city="ashport" data-capo="dutch"/);
+  assert.match(text(html), new RegExp('Put in the rest · \\$' + cost.toLocaleString('en-US') + ' dirty'));
+  E.command(g, { type: 'advance', city: 'ashport', capo: 'dutch' });
+  assert.equal(Math.round(5000 - f.dirty), cost);
+  assert.notEqual(T.plan(c, f, 'dutch').waiting, 'money');
+  assert.match(g.journal[g.journal.length - 1].label, /You put \$[\d,]+ into Dutch's next place/);
+  assert.throws(() => E.command(g, { type: 'advance', city: 'ashport', capo: 'dutch' }), /Dutch is not short of money for anything/);
+  // not without the money
+  const g2 = E.createGame({ capo: 'dutch', quiet: true }); for (let i = 0; i < 30; i++) day(g2);
+  g2.family.men.dutch.cash = 150; g2.family.dirty = 10;
+  assert.throws(() => E.command(g2, { type: 'advance', city: 'ashport', capo: 'dutch' }), /it takes \$[\d,]+ of dirty cash/);
+  assert.match(C.capo(E.view(g2), 'ashport', 'dutch', E.hud(g2)), /data-act="advance"[^>]*disabled/);
+});

@@ -46,9 +46,9 @@
   var GOODS = { goods: ['warehouse', '#c9a26b', 'Crates on their way to the fences', 'crates'], cars: ['chopshop', '#9fb4c8', 'Stolen cars on their way to the fences', 'cars'], weed: ['loft', '#8fce7a', 'Weed on its way to the bars and the houses', 'bags'] };
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
-  var EVENT = { matter: 'time', decided: 'yes', opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
+  var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'time', decided: 'yes', opened: 'works', enlarged: 'works', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'time', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
                 won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
-  var BAD = { vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
+  var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
   var good = function (e) { return e.type === 'won' || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
@@ -366,13 +366,19 @@
     var short = !hud || (hud.clean || 0) < t.cost, why = t.paying ? 'The money is on its way' : t.wait > 0 ? 'He had one not long ago: again in ' + months(t.wait) : short ? 'It takes ' + money(t.cost) + ' of clean money' : 'A gesture he will remember';
     return '<div class="acts col">' + button('gift', { city: c.id, capo: k.id }, icon('gift') + ' Make him a gift · ' + money(t.cost) + '<small style="color:var(--dim)">' + why + '</small>', { off: t.paying || t.wait > 0 || short }) + '</div>';
   }
+  // The boss can put in what a capo is short of for a place of his own, out of the dirty cash.
+  function putIn(c, k, hud) {
+    var cost = T.short(k.plan); if (!cost) return '';
+    var has = (hud && hud.dirty) || 0, alone = k.plan.monthsLeft > 0 ? 'Alone he gets there in about ' + months(k.plan.monthsLeft) : 'Alone he may never get there';
+    return '<div class="acts col">' + button('advance', { city: c.id, capo: k.id }, icon('dirty') + ' Put in the rest · ' + money(cost) + ' dirty<small style="color:var(--dim)">' + (cost > has ? 'You have ' + money(has) + ' of dirty cash' : alone) + '</small>', { off: cost > has }) + '</div>';
+  }
   function capo(view, cityId, id, hud, pw, rows) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0]; if (!k) return null;
     var w = WAY[k.way] || WAY.force;
     var boss = c.under === k.id || k.under === true;
     var shut = (view.reign || {}).closed || {};      // what the act of the family has not opened yet, with the words for it
     return voice(k.id, head(k.id, k.name, esc(k.specialty) + ' · ' + esc(k.rankName) + ' · ' + (boss ? '<b>Underboss of ' + esc(c.name) + '</b>' : esc(c.name)) + (k.sulks ? ' · <span class="i no" data-tip="He holds a grudge and keeps more of the money for himself">sulking</span>' : '')) +
-      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + skills(k) +
+      healthLine(health(c, k)) + powerLine(pw, rows) + nextRank(k) + mood(k) + follows(k) + intent(k.plan) + putIn(c, k, hud) + skills(k) +
       '<div class="tiles">' + tile('hideout', 'PLACES', k.places + ' / ' + k.reach, 'Places he runs, out of what his rank lets him run') + tile('takings', 'TAKINGS', money(k.income), 'What reached his club over ' + LAST) +
       tile('tribute', 'SENT UP', money(k.sent || 0), 'What he sent up to you over ' + LAST + ': your share of what his places made') +
       tile('dirty', 'HIS CASH', money(k.cash), 'What he keeps at his club for his next move') +
@@ -434,9 +440,18 @@
       (fund ? '<div class="acts col">' + button('requests', {}, 'He asks you for ' + money(fund.cost) + ': answer him') + '</div>' : '') + bought +
       '<div class="acts">' + button('capo', o, 'Back to ' + esc(first(k.name))) + button('close', {}, 'Close') + '</div>');
   }
+  // What a killing costs today, in figures: the heat, the loyalty of every other man, who stops sending money and for how long.
+  function bloodPrice(c, b) {
+    if (!b) return '';
+    var names = (b.shaken || []).map(function (id) { return first(nameOf(id)); });
+    return '<div class="move no">' + icon('heat') + '<span>Heat +' + b.heat + ' in ' + esc(c.name) + ', out of 100</span></div>' +
+      '<div class="move no">' + icon('loyalty') + '<span>Every other capo of the city loses ' + b.loyal + ' loyalty, those of the other cities half of it</span></div>' +
+      (names.length ? '<div class="move no">' + icon('dirty') + '<span>' + esc(names.join(', ')) + (names.length > 1 ? ' send' : ' sends') + ' you nothing for ' + months(b.months) + '</span></div>' : '') +
+      '<div class="move">' + icon('time') + '<span>Blood calls blood: the next killing costs twice as much, until ' + months(T.RULES.out.forgets) + ' have gone by</span></div>';
+  }
   function parting(view, cityId, id, way) {
     var c = cityOf(view, cityId), k = c && c.capos.filter(function (q) { return q.id === id; })[0], p = k && (k.partings || []).filter(function (q) { return q.way === way; })[0]; if (!p) return null;
-    return voice(k.id, head(k.id, p.name, esc(k.name)) + '<p>' + esc(p.gives) + '</p>' + (p.cost ? '<div class="move">' + icon('dirty') + '<span>It costs you ' + money(p.cost) + '</span></div>' : '') +
+    return voice(k.id, head(k.id, p.name, esc(k.name)) + '<p>' + esc(p.gives) + '</p>' + bloodPrice(c, p.price) + (p.cost ? '<div class="move">' + icon('dirty') + '<span>It costs you ' + money(p.cost) + '</span></div>' : '') +
       '<p>This cannot be taken back.</p><div class="acts">' + button('part', { city: c.id, capo: k.id, way: way }, esc(p.name), { cls: 'go bad' }) + button('capo', { city: c.id, capo: k.id }, 'No, keep him') + '</div>');
   }
 

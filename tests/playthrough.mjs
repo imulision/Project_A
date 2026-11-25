@@ -36,7 +36,9 @@ const months = (n, stopAt) => page.evaluate(({ n, stopAt }) => {
     if (again && i % (6 * AshportEmpire.TICKS_PER_MONTH) === 0) again.click();
     for (let guard = 0; guard < 12 && document.querySelector('#veil.on'); guard++) {
       const yes = q('[data-act=answer][data-yes="1"]:not([disabled])'), no = q('[data-act=answer][data-yes="0"]'), rule = q('[data-act=rule]'), seat = q('[data-act=seat]:not([disabled])');
-      if (yes || no) { seen.answer++; (yes || no).click(); }
+      const matter = q('[data-act=decide]:not([disabled])');      // a matter a capo brings: he takes the first choice he can pay
+      if (matter) { seen.decide = (seen.decide || 0) + 1; matter.click(); }
+      else if (yes || no) { seen.answer++; (yes || no).click(); }
       else if (rule) { seen.rule++; rule.click(); }
       else if (seat) {
         const men = () => A.view().cities.reduce((n, c) => n + c.capos.length, 0), had = men();
@@ -306,7 +308,10 @@ await page.click('#sheet [data-act=line].on');
 assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').line), null, 'a touch on the line in force lifts it');
 // the share he takes of the city: three sizes on its sheet, the one in force marked; he takes a light one, then goes back
 assert.equal(await page.locator('#sheet [data-act=cut]').count(), 3);
-assert.ok(await page.locator('#sheet [data-act=cut][data-cut=normal]').isDisabled(), 'the share in force is marked');
+// (a capo may have asked him for his share already: whichever is in force, he starts again from the usual one)
+const inForce = await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').cut);
+assert.ok(await page.locator('#sheet [data-act=cut][data-cut=' + inForce + ']').isDisabled(), 'the share in force is marked');
+if (inForce !== 'normal') await page.click('#sheet [data-act=cut][data-cut=normal]');
 await page.click('#sheet [data-act=cut][data-cut=light]');
 assert.ok(await page.locator('#sheet [data-act=cut][data-cut=light].on').count() === 1, 'the light share is in force');
 assert.equal(await page.evaluate(() => window.__ashport.view().cities.find((c) => c.id === 'ashport').cut), 'light');
@@ -378,7 +383,10 @@ for (let n = 0; n < 120 && !(await riding()); n++) await page.evaluate(() => { c
 assert.ok(await riding() > 0, 'a car is on its way with money');
 /* one vehicle is one car on the map, whatever it carries: the cars are counted, not their loads */
 const out = await page.evaluate(() => { const seen = new Set(); window.__ashport.view().cities.forEach((c) => (c.rides || []).forEach((r) => { if (r.gone > 0 && r.days - r.gone >= 4) seen.add(r.vehicle || r.capo + ':' + r.kind); })); return seen.size; });
+// (the test gave and took clean money behind the page's back, further up: the figures are written again before they are read)
+await page.evaluate(() => { document.getElementById('pause').click(); document.getElementById('pause').click(); });
 const before = await hud();
+const decided = await page.evaluate(() => (window.__seen && window.__seen.decide) || 0);      // (counted before the page is loaded again)
 await page.reload();
 await page.waitForFunction(() => window.__ashport && window.__ashport.map());
 assert.equal(await hud(), before, 'the saved game comes back after a reload');
@@ -406,4 +414,5 @@ assert.equal(await page.textContent('#toast'), '', 'and he is told only once');
 
 await browser.close();
 assert.deepEqual(errors, [], 'no script errors');
+assert.ok(decided > 0, 'a capo came to the boss with a matter, and the boss answered on the card (' + decided + ')');
 console.log('ok: new screen played to', before, '·', JSON.stringify(seen), '· near', near.stats.calls, 'draws', near.labels, 'labels · far', far.calls, 'draws');

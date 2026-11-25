@@ -7,7 +7,7 @@ export function makeTouch({ THREE, el, cam, VIEW, K, clamp, pickAt, onTap, stop 
     const k = (2 * VIEW / cam.zoom) / innerHeight;
     cam.position.add(right.clone().multiplyScalar(-dx * k)).add(fwd.clone().multiplyScalar(dy * k / 0.66));
   }
-  function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.9, 24 * K); cam.updateProjectionMatrix(); }
+  function zoomBy(f) { cam.zoom = clamp(cam.zoom * f, 0.6, 24 * K); cam.updateProjectionMatrix(); }
   el.style.touchAction = 'none';
   let tap = null;
   el.addEventListener('pointerdown', e => { stop(); tap = pts.size ? null : { x: e.clientX, y: e.clientY, t: performance.now() }; pts.set(e.pointerId, [e.clientX, e.clientY]); el.setPointerCapture(e.pointerId); pinch = 0; });
