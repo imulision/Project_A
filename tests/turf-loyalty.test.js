@@ -146,8 +146,8 @@ test('the underboss who turns leaves the city without one', () => {
 
 test('the boss makes a man a gift in clean money: it warms him, once a year', () => {
   const { c, f } = pair();
-  assert.throws(() => T.gift(c, f, 'vince'), new RegExp('it takes \\$' + L.gift + ' of clean money to make Vince a gift'));
-  assert.throws(() => T.gift(c, f, 'sal'), /sal is not one of yours in town/);
+  assert.throws(() => T.gift(c, f, 'vince'), new RegExp('it takes \\' + T.dollars(L.gift) + ' of clean money to make Vince a gift'));
+  assert.throws(() => T.gift(c, f, 'sal'), /Sal is not one of yours in Town/);
   f.clean = L.gift + 100;
   T.gift(c, f, 'vince');
   assert.equal(f.clean, 100);

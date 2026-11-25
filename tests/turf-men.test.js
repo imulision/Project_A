@@ -528,7 +528,7 @@ test('a chair holds one man, a man holds one chair, and only a man at the door m
   assert.throws(() => T.seat(c, f, 'sal', 'cook'), /no such chair: cook/);
   assert.throws(() => T.seat(c, f, 'dutch', 'fixer'), /dutch is not at the door/);
   const poor = knocking(); poor.f.dirty = 0;
-  assert.throws(() => T.seat(poor.c, poor.f, 'sal', 'routes'), /^Error: the boss cannot pay the \$\d+ Sal asks$/);
+  assert.throws(() => T.seat(poor.c, poor.f, 'sal', 'routes'), /^Error: the boss cannot pay the \$[\d,]+ Sal asks$/);
 });
 
 test('each chair serves the whole family, by what the man is good at', () => {
@@ -582,10 +582,10 @@ const twoCapos = () => {
 
 test('the boss names one of his capos underboss of a city where the family has two capos or more', () => {
   const alone = knocking();
-  assert.throws(() => T.underboss(alone.c, alone.f, 'dutch'), /^Error: one capo holds town alone: it needs no underboss yet$/);
+  assert.throws(() => T.underboss(alone.c, alone.f, 'dutch'), /^Error: one capo holds Town alone: it needs no underboss yet$/);
   const { c, f } = twoCapos();
   assert.equal(T.view(c, f).under, null);
-  assert.throws(() => T.underboss(c, f, 'sal'), /sal is not one of yours in town/);
+  assert.throws(() => T.underboss(c, f, 'sal'), /Sal is not one of yours in Town/);
   T.underboss(c, f, 'dutch');
   const v = T.view(c, f);
   assert.equal(v.under, 'dutch');

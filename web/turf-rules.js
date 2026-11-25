@@ -178,7 +178,11 @@
   // Time in words: the rules count in cycles of RULES.days days, the player reads days and never a month or a year.
   var EVERY = 'every ' + RULES.days + ' days';
   function days(cycles) { var n = Math.round(cycles * RULES.days); return n + (n === 1 ? ' day' : ' days'); }
-  var api = { EVERY: EVERY, days: days, NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
+  // An amount of money as the player reads it: whole dollars, the thousands apart.
+  function dollars(n) { return '$' + String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  // A name with its article: a speakeasy, an owned front.
+  function a(name) { return (/^[aeio]/i.test(name) ? 'an ' : 'a ') + name; }
+  var api = { dollars: dollars, a: a, EVERY: EVERY, days: days, NUMBER: NUMBER, RULES: RULES, RANKS: RANKS, TERRAIN: TERRAIN, WORTH: WORTH, KINDS: KINDS, key: key, inside: inside, size: size, owns: owns, at: at, far: far };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfRules = api;
 })(typeof self !== 'undefined' ? self : this);

@@ -28,10 +28,13 @@
         z.x0 = Math.min(z.x0, x); z.x1 = Math.max(z.x1, x); z.y0 = Math.min(z.y0, y); z.y1 = Math.max(z.y1, y);
       });
     }
-    var c = { id: spec.id, w: spec.w, h: spec.h, voids: voids, zones: zones, blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
+    var c = { id: spec.id, name: spec.name || town({ id: spec.id }), w: spec.w, h: spec.h, voids: voids, zones: zones, blocks: {}, month: 0, rival: null, dice: 1, ops: [], asks: [], refused: {}, repelled: 0, burnt: 0, knocked: {}, grudge: {}, feuds: [], sulk: {}, jailed: [], quiet: 0, heat: 0, washed: 0, flow: null };
     if (streets) c.streets = streets;
     return c;
   }
+
+  // The name of a city as the player reads it (a city saved before it had one is called by its id, with a capital).
+  function town(c) { return c.name || String(c.id).charAt(0).toUpperCase() + String(c.id).slice(1); }
 
   // A throw of the city's own dice: the same city always plays out the same way.
   function roll(c, n) {
@@ -191,14 +194,14 @@
   }
 
   function open(c, x, y, p) {
-    if (!inside(c, x, y)) throw new Error(x + ',' + y + ' is outside ' + c.id);
+    if (!inside(c, x, y)) throw new Error(x + ',' + y + ' is outside ' + town(c));
     if (at(c, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
     if (p.kind !== 'club' && p.kind !== 'key' && p.kind !== 'hq' && !TERRAIN[p.kind]) throw new Error('unknown kind of place: ' + p.kind);
     if (p.owner === 'family' && p.kind !== 'hq' && !who(p.capo)) throw new Error('a place of the family needs a capo');
     var b = { owner: p.owner, kind: p.kind, level: p.level || 1, capo: p.owner === 'family' ? p.capo : null };
     if (p.kind === 'key') {
       if (!KEYS[p.key]) throw new Error('unknown key place: ' + p.key);
-      if (keys(c).some(function (k) { return k.key === p.key; })) throw new Error(c.id + ' already has its ' + KEYS[p.key].name);
+      if (keys(c).some(function (k) { return k.key === p.key; })) throw new Error(town(c) + ' already has its ' + KEYS[p.key].name);
       b.key = p.key;
       b.level = RULES.keyLevel;
     }
@@ -222,7 +225,7 @@
   }
 
   function settle(c, capo, x, y) {
-    if (clubOf(c, capo)) throw new Error(capo + ' already has a club in ' + c.id);
+    if (clubOf(c, capo)) throw new Error(capo + ' already has a club in ' + town(c));
     open(c, x, y, { owner: 'family', kind: 'club', capo: capo, level: RULES.clubLevel });
   }
 
@@ -237,7 +240,7 @@
     var ours = owner === 'family', has = hqOf(c, owner);
     if (has) return has;
     var first = ours ? memo(c).places.filter(function (q) { return q.owner === 'family' && q.kind === 'club'; })[0] : null, best = null;
-    if (ours && !first) throw new Error('the family has no club in ' + c.id);
+    if (ours && !first) throw new Error('the family has no club in ' + town(c));
     for (var y = 0; y < c.h; y++) for (var x = 0; x < c.w; x++) {
       if (!inside(c, x, y) || at(c, x, y)) continue;
       var score = ours ? -far(x, y, first.x, first.y) * 1000 - hold(c, x, y).rival : hold(c, x, y).rival;
@@ -345,7 +348,7 @@
 
   function others(c, f, capo) { return Object.keys(f.men).filter(function (id) { return id !== capo && clubOf(c, id); }); }
 
-  var api = { purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
+  var api = { town: town, purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
       hqOf: hqOf, raiseHq: raiseHq, hqStage: hqStage, sizeHq: sizeHq, razeHq: razeHq, clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };

@@ -27,7 +27,7 @@
 
   // ---- the map follows the game: buildings and streets, then the cars, then what just happened
   function planOf(game) { return M.planEmpire(E.view(game), W.CITIES); }
-  var lastPlan = null, POWER = 'ashport-power';
+  var lastPlan = null, POWER = 'ashport-power', wonZones = {};      // (the street names already told as won: see C.moments)
   var claims = [], nextI = 0, nextSeen = '';      // the claims in progress, and the one the line at the top shows
   function showNext() { var h = g.started ? C.nextLine(claims, nextI) : ''; if ($('next').html !== h) { $('next').html = h; $('next').innerHTML = h; } }
   var fillAt = {};      /* how full each place of the family is, by city and block: the small gauge beside its mark */
@@ -46,8 +46,8 @@
     // every city and every street name: what the family holds of it and which way it went; a step won or lost is told in large, once
     zshares = C.zoneShares(view); ctrends = {}; view.cities.forEach(function (c) { ctrends[c.id] = C.cityMark(C.cityTrend(view, c.id)); });
     var step = { rank: C.rank(view), zones: zshares };
-    if (view.month < lastMonth) lastStep = null;      // another game: nothing to compare with
-    C.moments(lastStep, step).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
+    if (view.month < lastMonth) { lastStep = null; wonZones = {}; }      // another game: nothing to compare with
+    C.moments(lastStep, step, wonZones).slice(0, 2).forEach(announce); lastStep = step; lastMonth = view.month;
     moods = C.moods(view);      // a restless or bitter man shows it on his face over the map
     view.cities.forEach(function (c) { c.asks.forEach(function (a) { waits[c.id + a.capo] = 1; }); c.feuds.forEach(function (f) { waits[c.id + f.a] = waits[c.id + f.b] = 1; }); });
     strainAt = C.strains(view); fillAt = C.fills(view); retip(); drawLinks();
@@ -237,12 +237,12 @@
     else if (act === 'line') { if (order({ type: 'line', city: d.city, line: d.line || null })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'cut') { if (order({ type: 'cut', city: d.city, cut: d.cut })) { toast(g.journal[g.journal.length - 1].label + '.'); show(C.city(view, d.city)); } }
     else if (act === 'buy') { var at = $('sheet').scrollTop; if (order({ type: 'buy', holding: d.holding })) { toast(C.onItsWay(view, 'buy') || g.journal[g.journal.length - 1].label + '.'); show(C.family(view, E.hud(g), rows)); $('sheet').scrollTop = at; } }
-    else if (act === 'chairs') show(C.chairs(view, d.city, d.capo));
+    else if (act === 'chairs') show(C.chairs(view, d.city, d.capo, E.hud(g)));
     else if (act === 'sit') { if (order({ type: 'seat', city: d.city, capo: d.capo, post: d.post })) { toast(g.journal[g.journal.length - 1].label + '.'); answered(); } }
     else if (act === 'chair') show(C.chair(view, d.post));
     else if (act === 'unseat') { if (order({ type: 'unseat', post: d.post })) { toast(g.journal[g.journal.length - 1].label, true); show(C.family(view, E.hud(g), rows)); } }
     else if (act === 'requests') requests();
-    else if (act === 'family') show(C.family(view, E.hud(g), rows));
+    else if (act === 'family') { show(C.family(view, E.hud(g), rows)); if (d.know && $('know')) { $('know').innerHTML = C.know(view, d.know, E.hud(g)); [].forEach.call($('sheet').querySelectorAll('.know'), function (x) { x.classList.toggle('sel', x.dataset.know === d.know); }); $('know').scrollIntoView({ block: 'center' }); } }
     else if (act === 'decisions') show(C.decisions(view));
     else if (act === 'road') settle(d.from, d.city, d.capo);
     else if (act === 'capo') show(C.capo(view, d.city, d.capo, E.hud(g), C.powerTrend(rows, d.city + d.capo), rows[d.city + d.capo]));
@@ -395,7 +395,7 @@
     var told0 = news.filter(function (e) { return !CARRIED[e.type]; });      // money driven to or from the headquarters: its car is drawn that day, and nothing is said
     var fresh = !live && g.cities.some(function (c) { return (c.hits || []).some(function (h) { return !watched[h.id]; }); });
     if (!turned && !news.length && !live && !fresh) return events;      // a day when nothing happened on the map (a hit that is watched is followed day by day)
-    if (!live) C.untold(told0, told, g.month).forEach(tell);      // the same alert is not told again month after month
+    if (!live) C.untold(told0.filter(C.newsworthy), told, g.month).forEach(tell);      // the same alert is not told again month after month
     refresh(events, turned); showHud(); store(); hits(); showLive();      // what a man does is seen the day he does it; the money and the loads change when the month closes
     if (g.paused && E.hud(g).pending) { stopped = true; requests(); }       // the rules stopped the clock: somebody waits for the boss's word
     return events;

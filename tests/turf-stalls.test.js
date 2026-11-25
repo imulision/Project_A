@@ -52,7 +52,7 @@ test('a capo who sulks: how long it will last, and that a gift may help', () => 
   c.month = 10; c.sulk = { dutch: 16 };
   const s = T.stalls(c, f).find((q) => q.id === 'sulk:dutch');
   assert.deepEqual([s.capo, s.what, s.why], ['dutch', 'Dutch sends nothing up', 'He sulks for ' + T.days(6) + ' more']);
-  assert.equal(s.lever, 'A gift of $' + T.RULES.loyal.gift + ' may bring him round');
+  assert.equal(s.lever, 'A gift of ' + T.dollars(T.RULES.loyal.gift) + ' may bring him round');
   c.sulk.dutch = 10;
   assert.ok(!ids(T.stalls(c, f)).includes('sulk:dutch'));
 });

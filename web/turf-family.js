@@ -18,7 +18,7 @@
   // What one car of the family carries in a run.
   function loadOf(f) { return RULES.car.loads[Math.max(1, Math.min(3, (f.tech && f.tech.cars) || 1))]; }
 
-  function carries(tier) { return 'A car carries up to $' + RULES.car.loads[tier] * RULES.car.holds + ' a run'; }
+  function carries(tier) { return 'A car carries up to ' + R.dollars(RULES.car.loads[tier] * RULES.car.holds) + ' a run'; }
 
   // What a trade is, in a line; and what a tier of it brings: the right to open it, then bigger places.
   function brings(kind, tier) {
@@ -75,7 +75,7 @@
     if (f.study) throw new Error('the family is already learning ' + nameOf(f.study.kind));
     var t = tree(f).filter(function (q) { return q.kind === kind; })[0];
     if (!t.next) throw new Error('there is nothing more to learn about ' + t.name);
-    if ((f.clean || 0) < t.next.cost) throw new Error('it takes $' + t.next.cost + ' of clean money');
+    if ((f.clean || 0) < t.next.cost) throw new Error('it takes ' + R.dollars(t.next.cost) + ' of clean money');
     f.clean -= t.next.cost;
     f.study = { kind: kind, tier: t.next.tier, monthsLeft: t.next.months };
   }
@@ -86,7 +86,7 @@
     Object.keys(f.men).forEach(function (id) {
       if (!clubOf(c, id)) return;
       var kind = who(id).likes.filter(function (k) { return TERRAIN[k] && !(f.tech[k] >= 1) && who(id).refuses.indexOf(k) < 0; })[0];
-      if (kind) out.push({ capo: id, kind: kind, name: D.SITES[kind].name, label: first(id) + ' wants to open a ' + D.SITES[kind].name.toLowerCase() });
+      if (kind) out.push({ capo: id, kind: kind, name: D.SITES[kind].name, label: first(id) + ' wants to open ' + R.a(D.SITES[kind].name.toLowerCase()) });
       if (f.men[id].stuck && (f.tech.cars || 1) < 3) out.push({ capo: id, kind: 'cars', name: 'Cars', label: first(id) + ' wants bigger cars: his tills are piling up' });
     });
     return out;

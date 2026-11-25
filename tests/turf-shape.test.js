@@ -17,8 +17,8 @@ const isVoid = (x, y) => y === 5 || (y === 0 && x >= 10);
 
 test('nothing is ever opened on a missing block: it is outside the city', () => {
   const c = shaped();
-  assert.throws(() => T.open(c, 3, 5, { owner: 'Callahan', kind: 'speakeasy' }), /3,5 is outside town/);
-  assert.throws(() => T.settle(c, 'dutch', 11, 0), /outside town/);
+  assert.throws(() => T.open(c, 3, 5, { owner: 'Callahan', kind: 'speakeasy' }), /3,5 is outside Town/);
+  assert.throws(() => T.settle(c, 'dutch', 11, 0), /outside Town/);
   T.open(c, 3, 4, { owner: 'Callahan', kind: 'speakeasy' });
 });
 

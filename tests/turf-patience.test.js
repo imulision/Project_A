@@ -37,7 +37,7 @@ test('a year saving for the same place without getting there: the capo asks the 
   assert.equal(a.name, 'Callahans\' speakeasy');
   assert.equal(a.key, p.kind, '(the trade he would run there, for the picture)');
   assert.equal(a.gives, 'One more place for Sal, on streets the Callahans hold');
-  assert.equal(a.why, 'he has saved $' + Math.round(p.saved) + ' of the $' + Math.round(p.cost) + ' it takes, and ' + T.days(12) + ' have gone by');
+  assert.equal(a.why, 'he has saved ' + T.dollars(p.saved) + ' of the ' + T.dollars(p.cost) + ' it takes, and ' + T.days(12) + ' have gone by');
   assert.deepEqual([told[0].capo, told[0].fund, told[0].x, told[0].y, told[0].cost], ['sal', true, a.x, a.y, a.cost]);
   assert.equal(told[0].label, 'Sal asks you for $' + a.cost + ' to take the Callahans\' speakeasy in Lantern Row');
   assert.equal(poor(c, f, 6).filter((e) => e.type === 'asks').length, 0, 'asked once');

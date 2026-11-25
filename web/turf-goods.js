@@ -460,7 +460,7 @@
       });
       if (!turn) return null;
       return { move: 'convert', x: turn.p.x, y: turn.p.y, kind: turn.kind, from: turn.p.kind, name: D.SITES[turn.kind].name, cost: Math.round(RULES.convert.cost * price(c, capo, turn.kind)),
-               why: zoneOf(c, turn.p.x, turn.p.y).name + ' suits a ' + D.SITES[turn.kind].name.toLowerCase() + ' far better than his ' + D.SITES[turn.p.kind].name.toLowerCase() };
+               why: zoneOf(c, turn.p.x, turn.p.y).name + ' suits ' + R.a(D.SITES[turn.kind].name.toLowerCase()) + ' far better than his ' + D.SITES[turn.p.kind].name.toLowerCase() };
     };
     // the order he tries them in: his own, or the one the boss's line asks for
     var order = o.line === 'earn' ? [converts, grows, opens, takes] : o.line === 'low' ? [opens, converts, grows] : [opens, converts, takes, grows];

@@ -14,7 +14,8 @@
   var lieutenantsOf = C.lieutenantsOf, zoneOf = C.zoneOf, changed = C.changed, memo = C.memo, everyPlace = C.everyPlace, places = C.places,
       run = C.run, clubOf = C.clubOf, settle = C.settle, grip = C.grip, share = C.share, price = C.price, others = C.others;
   var join = S.join, first = S.first, funds = S.funds, spend = S.spend;
-  var swell = B.swell;
+  var called = function (id) { return who(id) ? first(id) : id; }; // a name for the player, even for somebody the rules do not know
+  var swell = B.swell, town = C.town, dollars = R.dollars;
 
   // --- where capos come from ---
   // Who would join the family in this city today, and through which door.
@@ -90,9 +91,9 @@
     var away = to !== from, cost = d.cost + (away ? RULES.doors.road : 0);
     if (away && d.door === 'poach') throw new Error(first(capo) + ' stays where his places are');
     var s = seats(to);
-    if (s.taken >= s.total) throw new Error('no seat left in ' + to.id + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
+    if (s.taken >= s.total) throw new Error('no seat left in ' + town(to) + ': ' + s.total + ' capos is all the city carries until the family holds another key place');
     if (d.door === 'poach') {
-      if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' ' + first(capo) + ' asks to cross');
+      if (funds(f) < cost) throw new Error('the boss cannot pay the ' + dollars(cost) + ' ' + first(capo) + ' asks to cross');
       spend(f, cost);
       // he crosses with every place he ran: the best one becomes his club
       var mine = places(to).filter(function (p) { return p.man === capo; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
@@ -104,10 +105,10 @@
       from.joined = from.month; to.joined = to.month;
       return;
     }
-    if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + to.id);
+    if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + town(to));
     if (at(to, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
     if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');
-    if (funds(f) < cost) throw new Error('the boss cannot pay the $' + cost + ' it takes to set ' + first(capo) + ' up');
+    if (funds(f) < cost) throw new Error('the boss cannot pay the ' + dollars(cost) + ' it takes to set ' + first(capo) + ' up');
     spend(f, cost);
     from.joined = from.month; to.joined = to.month; // the month the last man was taken in, here and where he goes
     if (away && !known(to)) to.quiet = to.month + RULES.respite;
@@ -120,8 +121,8 @@
   function underOf(c) { return c.under && clubOf(c, c.under) ? c.under : null; }
 
   function underboss(c, f, capo) {
-    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
-    if (!others(c, f, capo).length) throw new Error('one capo holds ' + c.id + ' alone: it needs no underboss yet');
+    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(called(capo) + ' is not one of yours in ' + town(c));
+    if (!others(c, f, capo).length) throw new Error('one capo holds ' + town(c) + ' alone: it needs no underboss yet');
     c.under = capo;
   }
 
@@ -153,13 +154,13 @@
   }
 
   function part(c, f, capo, way) {
-    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
+    if (!f.men[capo] || !clubOf(c, capo)) throw new Error(called(capo) + ' is not one of yours in ' + town(c));
     if (!PARTINGS[way]) throw new Error('no such way to part with a man: ' + way);
     var left = others(c, f, capo), club = clubOf(c, capo), rank = f.men[capo].rank;
-    if (!left.length) throw new Error(first(capo) + ' is the last capo you have in ' + c.id);
+    if (!left.length) throw new Error(first(capo) + ' is the last capo you have in ' + town(c));
     if (way === 'retire') {
       var cost = RULES.out.retire[rank];
-      if ((f.clean || 0) < cost) throw new Error('it takes $' + cost + ' of clean money to pay ' + first(capo) + ' off');
+      if ((f.clean || 0) < cost) throw new Error('it takes ' + dollars(cost) + ' of clean money to pay ' + first(capo) + ' off');
       f.clean -= cost;
     }
     // what he ran, the biggest first: the nearest capo with room takes each over, the rest close
@@ -210,7 +211,7 @@
         delete c.blocks[key(p.x, p.y)];
         c.burnt = (c.burnt || 0) + 1;
         events.push({ type: 'burnt', capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: j.capo,
-                      label: first(j.capo) + ' is out, and burns ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
+                      label: first(j.capo) + ' is out of jail, and burns ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + zoneOf(c, p.x, p.y).name });
       });
       changed(c);
       return false;
@@ -227,9 +228,9 @@
   // The boss makes a man a gift, in money that can be shown. Once a year at most.
   function gift(c, f, capo) {
     var m = f.men[capo], L = RULES.loyal;
-    if (!m || !clubOf(c, capo)) throw new Error(capo + ' is not one of yours in ' + c.id);
+    if (!m || !clubOf(c, capo)) throw new Error(called(capo) + ' is not one of yours in ' + town(c));
     if (giftWait(c, m) > 0) throw new Error(first(capo) + ' has had his gift not long ago');
-    if ((f.clean || 0) < L.gift) throw new Error('it takes $' + L.gift + ' of clean money to make ' + first(capo) + ' a gift');
+    if ((f.clean || 0) < L.gift) throw new Error('it takes ' + dollars(L.gift) + ' of clean money to make ' + first(capo) + ' a gift');
     f.clean -= L.gift;
     sway(f, capo, L.warms);
     m.gifted = c.month;
@@ -272,7 +273,7 @@
     var d = doors(c, f).filter(function (q) { return q.capo === capo; })[0];
     if (!d) throw new Error(capo + ' is not at the door');
     if (d.door === 'poach') throw new Error(first(capo) + ' stays where his places are');
-    if (funds(f) < d.cost) throw new Error('the boss cannot pay the $' + d.cost + ' ' + first(capo) + ' asks');
+    if (funds(f) < d.cost) throw new Error('the boss cannot pay the ' + dollars(d.cost) + ' ' + first(capo) + ' asks');
     spend(f, d.cost);
     f.table = f.table || {};
     f.table[post] = capo;

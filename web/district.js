@@ -27,7 +27,7 @@
   var CAPOS = {
     sal:   { name: 'Sal "the Hammer" Moretti', specialty: 'Enforcer', muscle: 8, business: 4, cunning: 3, charisma: 6, loyalty: 65, ambition: 70,
              likes: ['protection', 'seize', 'push', 'loans'], refuses: ['bribe'] },
-    mae:   { name: 'Mae "the Ledger" Whitlock', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 8, charisma: 4, loyalty: 70, ambition: 40,
+    mae:   { woman: true, name: 'Mae "the Ledger" Whitlock', specialty: 'Bookkeeper', muscle: 2, business: 8, cunning: 8, charisma: 4, loyalty: 70, ambition: 40,
              likes: ['front', 'rented', 'bribe'], refuses: ['protection', 'seize', 'loft', 'brothel'] },
     dutch: { name: 'Dutch Keller', specialty: 'Bootlegger', muscle: 5, business: 7, cunning: 5, charisma: 3, loyalty: 55, ambition: 50,
              likes: ['still', 'speakeasy', 'warehouse', 'fence'], refuses: ['protection'] },
