@@ -109,6 +109,7 @@
       from.joined = from.month; to.joined = to.month;
       return;
     }
+    if (x === undefined || x === null) throw new Error('no street left in ' + town(to) + ' for his club');
     if (!inside(to, x, y)) throw new Error(x + ',' + y + ' is outside ' + town(to));
     if (at(to, x, y)) throw new Error('there is already a place at ' + x + ',' + y);
     if (known(to) && grip(to, x, y) === 'rival') throw new Error('these are the ' + (to.rival || places(to).filter(function (q) { return q.owner !== 'family'; })[0].owner) + 's\' streets');

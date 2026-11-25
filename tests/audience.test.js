@@ -216,3 +216,18 @@ test('the boss can put in the rest himself, from the sheet of the capo, whenever
   assert.throws(() => E.command(g2, { type: 'advance', city: 'ashport', capo: 'dutch' }), /it takes \$[\d,]+ of dirty cash/);
   assert.match(C.capo(E.view(g2), 'ashport', 'dutch', E.hud(g2)), /data-act="advance"[^>]*disabled/);
 });
+
+test('a trade refused twice rests twice as long, and the card says how long', () => {
+  const g = E.createGame({ capo: 'sal' });
+  g.family.clean = 5000;
+  const no = (q) => E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id });
+  const next = (n) => { for (let i = 0; i < n; i++) { day(g); const q = matter(g); if (q) { if (q.kind === 'learn' && q.trade === 'loans') return i + 1; no(q); } } return 0; };
+  assert.ok(next(200), 'he asks');
+  no(matter(g));
+  const first = next(4 * A.RULES.again);
+  assert.ok(first >= A.RULES.again && first < 2 * A.RULES.again, 'a year on: ' + first);
+  assert.match(matter(g).choices[1].costs, new RegExp('does not ask again for ' + 2 * A.RULES.again + ' days'));
+  no(matter(g));
+  const second = next(6 * A.RULES.again);
+  assert.ok(second >= 2 * A.RULES.again, 'two years on: ' + second);
+});

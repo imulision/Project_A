@@ -569,18 +569,20 @@
   function tableOf(g) { return T.table(g.family).filter(function (s) { return chairOpen(g, s.post); }); }
 
   // Where a man at the door could be sent instead: the cities next door that still have a seat.
+  // The men the boss is already paying to set up in a city: their seats are spoken for.
+  function coming(g, city) { return (g.family.paying || []).filter(function (p) { return p.order.type === 'welcome' && p.order.city === city; }).length; }
   function roadsOf(g, c, d) {
     if (d.door === 'poach' || !isOpen(g, 'roads')) return [];
     return g.cities.filter(function (q) {
       var s = T.seats(q);
-      return linked(c.id, q.id) && s.taken < s.total;
+      return linked(c.id, q.id) && s.taken + coming(g, q.id) < s.total && T.clubSpot(q, d.capo);
     }).map(function (q) { return { city: q.id, name: specOf(q.id).name, cost: d.cost + T.RULES.doors.road }; });
   }
   // Can the boss say yes to this man today: a seat here or down a road, and the money for it.
   function answerable(g, c, d) {
     if (owed(g, 'welcome', c.id, d.capo)) return false; // already answered: the money is on its way
     var s = T.seats(c), has = T.funds(g.family);
-    return (s.taken < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
+    return (s.taken + coming(g, c.id) < s.total && has >= d.cost) || roadsOf(g, c, d).some(function (r) { return has >= r.cost; });
   }
   // Who waits for the boss's word in a city: the asks he can pay, the men he can take in, the quarrels.
   function waitingIn(g, c) {
@@ -686,6 +688,8 @@
       var c = cityOf(g, o.city), from = cityOf(g, o.from || o.city);
       if (from !== c) need(g, 'roads');
       if (from !== c && !linked(from.id, c.id)) throw new Error('no road from ' + specOf(from.id).name + ' to ' + specOf(c.id).name);
+      var s = T.seats(c);
+      if (s.taken + coming(g, c.id) >= s.total && !owed(g, 'welcome', from.id, o.capo)) throw new Error('no seat left in ' + specOf(c.id).name + ': the last one is spoken for');
       T.send(from, c, g.family, o.capo, o.x, o.y);
       T.raiseHq(c, 'family'); // the first man in a city opens the family's back room there
       decide(g, { type: 'welcomed', city: c.id, capo: o.capo, label: (from !== c ? 'You sent ' + T.person(o.capo).name + ' to ' : 'You took in ' + T.person(o.capo).name + ' in ') + specOf(c.id).name });

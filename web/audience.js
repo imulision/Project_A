@@ -30,6 +30,8 @@
   var dollars = T.dollars, first = function (id) { return T.person(id).name.split(' ')[0]; };
   var days = function (n) { return n + ' days'; };
   function stateOf(g) { return g.audience || (g.audience = { last: 0, seen: {}, open: null }); }
+  // A capo told no for his own ask waits a year; told no again, twice as long each time.
+  function restOf(a, key) { return RULES.again * Math.pow(2, Math.min((a.snubs || {})[key] || 0, 4)); }
   function menOf(g, c) { return Object.keys(g.family.men).filter(function (id) { return T.clubOf(c, id); }); }
   function heldBy(g) { return g.cities.filter(function (c) { return menOf(g, c).length > 0; }); }
   // The man who speaks for a city: its underboss, or the first man the boss set up there.
@@ -58,11 +60,11 @@
     heldBy(g).forEach(function (c) {
       T.wishes(c, f).forEach(function (w) {
         var t = T.tree(f).filter(function (q) { return q.kind === w.kind; })[0];
-        if (found || !t || !t.next || (f.clean || 0) < t.next.cost || !rested('learn:' + w.kind, RULES.again)) return;
+        if (found || !t || !t.next || (f.clean || 0) < t.next.cost || !rested('learn:' + w.kind, restOf(a, 'learn:' + w.kind) / 2)) return;
         found = { key: 'learn:' + w.kind, kind: 'learn', capo: w.capo, city: c.id, trade: w.kind, title: w.label,
           says: 'What the family learns, every capo can open. ' + first(w.capo) + ' likes this trade: it is learned twice as fast, and he will run it.',
           choices: [{ id: 'learn', label: t.tier ? 'Pay for it' : 'Learn it', cost: t.next.cost, money: 'clean', gives: t.next.gives + ' · ready in ' + days(Math.round(t.next.months * T.RULES.days)) },
-                    no('You keep your clean money', first(w.capo) + ' does not ask again for ' + days(RULES.again))] };
+                    no('You keep your clean money', first(w.capo) + ' does not ask again for ' + days(restOf(a, 'learn:' + w.kind)))] };
       });
     });
     return found;
@@ -73,7 +75,7 @@
     heldBy(g).forEach(function (c) {
       menOf(g, c).forEach(function (id) {
         var p = T.plan(c, f, id);
-        if (!p || !rested('advance:' + id, RULES.again)) return;
+        if (!p || !rested('advance:' + id, restOf(a, 'advance:' + id) / 2)) return;
         var short = T.short(p);
         if (short < RULES.petty || f.dirty < short || (best && best.short <= short)) return;
         best = { c: c, id: id, p: p, short: short };
@@ -86,7 +88,7 @@
       title: first(best.id) + ' is ' + dollars(best.short) + ' short of ' + what,
       says: 'In ' + where + ': he has saved ' + dollars(p.saved) + ' of the ' + dollars(p.cost) + ' it takes. Put in the rest and he does it now; otherwise he saves alone.',
       choices: [{ id: 'pay', label: 'Put in the rest', cost: best.short, money: 'dirty', gives: 'He has the price today: the place sends money up that much sooner' },
-                no('You keep your money', 'He saves alone, and does not ask again for ' + days(RULES.again))] };
+                no('You keep your money', 'He saves alone, and does not ask again for ' + days(restOf(a, 'advance:' + best.id)))] };
   }
 
   // --- the matters of the street, when nothing else has needed the boss for a while ---
@@ -238,7 +240,9 @@
     var label = DONE[m.kind](g, m, ch, command);
     // a yes to a capo's own ask lets him come back sooner than a no
     var yes = ch.id !== 'no' && ch.id !== 'none';
-    a.seen[m.key] = (m.kind === 'advance' || m.kind === 'learn') && yes ? today - RULES.again + RULES.every : today;
+    var own = m.kind === 'advance' || m.kind === 'learn';
+    if (own) { a.snubs = a.snubs || {}; if (yes) delete a.snubs[m.key]; else a.snubs[m.key] = (a.snubs[m.key] || 0) + 1; }
+    a.seen[m.key] = own && yes ? today - RULES.again + RULES.every : today;
     if (m.deck) a.seen[m.deck] = today;
     a.open = null; a.last = today;
     return label ? { type: 'decided', kind: m.kind, capo: m.capo, city: m.city, choice: ch.id, label: label } : null;
