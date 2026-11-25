@@ -231,3 +231,65 @@ test('a trade refused twice rests twice as long, and the card says how long', ()
   const second = next(6 * A.RULES.again);
   assert.ok(second >= 2 * A.RULES.again, 'two years on: ' + second);
 });
+
+// --- what the boss's money is for ---
+const ask = (g, kind, n) => until(g, n || 600, () => { const q = matter(g); if (q && q.kind !== kind) E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id }); return matter(g) && matter(g).kind === kind; });
+
+test('clean money that sleeps: a capo comes to say what it could buy, and the boss buys it from the card', () => {
+  const g = E.createGame({ capo: 'dutch' });
+  g.family.tech = Object.assign({}, g.family.tech); T.tree(g.family).forEach((t) => { g.family.tech[t.kind] = 3; }); // nothing left to learn
+  g.family.clean = 13000;
+  assert.ok(ask(g, 'invest'), 'he comes');
+  const m = matter(g);
+  assert.match(m.title, /clean money sleeps/i);
+  const buys = m.choices.filter((c) => c.id !== 'no');
+  assert.deepEqual(buys.map((c) => c.id), ['lawyer', 'paper', 'judge'], 'what he can pay, cheapest first');
+  buys.forEach((c) => { assert.equal(c.money, 'clean'); assert.ok(c.cost <= 13000); assert.ok(c.gives); });
+  E.command(g, { type: 'decide', id: m.id, choice: 'lawyer' });
+  settle(g);
+  assert.equal(E.view(g).holdings.filter((h) => h.id === 'lawyer')[0].level, 1);
+});
+
+test('what the street has cost the boss this year is written on the next card', () => {
+  const g = E.createGame({ capo: 'sal' });
+  g.family.dirty = 20000;
+  let paid = 0, seen = null;
+  for (let d = 0; d < 700 && !seen; d++) {
+    day(g); const q = matter(g); if (!q) continue;
+    if (paid && q.spent) { seen = q; break; }
+    const pay = q.choices.filter((c) => c.cost > 0 && c.money !== 'clean')[0];
+    if (pay && q.kind !== 'advance' && q.kind !== 'banker') paid += pay.cost;
+    E.command(g, { type: 'decide', id: q.id, choice: (pay || q.choices[q.choices.length - 1]).id });
+  }
+  assert.ok(seen, 'a later card carries it');
+  assert.equal(seen.spent, paid);
+  assert.match(text(C.requests(E.view(g), E.hud(g))), new RegExp('The street has cost you \\' + C.money(paid) + ' in the last ' + A.RULES.again + ' days'));
+});
+
+test('a matter of the street the boss turned down rests twice as long', () => {
+  const g = E.createGame({ capo: 'sal' });
+  const seen = [];
+  for (let d = 1; d <= 2400; d++) { day(g); const q = matter(g); if (!q) continue; if (q.kind === 'cargo') seen.push(d); E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id }); }
+  assert.ok(seen.length >= 2 && seen.length <= 4, 'not a dozen times: ' + seen.join(', '));
+  for (let i = 2; i < seen.length; i++) assert.ok(seen[i] - seen[i - 1] > seen[i - 1] - seen[i - 2], 'further apart each time: ' + seen.join(', '));
+});
+
+test('a banker washes a lump of dirty cash for a cut, and a widow is looked after with clean money', () => {
+  const g = E.createGame({ capo: 'sal' });
+  const rich = (kind) => until(g, 1500, () => { g.family.dirty = Math.max(g.family.dirty, 30000); const q = matter(g); if (q && q.kind !== kind) E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id }); return matter(g) && matter(g).kind === kind; });
+  assert.ok(rich('banker'), 'the banker comes when dirty cash piles up');
+  let m = matter(g); const wash = m.choices[0];
+  assert.equal(wash.money, 'dirty'); assert.ok(wash.cost >= 5000);
+  const before = g.family.clean || 0, dirty = g.family.dirty;
+  E.command(g, { type: 'decide', id: m.id, choice: wash.id });
+  assert.equal(g.family.dirty, dirty - wash.cost);
+  assert.equal(g.family.clean, before + Math.round(wash.cost * A.RULES.banker.keeps));
+  assert.match(wash.gives, new RegExp('\\' + C.money(Math.round(wash.cost * A.RULES.banker.keeps)) + ' of clean money'));
+  g.family.clean = 5000;
+  assert.ok(ask(g, 'widow', 1500), 'the widow comes');
+  m = matter(g);
+  assert.equal(m.choices[0].money, 'clean');
+  const loyal = T.loyalty(g.family, 'sal');
+  E.command(g, { type: 'decide', id: m.id, choice: m.choices[0].id });
+  assert.ok(T.loyalty(g.family, 'sal') > loyal);
+});

@@ -24,6 +24,8 @@
     bail: { cost: 400, warms: 6, hurts: 4 },              // a man in a cell: what his bail costs, loyalty his capo gains, loyalty he loses if he is left there
     truce: { cost: 800, cycles: 6 },                      // peace bought from the rivals: its price, the cycles they leave the city alone
     feast: { cost: 250, warms: 5, hurts: 2 },             // the feast of a capo's street: what the boss's table costs, loyalty won, loyalty lost if he stays away
+    banker: { from: 8000, part: 0.5, most: 200000, keeps: 0.6 }, // a banker who washes a lump: the dirty cash he comes at, the part of it he takes in, the most he handles, what comes back clean
+    widow: { cost: 500, warms: 4 },                       // the widow of one of the family's men: her pension in clean money, loyalty every capo of the city gains
     favor: { warms: 3, heat: 6 }                          // a shopkeeper squeezed by the rivals: loyalty the capo gains if his men step in, heat it draws
   };
 
@@ -68,6 +70,18 @@
       });
     });
     return found;
+  }
+  // Clean money sleeps and something can be bought with it: the man who speaks for the home city says what.
+  function investMatter(g, a, rested) {
+    var f = g.family, c = heldBy(g)[0];
+    if (!c || !rested('invest', restOf(a, 'invest') / 2) || (f.paying || []).some(function (p) { return p.order.type === 'buy'; })) return null;
+    var can = T.holdings(f).filter(function (h) { return h.next && h.next.cost <= (f.clean || 0); }).sort(function (p, q) { return p.next.cost - q.next.cost; }).slice(0, 3);
+    if (!can.length) return null;
+    var who = voiceOf(g, c);
+    return { key: 'invest', kind: 'invest', capo: who, city: c.id, title: dollars(f.clean) + ' of clean money sleeps',
+      says: first(who) + ' says it should work for the family. What is bought is kept for good, and serves in every city.',
+      choices: can.map(function (h) { return { id: h.id, label: (h.level ? 'More of the ' : 'Buy the ') + h.name, cost: h.next.cost, money: 'clean', gives: h.gives }; })
+        .concat([no('You keep your clean money', first(who) + ' does not bring it up again for ' + days(restOf(a, 'invest')))]) };
   }
   // A capo saving for his next place, whom the boss could put there today with his dirty cash.
   function advanceMatter(g, a, rested) {
@@ -148,6 +162,25 @@
           choices: [{ id: 'take', label: 'Take it', gives: '+' + dollars(RULES.cargo.gain) + ' of dirty cash', costs: 'Heat +' + RULES.cargo.heat + ' in ' + T.town(x.c) }, { id: 'no', label: 'Leave it', gives: 'Nothing changes' }] };
       }
     },
+    banker: {
+      when: function (g) {
+        var r = RULES.banker, c = heldBy(g)[0], lump = Math.min(r.most, Math.floor(g.family.dirty * r.part / 1000) * 1000);
+        return c && g.family.dirty >= r.from ? { c: c, lump: lump } : null;
+      },
+      says: function (g, a, x) {
+        return { kind: 'banker', capo: voiceOf(g, x.c), city: x.c.id, title: 'A banker offers to wash ' + dollars(x.lump) + ' of your dirty cash',
+          says: 'Dirty cash pays your men and their places; only clean money buys what lasts. He keeps his cut, and asks no questions.',
+          choices: [{ id: 'wash', label: 'Hand it over', cost: x.lump, money: 'dirty', gives: dollars(Math.round(x.lump * RULES.banker.keeps)) + ' of clean money, today' }, { id: 'no', label: 'Keep it dirty', gives: 'Nothing changes' }] };
+      }
+    },
+    widow: {
+      when: function (g) { var c = heldBy(g)[0]; return c && (g.family.clean || 0) >= RULES.widow.cost ? { c: c } : null; },
+      says: function (g, a, x) {
+        return { kind: 'widow', capo: voiceOf(g, x.c), city: x.c.id, title: 'The widow of one of your men in ' + T.town(x.c) + ' has nothing left',
+          says: 'A pension has to be clean money: it is paid in the open. The men watch what the family does for its own.',
+          choices: [{ id: 'pay', label: 'See to her', cost: RULES.widow.cost, money: 'clean', gives: 'Loyalty +' + RULES.widow.warms + ' for every capo in ' + T.town(x.c) }, { id: 'no', label: 'Not your affair', gives: 'Nothing changes' }] };
+      }
+    },
     favor: {
       when: function (g) { var c = heldBy(g).filter(function (q) { return q.rival; })[0]; return c ? { c: c, capo: sourest(g, c) } : null; },
       says: function (g, a, x) {
@@ -157,13 +190,17 @@
       }
     }
   };
-  var ORDER = ['share', 'captain', 'truce', 'bail', 'feast', 'cargo', 'favor'];
+  var ORDER = ['share', 'captain', 'truce', 'bail', 'feast', 'cargo', 'banker', 'favor', 'widow'];
+  var STREET = { captain: 1, truce: 1, bail: 1, feast: 1 }; // what the boss pays the street for: counted on the cards
 
   // What a choice does. `command` is empire's: what the boss pays to learn travels like the rest of his money.
   var DONE = {
     line: function (g, m, ch) { var c = cityOf(g, m.city); T.line(c, ch.id === 'none' ? null : ch.id); return ch.id === 'none' ? 'You give ' + T.town(c) + ' no line' : 'Your line for ' + T.town(c) + ': ' + ch.label; },
     share: function (g, m, ch) { var c = cityOf(g, m.city); T.cut(c, ch.id); return 'Your share in ' + T.town(c) + ': ' + ch.label; },
     learn: function (g, m, ch, command) { if (ch.id !== 'learn') return 'You tell ' + first(m.capo) + ' his trade will wait'; command(g, { type: 'research', building: m.trade }); return null; },
+    invest: function (g, m, ch, command) { if (ch.id === 'no') return 'You let the clean money sleep'; command(g, { type: 'buy', holding: ch.id }); return null; },
+    banker: function (g, m, ch) { if (ch.id !== 'wash') return 'You send the banker away'; var back = Math.round(ch.cost * RULES.banker.keeps); g.family.dirty -= ch.cost; g.family.clean = (g.family.clean || 0) + back; return 'The banker washes ' + dollars(ch.cost) + ': ' + dollars(back) + ' comes back clean'; },
+    widow: function (g, m, ch) { if (ch.id !== 'pay') return 'You leave the widow to her street'; var c = cityOf(g, m.city); g.family.clean -= ch.cost; menOf(g, c).forEach(function (id) { T.sway(g.family, id, RULES.widow.warms); }); return 'You see to the widow: the men in ' + T.town(c) + ' take note'; },
     advance: function (g, m, ch) {
       if (ch.id !== 'pay') return 'You let ' + first(m.capo) + ' save alone';
       var r = T.advance(cityOf(g, m.city), g.family, m.capo);
@@ -189,7 +226,7 @@
       var c = held.filter(function (q) { return !q.line && a.seen['line:' + q.id] === undefined; })[0];
       if (c) return lineMatter(g, a, c);
     }
-    if (gap >= RULES.soon) { var l = learnMatter(g, a, rested); if (l) return l; }
+    if (gap >= RULES.soon) { var l = learnMatter(g, a, rested) || investMatter(g, a, rested); if (l) return l; }
     if (gap < RULES.every) return null;
     // (not twice running: the street has its say in between)
     var adv = rested('advance', 2 * RULES.every - 10) ? advanceMatter(g, a, rested) : null;
@@ -198,7 +235,7 @@
     var best = null;
     ORDER.forEach(function (ignored, k) {
       var kind = ORDER[(k + (g.seed || 0)) % ORDER.length]; // (another game starts the round at another matter)
-      if (!rested(kind, RULES.rest)) return;
+      if (!rested(kind, RULES.rest * Math.pow(2, Math.min((a.snubs || {})[kind] || 0, 4)))) return;
       var x = DECK[kind].when(g, a); if (!x) return;
       var seen = a.seen[kind] === undefined ? -1 : a.seen[kind];
       if (!best || seen < best.seen) best = { kind: kind, x: x, seen: seen };
@@ -222,6 +259,8 @@
     var m = pick(g, a, today);
     if (!m) return null;
     m.id = m.kind + ':' + m.city + ':' + today; m.since = today;
+    a.paid = (a.paid || []).filter(function (p) { return today - p.day < RULES.again; });
+    m.spent = a.paid.reduce(function (n, p) { return n + p.n; }, 0);
     a.open = m; a.last = today;
     return { type: 'matter', id: m.id, kind: m.kind, capo: m.capo, city: m.city, x: m.x, y: m.y, label: m.title };
   }
@@ -240,8 +279,9 @@
     var label = DONE[m.kind](g, m, ch, command);
     // a yes to a capo's own ask lets him come back sooner than a no
     var yes = ch.id !== 'no' && ch.id !== 'none';
-    var own = m.kind === 'advance' || m.kind === 'learn';
-    if (own) { a.snubs = a.snubs || {}; if (yes) delete a.snubs[m.key]; else a.snubs[m.key] = (a.snubs[m.key] || 0) + 1; }
+    var own = m.kind === 'advance' || m.kind === 'learn' || m.kind === 'invest', kept = own ? m.key : m.deck && m.deck !== 'share' ? m.deck : null;
+    if (kept) { a.snubs = a.snubs || {}; if (yes) delete a.snubs[kept]; else a.snubs[kept] = (a.snubs[kept] || 0) + 1; }
+    if (STREET[m.kind] && ch.cost > 0) (a.paid = a.paid || []).push({ day: today, n: ch.cost });
     a.seen[m.key] = own && yes ? today - RULES.again + RULES.every : today;
     if (m.deck) a.seen[m.deck] = today;
     a.open = null; a.last = today;
