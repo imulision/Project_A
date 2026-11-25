@@ -383,3 +383,5 @@ p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
   #feed{margin-top:4px}#feed .news:nth-last-child(n+3){display:none}
 }
 .card.matter small.spent { display: block; margin-top: 8px; opacity: .7; font-size: 11px; letter-spacing: .02em; }
+/* on a page, what a touched thing means is written under it, never over the rest */
+#sheet .why{margin:2px 0 8px;padding:6px 10px;border-left:3px solid var(--accent);background:#e8c46314;color:var(--ink);font:400 13px/1.35 var(--text);grid-column:1/-1;flex-basis:100%}

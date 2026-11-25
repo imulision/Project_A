@@ -80,7 +80,7 @@
     $('men').textContent = h.men + ' / ' + h.seats.total;
     $('heat').innerHTML = I.icon('heat') + Math.round(h.heat);
     showHint(h);
-    var w = C.wash(view, h), k = C.clock(h);
+    var w = C.wash(view, h), k = C.clock(h, view);
     // the two moneys are totals alone; under the dirty one, what waits in the tills (a touch opens the account, line by line)
     var acc = C.account(view, h); var dt = C.moneyTile(acc, 'dirty', view), ct = C.moneyTile(acc, 'clean', view); if ($('wash').tile !== dt) { $('wash').innerHTML = dt; $('wash').tile = dt; } if ($('kept').tile !== ct) { $('kept').innerHTML = ct; $('kept').tile = ct; }
     // is the family getting anywhere: its rank, the bar towards the next one, and the verdict of the last year
@@ -92,9 +92,9 @@
     // time that stands still is said in large, with the reason, and framed all around the screen
     document.body.classList.toggle('stopped', !!k); if (map) { map.hold(!!k); map.pace(g.speed || 1); }      // a car with days to drive keeps to them at the speed the boss chose
     $('sub').innerHTML = k ? '' : C.trendLine(tr);
-    $('clock').innerHTML = k ? '<b>' + I.icon('time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
+    $('clock').innerHTML = k ? '<b>' + I.icon(h.pending ? 'ask' : 'time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
     $('clock').dataset.go = h.pending ? 'requests' : 'play';
-    $('alerts').innerHTML = (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('time') + h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word: tap to answer</div>' : '') +
+    $('alerts').innerHTML = (h.pending && !h.paused ? '<div data-requests="1" style="border-color:var(--accent)">' + I.icon('ask') + C.esc(C.waitsFor(view) ? C.waitsFor(view) + (h.pending > 1 ? ', and ' + (h.pending - 1) + ' more' : '') : h.pending + (h.pending > 1 ? ' wait' : ' waits') + ' for your word') + ': tap to answer</div>' : '') +
         (w.hot ? '<div>' + I.icon('heat') + 'Over ' + C.money(C.vault(view, h)) + ' of dirty cash: the police take notice. It needs washing.</div>' : '');
   }
   // ---- the live hit: when a capo goes for a guarded place, the screen goes to the street and the boss may call each step
@@ -177,6 +177,14 @@
   }
   function requests() { show(C.requests(view, E.hud(g))); }
 
+  /* why(el): the words of what was touched on a page, written under it; a second touch puts them away. */
+  function html0(el) { return el.classList.contains('lab'); }
+  function why(el) {
+    var host = el.closest('.move, .tile, .intent, .skill, .dial, .stat, .chip, span, div') || el, next = host.nextElementSibling;
+    if (next && next.classList.contains('why')) { next.remove(); return; }
+    [].forEach.call($('sheet').querySelectorAll('.why'), function (n) { n.remove(); });
+    var p = document.createElement('p'); p.className = 'why'; p.textContent = el.dataset.tip; host.parentNode.insertBefore(p, host.nextSibling);
+  }
   // A bubble beside what was touched. With `more`, a touch on the bubble itself opens the whole page.
   function tip(el, html, more) {
     var t = $('tip'), r = el.getBoundingClientRect(); t.innerHTML = (html || C.esc(el.dataset.tip)) + (more ? '<i class="more">\u203a</i>' : ''); t.classList.add('on'); t.classList.toggle('more', !!more); tip.more = more || null;
@@ -208,7 +216,9 @@
       map.focus(cl.city, zoneId(cl.city, cl.x, cl.y), { x: cl.x, y: cl.y }); return;
     }
     if (e.target.closest('[data-account]') && g && g.started) { untip(); show(C.accountCard(view, E.hud(g), e.target.closest('[data-account]').dataset.account)); return; }
-    var el = e.target.closest('[data-tip]'); if (el) tip(el); else if (!fresh()) untip();
+    var el = e.target.closest('[data-tip]');
+    if (el && el.closest('#sheet') && !html0(el)) { why(el); return; }      /* on a page, the explanation opens in the page under what was touched: no bubble over the rest */
+    if (el) tip(el); else if (!fresh()) untip();
   }, true);
   document.addEventListener('pointerdown', function (e) { if (!e.target.closest('#tip') && !fresh()) untip(); }, true);
 
@@ -336,7 +346,7 @@
     // the labels follow the map: while it draws nothing new (time stopped, camera still), they stay as they are
     var drawn = map ? map.stats().drawn : -1;
     if (map && drawn !== drawnAt) { drawnAt = drawn; drawLinks();
-      var seen = {}, boxes = [], badges = [], all = map.labels(), empty = C.emptyClubs(all);
+      var seen = {}, boxes = [], all = map.labels(), empty = C.emptyClubs(all);
       all.forEach(function (l) {
         seen[l.id] = 1; var e = labs[l.id];
         if (!e) {
@@ -368,7 +378,7 @@
         // where it stands on the screen and how much it matters: capos first, then names, key places, the family's places, cars
         if (l.role === 'club') { var gone = !!empty[l.city + l.capo]; if (e.gone !== gone) { e.gone = gone; e.classList.toggle('empty', gone); } if (!gone) return; }      // a club is marked by its capo's face, and by its own mark while he is away
         if (l.pop) return;
-        if (l.fx) { badges.push({ id: l.id, rank: 0.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a badge never steps aside, and it answers the finger
+        if (l.fx) { boxes.push({ id: l.id, rank: 1.5, x: px - 18, y: py - 18, w: 36, h: 36 }); return; }       // a mark of news steps aside for a face, a claim or a street name (the news is also told at the edge of the screen)
         if (l.claim) { boxes.push({ id: l.id, rank: 0.8 + (1 - l.advance) * 0.1, x: px - (e.w || 110) / 2, y: py - 40, w: e.w || 110, h: 40 }); return; }      // of two marks that meet, the one further along stays
         var name = !l.car && !l.site && !l.capo, w = name ? e.w : l.car ? e.w || 22 : l.site ? 22 : 46, h = name ? e.h : l.car ? 22 : w;
         boxes.push({ id: l.id, rank: l.site ? (l.key ? 2 : 3) : l.car ? 4 : l.capo ? 0 : 1, x: px - w / 2, y: py - (name && l.small ? h / 2 : h), w: w, h: h });
@@ -376,7 +386,7 @@
       // a label that would sit on a more important one steps aside
       var off = C.crowded(boxes, hiddenLabs); hiddenLabs = off;
       boxes.forEach(function (b) { var e = labs[b.id], o = !!off[b.id]; if (e.off !== o) { e.off = o; e.classList.toggle('off', o); } });
-      shown = boxes.filter(function (b) { return !off[b.id]; }).concat(badges);
+      shown = boxes.filter(function (b) { return !off[b.id]; });
       for (var k in labs) if (!seen[k]) { labs[k].remove(); delete labs[k]; }
     }
   }

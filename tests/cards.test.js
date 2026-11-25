@@ -269,7 +269,7 @@ test('money that can be followed: the month\'s change beside a total, the amount
   // cash that waits in a place's till for a car is said on the place and on the capo
   const c = v.cities[0], p = c.places.find((q) => q.owner === 'family' && q.kind !== 'club' && q.kind !== 'hq'); p.till = 90; k.waiting = 90;
   assert.match(C.block(v, c.id, p.x, p.y), /\$90 \/ \$150<\/b> in the till[^]*class="nxb"><u style="width:60%"/);
-  assert.match(C.capo(v, c.id, k.id), /\$90 waits in his tills/);
+  assert.match(C.capo(v, c.id, k.id), /\$90 in the tills of his places, waiting for a car/);
 });
 
 test('the laundries: what the family can wash a month is said under the dirty total, and too much dirty cash is flagged', () => {
@@ -283,8 +283,8 @@ test('the laundries: what the family can wash a month is said under the dirty to
 test('time that stands still says so, and says why', () => {
   assert.equal(C.clock({ paused: false }), null);
   assert.deepEqual(C.clock({ paused: true, pending: 0 }), { word: 'TIME STOPPED', why: 'Tap Play to go on' });
-  assert.deepEqual(C.clock({ paused: true, pending: 2 }), { word: 'TIME STOPPED', why: '2 wait for your word' });
-  assert.deepEqual(C.clock({ paused: true, pending: 1 }), { word: 'TIME STOPPED', why: '1 waits for your word' });
+  assert.deepEqual(C.clock({ paused: true, pending: 2 }), { word: 'TIME STOPPED', why: '2 wait for your word · tap to answer' }, 'with nothing to name, the count');
+  assert.deepEqual(C.clock({ paused: true, pending: 1 }), { word: 'TIME STOPPED', why: '1 waits for your word · tap to answer' });
   assert.equal(C.clock({ paused: false }, true), null, 'the boss never chooses a street: nothing stops the time for it');
 });
 
@@ -1425,4 +1425,55 @@ test('the tree guides the boss: the advice stands above the wheel, its branch is
   assert.ok(fam.indexOf('class="advice"') > -1 && fam.indexOf('class="advice"') < fam.indexOf('class="wheel"'), 'the advice comes first');
   assert.match(fam, /class="know[^"]* sel[^"]*"[^>]*data-know="still"/, 'the advised branch is the one open');
   assert.doesNotMatch(fam, /A face marks what a capo is asking for/);
+});
+
+// Nicolas (2026-11-25): "c'est quoi cette icone", "pas clair ce que fait Sal". A mark on the map never falls back on a bare clock,
+// and what a capo does now is the word under his face and the line of his sheet, never contradicted by his savings.
+test('every event the map marks has an icon of its own: no bare clock that says nothing', () => {
+  ['opened', 'enlarged', 'converted', 'gaveup', 'matter', 'asks', 'welcomed', 'car', 'knocks'].forEach((t) => {
+    assert.ok(C.EVENT[t], t + ' has an icon'); assert.notEqual(C.EVENT[t], 'time', t + ' is not a bare clock');
+  });
+  assert.equal(C.EVENT.opened, 'yes', 'a place opened is done, not going up');
+  assert.equal(C.EVENT.asks, 'ask'); assert.equal(C.EVENT.matter, 'ask');
+});
+
+test('what a capo does now, under his face: on an errand he is opening, not saving; over a place he says what it brings', () => {
+  const c = { places: [{ x: 4, y: 10, kind: 'still', owner: 'family', capo: 'sal', name: 'Cellar still' }], capos: [] };
+  const saving = { id: 'sal', name: 'Sal', income: 50, places: 1, plan: { move: 'open', kind: 'still', name: 'Cellar still', waiting: 'money', cost: 448, saved: 24 } };
+  assert.match(C.doing(c, saving).word, /^SAVING 5%$/);
+  const leaves = { ...saving, errand: { step: 'leaves', move: 'open', kind: 'still', x: 6, y: 9 }, at: { why: 'open', x: 6, y: 9, road: true } };
+  assert.equal(C.doing(c, leaves).word, 'ON HIS WAY'); assert.equal(C.doing(c, leaves).icon, 'car');
+  const works = { ...saving, errand: { step: 'works', move: 'open', kind: 'still', x: 6, y: 9 }, at: { why: 'open', x: 6, y: 9 } };
+  assert.equal(C.doing(c, works).word, 'OPENING'); assert.equal(C.doing(c, works).icon, 'works');
+  const back = { ...saving, errand: { step: 'returns', move: 'open', kind: 'still', x: 6, y: 9 }, at: { why: 'return', x: 6, y: 9, road: true } };
+  assert.equal(C.doing(c, back).word, 'DRIVING BACK');
+  assert.equal(C.doing(c, { ...saving, at: { why: 'boost', x: 4, y: 10, road: true } }).word, 'ON HIS WAY', 'on the road to the place, he does not boost it yet');
+  const boost = { ...saving, at: { why: 'boost', x: 4, y: 10, label: 'Standing over his cellar still in The Docks' } };
+  assert.equal(C.doing(c, boost).word, 'BOOSTING +15%'); assert.equal(C.doing(c, boost).icon, 'still', 'the mark on his face is the place he stands over');
+  const I = require('../web/icons.js'), m = C.mark({ capo: 'sal', progress: 0.05, kind: 'speakeasy' }, null, C.doing(c, boost));
+  assert.ok(m.indexOf('<span class="do">' + I.icon('still') + '</span>') > -1, 'the mark on his face is the still he stands over, not the speakeasy he saves for');
+  assert.match(m, /BOOSTING \+15%/, 'the word under his face');
+});
+
+test('the sheet of a capo on an errand says where he goes, not what he saves; over a place, what his being there brings', () => {
+  const base = { id: 'sal', name: 'Sal Moretti', specialty: 'Enforcer', rankName: 'Soldier', places: 1, reach: 6, income: 150, sent: 23, cash: 124, cars: 1, waiting: 144, way: 'force', partings: [],
+    plan: { move: 'open', kind: 'still', name: 'Cellar still', waiting: 'money', cost: 448, saved: 24, progress: 0.05 } };
+  const view = (k) => ({ cities: [{ id: 'ashport', name: 'Ashport', capos: [k], places: [{ x: 4, y: 10, kind: 'still', owner: 'family', capo: 'sal', name: 'Cellar still' }], blocks: [], w: 12, zones: [] }], reign: {} });
+  const on = { ...base, errand: { step: 'leaves', move: 'open', kind: 'still', x: 6, y: 9 }, at: { why: 'open', x: 6, y: 9, road: true, label: 'On his way to open a cellar still in Canal Street' } };
+  const html = C.capo(view(on), 'ashport', 'sal', { dirty: 2500 });
+  assert.match(html, /On his way to open a cellar still in Canal Street/);
+  assert.doesNotMatch(html, /saving for it/, 'the money went with him: he saves no more for it');
+  assert.doesNotMatch(html, /Put in the rest/);
+  assert.match(html, /\$144 in the tills of his places, waiting for a car to bring it to his club/);
+  assert.match(html, /IN HIS POCKET/);
+  const boost = { ...base, at: { why: 'boost', x: 4, y: 10, label: 'Standing over his cellar still in The Docks' } };
+  assert.match(C.capo(view(boost), 'ashport', 'sal', { dirty: 2500 }), /Standing over his cellar still in The Docks · it makes 15% more while he is there/);
+});
+
+test('time stopped says who waits, and for what', () => {
+  const view = { matters: [{ title: 'Sal asks how you want Ashport run' }], cities: [] };
+  assert.deepEqual(C.clock({ paused: true, pending: 1 }, view), { word: 'TIME STOPPED', why: 'Sal asks how you want Ashport run · tap to answer' });
+  assert.equal(C.clock({ paused: true, pending: 3 }, view).why, 'Sal asks how you want Ashport run, and 2 more · tap to answer');
+  assert.equal(C.clock({ paused: true, pending: 0 }, view).why, 'Tap Play to go on');
+  assert.equal(C.clock({ paused: false }, view), null);
 });

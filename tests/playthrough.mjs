@@ -111,6 +111,12 @@ assert.match(await page.textContent('#sheet'), /only capo/);
 assert.ok(await page.locator('#sheet .move.mood').count() === 1, 'his mood is on his sheet');
 assert.match(await page.textContent('#sheet .move.health'), /MONEY.*MEN.*THREAT/, 'and the health of his streets, named');
 assert.ok(await page.locator('#sheet [data-act=gift]').isDisabled(), 'no gift without clean money');
+// what a touched figure means is written under it on the page, never in a bubble over the rest (Nicolas, 2026-11-25)
+await page.click('#sheet .tile >> nth=0');
+assert.equal(await page.locator('#sheet .why').count(), 1, 'the words open under the figure');
+assert.equal(await page.locator('#tip.on').count(), 0, 'and no bubble covers the page');
+await page.click('#sheet .tile >> nth=0');
+assert.equal(await page.locator('#sheet .why').count(), 0, 'a second touch puts them away');
 await page.click('#sheet [data-act=close]');
 const kept = await page.evaluate(() => { const g = window.__ashport.game(), was = g.family.clean || 0; g.family.clean = 2000; return was; });
 await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
@@ -230,7 +236,7 @@ assert.match(await page.textContent('#veil.on'), /Your reign[\s\S]*half the stre
 assert.equal(await page.locator('#veil.on .road .step.now').count(), 1, 'the step the family stands on is marked');
 await shot('c2b-goal');
 await page.evaluate(() => document.querySelector('#veil.on [data-act=close]').click());
-assert.match(await page.textContent('.lab.capo .say'), /[A-Z]{4,}.*\d/, 'what his capo is doing, and his power');
+assert.match(await page.textContent('.lab.capo .say'), /^[A-Z][A-Z %+0-9]{3,}.*\d/, 'what his capo is doing, and his power');
 assert.ok((await page.evaluate(() => window.__ashport.map().labels().filter((l) => l.ground).map((l) => l.id))).length > 0);
 assert.match(await page.evaluate(() => [...document.querySelectorAll('.lab.sm')].map((e) => e.textContent).join(' | ')), /\d+%/, 'a street name says what the family holds of it');
 await page.evaluate(() => document.querySelector('[data-account]').click());
