@@ -41,7 +41,8 @@
       var p = PEOPLE[id];
       if (!free(id)) return;
       if (gone[p.mentor] === 'kill') return;
-      if (p.mentor && f.men[p.mentor] && clubOf(c, p.mentor) && run(c, p.mentor).length >= RULES.vouch) {
+      // (a man the boss is already paying for has given his word: he waits for the money even if his mentor loses a place meanwhile)
+      if (p.mentor && f.men[p.mentor] && clubOf(c, p.mentor) && (run(c, p.mentor).length >= RULES.vouch || (f.promised || {})[id])) {
         add(id, 'rise', p.mentor, first(p.mentor) + ' runs ' + NUMBER[RULES.vouch] + ' places and vouches for him');
       }
       if (p.key && ours.some(function (q) { return q.key === p.key; })) add(id, 'figure', p.key, 'He ran the ' + KEYS[p.key].name + ' before it was ours');

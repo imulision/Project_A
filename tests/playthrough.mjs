@@ -95,9 +95,11 @@ await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40 &
 
 const parked = () => page.waitForFunction(() => !window.__ashport.map().labels().some((l) => l.capo && l.riding), null, { timeout: 30000 });      // his face rides his car while he drives
 await parked(); await page.waitForTimeout(200);
+// (a piece of news slides over the map for a few seconds: the finger waits until none lies on his face)
+await page.waitForFunction(() => { const r = document.querySelector('.lab.capo').getBoundingClientRect(), e = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !(e && e.closest('.news')); }, null, { timeout: 30000 });
 const face = await page.locator('.lab.capo').boundingBox(), fx = face.x + face.width / 2, fy = face.y + face.height / 2;
 await page.mouse.move(fx, fy); await page.mouse.down(); await page.mouse.move(fx + 40, fy + 30, { steps: 4 }); await page.mouse.move(fx + 90, fy + 60, { steps: 4 }); await page.mouse.up();
-await page.waitForTimeout(300);
+await page.waitForTimeout(900);      // (a slow machine draws a few frames a second: the labels follow at the next one)
 assert.equal(await page.locator('#veil.on').count(), 0, 'a drag is not a touch');
 const moved = await page.locator('.lab.capo').boundingBox();
 assert.ok(Math.hypot(moved.x - face.x, moved.y - face.y) > 40, 'the map followed the finger (' + Math.round(moved.x - face.x) + ', ' + Math.round(moved.y - face.y) + ')');
@@ -206,10 +208,35 @@ assert.ok(!hit.hud && !hit.bar, 'the usual figures step aside during a hit'); as
 assert.ok(hit.end.length > 0 && hit.tally > 0, 'the end says what was won and what it cost (' + hit.end + ')');
 assert.ok(!hit.after && hit.hudBack && hit.out === 0, 'back to the town: the figures are back, nothing stays lit');
 
+// a dilemma: two of his people against each other, read on one card with both faces, and every way out says what it brings and costs
+await page.evaluate(() => { const A = window.__ashport, E = window.AshportEmpire, g = A.game(), shut = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (shut) shut.click(); E.view(g).matters.forEach((m) => E.command(g, { type: 'decide', id: m.id, choice: m.choices[m.choices.length - 1].id })); g.family.dirty += 2000; const day = g.month * E.TICKS_PER_MONTH + g.ticks; window.__dil = (window.AshportAudience.bring(g, 'blood', day) || window.AshportAudience.bring(g, 'debt', day)).kind; });
+await page.evaluate(() => { const shut = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (shut) shut.click(); window.__ashport.draw(); (document.querySelector('#alerts [data-requests]') || document.getElementById('clock')).click(); });      // (the page draws what the day brought: he opens what waits for him)
+await page.waitForSelector('#veil.on .card.dilemma');
+const dil = await page.evaluate(() => { const c = document.querySelector('#veil.on .card.dilemma'); return { kind: window.__dil, faces: c.querySelectorAll('.versus img, .versus svg, .versus .face').length, versus: !!c.querySelector('.versus'), ways: [...c.querySelectorAll('[data-choice]')].map((b) => b.textContent.replace(/\s+/g, ' ').trim()) }; });
+if (dil.kind === 'blood') assert.ok(dil.versus, 'the two sides face each other on the card');
+assert.equal(dil.ways.length, 3, 'three ways out: ' + dil.ways.join(' / '));
+await shot('c9-dilemma');
+await page.click('#veil.on .card.dilemma [data-choice]:not([disabled])');
+assert.equal(await page.evaluate(() => window.AshportEmpire.view(window.__ashport.game()).matters.length), 0, 'the boss has chosen');
+assert.match(await page.evaluate(() => { const j = window.__ashport.game().journal; return j[j.length - 1].label; }), /\w/);
+// "Next": the days run until something happens, several a beat, and the button says so while they do
+await page.evaluate(() => { const q = document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); const g = window.__ashport.game(); if (g.paused) window.AshportEmpire.command(g, { type: 'resume' }); });
+const dayOf = () => page.evaluate(() => { const g = window.__ashport.game(); return g.month * window.AshportEmpire.TICKS_PER_MONTH + g.ticks; });
+const skipFrom = await dayOf();
+await page.click('#skip');
+assert.equal(await page.evaluate(() => document.getElementById('skip').classList.contains('on')), true, 'the button is lit while the days run');
+const ran = await page.evaluate(() => { const A = window.__ashport, E = window.AshportEmpire; let n = 0; while (E.hud(A.game()).skipping && n < 60) { A.beat(); n++; } return n; });
+assert.ok(ran > 0 && ran < 60, 'the days stop running at the first news (' + ran + ' beats)');
+assert.ok(await dayOf() - skipFrom >= ran, 'at least a day a beat');
+assert.equal(await page.evaluate(() => document.getElementById('skip').classList.contains('on')), false, 'and the button goes out');
+await page.evaluate(() => { for (let i = 0; i < 4; i++) { const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } const b = document.querySelector('#call .end [data-act=unlive]') || document.querySelector('#call [data-act=unlive]'); if (b) b.click(); });
+
 // time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
 // (a load of cash is on the road to the next city, so that something drives: cars go by the time that really passes and the town may be quiet)
 await page.evaluate(() => { const A = window.__ashport, v = A.view(), M = window.AshportMapView, r = v.routes[0]; A.map().send(M.convoysTurf(M.planEmpire(v, window.AshportWorld.CITIES), [{ from: r.from, to: r.to, cargo: 'cash', amount: 500, days: 40 }])); });
 await page.waitForFunction(() => window.__ashport.map().labels().some((l) => l.car), null, { timeout: 10000 });
+// (whatever waits for the boss's word is answered first: the banner of a time that stands still for nothing is the one read here)
+await page.evaluate(() => { const A = window.__ashport, E = window.AshportEmpire, g = A.game(); E.view(g).matters.forEach((m) => E.command(g, { type: 'decide', id: m.id, choice: m.choices[m.choices.length - 1].id })); g.paused = false; A.beat(); });
 await page.click('#pause');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped')), true);
 await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });      // the camera has come back from the hit

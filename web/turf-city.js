@@ -97,6 +97,32 @@
     }
     return best && { x: best.x, y: best.y };
   }
+  // Where the family starts: the free block where the rivals weigh least on every block within `RULES.room.wide` of it
+  // (a block outside the city, or one of their places, counts as a wall). Never in a corner, whatever the deal.
+  function homeStreet(c) {
+    var K = RULES.room, wall = 2 * RULES.press, best = null;
+    for (var y = 1; y < c.h - 1; y++) for (var x = 1; x < c.w - 1; x++) {
+      if (!inside(c, x, y) || at(c, x, y)) continue;
+      var r = 0;
+      for (var wy = -K.wide; wy <= K.wide; wy++) for (var wx = -K.wide; wx <= K.wide; wx++) {
+        var qx = x + wx, qy = y + wy, b = inside(c, qx, qy) ? at(c, qx, qy) : null;
+        r += !inside(c, qx, qy) ? wall : b && b.owner !== 'family' ? wall : hold(c, qx, qy).rival;
+      }
+      if (!best || r < best.r) best = { x: x, y: y, r: r };
+    }
+    return best && { x: best.x, y: best.y };
+  }
+  // The family's first street is its own: the rivals' places within `RULES.room.clear` of it are gone before the first
+  // day (key places and headquarters stay). Whatever the deal, the first man has streets to open on.
+  function clearing(c, x, y) {
+    var gone = 0;
+    everyPlace(c).forEach(function (p) {
+      if (p.owner === 'family' || p.kind === 'key' || p.kind === 'hq' || far(x, y, p.x, p.y) > RULES.room.clear) return;
+      delete c.blocks[key(p.x, p.y)]; gone += 1;
+    });
+    if (gone) changed(c);
+    return gone;
+  }
 
   // The street name a block is on: its number, then the zone itself.
   function zoneAt(c, x, y) {
@@ -350,7 +376,7 @@
 
   function others(c, f, capo) { return Object.keys(f.men).filter(function (id) { return id !== capo && clubOf(c, id); }); }
 
-  var api = { town: town, purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing,
+  var api = { town: town, purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing, homeStreet: homeStreet, clearing: clearing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
       hqOf: hqOf, raiseHq: raiseHq, hqStage: hqStage, sizeHq: sizeHq, razeHq: razeHq, clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
       taste: taste, others: others };

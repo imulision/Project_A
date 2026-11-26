@@ -12,6 +12,7 @@
     minHold: 8,         // below this, nobody holds the block
     edge: 1.25,         // one side must press this much harder than the other to own the streets
     near: 2,            // a capo opens within this many blocks of a place he runs
+    room: { wide: 3, clear: 3 }, // where a family lands: how far around the rivals' weight is counted, and how far around its first club their places are cleared before the first day
     reach: [6, 10, 15, 20], // places a Soldier, a Capo, a Veteran and a Legend can run
     dearer: 0.12,       // every place a capo runs makes his next one this much dearer
     trade: 2.5,         // how much more a capo wants the place that is his trade
@@ -24,6 +25,9 @@
     bastion: 1,         // around a key place the rivals hold the streets are theirs: no capo opens or takes a place within this many blocks of it
     vouch: 6,           // places a capo runs before he brings his man to the boss's door // a place is turned into another trade when that trade would be worth this much more there; at this part of the price of a new one; and then left alone this many months
     purse: 600,         // dirty $ a capo arrives with
+    // the gang next door: how far from his own places a hard man looks for a rival's place to go for on the boss's word, what the guns cost the boss,
+    // the cycles his men take to get there, the loyalty a proud man loses when he is told no, and what a careful capo of the same city loses when the boss says yes
+    nextdoor: { far: 5, cost: 300, cycles: 1, face: 4, frets: 3, proud: 60 },
     club: 150,          // dirty $ a month a social club makes on its own: no capo is ever left with nothing
     owed: 4,            // cycles of pay the men of a place can be owed at most, when no car comes for its takings
     wage: 100,          // dirty $ a month for the men of one place

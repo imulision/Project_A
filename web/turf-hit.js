@@ -37,9 +37,13 @@
   // Is this take a live hit: gun in hand, on a place the rivals press hard on. A key place stays the boss's own affair.
   function guarded(c, o) {
     if (o.way !== 'force' || o.key || o.kind === 'key' || o.kind === 'hq') return false;
+    if (o.live) return true; // sent on the boss's own word: he watches it
     var b = at(c, o.x, o.y);
     return !!b && b.owner !== 'family' && C.hold(c, o.x, o.y).rival >= RULES.hit.guarded;
   }
+  // The men a capo brings, and the men who guard a place.
+  function crew(f, capo) { var m = (f && f.men && f.men[capo]) || { rank: 0 }; return RULES.hit.crew + Math.round(who(capo).muscle / 2) + (m.rank || 0); }
+  function guards(c, x, y) { var b = at(c, x, y); return RULES.hit.guard + RULES.hit.perLevel * ((b && b.level) || 1) + Math.floor(C.hold(c, x, y).rival / RULES.hit.perPress); }
   function tollOf(capo) { return Math.max(0.2, RULES.hit.toll - RULES.hit.grit * who(capo).muscle); }
   // The men of ours a step costs: the fewest and the most.
   function cost(h) { var n = Math.round(h.guards[h.stage] * tollOf(h.capo)); return { lo: n, hi: n + 1 }; }
@@ -135,11 +139,11 @@
   }
   // The men arrive: the street is fought at once, then the capo waits for a word at the door.
   function open(c, f, o, events) {
-    var K = RULES.hit, b = at(c, o.x, o.y), p = who(o.capo), m = f.men[o.capo] || { rank: 0 };
-    var total = K.guard + K.perLevel * (b.level || 1) + Math.floor(C.hold(c, o.x, o.y).rival / K.perPress), g0 = Math.ceil(total * K.split[0]), g1 = Math.ceil(total * K.split[1]);
+    var K = RULES.hit, b = at(c, o.x, o.y);
+    var total = guards(c, o.x, o.y), g0 = Math.ceil(total * K.split[0]), g1 = Math.ceil(total * K.split[1]);
     c.hitSeq = (c.hitSeq || 0) + 1;
     var h = { id: c.id + ':hit' + c.hitSeq, capo: o.capo, x: o.x, y: o.y, kind: b.kind, rival: b.owner, op: o, stage: 0, lost: 0, last: 0,
-              ours: K.crew + Math.round(p.muscle / 2) + (m.rank || 0), theirs: total, guards: [g0, g1, Math.max(0, total - g0 - g1)] };
+              ours: crew(f, o.capo), theirs: total, guards: [g0, g1, Math.max(0, total - g0 - g1)] };
     c.hits = c.hits || []; c.hits.push(h);
     events.push(tell(c, h, 'start', { label: first(o.capo) + ' hits the ' + b.owner + 's\' ' + site(h).toLowerCase() + ' in ' + C.zoneOf(c, o.x, o.y).name }));
     h.last = fight(c, h);
@@ -174,7 +178,7 @@
   }
   function on(c, capo) { return (c.hits || []).filter(function (h) { return h.capo === capo; })[0] || null; }
 
-  var api = { STAGES: STAGES, guarded: guarded, open: open, pass: pass, call: call, view: view, on: on, setLand: function (fn) { land = fn; } };
+  var api = { STAGES: STAGES, crew: crew, guards: guards, guarded: guarded, open: open, pass: pass, call: call, view: view, on: on, setLand: function (fn) { land = fn; } };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfHit = api;
 })(typeof self !== 'undefined' ? self : this);

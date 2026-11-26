@@ -153,7 +153,7 @@ test('twenty years of a boss who says yes and has the family learn what his capo
 });
 
 test('money asked for a place is a decision like the others: a year on, the game says whether the place is ours', () => {
-  const g = E.createGame({ capo: 'dutch' });
+  const g = E.createGame({ capo: 'dutch', seed: 2 }); // (a deal where Dutch ends up hemmed in: a family starts with room around it, and many never ask)
   let ask = null;
   for (let m = 1; m <= 240 && !ask; m++) {
     for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
