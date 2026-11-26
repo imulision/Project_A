@@ -1480,3 +1480,44 @@ test('time stopped says who waits, and for what', () => {
   assert.equal(C.clock({ paused: true, pending: 0 }, view).why, 'Tap Play to go on');
   assert.equal(C.clock({ paused: false }, view), null);
 });
+
+// The man across the street, in full: his temper and what works against him, whom he hates and how close it is to blood, the price on a
+// man's head and the odds he lives, and when he raids next.
+test('the rival chief shows his temper in plain words, his grudges against each capo, a price on a head, and his next raid', () => {
+  const I = require('../web/icons.js');
+  const chief = { id: 'viktor', name: 'Viktor Novak', family: 'Northside', strength: 60, vendetta: 0, last: null, next: 2,
+    temper: { id: 'hothead', name: 'Hothead', does: 'Raids every 72 days, and harder', answer: 'Throw back his raids: he rests after each one' },
+    hates: [{ capo: 'sal', level: 5, warn: 4, contract: 6 }, { capo: 'mae', level: 1, warn: 4, contract: 6 }],
+    contract: { capo: 'sal', months: 3, odds: 47, price: 1800 }, word: null };
+  const html = C.chief({ id: 'calder', rival: 'Northside', chief });
+  assert.match(html, /Hothead/); assert.match(html, /Raids every 72 days, and harder/);
+  assert.match(html, /What works against him[\s\S]*Throw back his raids/, 'what to do against him is said in plain words');
+  assert.match(html, /Next raid in 48 days/);
+  const grudges = html.slice(html.indexOf('class="grudges"'));
+  assert.ok(grudges.indexOf(I.portrait('sal')) >= 0 && grudges.indexOf(I.portrait('mae')) > grudges.indexOf(I.portrait('sal')), 'each capo he hates, with his face, the most hated first');
+  assert.match(grudges, /style="width:83%"/, 'five points of six');
+  assert.match(grudges, /class="tick warn" style="left:67%"/); assert.match(grudges, /class="tick blood" style="left:100%"/);
+  assert.match(html, /class="move no contract"[\s\S]*A price on Sal('|&#39;)s head[\s\S]*72 days[\s\S]*47 in 100/);
+  assert.doesNotMatch(html, /data-act="requests"/, 'nothing waits for the boss');
+  const asks = C.chief({ id: 'calder', rival: 'Northside', chief: { ...chief, contract: null, word: { kind: 'ultimatum', capo: 'sal', months: 2 } } });
+  assert.match(asks, /data-act="requests"[^>]*>[\s\S]*He waits for your answer/);
+  assert.doesNotMatch(C.chief({ id: 'calder', rival: 'Northside', chief: { ...chief, hates: [], contract: null, temper: null } }), /class="grudges"|What works/, 'an old save without them shows nothing');
+});
+
+test('what a chief demands is brought with his face, the capo it is about beside him', () => {
+  const I = require('../web/icons.js');
+  const m = { id: 'm1', kind: 'price', chief: 'viktor', capo: 'sal', city: 'calder', title: 'A price on Sal\'s head', says: 'Viktor has paid men', choices: [{ id: 'yes', label: 'Pay Viktor', cost: 900, money: 'dirty' }, { id: 'no', label: 'Refuse' }] };
+  const html = C.matterCard(m, { dirty: 5000, clean: 0 });
+  const face = html.indexOf(I.portrait('viktor')), his = html.indexOf(I.portrait('sal'));
+  assert.ok(face >= 0 && his > face, 'the chief first, the capo on his corner');
+  assert.match(html, /class="mini chief"/);
+  assert.doesNotMatch(C.matterCard({ ...m, chief: undefined, kind: 'line' }, { dirty: 5000, clean: 0 }), /mini chief/);
+});
+
+test('the words of a chief are news in their colours: a contract and a man shot are bad, a chief who falls is good', () => {
+  const I = require('../web/icons.js');
+  ['ultimatum', 'contract', 'murdered', 'wounded'].forEach((type) => assert.ok(C.bad({ type }), type + ' is bad news'));
+  ['fallen', 'dissolved', 'survived'].forEach((type) => assert.ok(C.good({ type }), type + ' is good news'));
+  ['ultimatum', 'contract', 'murdered', 'wounded', 'survived', 'fallen', 'succeeds', 'dissolved', 'answered'].forEach((type) => assert.ok(I.has(C.eventIcon({ type })), type + ' has its icon'));
+  assert.equal(C.eventIcon({ type: 'contract' }), 'target'); assert.equal(C.eventIcon({ type: 'murdered' }), 'grave');
+});

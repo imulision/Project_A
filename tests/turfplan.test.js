@@ -847,3 +847,10 @@ test('a capo already on his way with the money is said on his way, then at work:
   assert.equal(at.state, 'works');
   assert.match(C.nextLine([on], 0), /On his way with the money/); assert.match(C.nextLine([at], 0), /At work on it/);
 });
+
+test('a man shot at by a rival chief is gunfire on his club; a chief who falls is a burst of gold over his headquarters', () => {
+  const p = M.planEmpire(E.view(play(30)), global.AshportWorld.CITIES);
+  const fx = M.effectsTurf([{ type: 'murdered', city: 'ashport', x: 4, y: 10 }, { type: 'survived', city: 'ashport', x: 4, y: 10 }, { type: 'wounded', city: 'ashport', x: 4, y: 10 },
+    { type: 'fallen', city: 'ashport', x: 5, y: 9 }, { type: 'dissolved', city: 'ashport', x: 5, y: 9 }], p);
+  assert.deepEqual(fx.map((f) => f.kind), ['gunfire', 'gunfire', 'gunfire', 'promotion', 'promotion']);
+});

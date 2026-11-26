@@ -453,7 +453,7 @@
     });
     return out;
   }
-  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', learned: 'promotion' };      // (a place opened is news: its works were seen while the capo stood there)
+  var FXOF = { vendetta: 'gunfire', betrayal: 'betrayal', hijack: 'gunfire', seizure: 'police', burnt: 'fire', repelled: 'gunfire', bust: 'police', rank: 'promotion', learned: 'promotion', murdered: 'gunfire', survived: 'gunfire', wounded: 'gunfire', fallen: 'promotion', dissolved: 'promotion' };      // (a place opened is news: its works were seen while the capo stood there)
   var PAID = { moving: 1, car: 1, truck: 1 };      // what a capo paid out of his own purse when it happened (one who only asks has spent nothing yet; what the boss pays leaves his headquarters, not the place)
   // effectsTurf(events, plan): fire where a place burns, gunfire where one is fought over, police lights on a bust.
   function effectsTurf(events, plan) {

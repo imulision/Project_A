@@ -47,10 +47,12 @@
   // What a vehicle hauls: its picture, its colour, the words for it, and what its load is counted in.
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'ask', decided: 'yes', opened: 'yes', enlarged: 'yes', converted: 'yes', gaveup: 'no', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'ask', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
-                won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle' };
-  var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1 };
+                won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle',
+                ultimatum: 'letter', contract: 'target', murdered: 'grave', wounded: 'attack', survived: 'muscle', fallen: 'ambition', succeeds: 'ambition', dissolved: 'yes', answered: 'ask' };
+  var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1, ultimatum: 1, contract: 1, murdered: 1, wounded: 1 };
+  var GOOD = { won: 1, fallen: 1, dissolved: 1, survived: 1 };      /* a rival chief who falls, a man who lives through the shots */
   var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
-  var good = function (e) { return e.type === 'won' || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
+  var good = function (e) { return !!GOOD[e.type] || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
@@ -320,7 +322,8 @@
   var MATTER = { line: 'loyalty', share: 'tribute', learn: 'yes', advance: 'dirty', captain: 'heat', truce: 'attack', bail: 'men', feast: 'gift', cargo: 'truck', favor: 'men' };
   function matterCard(m, hud) {
     var has = function (ch) { return ch.money === 'clean' ? hud.clean || 0 : hud.dirty || 0; };
-    return voice(m.capo, '<div class="card ask matter">' + head(m.capo, m.title, esc(m.says || '')) +
+    var top = m.chief ? '<div class="head"><div class="mini chief">' + I.portrait(m.chief) + '<span class="his">' + I.portrait(m.capo) + '</span></div><div><h2>' + esc(m.title) + '</h2><p>' + esc(m.says || '') + '</p></div></div>' : head(m.capo, m.title, esc(m.says || ''));      /* a chief's word: his face, the capo it is about on its corner */
+    return voice(m.capo, '<div class="card ask matter">' + top +
       '<div class="sides n' + m.choices.length + '">' + m.choices.map(function (ch, i) { var poor = ch.cost > 0 && ch.cost > has(ch);
         return '<div class="side' + (i === 0 && m.choices.length === 2 ? ' yes' : '') + '">' + (ch.cost > 0 ? '<b class="out">\u2212' + money(ch.cost) + ' ' + (ch.money === 'clean' ? 'clean' : 'dirty') + '</b>' : '') +
           (ch.gives ? '<span>' + esc(ch.gives) + '</span>' : '') + (ch.costs ? '<span class="bad">' + esc(ch.costs) + '</span>' : '') + (poor ? '<small class="short">Short by ' + money(ch.cost - has(ch)) + '</small>' : '') +
@@ -661,8 +664,26 @@
     var rt = view ? rivalTrend(view, c.id) : null, arrow = rt && rt.tone !== 'idle' ? ' <span class="rt ' + rt.tone + '">' + (rt.diff < 0 ? '\u25BC' : '\u25B2') + ' ' + (rt.diff < 0 ? '\u2212' : '+') + Math.abs(rt.diff) + ' in ' + months(12) + '</span>' : '';
     return '<h3 class="sub2">The ' + esc(h.family || c.rival || 'rival') + ' family</h3><div class="chief"><span class="slot">' + I.portrait(h.id) + '</span><div><b>' + esc(h.name) + '</b><small>Head of the ' + esc(h.family || c.rival || 'rival') + ' family · ' + Math.round(h.strength || 0) + '% of the streets' + arrow + '</small>' +
       '<span class="bar"><i style="width:' + Math.round(h.strength || 0) + '%"></i></span></div></div>' +
+      temper(h) + grudges(h) +
+      (h.contract ? '<div class="move no contract">' + icon('target') + '<span><b>A price on ' + esc(first(nameOf(h.contract.capo))) + '\'s head.</b> His men shoot in ' + months(h.contract.months) + ': ' + esc(first(nameOf(h.contract.capo))) + ' lives ' + h.contract.odds + ' in 100</span></div>' : '') +
+      (h.word ? '<div class="acts col">' + button('requests', {}, icon(h.word.kind === 'ultimatum' ? 'letter' : 'target') + ' He waits for your answer', { cls: 'go' }) + '</div>' : '') +
       (h.vendetta > 0 ? '<div class="move no">' + icon('attack') + '<span><b>Vendetta: ' + months(h.vendetta) + '.</b> You took one of his places by force: his men hit twice as hard</span></div>' : '') +
       (h.last && h.last.label ? '<div class="acts col">' + button('show', { city: c.id, x: h.last.x, y: h.last.y }, icon(EVENT[h.last.type] || 'time') + ' ' + esc(h.last.label) + '<small style="color:var(--dim)">His last move. Touch to see where</small>') + '</div>' : '');
+  }
+  // temper(h): what kind of man he is, what he does, and in plain words what works against him; then when he raids next.
+  function temper(h) {
+    var t = h.temper;
+    return (t ? '<div class="move temper">' + icon('ambition') + '<span><b>' + esc(t.name) + '.</b> ' + esc(t.does) + '<small><b>What works against him:</b> ' + esc(t.answer) + '</small></span></div>' : '') +
+      (typeof h.next === 'number' ? '<div class="move">' + icon('raid') + '<span>Next raid in ' + months(Math.max(1, h.next)) + '</span></div>' : '');
+  }
+  // grudges(h): each capo he hates, the most hated first, on a gauge with its two marks: his word at the first, blood at the end.
+  function grudges(h) {
+    var list = h.hates || []; if (!list.length) return '';
+    var pc = function (x, of) { return Math.round(Math.min(1, x / of) * 100); };
+    return '<div class="grudges"><small>He holds it against</small>' + list.map(function (g) {
+      return '<div class="grudge' + (g.level >= g.warn ? ' hot' : '') + '"><span class="slot sm">' + I.portrait(g.capo) + '</span><span class="gauge-line"><b>' + esc(first(nameOf(g.capo))) + '</b><span class="bar"><i style="width:' + pc(g.level, g.contract) + '%"></i>' +
+        '<em class="tick warn" style="left:' + pc(g.warn, g.contract) + '%"></em><em class="tick blood" style="left:100%"></em></span></span></div>'; }).join('') +
+      '<small class="legend">At the first mark he asks for a place back; at the end, a price on the man\'s head</small></div>';
   }
   // What the capos promised when the boss said yes, until the day it is judged.
   function promises(c) {
@@ -1109,7 +1130,7 @@
     };
   }
   var api = { brief: brief, goalLine: goalLine, reign: reign, won: won, newsworthy: newsworthy, voice: voice, day: day, dayNo: dayNo, CYCLE: CYCLE, nextLine: nextLine, claim: claim, books: books, booksCard: booksCard, moneyTile: moneyTile, tillBar: tillBar, restart: restart, rivalTrend: rivalTrend, pin: pin, bad: bad, decisions: decisions, stall: stall, stallLine: stallLine, stallsCard: stallsCard, stallsOf: stallsOf, nextRank: nextRank, cityTrend: cityTrend, cityMark: cityMark, zoneShares: zoneShares, zoneMark: zoneMark, powerRows: powerRows, ranking: ranking, moments: moments, moment: moment, power: power, powerLog: powerLog, powerTrend: powerTrend, powerLine: powerLine, trend: trend, trendLine: trendLine, trendMark: trendMark, rank: rank, rankLine: rankLine, doing: doing, account: account, accountCard: accountCard, line: line, follows: follows, scars: scars, chief: chief, promises: promises, health: health, healths: healths, healthLine: healthLine, pop: pop, cut: cut, holdings: holdings, esc: esc, money: money, first: first, nameOf: nameOf, funds: funds, WAY: WAY, HAUL: HAUL, EVENT: EVENT, BAD: BAD, untold: untold, curves: curves, hint: hint, hintStrip: hintStrip, moods: moods,
-           eventIcon: eventIcon, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, waitsFor: waitsFor, crowded: crowded, iconName: iconName, planWord: planWord };
+           eventIcon: eventIcon, good: good, matterCard: matterCard, store: store, moved: moved, delta: delta, fills: fills, linked: linked, wheel: wheel, advice: advice, emptyClubs: emptyClubs, vault: vault, payingLine: payingLine, onItsWay: onItsWay, hitBand: hitBand, hitCall: hitCall, hitEnd: hitEnd, start: start, man: man, requests: requests, chairs: chairs, chair: chair, capo: capo, parting: parting, block: block, blockTip: blockTip, strains: strains, strainBadge: strainBadge, city: city, family: family, know: know, journal: journal, mark: mark, carTip: carTip, haul: haul, FX: FX, fxTip: fxTip, news: news, carLoad: carLoad, change: change, wash: wash, clock: clock, waitsFor: waitsFor, crowded: crowded, iconName: iconName, planWord: planWord };
   ['start', 'requests', 'chairs', 'chair', 'capo', 'parting', 'block', 'city', 'family', 'journal', 'reign', 'won'].forEach(function (k) { api[k] = safe(api[k]); });
   return api;
 });
