@@ -142,7 +142,7 @@
     var base = S.chief(c);
     if (!base) return null;
     var s = P.chiefState(c), t = P.temperOf(c);
-    base.temper = t.id ? { id: t.id, name: t.name, does: P.voice(s.id, t.does), answer: P.voice(s.id, t.answer) } : null; // (a woman who leads is told as one)
+    base.temper = t.id ? { id: t.id, name: t.name, does: P.voice(s.id, t.does.replace(/\{(\w+)\}/g, function (m, k) { return R.days(t[k]); })), answer: P.voice(s.id, t.answer) } : null; // (a woman who leads is told as one)
     base.hates = Object.keys(s.hate).filter(function (id) { return s.hate[id] > 0; }).sort(function (a, b) { return s.hate[b] - s.hate[a]; })
       .map(function (id) { return { capo: id, level: s.hate[id], warn: K.warn, contract: K.contract }; });
     base.contract = s.contract ? { capo: s.contract.capo, months: Math.max(0, s.contract.at - c.month), odds: odds(c, s.contract.capo), price: s.contract.price } : null;
