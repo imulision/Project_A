@@ -83,8 +83,8 @@ export function makeTraffic({ THREE, scene, cam, CITIES, ROADS, T, GEO, CARMATS,
     // a run that is no longer needed is not wiped off the street: the car drives to the end of its way and stops there
     if (!add) for (const [id, a] of agents) if (a.loop && !a.leaving && !seen.has(id)) { a.leaving = true; agents.delete(id); agents.set('old' + (n0++), a); }
   }
-  function moveAgents(dt, free) {
-    clock.frame(dt, pace, free);
+  function moveAgents(dt, free, real) {
+    clock.frame(real === undefined ? dt : real, pace, free);      /* the timed cars go by the time that really passed, a frame that hung included */
     const pos = dots.geometry.attributes.position, col = dots.geometry.attributes.color; let n = 0;
     out.clear(); for (const a of agents.values()) if (a.veh) out.add(a.veh);      // the cars that are out on a trip of their own are not also parked by their club
     for (const [id, a] of agents) {

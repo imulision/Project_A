@@ -88,7 +88,7 @@ await shot('c2-first-club');
 // drove to his first place and works there, his car at its door, whatever the frames missed
 const works = await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40; i++) { const k = A.view().cities.flatMap((c) => c.capos).find((m) => m.errand && m.errand.step === 'works'); if (k) return k.id; A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } return null; });
 assert.ok(works, 'a capo goes to work on a place of his');
-await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+await page.waitForTimeout(1200);      // (the last day it is behind, it makes up within the second, without a jump)
 const atWork = await page.evaluate((id) => window.__ashport.map().cars().filter((c) => c.kind === 'capo' && c.capo === id), works);
 assert.ok(atWork.length === 1 && atWork[0].there, 'his one car stands at the place he works on ' + JSON.stringify(atWork));
 await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40 && A.view().cities.some((c) => c.capos.some((m) => m.errand)); i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } });      // then he drives home
@@ -207,6 +207,9 @@ assert.ok(hit.end.length > 0 && hit.tally > 0, 'the end says what was won and wh
 assert.ok(!hit.after && hit.hudBack && hit.out === 0, 'back to the town: the figures are back, nothing stays lit');
 
 // time that stands still is said in large, and a touch on the banner starts it again; the laundries say what they wash
+// (a load of cash is on the road to the next city, so that something drives: cars go by the time that really passes and the town may be quiet)
+await page.evaluate(() => { const A = window.__ashport, v = A.view(), M = window.AshportMapView, r = v.routes[0]; A.map().send(M.convoysTurf(M.planEmpire(v, window.AshportWorld.CITIES), [{ from: r.from, to: r.to, cargo: 'cash', amount: 500, days: 40 }])); });
+await page.waitForFunction(() => window.__ashport.map().labels().some((l) => l.car), null, { timeout: 10000 });
 await page.click('#pause');
 assert.equal(await page.evaluate(() => document.body.classList.contains('stopped')), true);
 await page.waitForFunction(() => !window.__ashport.map().stats().moving, null, { timeout: 30000 });      // the camera has come back from the hit
