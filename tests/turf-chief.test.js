@@ -275,3 +275,27 @@ test('a game saved after an old family is gone loads without raising its headqua
   assert.equal(T.hqOf(back, 'rival'), null);
   assert.equal(T.chief(back, f), null);
 });
+
+test('a woman at the head of the family is told as one', () => {
+  const { c, f } = neighbours();
+  c.chief = { id: 'nora', temper: 'schemer' };
+  for (const id of ['finn', 'sean']) T.join(f, id);
+  const e = months(c, f, 1).find((x) => x.type === 'fallen');
+  assert.ok(e);
+  assert.match(e.label, /Nora Callahan is finished: her lieutenants/);
+});
+
+test('his words about a woman say she and her', () => {
+  const g = E.createGame({ capo: 'mae' }), c = g.cities[0];
+  g.audience = { last: 0, seen: { 'line:ashport': 0 }, open: null };
+  const spot = T.places(c, 'mae')[0];
+  T.open(c, spot.x + 1, spot.y, { owner: 'family', kind: 'front', capo: 'mae' });
+  T.spite(c, 'mae', K.warn, { x: spot.x + 1, y: spot.y });
+  T.stepMonth(c, g.family); A.raise(g, 5, false);
+  const say = (m) => [m.title, m.says].concat(...m.choices.map((q) => [q.gives || '', q.costs || ''])).join(' ');
+  assert.doesNotMatch(say(A.matters(g)[0]), /\b(he|his|him)\b/i, say(A.matters(g)[0]));
+  A.decide(g, A.matters(g)[0].id, 'no', 5, () => {});
+  T.stepMonth(c, g.family); A.raise(g, 40, false);
+  assert.equal(A.matters(g)[0].kind, 'price');
+  assert.doesNotMatch(say(A.matters(g)[0]), /\b(he|his|him)\b/i, say(A.matters(g)[0]));
+});

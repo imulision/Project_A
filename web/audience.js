@@ -111,20 +111,20 @@
     heldBy(g).forEach(function (c) {
       var k = T.chief(c, g.family), w = k && k.word;
       if (found || !w || a.seen['chief:' + c.id + ':' + w.kind + ':' + w.since] !== undefined) return;
-      var who = first(w.capo), him = k.name, temper = k.temper ? ' (' + k.temper.name.toLowerCase() + ')' : '', within = days(Math.max(1, w.months) * T.RULES.days);
+      var who = first(w.capo), him = k.name, short = him.split(' ')[0], said = function (text) { return T.voice(w.capo, text); }, temper = k.temper ? ' (' + k.temper.name.toLowerCase() + ')' : '', within = days(Math.max(1, w.months) * T.RULES.days);
       var m = { key: 'chief:' + c.id + ':' + w.kind + ':' + w.since, kind: w.kind, chief: k.id, capo: w.capo, city: c.id, x: w.x, y: w.y };
       if (w.kind === 'ultimatum') {
         var place = w.place.toLowerCase();
         m.title = him + ' wants ' + who + '\'s ' + place + ' back';
-        m.says = him + temper + ' holds it against ' + who + ': he took it from him. Give it back and ' + who + ' is left alone; refuse and he puts a price on ' + who + '\'s head.';
-        m.choices = [{ id: 'yes', label: 'Give it back', gives: him + ' forgets what he holds against ' + who, costs: 'The ' + place + ' is the ' + c.rival + 's\' again' },
-                     { id: 'no', label: 'Refuse', gives: who + ' keeps his ' + place, costs: 'A price on ' + who + '\'s head: men will come for him' }];
+        m.says = him + temper + ' holds it against ' + who + ', who took it from the ' + c.rival + 's. Give it back and ' + short + ' lets ' + who + ' be; refuse and ' + short + ' puts a price on ' + who + '\'s head.';
+        m.choices = [{ id: 'yes', label: 'Give it back', gives: short + ' drops the grudge against ' + who, costs: 'The ' + place + ' is the ' + c.rival + 's\' again' },
+                     { id: 'no', label: 'Refuse', gives: said(who + ' keeps his ' + place), costs: said('A price on ' + who + '\'s head: men will come for him') }];
       } else {
         var odds = k.contract ? k.contract.odds : 50;
         m.title = 'A price on ' + who + '\'s head';
-        m.says = him + temper + ' has paid men to shoot ' + who + ' within ' + within + '. ' + who + ' lives ' + odds + ' times in 100: his Muscle counts. Pay, and ' + him + ' calls it off.';
-        m.choices = [{ id: 'yes', label: 'Pay ' + him.split(' ')[0], cost: w.price, money: 'dirty', gives: 'The contract is called off, and the grudge with it' },
-                     { id: 'no', label: 'Refuse', gives: 'You keep your money', costs: who + ' is shot at: he dies ' + (100 - odds) + ' times in 100, and half of what he runs goes with him' }];
+        m.says = him + temper + ' has paid men to shoot ' + who + ' within ' + within + '. ' + who + ' lives ' + odds + ' times in 100: Muscle counts. Pay, and ' + short + ' calls it off.';
+        m.choices = [{ id: 'yes', label: 'Pay ' + short, cost: w.price, money: 'dirty', gives: 'The contract is called off, and the grudge with it' },
+                     { id: 'no', label: 'Refuse', gives: 'You keep your money', costs: said(who + ' is shot at: he dies ' + (100 - odds) + ' times in 100, and half of what he runs goes with him') }];
       }
       found = m;
     });
@@ -159,7 +159,7 @@
       says: function (g, a, x) {
         var k = T.chief(x.c, g.family), him = k ? k.name : 'The ' + x.c.rival + 's';
         return { kind: 'truce', capo: voiceOf(g, x.c), chief: k ? k.id : undefined, city: x.c.id, cycles: x.cycles, title: him + ' offers peace in ' + T.town(x.c) + ', for a price',
-          says: 'His men would stop raiding your places for a while. Your capos stay free to do as they like.' + (k && k.temper ? ' ' + k.temper.name + ': ' + k.temper.does.charAt(0).toLowerCase() + k.temper.does.slice(1) + '.' : ''),
+          says: 'The ' + x.c.rival + 's would stop raiding your places for a while. Your capos stay free to do as they like.' + (k && k.temper ? ' ' + k.temper.name + ': ' + k.temper.does.charAt(0).toLowerCase() + k.temper.does.slice(1) + '.' : ''),
           choices: [{ id: 'pay', label: 'Buy the peace', cost: x.cost, money: 'dirty', gives: 'No raid on your places in ' + T.town(x.c) + ' for ' + days(x.cycles * T.RULES.days) }, no('You keep your money', 'They come when they please')] };
       }
     },

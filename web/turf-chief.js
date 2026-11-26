@@ -92,13 +92,13 @@
     var hq = C.hqOf(c, 'rival') || {}, heir = men.filter(function (id) { return !f.men[id] && !(f.gone && f.gone[id]) && (s.fallen || []).indexOf(id) < 0; })
       .sort(function (a, b) { return who(b).ambition - who(a).ambition || (a < b ? -1 : 1); })[0];
     events.push({ type: 'fallen', city: c.id, chief: s.id, family: c.rival, x: hq.x, y: hq.y, how: crossed ? 'alone' : 'beaten',
-                  label: name(s.id) + ' is finished: ' + (crossed ? 'his lieutenants have all crossed to the family' : 'the ' + c.rival + 's are down to a few streets') });
+                  label: name(s.id) + ' is finished: ' + (crossed ? (who(s.id).woman ? 'her' : 'his') + ' lieutenants have all crossed to the family' : 'the ' + c.rival + 's are down to a few streets') });
     c.vendetta = 0;
     if (heir) {
       c.chief = { id: heir, temper: temperFor(heir, s.temper), since: c.month, fallen: (s.fallen || []).concat(s.id) };
       P.chiefState(c);
       events.push({ type: 'succeeds', city: c.id, chief: heir, family: c.rival, temper: c.chief.temper, x: hq.x, y: hq.y,
-                    label: name(heir) + ' takes his place at the head of the ' + c.rival + 's: a ' + K.tempers[c.chief.temper].name.toLowerCase() });
+                    label: name(heir) + ' takes ' + (who(s.id).woman ? 'her' : 'his') + ' place at the head of the ' + c.rival + 's: a ' + K.tempers[c.chief.temper].name.toLowerCase() });
       return true;
     }
     C.everyPlace(c).forEach(function (p) { if (p.owner === c.rival && p.kind !== 'key') delete c.blocks[key(p.x, p.y)]; });
@@ -142,7 +142,7 @@
     var base = S.chief(c);
     if (!base) return null;
     var s = P.chiefState(c), t = P.temperOf(c);
-    base.temper = t.id ? { id: t.id, name: t.name, does: t.does, answer: t.answer } : null;
+    base.temper = t.id ? { id: t.id, name: t.name, does: P.voice(s.id, t.does), answer: P.voice(s.id, t.answer) } : null; // (a woman who leads is told as one)
     base.hates = Object.keys(s.hate).filter(function (id) { return s.hate[id] > 0; }).sort(function (a, b) { return s.hate[b] - s.hate[a]; })
       .map(function (id) { return { capo: id, level: s.hate[id], warn: K.warn, contract: K.contract }; });
     base.contract = s.contract ? { capo: s.contract.capo, months: Math.max(0, s.contract.at - c.month), odds: odds(c, s.contract.capo), price: s.contract.price } : null;
