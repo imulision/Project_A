@@ -5,7 +5,7 @@
 // The rules themselves live in the turf-*.js files, loaded in this order:
 // rules (numbers), people, city (blocks and streets), goods (chains, trucks,
 // takings), streets (plans, rivals), boss (asks, money, feuds), men (doors,
-// table, underboss, partings), family (tree, convoys).
+// table, underboss, partings), chief (the man across the street), family (tree, convoys).
 (function (root) {
   'use strict';
   var D = typeof require === 'function' ? require('./district.js') : root.AshportDistrict;
@@ -18,6 +18,7 @@
   var M = typeof require === 'function' ? require('./turf-men.js') : root.AshportTurfMen;
   var H = typeof require === 'function' ? require('./turf-hit.js') : root.AshportTurfHit;
   var F = typeof require === 'function' ? require('./turf-family.js') : root.AshportTurfFamily;
+  var K = typeof require === 'function' ? require('./turf-chief.js') : root.AshportTurfChief;
   var RULES = R.RULES, RANKS = R.RANKS, TERRAIN = R.TERRAIN, WORTH = R.WORTH, key = R.key, at = R.at;
   var KEYS = P.KEYS, PEOPLE = P.PEOPLE, who = P.who, SCHOOLS = P.SCHOOLS, schoolOf = P.schoolOf, abilities = P.abilities, table = P.table,
       can = P.can, person = P.person, loyalty = P.loyalty, sway = P.sway, mood = P.mood;
@@ -247,7 +248,7 @@
         return { id: id, name: who(id).name, specialty: who(id).specialty, places: everyPlace(c).filter(function (p) { return p.man === id; }).length };
       }).filter(function (l) { return l.places > 0; }),
       rides: (c.rides || []).map(function (r) { return { kind: r.kind, cargo: r.cargo, capo: r.capo, vehicle: r.vehicle || G.carId(r.capo, r.car), from: r.from, to: r.to, amount: r.amount, days: r.days, gone: Math.max(0, Math.min(r.days, B.today(c) - r.left)) }; }), // the boss's money on the road today
-      hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), made: Math.round(Object.keys(f.men).reduce(function (n, id) { return n + (clubOf(c, id) ? f.men[id].income || 0 : 0); }, 0)), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: S.chief(c), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
+      hq: hqs(c, f), coffer: c.away ? { dirty: Math.round(C.purse(c, f).dirty), clean: Math.round(C.purse(c, f).clean), load: RULES.van.loads[((C.hqOf(c, 'family') || {}).stage || 1) - 1] } : undefined, hits: H.view(c), hitLast: c.hitLast || null, keys: keys(c), share: share(c), made: Math.round(Object.keys(f.men).reduce(function (n, id) { return n + (clubOf(c, id) ? f.men[id].income || 0 : 0); }, 0)), cut: B.cutOf(c), cuts: B.cuts(), promises: B.promises(c), chief: K.view(c, f), line: P.lineOf(c), lines: B.lines(), lineHeld: B.lineHeld(c, f), seats: seats(c), takes: takes(c), asks: asks(c), doors: doors(c, f), stalls: stalls(c, f), grudges: grudges(c), feuds: feuds(c), trips: trips(c, f), tree: tree(f), wishes: wishes(c, f),
       trades: trades(c),
       money: { dirty: f.dirty, clean: f.clean || 0, washed: c.washed || 0, washes: washing(c).most, up: flow.up || 0, pay: flow.pay || 0, cut: flow.cut || 0, seized: flow.seized || 0 },
       capos: Object.keys(f.men).filter(function (id) { return clubOf(c, id); }).map(function (id) {
@@ -353,7 +354,7 @@
       if (!k) return;
       var way = wayOf(capo);
       var a = { id: c.id + ':' + k.key, capo: capo, key: k.key, x: k.x, y: k.y, way: way,
-                cost: swell(RULES.keyCost * RULES.take[way].cost, RULES.greed, Math.max(f.crowns || 0, keys(c).filter(function (q) { return q.owner === 'family'; }).length)), months: RULES.take[way].months * RULES.keyMonths,
+                cost: swell(RULES.keyCost * RULES.take[way].cost * P.temperOf(c).walls, RULES.greed, Math.max(f.crowns || 0, keys(c).filter(function (q) { return q.owner === 'family'; }).length)), months: RULES.take[way].months * RULES.keyMonths,
                 why: 'his places stand all around it' };
       a.expects = B.expects(c, capo, k, a.months);
       c.asks.push(a);
@@ -659,7 +660,7 @@
     trap.told = true;
     var held2 = trap.done, cash = held2.cargo === 'cash', gang = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner;
     if (cash) c.flow.hijacked = held2.amount;
-    c.lurk = c.month + RULES.road.every; // they lie low for a while
+    c.lurk = c.month + P.temperOf(c).road; // they lie low for a while (a schemer less long)
     events.push({ type: 'hijack', capo: held2.capo, city: c.id, x: trap.x, y: trap.y, cargo: held2.cargo, amount: held2.amount, by: gang,
               label: 'The ' + gang + 's hold up ' + first(held2.capo) + '\'s ' + (cash ? 'car' : 'truck') + ' in ' + zoneOf(c, trap.x, trap.y).name + ': '
                 + (cash ? R.dollars(held2.amount) : held2.amount + CARGOES[held2.cargo]) + ' gone' });
@@ -669,6 +670,7 @@
     rivalRaids(c, events, f);
     revenge(c, events);
     tempers(c, events);
+    K.month(c, f, events);
   }
   // The men at the door: an underboss takes one in himself, the others knock for the boss.
   function door(c, f, events) {
@@ -839,7 +841,7 @@
     f.study = null;
   }
 
-  var api = { short: B.short, advance: function (c, f, capo) { return B.advance(c, f, capo, plan(c, f, capo)); }, lines: B.lines, cuts: B.cuts, voice: P.voice, dollars: R.dollars, a: R.a, town: C.town, purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: treeOf, advice: advice, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
+  var api = { chief: K.view, chiefOf: P.chiefOf, temperOf: P.temperOf, spite: P.spite, reply: K.reply, short: B.short, advance: function (c, f, capo) { return B.advance(c, f, capo, plan(c, f, capo)); }, lines: B.lines, cuts: B.cuts, voice: P.voice, dollars: R.dollars, a: R.a, town: C.town, purse: C.purse, tripDays: B.tripDays, rideDay: rideDay, hqs: hqs, hqOf: C.hqOf, raiseHq: C.raiseHq, hqStage: C.hqStage, sizeHq: C.sizeHq, razeHq: C.razeHq, call: H.call, clubSpot: M.clubSpot, sway: sway, EVERY: R.EVERY, days: R.days, pass: pass, dayOf: dayOf, gains: C.gains, grip: C.grip, begin: begin, act: act, end: end, stalls: stalls, zoneAt: C.zoneAt, run: C.run, worth: C.worth, line: B.line, keyWorth: B.keyWorth, touch: C.changed, holdings: B.holdings, buy: B.buy, cut: B.cut, loyalty: loyalty, gift: gift, underboss: underboss, table: table, seat: seat, unseat: unseat, abilities: abilities, SCHOOLS: SCHOOLS, convoys: convoys, earns: earns, send: send, partings: partings, part: part, trips: trips, grudges: grudges, feuds: feuds, rule: rule, funds: funds, createFamily: createFamily, tree: treeOf, advice: advice, research: research, wishes: wishes, month: month, view: view, washing: washing, seats: seats, spots: spots, PEOPLE: PEOPLE, person: person, doors: doors, welcome: welcome, crown: crown, KEYS: KEYS, keys: keys, asks: asks, answer: answer, cover: cover, seed: seed, landing: landing, wayOf: wayOf, takes: takes, RANKS: RANKS, liquor: liquor, income: income, join: join, plan: plan, stepMonth: stepMonth, RULES: RULES, TERRAIN: TERRAIN, WORTH: WORTH, createCity: createCity, zoneOf: zoneOf, at: at, open: open, settle: settle, clubOf: clubOf,
               places: places, size: R.size, hold: hold, grip: grip, share: share, frontier: frontier, price: price, tradeOf: tradeOf, wants: wants };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurf = api;
