@@ -89,7 +89,11 @@ test('the streets keep the days of the rules: behind after slow frames, they are
   assert.equal(c.now(), 11, 'a day in a second');
   c.beat(11, 1); for (let i = 0; i < 4; i++) c.frame(0.05, 1);      // a second of time that the frames counted as a fifth of it
   assert.ok(Math.abs(c.now() - 11.2) < 1e-9);
-  c.beat(12, 1); assert.equal(c.now(), 12, 'the next beat brings the cars to the day of the rules');
+  c.beat(12, 1); assert.ok(Math.abs(c.now() - 11.2) < 1e-9, 'no jump at the beat: a car left behind by a few frames is not thrown forward');
+  for (let i = 0; i < 60; i++) c.frame(1 / 60, 1);      // one smooth second after it
+  assert.ok(Math.abs(c.now() - 13) < 0.02, 'it has made up the gap within the second, driving a little faster (' + c.now() + ')');
+  let step = 0, was = c.now(); c.beat(13, 1); for (let i = 0; i < 60; i++) { c.frame(1 / 60, 1); step = Math.max(step, c.now() - was); was = c.now(); }
+  assert.ok(step < 2.5 / 60, 'never more than two and a half frames of road in one frame (' + (step * 60).toFixed(2) + ')');
   c.beat(40, 1); assert.equal(c.now(), 40, 'back from the background: where the rules are');
 });
 test('the streets never run ahead of the rules: while the clock waits (a sheet open), the cars wait at the end of the beat', async () => {

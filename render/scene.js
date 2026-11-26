@@ -757,7 +757,7 @@ function frame(now) {
     // while the game's time stands still nothing drives: every car waits where it is, and leaves again with the clock
     const drive = held ? 0 : dt;
     moveCars(trucks, drive); for (const C of CITIES) if (C.near && C.near.visible) moveCars(C.cars, drive);
-    moveAgents(drive); animateFx(real, now); FRONTMAT.opacity = 0.55 + 0.4 * Math.sin(now * 0.005);
+    moveAgents(drive, false, held ? 0 : real); animateFx(real, now); FRONTMAT.opacity = 0.55 + 0.4 * Math.sin(now * 0.005);
     for (const b of batches.values()) b.instanceMatrix.needsUpdate = true;
     grade.uniforms.t.value = now * 0.001; window.__water.material.uniforms.t.value = now * 0.001;
     renderer.info.reset(); composer.render(); frames++;

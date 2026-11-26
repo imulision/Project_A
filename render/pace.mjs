@@ -31,15 +31,24 @@ export const quality = {
   },
 };
 
-// streetClock(): the days of the game as the streets drive them. They run with the frames at the pace the boss chose, never more
-// than one beat ahead of the rules (a sheet open stops the rules, so the cars wait too), and a beat that finds them behind (frames
-// slower than a twentieth of a second, a page left in the background) brings them to its day at once: a car is where the rules say.
+// streetClock(): the days of the game as the streets drive them. They run with the time of the frames at the pace the boss chose,
+// never more than one beat ahead of the rules (a sheet open stops the rules, so the cars wait too). A beat that finds them a little
+// behind (a frame that hung) lets them make it up within half a second or so, a little faster, never with a jump; more than a day
+// behind (a page left in the background) they are put at once where the rules are.
 // beat(day, span): the rules are at `day`, and the next beat is `span` days on. frame(dt, pace, free): free runs past the beat.
+export const CATCHUP = 0.25;      // seconds: how fast a gap is closed (most of it in half a second)
 export function streetClock() {
-  let day = 0, until = 1, last = -Infinity;
+  let day = 0, until = 1, last = -Infinity, owed = 0;
   return {
     now: () => day,
-    beat(d, span) { if (day < d || d < last) day = d; last = d; until = Math.max(day, d + (span || 1)); },      /* (a day before the last beat: a new game) */
-    frame(dt, pace, free) { day += dt * pace; if (!free && day > until) day = until; if (free) until = Math.max(until, day); return day; },
+    beat(d, span) {
+      if (d < last || d - day > 1) { day = d; owed = 0; }      /* a new game, or back from the background */
+      else owed = Math.max(0, d - day);
+      last = d; until = Math.max(day, d + (span || 1));
+    },
+    frame(dt, pace, free) {
+      const pay = owed * (1 - Math.exp(-dt / CATCHUP)); owed -= pay; if (owed < 1e-4) owed = 0;
+      day += dt * pace + pay; if (!free && day > until) day = until; if (free) until = Math.max(until, day); return day;
+    },
   };
 }
