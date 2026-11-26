@@ -76,7 +76,7 @@
   // (his own: the cars are his business). The
   // first load that leaves one of them is theirs.
   function ambush(c) {
-    if (c.month < (c.lurk || 0) || c.month <= (c.quiet || 0)) return null;
+    if (c.month < (c.lurk || 0) || c.month <= (c.quiet || 0) || (c.chief && c.chief.gone)) return null;
     var out = { at: {}, done: null }, any = false, shield = held(c, 'shield');
     everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || p.kind === 'hq' || can(c, p.capo, 'escorts')) return;
@@ -430,7 +430,7 @@
       if (prey) {
         var way = wayOf(capo), kind = keeps(capo, prey.p.kind, o.tech);
         return { move: 'take', way: way, x: prey.p.x, y: prey.p.y, kind: kind, name: D.SITES[kind].name, months: RULES.take[way].months,
-                 cost: Math.round(price(c, capo, kind) * RULES.take[way].cost * (can(c, capo, 'envelopes') ? 0.75 : 1)),
+                 cost: Math.round(price(c, capo, kind) * RULES.take[way].cost * (can(c, capo, 'envelopes') ? 0.75 : 1) * (prey.p.owner === c.rival ? P.temperOf(c).walls : 1)),
                  why: 'no free street left around him: he goes for the ' + prey.p.owner + 's\' place next door' };
       }
       return null;
