@@ -107,6 +107,32 @@
                 no('You keep your money', 'He saves alone, and does not ask again for ' + days(restOf(a, 'advance:' + best.id)))] };
   }
 
+  // --- what the chief across the street has to say: brought at once ---
+  function chiefMatter(g, a) {
+    var found = null;
+    heldBy(g).forEach(function (c) {
+      var k = T.chief(c, g.family), w = k && k.word;
+      if (found || !w || a.seen['chief:' + c.id + ':' + w.kind + ':' + w.since] !== undefined) return;
+      var who = first(w.capo), him = k.name, short = him.split(' ')[0], said = function (text) { return T.voice(w.capo, text); }, temper = k.temper ? ' (' + k.temper.name.toLowerCase() + ')' : '', within = days(Math.max(1, w.months) * T.RULES.days);
+      var m = { key: 'chief:' + c.id + ':' + w.kind + ':' + w.since, kind: w.kind, chief: k.id, capo: w.capo, city: c.id, x: w.x, y: w.y };
+      if (w.kind === 'ultimatum') {
+        var place = w.place.toLowerCase();
+        m.title = him + ' wants ' + who + '\'s ' + place + ' back';
+        m.says = him + temper + ' holds it against ' + who + ', who took it from the ' + c.rival + 's. Give it back and ' + short + ' lets ' + who + ' be; refuse and ' + short + ' puts a price on ' + who + '\'s head.';
+        m.choices = [{ id: 'yes', label: 'Give it back', gives: short + ' drops the grudge against ' + who, costs: 'The ' + place + ' is the ' + c.rival + 's\' again' },
+                     { id: 'no', label: 'Refuse', gives: said(who + ' keeps his ' + place), costs: said('A price on ' + who + '\'s head: men will come for him') }];
+      } else {
+        var odds = k.contract ? k.contract.odds : 50;
+        m.title = 'A price on ' + who + '\'s head';
+        m.says = him + temper + ' has paid men to shoot ' + who + ' within ' + within + '. ' + who + ' lives ' + odds + ' times in 100: Muscle counts. Pay, and ' + short + ' calls it off.';
+        m.choices = [{ id: 'yes', label: 'Pay ' + short, cost: w.price, money: 'dirty', gives: 'The contract is called off, and the grudge with it' },
+                     { id: 'no', label: 'Refuse', gives: 'You keep your money', costs: said(who + ' is shot at: he dies ' + (100 - odds) + ' times in 100, and half of what he runs goes with him') }];
+      }
+      found = m;
+    });
+    return found;
+  }
+
   // --- the matters of the street, when nothing else has needed the boss for a while ---
   // Each: when(g) gives what it is about (a city, a man, a price) or null; says(x) writes the matter.
   var DECK = {
@@ -126,15 +152,17 @@
           choices: [{ id: 'pay', label: 'Pay him', cost: x.cost, money: 'dirty', gives: 'The heat falls by ' + Math.min(RULES.captain.cools, Math.round(x.c.heat)) + ' at once' }, no('You keep your money', 'The heat stays where it is')] };
       }
     },
-    truce: {
+    truce: { // a hothead never sells his peace; a businessman sells it cheaper and for longer
       when: function (g) {
-        var c = heldBy(g).filter(function (q) { return q.rival && q.month > (q.quiet || 0); })[0], cost = RULES.truce.cost;
-        return c && g.family.dirty >= cost ? { c: c, cost: cost } : null;
+        var c = heldBy(g).filter(function (q) { return q.rival && T.chiefOf(q) !== null && T.temperOf(q).id !== 'hothead' && q.month > (q.quiet || 0); })[0];
+        var t = c && T.temperOf(c), cost = c ? Math.round(RULES.truce.cost * t.peace.cost / 50) * 50 : 0;
+        return c && g.family.dirty >= cost ? { c: c, cost: cost, cycles: Math.round(RULES.truce.cycles * t.peace.long) } : null;
       },
       says: function (g, a, x) {
-        return { kind: 'truce', capo: voiceOf(g, x.c), city: x.c.id, title: 'The ' + x.c.rival + 's offer peace in ' + T.town(x.c) + ', for a price',
-          says: 'Their men would stop raiding your places for a while. Your capos stay free to do as they like.',
-          choices: [{ id: 'pay', label: 'Buy the peace', cost: x.cost, money: 'dirty', gives: 'No raid on your places in ' + T.town(x.c) + ' for ' + days(RULES.truce.cycles * T.RULES.days) }, no('You keep your money', 'They come when they please')] };
+        var k = T.chief(x.c, g.family), him = k ? k.name : 'The ' + x.c.rival + 's';
+        return { kind: 'truce', capo: voiceOf(g, x.c), chief: k ? k.id : undefined, city: x.c.id, cycles: x.cycles, title: him + ' offers peace in ' + T.town(x.c) + ', for a price',
+          says: 'The ' + x.c.rival + 's would stop raiding your places for a while. Your capos stay free to do as they like.' + (k && k.temper ? ' ' + k.temper.name + ': ' + k.temper.does.charAt(0).toLowerCase() + k.temper.does.slice(1) + '.' : ''),
+          choices: [{ id: 'pay', label: 'Buy the peace', cost: x.cost, money: 'dirty', gives: 'No raid on your places in ' + T.town(x.c) + ' for ' + days(x.cycles * T.RULES.days) }, no('You keep your money', 'They come when they please')] };
       }
     },
     bail: {
@@ -209,7 +237,9 @@
       return 'You put ' + dollars(r.cost) + ' into ' + first(m.capo) + '\'s next place';
     },
     captain: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'pay') return 'You send the captain away'; g.family.dirty -= ch.cost; c.heat = Math.max(0, (c.heat || 0) - RULES.captain.cools); return 'You pay the captain ' + dollars(ch.cost) + ': the heat falls in ' + T.town(c); },
-    truce: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'pay') return 'You refuse the ' + c.rival + 's\' peace'; g.family.dirty -= ch.cost; c.quiet = Math.max(c.quiet || 0, c.month + RULES.truce.cycles); return 'You buy peace from the ' + c.rival + 's in ' + T.town(c); },
+    ultimatum: function (g, m, ch) { return T.reply(cityOf(g, m.city), g.family, ch.id === 'yes').label; },
+    price: function (g, m, ch) { return T.reply(cityOf(g, m.city), g.family, ch.id === 'yes').label; },
+    truce: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'pay') return 'You refuse the ' + c.rival + 's\' peace'; g.family.dirty -= ch.cost; c.quiet = Math.max(c.quiet || 0, c.month + (m.cycles || RULES.truce.cycles)); return 'You buy peace from the ' + c.rival + 's in ' + T.town(c); },
     bail: function (g, m, ch) { var yes = ch.id === 'pay'; if (yes) g.family.dirty -= ch.cost; T.sway(g.family, m.capo, yes ? RULES.bail.warms : -RULES.bail.hurts); return yes ? 'You stand bail for ' + first(m.capo) + '\'s man' : 'You leave ' + first(m.capo) + '\'s man in his cell'; },
     feast: function (g, m, ch) { var yes = ch.id === 'pay'; if (yes) g.family.dirty -= ch.cost; T.sway(g.family, m.capo, yes ? RULES.feast.warms : -RULES.feast.hurts); return yes ? 'You pay for the table at ' + first(m.capo) + '\'s feast' : 'You stay away from ' + first(m.capo) + '\'s feast'; },
     cargo: function (g, m, ch) { var c = cityOf(g, m.city); if (ch.id !== 'take') return 'You leave the load where it is'; g.family.dirty += RULES.cargo.gain; c.heat = Math.min(99, (c.heat || 0) + RULES.cargo.heat); return 'Your men take the load: ' + dollars(RULES.cargo.gain) + ' for the family'; },
@@ -223,6 +253,8 @@
     var rested = function (key, n) { return a.seen[key] === undefined || today - a.seen[key] >= n; };
     var held = heldBy(g);
     if (!held.length) return null;
+    var word = chiefMatter(g, a); // the man across the street does not wait his turn
+    if (word) return word;
     // a city the boss has given no line yet: its first man asks, once
     if (today >= RULES.first && (never || gap >= RULES.soon)) {
       var c = held.filter(function (q) { return !q.line && a.seen['line:' + q.id] === undefined; })[0];
@@ -317,7 +349,10 @@
     return (label ? [{ type: 'decided', kind: m.kind, capo: m.capo, city: m.city, choice: ch.id, label: label }] : []).concat(set.events || []);
   }
 
-  var api = { RULES: RULES, raise: raise, decide: decide, matters: matters, bring: bring, echoes: echoes };
+  // A matter of the street as it would be brought today, or null (for the tests).
+  function offer(g, kind) { var a = stateOf(g), x = DECK[kind].when(g, a); return x ? DECK[kind].says(g, a, x) : null; }
+
+  var api = { RULES: RULES, raise: raise, decide: decide, matters: matters, offer: offer, bring: bring, echoes: echoes };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportAudience = api;
 })(typeof self !== 'undefined' ? self : this);

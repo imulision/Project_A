@@ -59,6 +59,7 @@
     var was = at(c, o.x, o.y) || { owner: c.rival || 'rival' }; // (the place may have burnt out while they fought for it)
     c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
     changed(c);
+    if (was.owner === c.rival) P.spite(c, o.capo, RULES.chief.spite.force, o);
     events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
                   label: first(o.capo) + '\'s men take ' + whose(was.owner) + ' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand' });
     swear(c, events, o);
@@ -78,6 +79,7 @@
         was.owner = 'family'; was.capo = o.capo;
         changed(c);
         if (o.way === 'force') hit(o);
+        P.spite(c, o.capo, (RULES.chief.spite[o.way] || 0) + RULES.chief.spite.key, o);
         events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: 'key', key: o.key, way: o.way, from: c.rival,
                       label: 'The ' + KEYS[o.key].name + ' is ours: ' + first(o.capo) + ' holds it now' });
         return false;
@@ -86,6 +88,7 @@
       if (f && f.men && f.men[o.capo] && H.guarded(c, o)) { H.open(c, f, o, events); return false; }
       c.blocks[key(o.x, o.y)] = { owner: 'family', kind: o.kind, level: 1, capo: o.capo };
       changed(c);
+      if (was.owner === c.rival) P.spite(c, o.capo, RULES.chief.spite[o.way] || 0, o);
       if (o.way === 'force') hit(o);
       events.push({ type: 'taken', capo: o.capo, city: c.id, x: o.x, y: o.y, kind: o.kind, way: o.way, from: was.owner,
                     label: o.way === 'force' ? first(o.capo) + '\'s men take ' + whose(was.owner) + ' place in ' + zoneOf(c, o.x, o.y).name + ', gun in hand'
@@ -97,7 +100,7 @@
 
   // The rivals open a place of their own now and then, on the free block they press on hardest toward the family.
   function rivalGrows(c) {
-    if (!c.rival || c.month % RULES.rivalGrows !== 0) return;
+    if (!c.rival || gone(c) || c.month % P.temperOf(c).grows !== 0) return;
     var theirs = everyPlace(c).filter(function (p) { return p.owner !== 'family'; }), ours = everyPlace(c).filter(function (p) { return p.owner === 'family'; });
     if (theirs.length >= RULES.rivalMost * R.size(c) / 100) return;
     var best = null;
@@ -126,26 +129,31 @@
   }
 
   // Now and then they come for the family's place they press on hardest. A capo's Muscle decides if it stands.
+  // Their chief's temper says how often and how hard; they go first for the places of the capo he hates most.
   function rivalRaids(c, events, f) {
-    if (c.month % RULES.rivalEvery !== 0 || c.month <= (c.quiet || 0)) return;
-    var target = null;
+    var t = P.temperOf(c), boss = P.chiefState(c);
+    if (gone(c) || c.month % t.every !== 0 || c.month <= (c.quiet || 0) || (boss && boss.rest > c.month)) return;
+    var target = null, hate = function (capo) { return boss ? boss.hate[capo] || 0 : 0; };
     everyPlace(c).forEach(function (p) {
       if (p.owner !== 'family' || p.kind === 'club' || p.kind === 'key' || p.kind === 'hq' || can(c, p.capo, 'feared')) return;
       if (c.sated && c.sated[p.capo] > c.month) return;   // they burnt one of his not long ago
       var h = hold(c, p.x, p.y);
       if (h.rival < RULES.rivalReach) return;
-      if (!target || h.rival - h.family > target.margin) target = { margin: h.rival - h.family, p: p, h: h };
+      var hates = hate(p.capo);
+      if (!target || hates > target.hates || (hates === target.hates && h.rival - h.family > target.margin)) target = { margin: h.rival - h.family, hates: hates, p: p, h: h };
     });
     if (!target) return;
     var p = target.p, by = c.rival || everyPlace(c).filter(function (q) { return q.owner !== 'family'; })[0].owner, where = zoneOf(c, p.x, p.y).name;
     var guard = cover(c, p.x, p.y);
     var e = { capo: p.capo, city: c.id, x: p.x, y: p.y, kind: p.kind, by: by, heldBy: guard.capo };
     var fury = 1 + everyPlace(c).filter(function (q) { return q.owner === 'family'; }).length / RULES.anger; // the bigger the family, the harder they come
+    fury *= t.fury;
     if ((c.vendetta || 0) > c.month) fury *= 1 + RULES.vendetta.fury;                                      // and harder still while their chief wants blood
     var led = f && P.lineOf(c) === 'grow' && P.follows(c, f, p.capo), thin = led && led.follows ? 1 - RULES.line.thin : 1; // a man stretched thin guards his places badly
     if (target.h.family * (RULES.stand + guard.muscle / 10 + held(c, 'shield')) * thin >= target.h.rival * fury) {
       e.type = 'repelled';
       c.repelled += 1;
+      if (boss) { P.spite(c, guard.capo || p.capo, RULES.chief.spite.repelled); if (t.tires) boss.rest = c.month + t.every + t.tires; } // thrown back: he holds it against the man, and a hothead needs time
       e.label = 'The ' + by + 's come for ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where
         + (guard.capo === p.capo ? ' and are thrown back' : ': ' + first(guard.capo) + '\'s men throw them back');
     } else {
@@ -159,8 +167,11 @@
     }
     c.rivalLast = { type: e.type, month: c.month, x: p.x, y: p.y, label: e.type === 'burnt' ? 'Burnt out ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where : 'Came for ' + first(p.capo) + '\'s ' + D.SITES[p.kind].name.toLowerCase() + ' in ' + where + ' and was thrown back' };
     c.raid = { month: c.month, x: p.x, y: p.y, capo: guard.capo || p.capo, by: by, kind: p.kind };
+    e.month = c.month;
     events.push(e);
   }
+  // The old family is gone from the city: nobody raids, opens or lies in wait any more.
+  function gone(c) { return !!(c.chief && c.chief.gone); }
 
   // Where a capo is this month, and what took him there: the place he is taking, the street the rivals
   // struck, the door of the man he quarrels with, the key place he asks for. Otherwise his club.

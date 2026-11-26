@@ -379,7 +379,7 @@
   var api = { town: town, purse: purse, learnt: learnt, createCity: createCity, seed: seed, lieutenantsOf: lieutenantsOf, crown: crown, bestKind: bestKind, landing: landing, homeStreet: homeStreet, clearing: clearing,
       zoneOf: zoneOf, zoneAt: zoneAt, changed: changed, memo: memo, everyPlace: everyPlace, places: places, run: run, keys: keys, held: held, lift: lift, open: open,
       hqOf: hqOf, raiseHq: raiseHq, hqStage: hqStage, sizeHq: sizeHq, razeHq: razeHq, clubOf: clubOf, settle: settle, hold: hold, grip: grip, gains: gains, share: share, frontier: frontier, price: price, tradeOf: tradeOf, worth: worth,
-      taste: taste, others: others };
+      taste: taste, others: others, roll: roll };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfCity = api;
 })(typeof self !== 'undefined' ? self : this);

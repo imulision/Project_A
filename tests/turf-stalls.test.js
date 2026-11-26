@@ -113,7 +113,11 @@ const idle = (capo, months, each) => {
   const g = E.createGame({ capo }); g.reign.left = 1e9; // the director keeps out of this story (see reign.test.js)
   for (let m = 1; m <= months; m++) {
     if (each) each(g);
-    for (let i = 0; i < E.TICKS_PER_MONTH; i++) { g.paused = false; E.tick(g); }
+    for (let i = 0; i < E.TICKS_PER_MONTH; i++) {
+      g.paused = false; E.tick(g);
+      // (what the chief across the street asks is given: an idle boss who refused would lose a capo, tests/turf-chief.test.js)
+      for (const q of E.view(g).matters.filter((x) => x.chief && x.kind !== 'truce')) { try { E.command(g, { type: 'decide', id: q.id, choice: 'yes' }); } catch (e) { E.command(g, { type: 'decide', id: q.id, choice: 'no' }); } }
+    }
     for (const c of E.view(g).cities) {
       for (const a of c.asks) { try { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: true }); } catch (e) { E.command(g, { type: 'answer', city: c.id, id: a.id, yes: false }); } }
       if (m < 30) for (const d of c.doors) { const s = T.spots(g.cities.find((q) => q.id === c.id))[0]; try { E.command(g, { type: 'welcome', city: c.id, capo: d.capo, x: s.x, y: s.y }); } catch (e) { /* cannot pay yet */ } }

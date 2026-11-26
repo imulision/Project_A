@@ -67,6 +67,9 @@
   // loyalty: a gift from the boss, word that gets around, a man who goes over
   P.gift = '<path d="M9 2a3 3 0 0 1 3 2 3 3 0 0 1 3-2 2.800 2.800 0 0 1 2.300 4.500H21V11H3V6.500h3.700A2.800 2.800 0 0 1 9 2zm0 2.200a.900.900 0 0 0 0 1.800h1.600C10.400 5 9.800 4.200 9 4.200zm6 0c-.800 0-1.400.800-1.600 1.800H15a.900.900 0 0 0 0-1.800zM4.500 12.500h6.300V22H4.500zm8.700 0h6.300V22h-6.300z"/>';
   P.whispers = P.charisma;
+  P.target = '<path d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zm0 2a7 7 0 1 1 0 14a7 7 0 1 1 0-14zM12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4zM11 0h2v3h-2zM11 21h2v3h-2zM0 11h3v2H0zM21 11h3v2h-3z"/>';      /* a price on a man's head */
+  P.grave = '<path d="M6 21V9a6 6 0 0 1 12 0v12zM11 7v3H9v2h2v5h2v-5h2v-2h-2V7zM3 21h18v2H3z"/>';      /* a man of the family shot dead */
+  P.letter = '<path d="M2 5h20v14H2zm2 2l8 6 8-6z"/>';      /* a chief's word: give it back, or else */
   // a capo asks the boss something: a speech bubble with a question mark (never a bare clock)
   P.ask = '<path d="M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm8 2.500c-2 0-3.400 1.200-3.500 3h2c.100-.700.600-1.100 1.400-1.100.900 0 1.400.500 1.400 1.100 0 .600-.300.900-1.200 1.500-1 .600-1.600 1.300-1.600 2.500v.500h2v-.400c0-.600.300-.900 1.100-1.400 1-.600 1.800-1.400 1.800-2.600 0-1.800-1.500-3.100-3.400-3.100zM11 14h2v2h-2z"/>';
   P.betrayal = '<path d="M20.500 2l1.500 1.500-9.500 11-2-2zM8.500 12.500l3 3-1.700 1.700 1.200 1.200-1.500 1.500-1.200-1.200L5.500 21.500 2.500 18.500l2.800-2.800-1.200-1.200 1.500-1.500 1.200 1.200z"/>';

@@ -278,7 +278,7 @@ test('a matter of the street the boss turned down rests twice as long', () => {
 
 test('a banker washes a lump of dirty cash for a cut, and a widow is looked after with clean money', () => {
   const g = E.createGame({ capo: 'sal' });
-  const rich = (kind) => until(g, 1500, () => { g.family.dirty = Math.max(g.family.dirty, 30000); const q = matter(g); if (q && q.kind !== kind) E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id }); return matter(g) && matter(g).kind === kind; });
+  const rich = (kind) => until(g, 2000, () => { g.family.dirty = Math.max(g.family.dirty, 30000); const q = matter(g); if (q && q.kind !== kind) E.command(g, { type: 'decide', id: q.id, choice: q.choices[q.choices.length - 1].id }); return matter(g) && matter(g).kind === kind; });
   assert.ok(rich('banker'), 'the banker comes when dirty cash piles up');
   let m = matter(g); const wash = m.choices[0];
   assert.equal(wash.money, 'dirty'); assert.ok(wash.cost >= 5000);
