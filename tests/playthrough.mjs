@@ -88,7 +88,7 @@ await shot('c2-first-club');
 // drove to his first place and works there, his car at its door, whatever the frames missed
 const works = await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40; i++) { const k = A.view().cities.flatMap((c) => c.capos).find((m) => m.errand && m.errand.step === 'works'); if (k) return k.id; A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } return null; });
 assert.ok(works, 'a capo goes to work on a place of his');
-await page.waitForTimeout(1200);      // (the last day it is behind, it makes up within the second, without a jump)
+await page.waitForFunction((id) => window.__ashport.map().cars().some((c) => c.kind === 'capo' && c.capo === id && c.there), works, { timeout: 5000 }).catch(() => {});      // (the last day it is behind, it makes up within a second of frames, without a jump; a slow machine draws few)
 const atWork = await page.evaluate((id) => window.__ashport.map().cars().filter((c) => c.kind === 'capo' && c.capo === id), works);
 assert.ok(atWork.length === 1 && atWork[0].there, 'his one car stands at the place he works on ' + JSON.stringify(atWork));
 await page.evaluate(() => { const A = window.__ashport; for (let i = 0; i < 40 && A.view().cities.some((c) => c.capos.some((m) => m.errand)); i++) { A.beat(); const q = document.querySelector('#veil.on [data-act=later]') || document.querySelector('#veil.on [data-act=close]'); if (q) q.click(); } });      // then he drives home
