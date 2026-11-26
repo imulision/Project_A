@@ -838,7 +838,7 @@
     if (g.started && g.family) (g.cities || []).forEach(function (c, i) {
       if (i === 0) c.home = true;
       c.away = !c.home;
-      if (c.rival) T.raiseHq(c, c.rival);
+      if (c.rival && T.chiefOf(c) !== null) T.raiseHq(c, c.rival); // (not for a family gone from the city)
       if (held(g, c)) T.raiseHq(c, 'family');
     });
     // a game saved when a month was played in one blow, or cut off in a way that cannot be picked up: its month starts again

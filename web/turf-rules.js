@@ -35,6 +35,38 @@
     line: { loyal: 65, cools: 1, stretch: 2, thin: 0.3, grow: { stat: 'ambition', from: 60, name: 'Grow' }, earn: { stat: 'business', from: 6, name: 'Earn' }, low: { stat: 'cunning', from: 6, name: 'Lie low' } },
     // a chief struck gun in hand swears a vendetta: months it lasts, and how much harder his men come meanwhile
     vendetta: { months: 12, fury: 1 },
+    // the chief of a rival family. His temper decides how he fights: months between two raids (`every`), how hard his men come
+    // (`fury`), months between two places he opens (`grows`), months he rests after a raid thrown back (`tires`), heat he feeds
+    // the police a month (`tips`), months between two hold-ups on the road (`road`), loyalty the least loyal capo of the city
+    // loses a month to his whispers once he is restless (`whispers`), what his peace costs and how long it lasts (`peace`), what it costs more to
+    // take one of his places (`walls`). A city whose chief has no temper written fights the plain way (rivalEvery, rivalGrows).
+    // Grudges: points he holds against a capo for a place taken by force, with an envelope or bought, a key place on top, a raid
+    // thrown back. At `warn` he sends an ultimatum the boss has `wait` months to answer; at `contract` he puts a price on the man's
+    // head, and has him shot `months` later; one point is forgotten every `forgets` months. `survive`: the odds in a hundred a
+    // man lives through it (base, each point of Muscle, the Hard streets ability, never more than `most`); `price`: dirty $ to
+    // call it off, by rank. He falls once the family has taken `beaten` places from him and his family holds less than `falls`
+    // of the city, or once his lieutenants have all crossed; the heir he leaves is not judged for `grace` months.
+    chief: {
+      tempers: {
+        hothead:     { name: 'Hothead', every: 3, fury: 1.25, grows: 9, tires: 4,
+                       does: 'Raids every 3 months and hits a quarter harder, but rests 4 months after his men are thrown back',
+                       answer: 'Keep hard men by the places he presses on: every raid thrown back wears him out' },
+        schemer:     { name: 'Schemer', every: 9, fury: 0.9, grows: 9, tips: 1, road: 3, whispers: 2,
+                       does: 'Raids seldom, but feeds the police against you, holds up your trucks twice as often and turns your least loyal capo once he is restless',
+                       answer: 'Pay the police captain, keep your capos loyal and give the trucks a hard capo' },
+        businessman: { name: 'Businessman', every: 8, fury: 0.9, grows: 5, peace: { cost: 0.6, long: 1.5 },
+                       does: 'Opens a place every 5 months, and sells his peace cheaper and for longer',
+                       answer: 'Buy his peace while you grow elsewhere, or take his places before he fills the city' },
+        oldguard:    { name: 'Old guard', every: 6, fury: 1, grows: 9, walls: 1.3,
+                       does: 'Holds on to what he has: his places cost 30% more to take',
+                       answer: 'Grow where he is not; take his places by envelope or purchase once you have money to spare' }
+      },
+      spite: { force: 2, bribe: 1, buy: 1, key: 1, repelled: 1 },
+      warn: 4, wait: 2, contract: 6, months: 4, forgets: 12,
+      survive: { base: 35, muscle: 6, hard: 15, most: 90 },
+      price: [1500, 3000, 6000, 12000],
+      beaten: 3, falls: 8, grace: 12
+    },
     // a capo's word on a key place: months after it is his before he is judged, the share of his figure that counts as kept,
     // and how much each point of ambition above 50 swells the figure he gives (in hundredths)
     promise: { after: 6, near: 0.9, boast: 1 },

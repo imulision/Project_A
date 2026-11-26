@@ -252,7 +252,7 @@ test('the rivals burn out a place opened on their streets, and leave alone one d
   const spot = [[1, 0], [0, 1], [-1, 0], [0, -1]].map(([dx, dy]) => [theirs.x + dx, theirs.y + dy]).find(([x, y]) => x >= 0 && y >= 0 && x < 20 && y < 12 && !T.at(c, x, y));
   T.join(f, 'mae');
   T.open(c, spot[0], spot[1], { owner: 'family', kind: 'rented', capo: 'mae' });
-  const events = year(c, f, T.RULES.rivalEvery + 1);
+  const events = year(c, f, T.temperOf(c).every + 1); // (Seamus Callahan's temper says how often)
   const burnt = events.find((e) => e.type === 'burnt');
   assert.ok(burnt, 'they come for it');
   assert.deepEqual([burnt.x, burnt.y, burnt.capo, burnt.by], [spot[0], spot[1], 'mae', 'Callahan']);

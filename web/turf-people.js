@@ -67,12 +67,12 @@
 
   // The chief of the old family in each city. The boss never hires him: he reads his name on the other side of the street.
   var CHIEFS = {
-    seamus:  { chief: 'Callahan', home: 'ashport', name: 'Seamus Callahan' },
-    viktor:  { chief: 'Northside', home: 'calder', name: 'Viktor Novak' },
-    eamon:   { chief: 'Callahan', home: 'marrow', name: 'Eamon Callahan' },
-    ernst:   { chief: 'Kessler', home: 'dunmore', name: 'Ernst Kessler' },
-    red:     { chief: 'Dockers', home: 'lorne', name: 'Red Macready' },
-    brendan: { chief: 'Callahan', home: 'vesper', name: 'Brendan Callahan' }
+    seamus:  { chief: 'Callahan', home: 'ashport', name: 'Seamus Callahan', temper: 'oldguard' },
+    viktor:  { chief: 'Northside', home: 'calder', name: 'Viktor Novak', temper: 'hothead' },
+    eamon:   { chief: 'Callahan', home: 'marrow', name: 'Eamon Callahan', temper: 'businessman' },
+    ernst:   { chief: 'Kessler', home: 'dunmore', name: 'Ernst Kessler', temper: 'schemer' },
+    red:     { chief: 'Dockers', home: 'lorne', name: 'Red Macready', temper: 'hothead' },
+    brendan: { chief: 'Callahan', home: 'vesper', name: 'Brendan Callahan', temper: 'businessman' }
   };
 
   // What draws each big name to a family: places of a kind it runs, a key place it holds, or raids it has thrown back.
@@ -193,10 +193,39 @@
 
   function can(c, capo, id) { var k = c.skills && c.skills[capo]; return !!(k && k[id]); }
 
-  // The chief of the old family in this city, if it has one.
-  function chiefOf(c) {
-    if (!c.rival) return null;
-    return Object.keys(CHIEFS).filter(function (id) { return CHIEFS[id].chief === c.rival && CHIEFS[id].home === c.id; })[0] || null;
+  // The chief of the old family in this city, if it has one: the man written for it, or the lieutenant who took his place.
+  function chiefOf(c) { var s = chiefState(c); return s ? s.id : null; }
+  // What the city remembers of him: who he is, his temper, the points he holds against each capo (`hate`), the last place
+  // each took from him (`took`), the places the family has taken from him since he leads (`lost`), his word to the boss and
+  // the price on a man's head. null when the city has no old family, or it is gone.
+  function chiefState(c) {
+    if (!c.rival || (c.chief && c.chief.gone)) return null;
+    if (!c.chief) {
+      var id = Object.keys(CHIEFS).filter(function (k) { return CHIEFS[k].chief === c.rival && CHIEFS[k].home === c.id; })[0];
+      if (!id) return null;
+      c.chief = { id: id };
+    }
+    var s = c.chief;
+    if (s.temper === undefined) s.temper = (CHIEFS[s.id] && CHIEFS[s.id].temper) || null;
+    s.hate = s.hate || {}; s.took = s.took || {}; s.lost = s.lost || 0;
+    return s;
+  }
+  // How he fights: his temper's numbers, or the plain way of a family with no chief written.
+  function temperOf(c) {
+    var s = chiefState(c), t = s && RULES.chief.tempers[s.temper];
+    var plain = { every: RULES.rivalEvery, fury: 1, grows: RULES.rivalGrows, tires: 0, tips: 0, road: RULES.road.every, whispers: 0, walls: 1, peace: { cost: 1, long: 1 } };
+    if (!t) return plain;
+    var out = { id: s.temper };
+    Object.keys(plain).forEach(function (k) { out[k] = t[k] !== undefined ? t[k] : plain[k]; });
+    out.name = t.name; out.does = t.does; out.answer = t.answer;
+    return out;
+  }
+  // He holds it against a capo: `n` points, and the place taken from him if there was one.
+  function spite(c, capo, n, place) {
+    var s = chiefState(c);
+    if (!s || !capo) return;
+    s.hate[capo] = (s.hate[capo] || 0) + n;
+    if (place) { s.took[capo] = { x: place.x, y: place.y }; s.lost += 1; }
   }
 
   function person(id) {
@@ -205,7 +234,7 @@
   }
 
   var api = { voice: voice, KEYS: KEYS, PEOPLE: PEOPLE, LURES: LURES, who: who, SCHOOLS: SCHOOLS, TRADE: TRADE, schoolOf: schoolOf, abilities: abilities,
-      CHAIRS: CHAIRS, counsel: counsel, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, lineOf: lineOf, follows: follows, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
+      CHAIRS: CHAIRS, counsel: counsel, chairOf: chairOf, sits: sits, table: table, seated: seated, can: can, person: person, chiefOf: chiefOf, chiefState: chiefState, temperOf: temperOf, spite: spite, lineOf: lineOf, follows: follows, CHIEFS: CHIEFS, loyalty: loyalty, sway: sway, mood: mood };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfPeople = api;
 })(typeof self !== 'undefined' ? self : this);

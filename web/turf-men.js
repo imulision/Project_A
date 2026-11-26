@@ -177,28 +177,7 @@
       if ((f.clean || 0) < cost) throw new Error('it takes ' + dollars(cost) + ' of clean money to pay ' + first(capo) + ' off');
       f.clean -= cost;
     }
-    // what he ran, the biggest first: the nearest capo with room takes each over, the rest close
-    var his = places(c, capo).filter(function (p) { return p.kind !== 'club'; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
-    var runs = his.filter(function (p) { return p.kind !== 'key'; }).length, keep = way === 'retire' ? runs : way === 'kill' ? Math.ceil(runs / 2) : 0;
-    var room = {}, out = { way: way, kept: 0, closed: 0 };
-    left.forEach(function (id) { room[id] = RULES.reach[f.men[id].rank] - run(c, id).length; });
-    var nearest = function (p, need) {
-      return left.filter(function (id) { return !need || room[id] > 0; }).sort(function (a, b) {
-        var ca = clubOf(c, a), cb = clubOf(c, b);
-        return far(p.x, p.y, ca.x, ca.y) - far(p.x, p.y, cb.x, cb.y) || (a < b ? -1 : 1);
-      })[0];
-    };
-    his.forEach(function (p) {
-      var heir = p.kind === 'key' ? nearest(p, false) : keep > 0 ? nearest(p, true) : null;
-      if (p.kind !== 'key') keep -= 1;
-      if (heir) {
-        c.blocks[key(p.x, p.y)].capo = heir;
-        if (p.kind !== 'key') { room[heir] -= 1; out.kept += 1; }
-      } else { delete c.blocks[key(p.x, p.y)]; out.closed += 1; }
-    });
-    delete c.blocks[key(club.x, club.y)];
-    changed(c);
-    forget(c, f, capo, way);
+    var out = handOver(c, f, capo, way);
     if (way === 'kill') {
       // blood calls blood: each killing the family still remembers makes the next one cost as much again
       var n = bloodOf(c, f) + 1, here = {};
@@ -221,6 +200,36 @@
     }
     return out;
   }
+
+  // What a man ran when he leaves, the biggest first: the nearest capo with room takes each over (all of it when he retires,
+  // half when he is killed or shot), the rest closes; then his club closes and the city forgets him.
+  function handOver(c, f, capo, way) {
+    var left = others(c, f, capo), club = clubOf(c, capo);
+    var his = places(c, capo).filter(function (p) { return p.kind !== 'club'; }).sort(function (a, b) { return b.level - a.level || a.y - b.y || a.x - b.x; });
+    var runs = his.filter(function (p) { return p.kind !== 'key'; }).length, keep = way === 'retire' ? runs : way === 'kill' || way === 'shot' ? Math.ceil(runs / 2) : 0;
+    var room = {}, out = { way: way, kept: 0, closed: 0 };
+    left.forEach(function (id) { room[id] = RULES.reach[f.men[id].rank] - run(c, id).length; });
+    var nearest = function (p, need) {
+      return left.filter(function (id) { return !need || room[id] > 0; }).sort(function (a, b) {
+        var ca = clubOf(c, a), cb = clubOf(c, b);
+        return far(p.x, p.y, ca.x, ca.y) - far(p.x, p.y, cb.x, cb.y) || (a < b ? -1 : 1);
+      })[0];
+    };
+    his.forEach(function (p) {
+      var heir = p.kind === 'key' ? nearest(p, false) : keep > 0 ? nearest(p, true) : null;
+      if (p.kind !== 'key') keep -= 1;
+      if (heir) {
+        c.blocks[key(p.x, p.y)].capo = heir;
+        if (p.kind !== 'key') { room[heir] -= 1; out.kept += 1; }
+      } else { delete c.blocks[key(p.x, p.y)]; out.closed += 1; }
+    });
+    delete c.blocks[key(club.x, club.y)];
+    changed(c);
+    forget(c, f, capo, way);
+    return out;
+  }
+  // A capo shot dead by the rivals: half of what he ran goes to the nearest capos, the rest closes. Nothing else for the family to pay.
+  function shot(c, f, capo) { return handOver(c, f, capo, 'shot'); }
 
   // A man the boss gave to the police is out: he burns what stands nearest to where his club was.
   function revenge(c, events) {
@@ -323,7 +332,7 @@
   }
 
   var api = { gift: gift, gifts: gifts, hearts: hearts, seat: seat, unseat: unseat, payTable: payTable, doors: doors, spots: spots, clubSpot: clubSpot, seats: seats, welcome: welcome, send: send,
-      underOf: underOf, underboss: underboss, partings: partings, part: part, revenge: revenge };
+      underOf: underOf, underboss: underboss, partings: partings, part: part, shot: shot, revenge: revenge };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfMen = api;
 })(typeof self !== 'undefined' ? self : this);
