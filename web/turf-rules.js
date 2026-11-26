@@ -35,6 +35,7 @@
     line: { loyal: 65, cools: 1, stretch: 2, thin: 0.3, grow: { stat: 'ambition', from: 60, name: 'Grow' }, earn: { stat: 'business', from: 6, name: 'Earn' }, low: { stat: 'cunning', from: 6, name: 'Lie low' } },
     // a chief struck gun in hand swears a vendetta: months it lasts, and how much harder his men come meanwhile
     vendetta: { months: 12, fury: 1 },
+    // (in `does`, {every}, {tires} and {grows} are written in days on the screen)
     // the chief of a rival family. His temper decides how he fights: months between two raids (`every`), how hard his men come
     // (`fury`), months between two places he opens (`grows`), months he rests after a raid thrown back (`tires`), heat he feeds
     // the police a month (`tips`), months between two hold-ups on the road (`road`), loyalty the least loyal capo of the city
@@ -49,13 +50,13 @@
     chief: {
       tempers: {
         hothead:     { name: 'Hothead', every: 3, fury: 1.25, grows: 9, tires: 4,
-                       does: 'Raids every 3 months and hits a quarter harder, but rests 4 months after his men are thrown back',
+                       does: 'Raids every {every} and hits a quarter harder, but rests {tires} after his men are thrown back',
                        answer: 'Keep hard men by the places he presses on: every raid thrown back wears him out' },
         schemer:     { name: 'Schemer', every: 9, fury: 0.9, grows: 9, tips: 1, road: 3, whispers: 2,
                        does: 'Raids seldom, but feeds the police against you, holds up your trucks twice as often and turns your least loyal capo once he is restless',
                        answer: 'Pay the police captain, keep your capos loyal and give the trucks a hard capo' },
         businessman: { name: 'Businessman', every: 8, fury: 0.9, grows: 5, peace: { cost: 0.6, long: 1.5 },
-                       does: 'Opens a place every 5 months, and sells his peace cheaper and for longer',
+                       does: 'Opens a place every {grows}, and sells his peace cheaper and for longer',
                        answer: 'Buy his peace while you grow elsewhere, or take his places before he fills the city' },
         oldguard:    { name: 'Old guard', every: 6, fury: 1, grows: 9, walls: 1.3,
                        does: 'Holds on to what he has: his places cost 30% more to take',

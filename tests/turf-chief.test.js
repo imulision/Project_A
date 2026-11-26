@@ -299,3 +299,16 @@ test('his words about a woman say she and her', () => {
   assert.equal(A.matters(g)[0].kind, 'price');
   assert.doesNotMatch(say(A.matters(g)[0]), /\b(he|his|him)\b/i, say(A.matters(g)[0]));
 });
+
+test('his temper is told in days, like the rest of the screen, and from the numbers the rules use', () => {
+  const { c, f } = neighbours();
+  for (const id of Object.keys(K.tempers)) {
+    led(c, id);
+    const t = chief(c, f).temper;
+    assert.doesNotMatch(t.does + ' ' + t.answer, /month/, id);
+    assert.doesNotMatch(t.does, /\{/, id + ': nothing left to fill in');
+  }
+  led(c, 'hothead');
+  assert.match(chief(c, f).temper.does, new RegExp('every ' + K.tempers.hothead.every * T.RULES.days + ' days'));
+  assert.match(chief(c, f).temper.does, new RegExp('rests ' + K.tempers.hothead.tires * T.RULES.days + ' days'));
+});
