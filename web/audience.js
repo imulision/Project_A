@@ -10,10 +10,12 @@
   'use strict';
   var node = typeof require === 'function';
   var T = node ? require('./turf.js') : root.AshportTurf;
+  var X = node ? require('./dilemma.js') : root.AshportDilemma;
 
   var RULES = {
     first: 10,          // days after the first club before the first capo asks the boss for his line
     every: 100,         // days with no word to give before somebody comes with a matter
+    early: 45,          // the same while the family is still a street gang: the first act is short and full
     soon: 30,           // days after the boss's last word before a capo asks for a trade the family can pay to learn
     again: 288,         // days a capo does not ask again for what the boss refused him
     rest: 150,          // days before a matter of the same kind comes round again
@@ -259,9 +261,13 @@
       if (c) return lineMatter(g, a, c);
     }
     if (gap >= RULES.soon) { var l = learnMatter(g, a, rested) || investMatter(g, a, rested); if (l) return l; }
-    if (gap < RULES.every) return null;
+    var every = g.reign && g.reign.act > 0 ? RULES.every : RULES.early;
+    if (gap < every) return null;
+    // one time in two, a dilemma: two of his people, or two things he wants, set against each other
+    var hard = a.dil ? null : dilemma(g, a, rested);
+    if (hard) return hard;
     // (not twice running: the street has its say in between)
-    var adv = rested('advance', 2 * RULES.every - 10) ? advanceMatter(g, a, rested) : null;
+    var adv = rested('advance', 2 * every - 10) ? advanceMatter(g, a, rested) : null;
     if (adv) { adv.deck = 'advance'; return adv; }
     // of the street: the one seen longest ago that can come up today
     var best = null;
@@ -272,11 +278,38 @@
       var seen = a.seen[kind] === undefined ? -1 : a.seen[kind];
       if (!best || seen < best.seen) best = { kind: kind, x: x, seen: seen };
     });
-    if (!best) return null;
+    if (!best) return dilemma(g, a, rested);
     var m = DECK[best.kind].says(g, a, best.x);
     m.key = m.key || best.kind; m.deck = best.kind;
     return m;
   }
+  // The dilemma seen longest ago that can come up today, and never the one he has just had.
+  function dilemma(g, a, rested) {
+    var best = null;
+    X.KINDS.forEach(function (kind) {
+      if (kind === a.hard || !rested(kind, RULES.rest * Math.pow(2, Math.min((a.snubs || {})[kind] || 0, 4)))) return;
+      var x = X.when(g, kind); if (!x) return;
+      var seen = a.seen[kind] === undefined ? -1 : a.seen[kind];
+      if (!best || seen < best.seen) best = { kind: kind, x: x, seen: seen };
+    });
+    return best ? X.says(g, best.kind, best.x) : null;
+  }
+  function open(g, a, m, today) {
+    m.id = m.kind + ':' + m.city + ':' + today; m.since = today;
+    a.paid = (a.paid || []).filter(function (p) { return today - p.day < RULES.again; });
+    m.spent = a.paid.reduce(function (n, p) { return n + p.n; }, 0);
+    if (m.deck) a.dil = !!m.dilemma;
+    if (m.dilemma) a.hard = m.kind;
+    a.open = m; a.last = today;
+    return { type: 'matter', id: m.id, kind: m.kind, capo: m.capo, city: m.city, x: m.x, y: m.y, label: m.title };
+  }
+  // A dilemma brought to the boss today whatever the calendar says (the tests, and whoever directs the story). null when it cannot come up.
+  function bring(g, kind, today) {
+    var a = stateOf(g), x = a.open ? null : X.when(g, kind);
+    return x ? open(g, a, X.says(g, kind, x), today) : null;
+  }
+  // What an old choice of the boss brings back today.
+  function echoes(g, today) { return X.due(g, today); }
 
   // Once a day. `stopped`: the clock has just stopped for something else, and the count of quiet days starts again.
   // Returns the piece of news of a matter brought to him, or null.
@@ -290,15 +323,11 @@
     if (stopped) { a.last = today; return null; }
     var m = pick(g, a, today);
     if (!m) return null;
-    m.id = m.kind + ':' + m.city + ':' + today; m.since = today;
-    a.paid = (a.paid || []).filter(function (p) { return today - p.day < RULES.again; });
-    m.spent = a.paid.reduce(function (n, p) { return n + p.n; }, 0);
-    a.open = m; a.last = today;
-    return { type: 'matter', id: m.id, kind: m.kind, capo: m.capo, city: m.city, x: m.x, y: m.y, label: m.title };
+    return open(g, a, m, today);
   }
   function matters(g) { var a = g.audience; return a && a.open ? [a.open] : []; }
 
-  // The boss answers. Returns the words for the journal (null when the order he gave tells it itself).
+  // The boss answers. Returns what there is to tell: his answer in words for the journal, and what it set off at once.
   function decide(g, id, choice, today, command) {
     var a = stateOf(g), m = a.open;
     if (!m || m.id !== id) throw new Error('nobody is asking that any more');
@@ -308,22 +337,22 @@
       var clean = ch.money === 'clean', has = clean ? g.family.clean || 0 : g.family.dirty;
       if (has < ch.cost) throw new Error('it takes ' + dollars(ch.cost) + (clean ? ' of clean money' : ' of dirty cash'));
     }
-    var label = DONE[m.kind](g, m, ch, command);
+    var set = m.dilemma ? X.done(g, m, ch, today) : { label: DONE[m.kind](g, m, ch, command) }, label = set.label;
     // a yes to a capo's own ask lets him come back sooner than a no
     var yes = ch.id !== 'no' && ch.id !== 'none';
     var own = m.kind === 'advance' || m.kind === 'learn' || m.kind === 'invest', kept = own ? m.key : m.deck && m.deck !== 'share' ? m.deck : null;
     if (kept) { a.snubs = a.snubs || {}; if (yes) delete a.snubs[kept]; else a.snubs[kept] = (a.snubs[kept] || 0) + 1; }
-    if (STREET[m.kind] && ch.cost > 0) (a.paid = a.paid || []).push({ day: today, n: ch.cost });
+    if ((STREET[m.kind] || m.dilemma) && ch.cost > 0) (a.paid = a.paid || []).push({ day: today, n: ch.cost });
     a.seen[m.key] = own && yes ? today - RULES.again + RULES.every : today;
     if (m.deck) a.seen[m.deck] = today;
     a.open = null; a.last = today;
-    return label ? { type: 'decided', kind: m.kind, capo: m.capo, city: m.city, choice: ch.id, label: label } : null;
+    return (label ? [{ type: 'decided', kind: m.kind, capo: m.capo, city: m.city, choice: ch.id, label: label }] : []).concat(set.events || []);
   }
 
   // A matter of the street as it would be brought today, or null (for the tests).
   function offer(g, kind) { var a = stateOf(g), x = DECK[kind].when(g, a); return x ? DECK[kind].says(g, a, x) : null; }
 
-  var api = { RULES: RULES, raise: raise, decide: decide, matters: matters, offer: offer };
+  var api = { RULES: RULES, raise: raise, decide: decide, matters: matters, offer: offer, bring: bring, echoes: echoes };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportAudience = api;
 })(typeof self !== 'undefined' ? self : this);

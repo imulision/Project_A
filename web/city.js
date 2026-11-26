@@ -72,7 +72,7 @@
     var h = E.hud(g);
     $('date').textContent = g.started ? C.day(g.month, g.ticks) : 'Ashport';
     $('pause').textContent = h.paused ? 'Play' : 'Pause'; $('pause').classList.toggle('on', !!h.paused);
-    $('speed').textContent = h.speed + 'x';
+    $('speed').textContent = h.speed + 'x'; $('skip').classList.toggle('on', !!h.skipping);      // lit while the days run until something happens
     if (!h.started) return;
     $('dirty').textContent = C.money(h.dirty); $('clean').textContent = C.money(h.clean);
 
@@ -90,7 +90,7 @@
     $('shared').innerHTML = (best && best.share.family > 0 ? C.esc(best.name) + ' ' + Math.round(best.share.family) + '%' : '');
     $('dirty').parentNode.classList.toggle('hot', w.hot);
     // time that stands still is said in large, with the reason, and framed all around the screen
-    document.body.classList.toggle('stopped', !!k); if (map) { map.hold(!!k); map.pace(g.speed || 1); }      // a car with days to drive keeps to them at the speed the boss chose
+    document.body.classList.toggle('stopped', !!k); if (map) { map.hold(!!k); map.pace(h.skipping ? E.SKIP : g.speed || 1); }      // a car with days to drive keeps to them at the speed the boss chose
     $('sub').innerHTML = k ? '' : C.trendLine(tr);
     $('clock').innerHTML = k ? '<b>' + I.icon(h.pending ? 'ask' : 'time') + k.word + '</b><span>' + C.esc(k.why) + '</span>' : '';
     $('clock').dataset.go = h.pending ? 'requests' : 'play';
@@ -280,6 +280,7 @@
   $('map').onclick = function () { if (map) map.focus(null); };
   $('clock').onclick = function () { var go = $('clock').dataset.go; if (go === 'requests') requests(); else if (go === 'play') $('pause').click(); };
   $('pause').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.paused ? 'resume' : 'pause' }); showHud(); };
+  $('skip').onclick = function () { if (!g.started) return; stopped = false; E.command(g, { type: g.skip && !g.paused ? 'pause' : 'skip' }); if (g.paused) E.command(g, { type: 'resume' }); showHud(); };      // a second touch gives the clock back its own pace
   $('speed').onclick = function () { if (!g.started) return; var s = E.SPEEDS; E.command(g, { type: 'speed', speed: s[(s.indexOf(g.speed) + 1) % s.length] }); showHud(); };
   $('family').onclick = function () { if (g.started) show(C.family(view, E.hud(g), rows)); };
   $('journal').onclick = function () { if (g.started) show(C.journal(g.journal)); };
@@ -395,7 +396,7 @@
   var CARRIED = { tribute: 1, wash: 1, clean: 1, loot: 1, convoy: 1, arrived: 1, payment: 1, errand: 1 };
   var standing = {};      // where each truck was left after its last delivery: it leaves from there the next time
   var MANUAL = /[?&]manual\b/.test(location.search);      /* tests beat time by hand: between their beats the streets may run on */
-  function clockMap() { if (map) map.day(g.month * E.TICKS_PER_MONTH + g.ticks, MANUAL ? Infinity : g.speed || 1); }
+  function clockMap() { if (map) map.day(g.month * E.TICKS_PER_MONTH + g.ticks, MANUAL ? Infinity : g.skip ? E.SKIP : g.speed || 1); }
   function beat() {
     if (!g.started || $('veil').classList.contains('on')) return;       // time waits while the boss reads a sheet
     var before = g.month, events = E.tick(g), turned = g.month !== before;
@@ -423,7 +424,7 @@
   if (window.AshportLoad) AshportLoad.file();      // this file is the last one
   [].forEach.call(document.querySelectorAll('[data-ic]'), function (e) { e.innerHTML = I.icon(e.dataset.ic); });
   retire(); g = stored() || E.createGame(); refresh();
-  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap, live: function () { return live; } };
+  window.__ashport = { game: function () { return g; }, map: function () { return map; }, beat: beat, home: home, view: function () { return view; }, tap: tap, live: function () { return live; }, draw: function () { refresh(); showHud(); } };
   showHud();
   AshportRender.start(g.started ? planOf(g) : planOf(E.createGame({ capo: E.NAMES[0] })), { colors: M.COLORS, onStage: window.AshportLoad && AshportLoad.stage, onTap: tap }).then(function (m) {
     map = m; $('load').remove(); drawLabels();

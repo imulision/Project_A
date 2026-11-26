@@ -18,6 +18,8 @@
   R.setDays(T.RULES.days);
   var TICKS_PER_MONTH = T.RULES.days;  // beats of the clock in a month at speed 1 (the screen beats once a second)
   var SPEEDS = [1, 2, 4];
+  var HEAD_START = 900;                 // dirty $ the family's first man has on top of what any man arrives with: his first places open in the first minute
+  var SKIP = 12;                        // days in one beat while the boss lets the days run until something happens
   var JOURNAL_SIZE = 200;
   var HISTORY = 24;           // months kept for the curves
   var FIRST_YEAR = 1926;
@@ -201,11 +203,12 @@
       T.raiseHq(c, spec.rival);
       return c;
     });
-    var home = g.cities[0], spot = T.landing(home);
+    var home = g.cities[0], spot = T.homeStreet(home);
     g.family = T.createFamily();
     g.family.dirty = START_CASH;
+    T.clearing(home, spot.x, spot.y);
     T.settle(home, capo, spot.x, spot.y);
-    T.join(g.family, capo);
+    T.join(g.family, capo).cash += HEAD_START; // the first man is seen at work in the first minute
     home.home = true; // the boss lives here
     g.cities.forEach(function (c) { c.away = c !== home; }); // anywhere else his money sleeps in the city's coffer until a car brings it
     T.raiseHq(home, 'family');
@@ -510,6 +513,8 @@
     // nobody has needed the boss for a while: a capo comes to him with a matter
     var matter = A.raise(g, nowOf(g), g.paused);
     if (matter) { record(g, matter, month); events.push(matter); g.paused = true; }
+    // what an old choice of his brings back, with the name of the one who remembers
+    A.echoes(g, nowOf(g)).forEach(function (e) { record(g, e, month); events.push(e); });
     g.ticks = last ? 0 : d + 1;
     if (!last) return;
     tell(g, T.end(f, g.cities, W.ROUTES), month, events);
@@ -550,9 +555,21 @@
   function tick(g) {
     var events = [];
     if (!g.started || g.paused) return events;
-    for (var n = 0; n < g.speed && !g.paused; n++) day(g, events);
+    if (!g.skip) { for (var n = 0; n < g.speed && !g.paused; n++) day(g, events); return events; }
+    // skipping: up to SKIP days in one beat, until the first piece of news or the first word to give
+    for (var k = 0; k < SKIP && g.skip && !g.paused; k++) {
+      var heard = events.length;
+      day(g, events);
+      if (events.slice(heard).some(isNews) || hitOn(g)) g.skip = false;
+    }
+    if (g.paused) g.skip = false;
     return events;
   }
+  // What ends a skip: something the boss would want to have seen. Cars, wages and errands are not.
+  var NEWS = { opened: 1, enlarged: 1, converted: 1, taken: 1, moving: 1, burnt: 1, repelled: 1, rank: 1, welcomed: 1, bust: 1, betrayal: 1, vendetta: 1, hijack: 1, seizure: 1, learned: 1, feud: 1, asks: 1, knocks: 1,
+               act: 1, beat: 1, echo: 1, hit: 1, matter: 1, outcome: 1, won: 1, promise: 1, shaken: 1, whispers: 1, gaveup: 1 };
+  function isNews(e) { return !!e && !!NEWS[e.type]; }
+  function hitOn(g) { return g.cities.some(function (c) { return (c.hits || []).length > 0; }); }
 
   // --- what the headquarters has not opened yet ---
   // The table and the roads come with the club (Act II), the underbosses with the hotel floor (Act III),
@@ -608,7 +625,7 @@
   }
   var ORDERS = {
     start: function (g, o) { if (o.seed !== undefined) g.seed = Math.floor(o.seed) || 0; start(g, o.capo); },
-    pause: function (g) { g.paused = true; },
+    pause: function (g) { g.paused = true; g.skip = false; },
     resume: function (g) { g.paused = false; },
     speed: function (g, o) {
       if (SPEEDS.indexOf(o.speed) < 0) throw new Error('no such speed: ' + o.speed);
@@ -727,7 +744,9 @@
       record(g, { type: 'advanced', capo: o.capo, city: c.id, x: r.x, y: r.y, kind: r.kind, cost: r.cost, label: 'You put ' + dollars(r.cost) + ' into ' + T.person(o.capo).name.split(' ')[0] + '\'s next place' }, g.month);
     },
     // the boss answers the matter a capo brought him
-    decide: function (g, o) { var e = A.decide(g, o.id, o.choice, nowOf(g), command); if (e) record(g, e, g.month); },
+    decide: function (g, o) { A.decide(g, o.id, o.choice, nowOf(g), command).forEach(function (e) { record(g, e, g.month); }); },
+    // the boss lets the days run until something happens
+    skip: function (g) { if (!hitOn(g)) { g.skip = true; g.paused = false; } }, // (never over a hit that waits for his call)
     research: function (g, o) {
       T.research(g.family, o.building);
       g.family.study.day = g.ticks; // learned on this day of a later cycle
@@ -797,7 +816,7 @@
     return out;
   }
   function hud(g) {
-    var out = { date: dateOf(g.month), paused: g.paused, speed: g.speed, started: g.started };
+    var out = { date: dateOf(g.month), paused: g.paused, speed: g.speed, started: g.started, skipping: !!g.skip && !g.paused };
     if (!g.started) return out;
     var blocks = 0, ours = 0, heat = 0, pending = 0, seats = { taken: 0, total: 0 }, cities = { held: 0, total: g.cities.length };
     g.cities.forEach(function (c) {
@@ -849,7 +868,7 @@
     return g;
   }
 
-  var api = { dayOf: dayOf, DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
+  var api = { HEAD_START: HEAD_START, SKIP: SKIP, isNews: isNews, dayOf: dayOf, DECISIONS: DECISIONS, layout: layout, START_CASH: START_CASH, VERSION: VERSION, TICKS_PER_MONTH: TICKS_PER_MONTH, SPEEDS: SPEEDS, JOURNAL_SIZE: JOURNAL_SIZE, HISTORY: HISTORY, NAMES: NAMES,
               createGame: createGame, roadDays: roadDays, settle: settle, strike: strike, tick: tick, command: command, candidates: candidates, view: view, hud: hud, save: save, load: load };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportEmpire = api;

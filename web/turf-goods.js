@@ -483,7 +483,7 @@
   }
 
   var api = { liquor: liquor, CHAINS: CHAINS, loadOfCargo: loadOfCargo, supplied: supplied, cellars: cellars, ambush: ambush, CARGOES: CARGOES,
-      distil: distil, haulDay: haulDay, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, today: today, tripDays: tripDays, fleet: fleet, carId: carId, chokes: chokes, busy: busy, wayOf: wayOf, takes: takes,
+      distil: distil, haulDay: haulDay, earns: earns, income: income, wages: wages, clubWages: clubWages, idlePlaces: idlePlaces, leftPay: leftPay, collect: collect, pass: pass, today: today, tripDays: tripDays, fleet: fleet, carId: carId, chokes: chokes, busy: busy, wayOf: wayOf, keeps: keeps, takes: takes,
       wants: wants, washing: washing, laundries: laundries };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfGoods = api;

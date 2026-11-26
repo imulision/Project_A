@@ -179,6 +179,7 @@ test('a man of the rivals the boss is paying for stays at the door until the mon
 test('an ask the boss cannot pay does not stop the clock; the day he can, he is told', () => {
   const g = E.createGame({ capo: 'sal' }), c = g.cities[0];
   until(g, 40, () => matter(g)); E.command(g, { type: 'decide', id: matter(g).id, choice: 'none' });
+  g.audience.off = true; // (nobody else comes to him meanwhile)
   for (let i = 0; i < 30; i++) day(g);
   g.family.dirty = 0; g.family.clean = 0;
   const club = T.clubOf(c, 'sal');
@@ -199,7 +200,8 @@ test('the boss can put in the rest himself, from the sheet of the capo, whenever
   const g = E.createGame({ capo: 'dutch', quiet: true }), f = g.family, c = g.cities[0];
   for (let i = 0; i < 30; i++) day(g);
   f.men.dutch.cash = 150; f.dirty = 5000;
-  const p = T.plan(c, f, 'dutch'), cost = Math.round(p.cost - p.saved);
+  const p = T.plan(c, f, 'dutch'), cost = p.short; // the price, and what his purse lacks for the pay of his men
+  assert.ok(cost >= Math.round(p.cost - p.saved));
   assert.equal(p.waiting, 'money');
   assert.equal(T.short(p), cost);
   const html = C.capo(E.view(g), 'ashport', 'dutch', E.hud(g));

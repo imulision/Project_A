@@ -96,7 +96,7 @@ test('in the game, the rivals and the door never speak on the last day of a cycl
     E.tick(g).forEach((e) => { if (['burnt', 'repelled', 'knocks', 'taken', 'hijack'].includes(e.type)) days.add(d); });
     g.paused = false;
   }
-  assert.ok(days.size >= 6, 'days ' + [...days].join(', '));
+  assert.ok(days.size >= 4 && !days.has(DAYS - 1), 'days ' + [...days].join(', ')); // (a family starts with room around it: left to itself it sees the rivals less often)
 });
 
 const washer = () => {

@@ -21,7 +21,7 @@ const play = (capo, cycles) => {
 };
 
 test('the boss\'s purse holds exactly what the cars brought him: the pay of his capo was kept at the club', () => {
-  const { g, arrived, paid } = play('sal', 9); // the first loads are slow: the takings are days on their way home
+  const { g, arrived, paid } = play('sal', 8); // the first loads are slow: the takings are days on their way home (and before his first laundry: money out for a wash is not in the purse)
   assert.ok(arrived > 0, 'loads of his share arrived');
   assert.ok(paid > 0, 'and the capo was paid');
   assert.strictEqual(Math.round(g.family.dirty + (g.family.clean || 0)), arrived);

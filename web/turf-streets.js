@@ -35,8 +35,9 @@
     var w = wants(c, capo, { rank: m.rank, tech: f.tech, wash: f.dirty - washing(c).most > RULES.stash + (f.vault || 0), line: led && led.follows ? P.lineOf(c) : null, shun: m.shuns });
     if (!w) { var top = m.rank >= R.RANKS.length - 1; return { move: 'hold', waiting: 'rank', top: top, cost: 0, saved: 0, progress: 1, why: top ? 'he runs all a ' + R.RANKS[m.rank] + ' can' : 'he runs all he can at his rank' }; }
     var saved = Math.max(0, Math.min(w.cost, m.cash - wages(c, capo)));
+    // (a man whose purse does not cover the pay of his men is short of that too)
     return { move: w.move, way: w.way, months: w.months, kind: w.kind, from: w.from, name: w.name, x: w.x, y: w.y, cost: w.cost, saved: saved, progress: w.cost ? saved / w.cost : 1,
-             waiting: saved >= w.cost ? null : 'money', why: w.why };
+             short: Math.max(0, Math.round(w.cost - (m.cash - wages(c, capo)))), waiting: saved >= w.cost ? null : 'money', why: w.why };
   }
 
   function settleTakes(c, events, f) {
@@ -206,6 +207,34 @@
     return { x: club.x, y: club.y, why: 'home', label: 'At his club' };
   }
 
+  // The gang next door: the rivals' place a hard man would go for gun in hand if the boss gave the word. The nearest to
+  // one of his own places, and of two as near the less guarded. null for a man who refuses to seize, or who is busy.
+  function prey(c, f, capo) {
+    var K = RULES.nextdoor, card = who(capo);
+    if (!card || card.refuses.indexOf('seize') >= 0 || !clubOf(c, capo) || H.on(c, capo) || c.ops.some(function (o) { return o.capo === capo; })) return null;
+    var mine = run(c, capo).concat([clubOf(c, capo)]), strong = C.keys(c).filter(function (k) { return k.owner !== 'family'; }), best = null;
+    everyPlace(c).forEach(function (p) {
+      if (p.owner === 'family' || p.kind === 'key' || p.kind === 'hq' || p.kind === 'club') return;
+      if (strong.some(function (k) { return far(p.x, p.y, k.x, k.y) <= RULES.bastion; })) return; // the streets of a key place are the boss's affair
+      var d = mine.reduce(function (n, q) { return Math.min(n, far(p.x, p.y, q.x, q.y)); }, 99), n = H.guards(c, p.x, p.y);
+      if (d > K.far) return;
+      if (!best || d < best.d || (d === best.d && n < best.guards)) best = { d: d, guards: n, p: p };
+    });
+    if (!best) return null;
+    var p = best.p;
+    return { x: p.x, y: p.y, kind: p.kind, name: D.SITES[p.kind].name, owner: p.owner, zone: zoneOf(c, p.x, p.y).name, guards: best.guards, crew: H.crew(f, capo), cost: K.cost };
+  }
+  // The boss gives the word: his men leave for it, and what follows is a live hit whatever guards the place.
+  function goFor(c, f, capo) {
+    var p = prey(c, f, capo);
+    if (!p) throw new Error(first(capo) + ' has no place next door to go for');
+    var o = { capo: capo, x: p.x, y: p.y, way: 'force', kind: G.keeps(capo, p.kind, f.tech || {}), cost: 0, month: c.month, months: RULES.nextdoor.cycles, live: true };
+    if (c.turn && c.turn.daily) o.day = c.turn.day || 0;
+    c.ops.push(o);
+    return { type: 'moving', capo: capo, city: c.id, x: p.x, y: p.y, kind: o.kind, way: 'force', months: o.months, cost: 0,
+             label: first(capo) + ' goes for the ' + p.owner + 's\' ' + p.name.toLowerCase() + ' in ' + p.zone + ', on your word' };
+  }
+
   // What the boss can spend: his dirty money, and his clean money once the dirty runs out.
   function funds(f) { return Math.max(0, f.dirty) + Math.max(0, f.clean || 0); }
 
@@ -222,7 +251,7 @@
     return { id: id, name: who(id).name, family: c.rival, strength: Math.round(C.share(c).rival), last: c.rivalLast || null, vendetta: Math.max(0, (c.vendetta || 0) - c.month) };
   }
 
-  var api = { chief: chief, join: join, first: first, plan: plan, settleTakes: settleTakes, rivalGrows: rivalGrows, cover: cover, rivalRaids: rivalRaids,
+  var api = { prey: prey, goFor: goFor, chief: chief, join: join, first: first, plan: plan, settleTakes: settleTakes, rivalGrows: rivalGrows, cover: cover, rivalRaids: rivalRaids,
       whereabouts: whereabouts, funds: funds, spend: spend };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AshportTurfStreets = api;

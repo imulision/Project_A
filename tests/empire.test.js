@@ -278,7 +278,7 @@ test('the boss starts with enough dirty money to take in the first man who knock
     for (let m = 1; m <= 24 && !taken; m++) {
       months(g, 1);
       const d = E.view(g).cities[0].doors[0], spot = T.spots(g.cities[0])[0];
-      if (d) { E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: spot.x, y: spot.y }); settle(g); taken = m; }
+      if (d && T.funds(g.family) >= d.cost) { E.command(g, { type: 'welcome', city: 'ashport', capo: d.capo, x: spot.x, y: spot.y }); settle(g); taken = m; } // (a laundry may hold part of his money the month the man knocks: he is taken in the month it is back)
     }
     assert.ok(taken, start + ': nobody could be taken in during the first two years');
     assert.equal(E.hud(g).men, 2);

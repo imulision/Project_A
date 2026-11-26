@@ -393,3 +393,8 @@ p.fine{font-size:.82em;color:var(--dim);margin:6px 0 0}
 .grudge .tick{position:absolute;top:-3px;width:2px;height:12px;margin-left:-1px;background:var(--ink);opacity:.7}.grudge .tick.blood{background:var(--bad);opacity:1;margin-left:-2px}
 .move.contract{border-left:3px solid var(--bad)}.move.contract .ic{color:var(--bad)}
 .mini.chief{position:relative;overflow:visible;border-color:var(--bad)}.mini.chief>.face{border-radius:50%}.mini.chief .his{position:absolute;right:-6px;bottom:-6px;width:24px;height:24px;border-radius:50%;overflow:hidden;border:2px solid var(--accent);background:var(--panel)}
+
+/* a dilemma stands two people face to face; the button that lets the days run is lit while they do */
+.versus{flex:none;display:flex;align-items:center;gap:4px}.versus .mini{width:44px;height:44px}.versus .mini:last-child{border-color:var(--bad)}.versus i{font:600 11px var(--title);color:var(--dim);font-style:normal;text-transform:uppercase}
+.card.dilemma{border-left:3px solid var(--bad)}.card.dilemma .sides.n3{grid-template-columns:1fr}.card.dilemma .side{border-top-width:2px}
+#skip{white-space:nowrap}#skip.on{background:var(--accent);color:#111}

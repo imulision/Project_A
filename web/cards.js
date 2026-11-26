@@ -48,11 +48,11 @@
   function haul(car) { return (car.kind === 'convoy' ? (car.cargo === 'cash' ? HAUL.van : car.cargo === 'liquor' ? HAUL.liquor : GOODS[car.cargo] || GOODS.goods) : car.kind === 'goods' ? GOODS[car.cargo] || GOODS.goods : HAUL[car.kind]) || HAUL.takings; }
   var EVENT = { advanced: 'dirty', shaken: 'betrayal', matter: 'ask', decided: 'yes', opened: 'yes', enlarged: 'yes', converted: 'yes', gaveup: 'no', taken: 'seize', moving: 'muscle', burnt: 'attack', repelled: 'muscle', rank: 'ambition', asks: 'ask', knocks: 'men', unpaid: 'dirty', bust: 'heat', learned: 'yes', feud: 'attack', car: 'car',
                 won: 'ambition', granted: 'yes', line: 'loyalty', promise: 'yes', vendetta: 'attack', cut: 'dirty', bought: 'clean', denied: 'no', welcomed: 'men', ruled: 'loyalty', parted: 'no', studying: 'time', hijack: 'attack', seizure: 'heat', truck: 'truck', seated: 'men', unseated: 'no', underboss: 'ambition', whispers: 'whispers', betrayal: 'betrayal', gift: 'gift', outcome: 'yes', act: 'ambition', hit: 'muscle',
-                ultimatum: 'letter', contract: 'target', murdered: 'grave', wounded: 'attack', survived: 'muscle', fallen: 'ambition', succeeds: 'ambition', dissolved: 'yes', answered: 'ask' };
+                ultimatum: 'letter', contract: 'target', murdered: 'grave', wounded: 'attack', survived: 'muscle', fallen: 'ambition', succeeds: 'ambition', dissolved: 'yes', answered: 'ask', echo: 'loyalty' };
   var BAD = { shaken: 1, vendetta: 1, hijack: 1, seizure: 1, burnt: 1, unpaid: 1, bust: 1, feud: 1, parted: 1, whispers: 1, betrayal: 1, ultimatum: 1, contract: 1, murdered: 1, wounded: 1 };
   var GOOD = { won: 1, fallen: 1, dissolved: 1, survived: 1 };      /* a rival chief who falls, a man who lives through the shots */
-  var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false); };      // a broken promise is bad news, a kept one is not
-  var good = function (e) { return !!GOOD[e.type] || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
+  var bad = function (e) { return !!BAD[e.type] || (e.type === 'beat' && e.tone === 'bad') || (e.type === 'act' && e.up === false) || (e.type === 'hit' && e.step === 'end' && !!e.result && !e.result.won) || (e.type === 'promise' && e.kept === false) || (e.type === 'outcome' && e.good === false) || (e.type === 'echo' && e.good === false); };      // a broken promise is bad news, a kept one is not
+  var good = function (e) { return !!GOOD[e.type] || (e.type === 'echo' && e.good === true) || (e.type === 'outcome' && e.good === true) || (e.type === 'beat' && e.tone === 'good') || (e.type === 'hit' && e.step === 'end' && !!e.result && e.result.won); };
   // The picture of an event: its own, or for what the director sends, one that says whether it is good or bad news.
   function eventIcon(e) { return e.type === 'beat' ? (e.tone === 'bad' ? 'no' : 'gift') : e.type === 'outcome' && e.good === false ? 'no' : EVENT[e.type] || 'time'; }
   var WAIT = { money: 'saving for it', rank: 'waiting for his next rank', time: 'under way' };
@@ -319,11 +319,13 @@
       '<div class="acts">' + button('unseat', { post: t.post }, 'Send him away', { cls: 'go bad' }) + button('family', {}, 'Keep him') + '</div>');
   }
   // A matter a capo brings to the boss: what it is about, and each choice with its price, what it brings and what it costs.
-  var MATTER = { line: 'loyalty', share: 'tribute', learn: 'yes', advance: 'dirty', captain: 'heat', truce: 'attack', bail: 'men', feast: 'gift', cargo: 'truck', favor: 'men' };
+  var MATTER = { nextdoor: 'muscle', blood: 'attack', skim: 'dirty', debt: 'men', line: 'loyalty', share: 'tribute', learn: 'yes', advance: 'dirty', captain: 'heat', truce: 'attack', bail: 'men', feast: 'gift', cargo: 'truck', favor: 'men' };
   function matterCard(m, hud) {
     var has = function (ch) { return ch.money === 'clean' ? hud.clean || 0 : hud.dirty || 0; };
-    var top = m.chief ? '<div class="head"><div class="mini chief">' + I.portrait(m.chief) + '<span class="his">' + I.portrait(m.capo) + '</span></div><div><h2>' + esc(m.title) + '</h2><p>' + esc(m.says || '') + '</p></div></div>' : head(m.capo, m.title, esc(m.says || ''));      /* a chief's word: his face, the capo it is about on its corner */
-    return voice(m.capo, '<div class="card ask matter">' + top +
+    // a dilemma stands two people face to face: its words name them, and are never turned for one of the two
+    var say = m.dilemma ? function (id, html) { return html; } : voice;
+    var top = m.dilemma && m.against ? '<div class="head"><div class="versus"><div class="mini">' + I.portrait(m.capo) + '</div><i>vs</i><div class="mini">' + I.portrait(m.against) + '</div></div><div><h2>' + esc(m.title) + '</h2><p>' + esc(m.says || '') + '</p></div></div>' : m.chief ? '<div class="head"><div class="mini chief">' + I.portrait(m.chief) + '<span class="his">' + I.portrait(m.capo) + '</span></div><div><h2>' + esc(m.title) + '</h2><p>' + esc(m.says || '') + '</p></div></div>' : head(m.capo, m.title, esc(m.says || ''));
+    return say(m.capo, '<div class="card ask matter' + (m.dilemma ? ' dilemma' : '') + '">' + top +
       '<div class="sides n' + m.choices.length + '">' + m.choices.map(function (ch, i) { var poor = ch.cost > 0 && ch.cost > has(ch);
         return '<div class="side' + (i === 0 && m.choices.length === 2 ? ' yes' : '') + '">' + (ch.cost > 0 ? '<b class="out">\u2212' + money(ch.cost) + ' ' + (ch.money === 'clean' ? 'clean' : 'dirty') + '</b>' : '') +
           (ch.gives ? '<span>' + esc(ch.gives) + '</span>' : '') + (ch.costs ? '<span class="bad">' + esc(ch.costs) + '</span>' : '') + (poor ? '<small class="short">Short by ' + money(ch.cost - has(ch)) + '</small>' : '') +

@@ -126,7 +126,7 @@
 
   // The boss puts in what a capo is short of for the place he is saving for (a place of his own: a rival's is asked for).
   // short(c, f, capo, plan): what it would take today, or 0 when there is nothing for the boss to put in.
-  function short(p) { return p && p.waiting === 'money' && p.move !== 'take' ? Math.max(0, Math.round(p.cost - p.saved)) : 0; }
+  function short(p) { return p && p.waiting === 'money' && p.move !== 'take' ? (p.short !== undefined ? p.short : Math.max(0, Math.round(p.cost - p.saved))) : 0; }
   function advance(c, f, capo, p) {
     var cost = short(p);
     if (!f.men[capo] || !cost) throw new Error(first(capo) + ' is not short of money for anything');
@@ -319,7 +319,7 @@
   function rub(c, capo, x, y) {
     var seen = {};
     everyPlace(c).forEach(function (p) {
-      if (p.owner !== 'family' || p.capo === capo || seen[p.capo] || far(x, y, p.x, p.y) > RULES.near) return;
+      if (p.owner !== 'family' || !p.capo || p.capo === capo || seen[p.capo] || far(x, y, p.x, p.y) > RULES.near) return; // (the headquarters is nobody's: no grudge is held against it)
       seen[p.capo] = true;
       c.grudge = c.grudge || {};
       c.grudge[pair(capo, p.capo)] = (c.grudge[pair(capo, p.capo)] || 0) + 1;
